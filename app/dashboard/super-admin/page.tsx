@@ -1,0 +1,179 @@
+"use client"
+
+import type React from "react"
+
+import { useState, useEffect } from "react"
+import { ProtectedRoute } from "@/components/protected-route"
+import { DashboardHeader } from "@/components/dashboard-header"
+import { DashboardMenuCards } from "@/components/dashboard-menu-cards"
+import { useAuth } from "@/contexts/auth-context"
+import { supabase } from "@/lib/supabase/client"
+import { Users, UserCheck, Building2, TrendingUp } from "lucide-react"
+
+interface DashboardStats {
+  totalUsers: number
+  activeUsers: number
+  regions: number
+}
+
+export default function SuperAdminDashboard() {
+  const { profile } = useAuth()
+  const [stats, setStats] = useState<DashboardStats>({
+    totalUsers: 0,
+    activeUsers: 0,
+    regions: 0,
+  })
+  const [loading, setLoading] = useState(true)
+
+  const fetchStats = async () => {
+    try {
+      setLoading(true)
+
+      // Get total users
+      const { count: totalUsers } = await supabase.from("user_profiles").select("*", { count: "exact", head: true })
+
+      // Get active users
+      const { count: activeUsers } = await supabase
+        .from("user_profiles")
+        .select("*", { count: "exact", head: true })
+        .eq("status", "active")
+
+      // Get unique regions (provinces)
+      const { data: regionData } = await supabase.from("user_profiles").select("province").not("province", "is", null)
+
+      const uniqueRegions = new Set(regionData?.map((item) => item.province) || [])
+
+      setStats({
+        totalUsers: totalUsers || 0,
+        activeUsers: activeUsers || 0,
+        regions: uniqueRegions.size,
+      })
+    } catch (error) {
+      console.error("Error fetching dashboard stats:", error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchStats()
+  }, [])
+
+  const StatCard = ({
+    icon,
+    title,
+    value,
+    subtitle,
+    color,
+  }: {
+    icon: React.ReactNode
+    title: string
+    value: string | number
+    subtitle: string
+    color: "blue" | "green" | "purple" | "orange"
+  }) => {
+    const colorClasses = {
+      blue: "bg-blue-600",
+      green: "bg-green-600",
+      purple: "bg-purple-600",
+      orange: "bg-orange-600",
+    }
+
+    const bgColorClasses = {
+      blue: "bg-blue-50 border-blue-200",
+      green: "bg-green-50 border-green-200",
+      purple: "bg-purple-50 border-purple-200",
+      orange: "bg-orange-50 border-orange-200",
+    }
+
+    return (
+      <div
+        className={`${bgColorClasses[color]} border-2 rounded-xl p-6 shadow-sm hover:shadow-md transition-all duration-300 hover:scale-105 animate-in fade-in-50 slide-in-from-bottom-4`}
+      >
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium text-gray-600 mb-1">{title}</p>
+            <p className="text-3xl font-bold text-gray-900 mb-1">
+              {loading ? <div className="h-8 w-16 bg-gray-200 rounded animate-pulse"></div> : value}
+            </p>
+            <p className="text-xs text-gray-500">{subtitle}</p>
+          </div>
+          <div className={`${colorClasses[color]} p-3 rounded-xl text-white shadow-md`}>{icon}</div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <ProtectedRoute allowedRoles={["super_admin"]}>
+      <div className="min-h-screen bg-gray-50">
+        <DashboardHeader />
+
+        <div className="pt-20 px-4 sm:px-6 lg:px-8 py-8">
+          {/* Welcome Section */}
+          <div className="bg-white border-l-4 border-l-blue-600 p-6 mb-8 rounded-r-xl shadow-sm hover:shadow-md transition-shadow duration-300 animate-in fade-in-50 slide-in-from-left-4">
+            <div className="flex items-center gap-4">
+              <div className="bg-blue-600 p-3 rounded-xl text-white shadow-md">
+                <TrendingUp className="h-6 w-6" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-blue-600 mb-2">
+                  Welcome back, {profile?.first_name || "Super Admin"}!
+                </h1>
+                <p className="text-gray-600">You have full system access and administrative privileges.</p>
+              </div>
+            </div>
+          </div>
+
+          {/* User Profile Card */}
+          <div className="bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow duration-300 p-6 mb-8 animate-in fade-in-50 slide-in-from-bottom-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
+              <div className="bg-blue-600 w-20 h-20 rounded-xl flex items-center justify-center text-white text-2xl font-bold shadow-md">
+                {profile?.first_name?.[0] || "S"}
+              </div>
+              <div className="flex-1">
+                <h2 className="text-xl font-bold text-gray-900 mb-2">
+                  {profile?.full_name || `${profile?.first_name || ""} ${profile?.last_name || ""}`.trim()}
+                </h2>
+                <span className="inline-block bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
+                  Super Admin
+                </span>
+              </div>
+            </div>
+
+            {/* Stats Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-8">
+              <StatCard
+                icon={<Users className="h-6 w-6" />}
+                title="Total Users"
+                value={stats.totalUsers}
+                subtitle="All system users"
+                color="blue"
+              />
+              <StatCard
+                icon={<UserCheck className="h-6 w-6" />}
+                title="Active Users"
+                value={stats.activeUsers}
+                subtitle="Currently active"
+                color="green"
+              />
+              <StatCard
+                icon={<Building2 className="h-6 w-6" />}
+                title="Regions"
+                value={stats.regions}
+                subtitle="Coverage areas"
+                color="purple"
+              />
+            </div>
+          </div>
+
+          {/* Menu Cards */}
+          <div className="animate-in fade-in-50 slide-in-from-bottom-4" style={{ animationDelay: "200ms" }}>
+            <h2 className="text-xl font-semibold text-gray-900 mb-6">Quick Actions</h2>
+            <DashboardMenuCards userRole="super_admin" />
+          </div>
+        </div>
+      </div>
+    </ProtectedRoute>
+  )
+}
