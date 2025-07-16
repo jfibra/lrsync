@@ -3,7 +3,7 @@
 import { useAuth } from "@/contexts/auth-context"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { LogOut, LayoutDashboard, Menu } from "lucide-react"
+import { LogOut, LayoutDashboard, Menu, DollarSign, FileText, Users } from "lucide-react"
 import Link from "next/link"
 import { useState } from "react"
 
@@ -18,6 +18,44 @@ export function DashboardHeader() {
   const getDashboardUrl = () => {
     if (!profile) return "/dashboard"
     return `/dashboard/${profile.role.replace("_", "-")}`
+  }
+
+  const getNavigationItems = () => {
+    const baseItems = [
+      {
+        title: "Dashboard",
+        href: getDashboardUrl(),
+        icon: <LayoutDashboard className="h-4 w-4" />,
+        color: "bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100 hover:border-blue-300",
+      },
+    ]
+
+    // Add management items for Super Admin and Admin only
+    if (profile?.role === "super_admin" || profile?.role === "admin") {
+      return [
+        ...baseItems,
+        {
+          title: "Sales",
+          href: `/dashboard/${profile.role.replace("_", "-")}/sales`,
+          icon: <DollarSign className="h-4 w-4" />,
+          color: "bg-green-50 border-green-200 text-green-700 hover:bg-green-100 hover:border-green-300",
+        },
+        {
+          title: "TIN Library",
+          href: `/dashboard/${profile.role.replace("_", "-")}/tin-library`,
+          icon: <FileText className="h-4 w-4" />,
+          color: "bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100 hover:border-blue-300",
+        },
+        {
+          title: "Users",
+          href: `/dashboard/${profile.role.replace("_", "-")}/users`,
+          icon: <Users className="h-4 w-4" />,
+          color: "bg-red-50 border-red-200 text-red-700 hover:bg-red-100 hover:border-red-300",
+        },
+      ]
+    }
+
+    return baseItems
   }
 
   return (

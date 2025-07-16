@@ -3,7 +3,7 @@
 import type React from "react"
 import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
-import { User, Users, FileText, ArrowRight } from "lucide-react"
+import { User, Users, FileText, ArrowRight, DollarSign } from "lucide-react"
 import type { UserRole } from "@/types/auth"
 
 interface MenuCardProps {
@@ -11,7 +11,7 @@ interface MenuCardProps {
   description: string
   href: string
   icon: React.ReactNode
-  color: "blue" | "red" | "orange"
+  color: "blue" | "red" | "orange" | "green"
 }
 
 function MenuCard({ title, description, href, icon, color }: MenuCardProps) {
@@ -19,12 +19,14 @@ function MenuCard({ title, description, href, icon, color }: MenuCardProps) {
     blue: "bg-blue-600 hover:bg-blue-700",
     red: "bg-red-600 hover:bg-red-700",
     orange: "bg-orange-600 hover:bg-orange-700",
+    green: "bg-green-600 hover:bg-green-700",
   }
 
   const bgColorClasses = {
     blue: "bg-blue-50 hover:bg-blue-100 border-blue-200",
     red: "bg-red-50 hover:bg-red-100 border-red-200",
     orange: "bg-orange-50 hover:bg-orange-100 border-orange-200",
+    green: "bg-green-50 hover:bg-green-100 border-green-200",
   }
 
   return (
@@ -72,15 +74,15 @@ export function DashboardMenuCards({ userRole }: DashboardMenuCardsProps) {
       },
     ]
 
-    // Add User Management and TIN Library for Super Admin and Admin only
+    // Add Sales Management, TIN Library, and User Management for Super Admin and Admin only
     if (userRole === "super_admin" || userRole === "admin") {
       return [
         {
-          title: "User Management",
-          description: "Create, edit, and manage system users and their permissions across the platform.",
-          href: `/dashboard/${userRole.replace("_", "-")}/users`,
-          icon: <Users className="h-6 w-6" />,
-          color: "red" as const,
+          title: "Sales Management",
+          description: "Track and manage monthly sales records with comprehensive reporting tools.",
+          href: `/dashboard/${userRole.replace("_", "-")}/sales`,
+          icon: <DollarSign className="h-6 w-6" />,
+          color: "green" as const,
         },
         {
           title: "TIN Library",
@@ -88,6 +90,13 @@ export function DashboardMenuCards({ userRole }: DashboardMenuCardsProps) {
           href: `/dashboard/${userRole.replace("_", "-")}/tin-library`,
           icon: <FileText className="h-6 w-6" />,
           color: "blue" as const,
+        },
+        {
+          title: "User Management",
+          description: "Create, edit, and manage system users and their permissions across the platform.",
+          href: `/dashboard/${userRole.replace("_", "-")}/users`,
+          icon: <Users className="h-6 w-6" />,
+          color: "red" as const,
         },
         ...baseItems, // My Profile
       ]
