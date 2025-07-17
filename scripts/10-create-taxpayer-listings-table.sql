@@ -1,36 +1,36 @@
--- Create taxpayer_listings table with simplified structure
-create table taxpayer_listings (
-  id uuid primary key default gen_random_uuid(),
-  tin varchar(20) not null,
+-- Create taxpayer_listings table
+CREATE TABLE IF NOT EXISTS taxpayer_listings (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tin varchar(20) NOT NULL,
   registered_name varchar(255),
   substreet_street_brgy text,
   district_city_zip text,
-  type varchar(20) not null check (type in ('sales', 'purchases')),
-  date_added date default current_date,
-  user_uuid uuid references auth.users(id),
+  type varchar(20) NOT NULL CHECK (type IN ('sales', 'purchases')),
+  date_added date DEFAULT CURRENT_DATE,
+  user_uuid uuid REFERENCES auth.users(id),
   user_full_name varchar(150),
-  created_at timestamptz default now(),
-  updated_at timestamptz default now()
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
+  UNIQUE(tin, type) -- Ensure unique TIN per type
 );
 
--- Create indexes for better performance
-create index idx_taxpayer_listings_tin on taxpayer_listings(tin);
-create index idx_taxpayer_listings_type on taxpayer_listings(type);
-create index idx_taxpayer_listings_user_uuid on taxpayer_listings(user_uuid);
-create index idx_taxpayer_listings_created_at on taxpayer_listings(created_at);
+-- Create indexes
+CREATE INDEX IF NOT EXISTS idx_taxpayer_listings_tin ON taxpayer_listings(tin);
+CREATE INDEX IF NOT EXISTS idx_taxpayer_listings_type ON taxpayer_listings(type);
+CREATE INDEX IF NOT EXISTS idx_taxpayer_listings_user_uuid ON taxpayer_listings(user_uuid);
 
 -- Enable RLS
-alter table taxpayer_listings enable row level security;
+ALTER TABLE taxpayer_listings ENABLE ROW LEVEL SECURITY;
 
--- Create policies
-create policy "Users can view all taxpayer listings" on taxpayer_listings
-  for select using (true);
+-- Create RLS policies
+CREATE POLICY "Users can view all taxpayer listings" ON taxpayer_listings
+  FOR SELECT USING (auth.role() = 'authenticated');
 
-create policy "Users can insert taxpayer listings" on taxpayer_listings
-  for insert with check (true);
+CREATE POLICY "Users can insert taxpayer listings" ON taxpayer_listings
+  FOR INSERT WITH CHECK (auth.uid() = user_uuid);
 
-create policy "Users can update taxpayer listings" on taxpayer_listings
-  for update using (true);
+CREATE POLICY "Users can update their own taxpayer listings" ON taxpayer_listings
+  FOR UPDATE USING (auth.uid() = user_uuid);
 
-create policy "Users can delete taxpayer listings" on taxpayer_listings
-  for delete using (true);
+CREATE POLICY "Users can delete their own taxpayer listings" ON taxpayer_listings
+  FOR DELETE USING (auth.uid() = user_uuid);

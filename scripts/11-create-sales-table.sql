@@ -1,101 +1,51 @@
--- Create sales table for tracking monthly sales records
+-- Create sales table with proper schema
 CREATE TABLE IF NOT EXISTS sales (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  tin_number VARCHAR(15) NOT NULL,
-  company_name VARCHAR(255) NOT NULL,
-  barangay VARCHAR(100) NOT NULL,
-  city VARCHAR(100) NOT NULL,
-  total_sales DECIMAL(15,2) NOT NULL DEFAULT 0,
-  tax_type VARCHAR(10) NOT NULL CHECK (tax_type IN ('VAT', 'Non-VAT')),
-  sales_month DATE NOT NULL, -- First day of the month for the sales period
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  created_by UUID REFERENCES auth.users(id)
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tax_month date NOT NULL, -- e.g., 2025-07-31
+  -- Foreign key relation to taxpayer_listings
+  tin_id uuid REFERENCES taxpayer_listings(id) ON DELETE SET NULL,
+  -- Cached info from taxpayer_listings for faster joins & immutability
+  tin varchar(20),
+  name varchar(255),
+  type varchar(20),
+  substreet_street_brgy text,
+  district_city_zip text,
+  gross_taxable numeric(12,2),
+  invoice_number varchar(100),
+  tax_type varchar(20) CHECK (tax_type IN ('vat', 'non-vat')),
+  pickup_date date,
+  cheque text[],        -- Array of S3 file URLs
+  voucher text[],
+  doc_2307 text[],
+  invoice text[],
+  deposit_slip text[],
+  date_added date DEFAULT CURRENT_DATE,
+  user_uuid uuid REFERENCES auth.users(id),
+  user_full_name varchar(150),
+  is_deleted boolean DEFAULT false, -- soft delete: false = active, true = deleted
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
 );
 
 -- Create indexes for better performance
-CREATE INDEX IF NOT EXISTS idx_sales_tin_number ON sales(tin_number);
-CREATE INDEX IF NOT EXISTS idx_sales_month ON sales(sales_month);
-CREATE INDEX IF NOT EXISTS idx_sales_tax_type ON sales(tax_type);
-CREATE INDEX IF NOT EXISTS idx_sales_company_name ON sales(company_name);
+CREATE INDEX IF NOT EXISTS idx_sales_tax_month ON sales(tax_month);
+CREATE INDEX IF NOT EXISTS idx_sales_tin_id ON sales(tin_id);
+CREATE INDEX IF NOT EXISTS idx_sales_tin ON sales(tin);
+CREATE INDEX IF NOT EXISTS idx_sales_user_uuid ON sales(user_uuid);
+CREATE INDEX IF NOT EXISTS idx_sales_is_deleted ON sales(is_deleted);
 
 -- Enable RLS
 ALTER TABLE sales ENABLE ROW LEVEL SECURITY;
 
--- Create policies for different user roles
-CREATE POLICY "Super admins can view all sales" ON sales
-  FOR SELECT USING (
-    EXISTS (
-      SELECT 1 FROM user_profiles 
-      WHERE user_profiles.user_id = auth.uid() 
-      AND user_profiles.role = 'super_admin'
-    )
-  );
+-- Create RLS policies
+CREATE POLICY "Users can view all sales records" ON sales
+  FOR SELECT USING (auth.role() = 'authenticated');
 
-CREATE POLICY "Admins can view all sales" ON sales
-  FOR SELECT USING (
-    EXISTS (
-      SELECT 1 FROM user_profiles 
-      WHERE user_profiles.user_id = auth.uid() 
-      AND user_profiles.role IN ('admin', 'super_admin')
-    )
-  );
+CREATE POLICY "Users can insert sales records" ON sales
+  FOR INSERT WITH CHECK (auth.uid() = user_uuid);
 
-CREATE POLICY "Super admins can insert sales" ON sales
-  FOR INSERT WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM user_profiles 
-      WHERE user_profiles.user_id = auth.uid() 
-      AND user_profiles.role = 'super_admin'
-    )
-  );
+CREATE POLICY "Users can update their own sales records" ON sales
+  FOR UPDATE USING (auth.uid() = user_uuid);
 
-CREATE POLICY "Admins can insert sales" ON sales
-  FOR INSERT WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM user_profiles 
-      WHERE user_profiles.user_id = auth.uid() 
-      AND user_profiles.role IN ('admin', 'super_admin')
-    )
-  );
-
-CREATE POLICY "Super admins can update sales" ON sales
-  FOR UPDATE USING (
-    EXISTS (
-      SELECT 1 FROM user_profiles 
-      WHERE user_profiles.user_id = auth.uid() 
-      AND user_profiles.role = 'super_admin'
-    )
-  );
-
-CREATE POLICY "Admins can update sales" ON sales
-  FOR UPDATE USING (
-    EXISTS (
-      SELECT 1 FROM user_profiles 
-      WHERE user_profiles.user_id = auth.uid() 
-      AND user_profiles.role IN ('admin', 'super_admin')
-    )
-  );
-
--- Insert sample data for Philippine real estate developers
-INSERT INTO sales (tin_number, company_name, barangay, city, total_sales, tax_type, sales_month) VALUES
--- July 2025
-('123-456-789-000', 'Ayala Land Inc.', 'Bel-Air', 'Makati City', 15750000.00, 'VAT', '2025-07-01'),
-('234-567-890-000', 'SM Development Corporation', 'Bagumbayan', 'Quezon City', 12500000.00, 'VAT', '2025-07-01'),
-('345-678-901-000', 'Megaworld Corporation', 'Fort Bonifacio', 'Taguig City', 18900000.00, 'VAT', '2025-07-01'),
-('456-789-012-000', 'Vista Land & Lifescapes Inc.', 'Alabang', 'Muntinlupa City', 8750000.00, 'Non-VAT', '2025-07-01'),
-('567-890-123-000', 'Robinsons Land Corporation', 'Ortigas Center', 'Pasig City', 14200000.00, 'VAT', '2025-07-01'),
-
--- June 2025
-('123-456-789-000', 'Ayala Land Inc.', 'Bel-Air', 'Makati City', 16200000.00, 'VAT', '2025-06-01'),
-('234-567-890-000', 'SM Development Corporation', 'Bagumbayan', 'Quezon City', 11800000.00, 'VAT', '2025-06-01'),
-('678-901-234-000', 'Federal Land Inc.', 'Binondo', 'Manila City', 9500000.00, 'Non-VAT', '2025-06-01'),
-('789-012-345-000', 'Century Properties Group Inc.', 'Poblacion', 'Makati City', 13400000.00, 'VAT', '2025-06-01'),
-('890-123-456-000', 'Filinvest Land Inc.', 'Filinvest', 'Alabang', 7800000.00, 'Non-VAT', '2025-06-01'),
-
--- May 2025
-('345-678-901-000', 'Megaworld Corporation', 'Fort Bonifacio', 'Taguig City', 17500000.00, 'VAT', '2025-05-01'),
-('456-789-012-000', 'Vista Land & Lifescapes Inc.', 'Alabang', 'Muntinlupa City', 9200000.00, 'Non-VAT', '2025-05-01'),
-('567-890-123-000', 'Robinsons Land Corporation', 'Ortigas Center', 'Pasig City', 15600000.00, 'VAT', '2025-05-01'),
-('901-234-567-000', 'DMCI Homes', 'Acacia Estates', 'Taguig City', 6900000.00, 'Non-VAT', '2025-05-01'),
-('012-345-678-000', 'Rockwell Land Corporation', 'Rockwell Center', 'Makati City', 21500000.00, 'VAT', '2025-05-01');
+CREATE POLICY "Users can delete their own sales records" ON sales
+  FOR DELETE USING (auth.uid() = user_uuid);

@@ -1,464 +1,483 @@
 "use client"
 
-import type React from "react"
-
-import { useState } from "react"
-import { ProtectedRoute } from "@/components/protected-route"
-import { DashboardHeader } from "@/components/dashboard-header"
+import { useState, useEffect, useMemo } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { DollarSign, FileText, TrendingUp, Users, X, Calendar } from "lucide-react"
-import type { SalesRecord, SalesStats, MonthOption } from "@/types/sales"
+import { Search, TrendingUp, FileText, DollarSign, BarChart3, ChevronLeft, ChevronRight } from 'lucide-react'
+import { AddSalesModal } from "@/components/add-sales-modal"
+import { supabase } from "@/lib/supabase/client"
+
+interface SalesRecord {
+  id: string
+  tax_month: string
+  tin: string
+  name: string
+  type: string
+  substreet_street_brgy?: string
+  district_city_zip?: string
+  gross_taxable: number
+  invoice_number?: string
+  tax_type: string
+  pickup_date?: string
+  created_at: string
+  user_full_name: string
+}
+
+interface MonthOption {
+  label: string
+  value: string
+}
 
 export default function SuperAdminSalesPage() {
-  // Generate 3 years of months from July 2025 backwards
+  const [selectedMonths, setSelectedMonths] = useState<string[]>([])
+  const [salesRecords, setSalesRecords] = useState<SalesRecord[]>([])
+  const [loading, setLoading] = useState(false)
+  const [searchTerm, setSearchTerm] = useState("")
+  
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1)
+  const [entriesPerPage, setEntriesPerPage] = useState(25)
+
+  // Generate month options (36 months from today backward)
   const generateMonthOptions = (): MonthOption[] => {
-    const months = []
-    const startDate = new Date(2025, 6, 1) // July 2025 (month is 0-indexed)
+    const options: MonthOption[] = []
+    const currentDate = new Date()
 
     for (let i = 0; i < 36; i++) {
-      const date = new Date(startDate.getFullYear(), startDate.getMonth() - i, 1)
-      const monthName = date.toLocaleDateString("en-US", { month: "long", year: "numeric" })
-      const value = date.toISOString().slice(0, 7) // YYYY-MM format
+      const date = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1)
+      const year = date.getFullYear()
+      const month = date.getMonth()
 
-      months.push({
-        value,
+      // Get last day of the month
+      const lastDay = new Date(year, month + 1, 0).getDate()
+      const monthName = date.toLocaleDateString("en-US", { month: "long", year: "numeric" })
+      const value = `${year}-${String(month + 1).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`
+
+      options.push({
         label: monthName,
-        date,
+        value: value,
       })
     }
 
-    return months
+    return options
   }
 
   const monthOptions = generateMonthOptions()
-  const [selectedMonths, setSelectedMonths] = useState<string[]>(["2025-07"]) // Default to July 2025
 
-  // Mock sales data for Philippine real estate developers
-  const mockSalesData: SalesRecord[] = [
-    // July 2025
-    {
-      id: "1",
-      tin_number: "123-456-789-000",
-      company_name: "Ayala Land Inc.",
-      barangay: "Bel-Air",
-      city: "Makati City",
-      total_sales: 15750000,
-      tax_type: "VAT",
-      sales_month: "2025-07-01",
-      created_at: "2025-07-01T00:00:00Z",
-      updated_at: "2025-07-01T00:00:00Z",
-    },
-    {
-      id: "2",
-      tin_number: "234-567-890-000",
-      company_name: "SM Development Corporation",
-      barangay: "Bagumbayan",
-      city: "Quezon City",
-      total_sales: 12500000,
-      tax_type: "VAT",
-      sales_month: "2025-07-01",
-      created_at: "2025-07-01T00:00:00Z",
-      updated_at: "2025-07-01T00:00:00Z",
-    },
-    {
-      id: "3",
-      tin_number: "345-678-901-000",
-      company_name: "Megaworld Corporation",
-      barangay: "Fort Bonifacio",
-      city: "Taguig City",
-      total_sales: 18900000,
-      tax_type: "VAT",
-      sales_month: "2025-07-01",
-      created_at: "2025-07-01T00:00:00Z",
-      updated_at: "2025-07-01T00:00:00Z",
-    },
-    {
-      id: "4",
-      tin_number: "456-789-012-000",
-      company_name: "Vista Land & Lifescapes Inc.",
-      barangay: "Alabang",
-      city: "Muntinlupa City",
-      total_sales: 8750000,
-      tax_type: "Non-VAT",
-      sales_month: "2025-07-01",
-      created_at: "2025-07-01T00:00:00Z",
-      updated_at: "2025-07-01T00:00:00Z",
-    },
-    {
-      id: "5",
-      tin_number: "567-890-123-000",
-      company_name: "Robinsons Land Corporation",
-      barangay: "Ortigas Center",
-      city: "Pasig City",
-      total_sales: 14200000,
-      tax_type: "VAT",
-      sales_month: "2025-07-01",
-      created_at: "2025-07-01T00:00:00Z",
-      updated_at: "2025-07-01T00:00:00Z",
-    },
+  // Format TIN number to 000-000-000
+  const formatTinNumber = (tin: string): string => {
+    if (!tin) return ""
+    
+    // Remove any existing dashes and non-digits
+    const digits = tin.replace(/\D/g, "")
+    
+    // Apply formatting
+    if (digits.length <= 3) {
+      return digits
+    } else if (digits.length <= 6) {
+      return `${digits.slice(0, 3)}-${digits.slice(3)}`
+    } else {
+      return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`
+    }
+  }
 
-    // June 2025
-    {
-      id: "6",
-      tin_number: "123-456-789-000",
-      company_name: "Ayala Land Inc.",
-      barangay: "Bel-Air",
-      city: "Makati City",
-      total_sales: 16200000,
-      tax_type: "VAT",
-      sales_month: "2025-06-01",
-      created_at: "2025-06-01T00:00:00Z",
-      updated_at: "2025-06-01T00:00:00Z",
-    },
-    {
-      id: "7",
-      tin_number: "234-567-890-000",
-      company_name: "SM Development Corporation",
-      barangay: "Bagumbayan",
-      city: "Quezon City",
-      total_sales: 11800000,
-      tax_type: "VAT",
-      sales_month: "2025-06-01",
-      created_at: "2025-06-01T00:00:00Z",
-      updated_at: "2025-06-01T00:00:00Z",
-    },
-    {
-      id: "8",
-      tin_number: "678-901-234-000",
-      company_name: "Federal Land Inc.",
-      barangay: "Binondo",
-      city: "Manila City",
-      total_sales: 9500000,
-      tax_type: "Non-VAT",
-      sales_month: "2025-06-01",
-      created_at: "2025-06-01T00:00:00Z",
-      updated_at: "2025-06-01T00:00:00Z",
-    },
-    {
-      id: "9",
-      tin_number: "789-012-345-000",
-      company_name: "Century Properties Group Inc.",
-      barangay: "Poblacion",
-      city: "Makati City",
-      total_sales: 13400000,
-      tax_type: "VAT",
-      sales_month: "2025-06-01",
-      created_at: "2025-06-01T00:00:00Z",
-      updated_at: "2025-06-01T00:00:00Z",
-    },
-    {
-      id: "10",
-      tin_number: "890-123-456-000",
-      company_name: "Filinvest Land Inc.",
-      barangay: "Filinvest",
-      city: "Alabang",
-      total_sales: 7800000,
-      tax_type: "Non-VAT",
-      sales_month: "2025-06-01",
-      created_at: "2025-06-01T00:00:00Z",
-      updated_at: "2025-06-01T00:00:00Z",
-    },
+  // Fetch sales records
+  const fetchSalesRecords = async () => {
+    setLoading(true)
+    try {
+      let query = supabase
+        .from("sales")
+        .select("*")
+        .eq("type", "sales")
+        .eq("is_deleted", false)
+        .order("created_at", { ascending: false })
 
-    // May 2025
-    {
-      id: "11",
-      tin_number: "345-678-901-000",
-      company_name: "Megaworld Corporation",
-      barangay: "Fort Bonifacio",
-      city: "Taguig City",
-      total_sales: 17500000,
-      tax_type: "VAT",
-      sales_month: "2025-05-01",
-      created_at: "2025-05-01T00:00:00Z",
-      updated_at: "2025-05-01T00:00:00Z",
-    },
-    {
-      id: "12",
-      tin_number: "456-789-012-000",
-      company_name: "Vista Land & Lifescapes Inc.",
-      barangay: "Alabang",
-      city: "Muntinlupa City",
-      total_sales: 9200000,
-      tax_type: "Non-VAT",
-      sales_month: "2025-05-01",
-      created_at: "2025-05-01T00:00:00Z",
-      updated_at: "2025-05-01T00:00:00Z",
-    },
-    {
-      id: "13",
-      tin_number: "567-890-123-000",
-      company_name: "Robinsons Land Corporation",
-      barangay: "Ortigas Center",
-      city: "Pasig City",
-      total_sales: 15600000,
-      tax_type: "VAT",
-      sales_month: "2025-05-01",
-      created_at: "2025-05-01T00:00:00Z",
-      updated_at: "2025-05-01T00:00:00Z",
-    },
-    {
-      id: "14",
-      tin_number: "901-234-567-000",
-      company_name: "DMCI Homes",
-      barangay: "Acacia Estates",
-      city: "Taguig City",
-      total_sales: 6900000,
-      tax_type: "Non-VAT",
-      sales_month: "2025-05-01",
-      created_at: "2025-05-01T00:00:00Z",
-      updated_at: "2025-05-01T00:00:00Z",
-    },
-    {
-      id: "15",
-      tin_number: "012-345-678-000",
-      company_name: "Rockwell Land Corporation",
-      barangay: "Rockwell Center",
-      city: "Makati City",
-      total_sales: 21500000,
-      tax_type: "VAT",
-      sales_month: "2025-05-01",
-      created_at: "2025-05-01T00:00:00Z",
-      updated_at: "2025-05-01T00:00:00Z",
-    },
-  ]
+      // Apply month filter if selected
+      if (selectedMonths.length > 0) {
+        query = query.in("tax_month", selectedMonths)
+      }
 
-  // Filter data based on selected months
-  const filteredData = mockSalesData.filter((record) => {
-    const recordMonth = record.sales_month.slice(0, 7) // Extract YYYY-MM
-    return selectedMonths.includes(recordMonth)
-  })
+      const { data, error } = await query
 
-  // Calculate statistics
-  const calculateStats = (): SalesStats => {
-    const totalGrossTaxable = filteredData.reduce((sum, record) => sum + record.total_sales, 0)
-    const totalRecords = filteredData.length
-    const vatRecords = filteredData.filter((record) => record.tax_type === "VAT").length
-    const nonVatRecords = filteredData.filter((record) => record.tax_type === "Non-VAT").length
+      if (error) throw error
+      setSalesRecords(data || [])
+    } catch (error) {
+      console.error("Error fetching sales records:", error)
+      setSalesRecords([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Filter records based on search term
+  const filteredRecords = useMemo(() => {
+    if (!searchTerm) return salesRecords
+
+    return salesRecords.filter(record =>
+      record.tin?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      record.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      record.substreet_street_brgy?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      record.district_city_zip?.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+  }, [salesRecords, searchTerm])
+
+  // Pagination calculations
+  const totalRecords = filteredRecords.length
+  const totalPages = Math.ceil(totalRecords / entriesPerPage)
+  const startIndex = (currentPage - 1) * entriesPerPage
+  const endIndex = Math.min(startIndex + entriesPerPage, totalRecords)
+  const currentRecords = filteredRecords.slice(startIndex, endIndex)
+
+  // Reset to page 1 when search or entries per page changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchTerm, entriesPerPage])
+
+  // Statistics calculations
+  const statistics = useMemo(() => {
+    const totalSales = filteredRecords.reduce((sum, record) => sum + (record.gross_taxable || 0), 0)
+    const totalRecordsCount = filteredRecords.length
+    const averageSale = totalRecordsCount > 0 ? totalSales / totalRecordsCount : 0
+    
+    const vatRecords = filteredRecords.filter(record => record.tax_type === 'vat')
+    const nonVatRecords = filteredRecords.filter(record => record.tax_type === 'non-vat')
+    const vatTotal = vatRecords.reduce((sum, record) => sum + (record.gross_taxable || 0), 0)
+    const nonVatTotal = nonVatRecords.reduce((sum, record) => sum + (record.gross_taxable || 0), 0)
 
     return {
-      totalGrossTaxable,
-      totalRecords,
-      vatRecords,
-      nonVatRecords,
+      totalSales,
+      totalRecords: totalRecordsCount,
+      averageSale,
+      vatTotal,
+      nonVatTotal,
+      vatCount: vatRecords.length,
+      nonVatCount: nonVatRecords.length
     }
-  }
+  }, [filteredRecords])
 
-  const stats = calculateStats()
-
-  const handleMonthSelect = (monthValue: string) => {
-    if (!selectedMonths.includes(monthValue)) {
-      setSelectedMonths([...selectedMonths, monthValue])
-    }
-  }
-
-  const removeMonth = (monthValue: string) => {
-    setSelectedMonths(selectedMonths.filter((month) => month !== monthValue))
-  }
-
-  const getMonthLabel = (monthValue: string) => {
-    const option = monthOptions.find((opt) => opt.value === monthValue)
-    return option ? option.label : monthValue
-  }
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-PH", {
-      style: "currency",
-      currency: "PHP",
-      minimumFractionDigits: 2,
-    }).format(amount)
-  }
-
-  const StatCard = ({
-    icon,
-    title,
-    value,
-    subtitle,
-    color,
-  }: {
-    icon: React.ReactNode
-    title: string
-    value: string | number
-    subtitle: string
-    color: "blue" | "green" | "purple" | "orange"
-  }) => {
-    const colorClasses = {
-      blue: "bg-blue-600",
-      green: "bg-green-600",
-      purple: "bg-purple-600",
-      orange: "bg-orange-600",
-    }
-
-    const bgColorClasses = {
-      blue: "bg-blue-50 border-blue-200",
-      green: "bg-green-50 border-green-200",
-      purple: "bg-purple-50 border-purple-200",
-      orange: "bg-orange-50 border-orange-200",
-    }
-
-    return (
-      <Card className={`${bgColorClasses[color]} border-2 hover:shadow-md transition-all duration-300 hover:scale-105`}>
-        <CardContent className="p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600 mb-1">{title}</p>
-              <p className="text-2xl font-bold text-gray-900 mb-1">{value}</p>
-              <p className="text-xs text-gray-500">{subtitle}</p>
-            </div>
-            <div className={`${colorClasses[color]} p-3 rounded-xl text-white shadow-md`}>{icon}</div>
-          </div>
-        </CardContent>
-      </Card>
+  // Handle month selection
+  const handleMonthToggle = (monthValue: string) => {
+    setSelectedMonths(prev => 
+      prev.includes(monthValue)
+        ? prev.filter(m => m !== monthValue)
+        : [...prev, monthValue]
     )
   }
 
+  const clearAllMonths = () => {
+    setSelectedMonths([])
+  }
+
+  // Pagination handlers
+  const goToPage = (page: number) => {
+    setCurrentPage(Math.max(1, Math.min(page, totalPages)))
+  }
+
+  const renderPaginationButtons = () => {
+    const buttons = []
+    const maxVisiblePages = 5
+    
+    let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2))
+    let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1)
+    
+    if (endPage - startPage + 1 < maxVisiblePages) {
+      startPage = Math.max(1, endPage - maxVisiblePages + 1)
+    }
+
+    for (let i = startPage; i <= endPage; i++) {
+      buttons.push(
+        <Button
+          key={i}
+          variant={currentPage === i ? "default" : "outline"}
+          size="sm"
+          onClick={() => goToPage(i)}
+          className="mx-1"
+        >
+          {i}
+        </Button>
+      )
+    }
+
+    return buttons
+  }
+
+  useEffect(() => {
+    fetchSalesRecords()
+  }, [selectedMonths])
+
   return (
-    <ProtectedRoute allowedRoles={["super_admin"]}>
-      <div className="min-h-screen bg-gray-50">
-        <DashboardHeader />
-
-        <div className="pt-20 px-4 sm:px-6 lg:px-8 py-8">
-          {/* Page Header */}
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Sales Management</h1>
-            <p className="text-gray-600">Track and manage monthly sales records with comprehensive reporting tools.</p>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
+      <div className="container mx-auto p-6 space-y-8">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div>
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+              Sales Management
+            </h1>
+            <p className="text-gray-600 mt-2">Manage and track all sales records</p>
           </div>
+          <AddSalesModal onSalesAdded={fetchSalesRecords} />
+        </div>
 
-          {/* Month Selection */}
-          <Card className="mb-8">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Calendar className="h-5 w-5" />
-                Select Months to Display
-              </CardTitle>
+        {/* Statistics Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <Card className="bg-white/70 backdrop-blur-sm border-0 shadow-lg hover:shadow-xl transition-all duration-300">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-gray-600">Total Sales</CardTitle>
+              <DollarSign className="h-4 w-4 text-green-600" />
             </CardHeader>
             <CardContent>
-              <div className="flex flex-wrap gap-4 items-start">
-                <Select onValueChange={handleMonthSelect}>
-                  <SelectTrigger className="w-64">
-                    <SelectValue placeholder="Select a month..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {monthOptions.map((option) => (
-                      <SelectItem
-                        key={option.value}
-                        value={option.value}
-                        disabled={selectedMonths.includes(option.value)}
-                      >
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                {/* Selected Months */}
-                <div className="flex flex-wrap gap-2">
-                  {selectedMonths.map((month) => (
-                    <Badge key={month} variant="secondary" className="flex items-center gap-1">
-                      {getMonthLabel(month)}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-4 w-4 p-0 hover:bg-transparent"
-                        onClick={() => removeMonth(month)}
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
-                    </Badge>
-                  ))}
-                </div>
+              <div className="text-2xl font-bold text-green-600">
+                ₱{statistics.totalSales.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
               </div>
+              <p className="text-xs text-gray-500 mt-1">Current view total</p>
             </CardContent>
           </Card>
 
-          {/* Statistics Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <StatCard
-              icon={<DollarSign className="h-6 w-6" />}
-              title="Total Gross Taxable"
-              value={formatCurrency(stats.totalGrossTaxable)}
-              subtitle="Selected months"
-              color="green"
-            />
-            <StatCard
-              icon={<FileText className="h-6 w-6" />}
-              title="Total Records"
-              value={stats.totalRecords}
-              subtitle="Sales entries"
-              color="blue"
-            />
-            <StatCard
-              icon={<TrendingUp className="h-6 w-6" />}
-              title="VAT Records"
-              value={stats.vatRecords}
-              subtitle="Taxable sales"
-              color="purple"
-            />
-            <StatCard
-              icon={<Users className="h-6 w-6" />}
-              title="Non-VAT Records"
-              value={stats.nonVatRecords}
-              subtitle="Non-taxable sales"
-              color="orange"
-            />
-          </div>
-
-          {/* Sales Table */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Sales Records</CardTitle>
+          <Card className="bg-white/70 backdrop-blur-sm border-0 shadow-lg hover:shadow-xl transition-all duration-300">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-gray-600">Total Records</CardTitle>
+              <FileText className="h-4 w-4 text-blue-600" />
             </CardHeader>
             <CardContent>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>TIN #</TableHead>
-                      <TableHead>Company Name</TableHead>
-                      <TableHead>Barangay</TableHead>
-                      <TableHead>City</TableHead>
-                      <TableHead className="text-right">Total Sales</TableHead>
-                      <TableHead>Tax Type</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredData.length > 0 ? (
-                      filteredData.map((record) => (
-                        <TableRow key={record.id}>
-                          <TableCell className="font-mono text-sm">{record.tin_number}</TableCell>
-                          <TableCell className="font-medium">{record.company_name}</TableCell>
-                          <TableCell>{record.barangay}</TableCell>
-                          <TableCell>{record.city}</TableCell>
-                          <TableCell className="text-right font-mono">{formatCurrency(record.total_sales)}</TableCell>
-                          <TableCell>
-                            <Badge
-                              variant={record.tax_type === "VAT" ? "default" : "secondary"}
-                              className={
-                                record.tax_type === "VAT" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"
-                              }
-                            >
-                              {record.tax_type}
-                            </Badge>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    ) : (
-                      <TableRow>
-                        <TableCell colSpan={6} className="text-center py-8 text-gray-500">
-                          No sales records found for the selected months.
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
+              <div className="text-2xl font-bold text-blue-600">{statistics.totalRecords.toLocaleString()}</div>
+              <p className="text-xs text-gray-500 mt-1">Sales records found</p>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-white/70 backdrop-blur-sm border-0 shadow-lg hover:shadow-xl transition-all duration-300">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-gray-600">Average Sale</CardTitle>
+              <TrendingUp className="h-4 w-4 text-purple-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-purple-600">
+                ₱{statistics.averageSale.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
               </div>
+              <p className="text-xs text-gray-500 mt-1">Per transaction</p>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-white/70 backdrop-blur-sm border-0 shadow-lg hover:shadow-xl transition-all duration-300">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-gray-600">VAT vs Non-VAT</CardTitle>
+              <BarChart3 className="h-4 w-4 text-orange-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-orange-600">
+                {statistics.vatCount}:{statistics.nonVatCount}
+              </div>
+              <p className="text-xs text-gray-500 mt-1">VAT to Non-VAT ratio</p>
             </CardContent>
           </Card>
         </div>
+
+        {/* Month Selection */}
+        <Card className="bg-white/70 backdrop-blur-sm border-0 shadow-lg">
+          <CardHeader>
+            <div className="flex justify-between items-center">
+              <CardTitle className="text-xl font-semibold text-gray-800">Filter by Month</CardTitle>
+              {selectedMonths.length > 0 && (
+                <Button variant="outline" size="sm" onClick={clearAllMonths}>
+                  Clear All
+                </Button>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+              {monthOptions.map((month) => (
+                <Button
+                  key={month.value}
+                  variant={selectedMonths.includes(month.value) ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => handleMonthToggle(month.value)}
+                  className={`text-sm ${
+                    selectedMonths.includes(month.value)
+                      ? "bg-gradient-to-r from-blue-600 to-purple-600 text-white"
+                      : "hover:bg-blue-50"
+                  }`}
+                >
+                  {month.label}
+                </Button>
+              ))}
+            </div>
+            {selectedMonths.length > 0 && (
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Label className="text-sm font-medium text-gray-600">Selected:</Label>
+                {selectedMonths.map((monthValue) => {
+                  const monthLabel = monthOptions.find(m => m.value === monthValue)?.label
+                  return (
+                    <Badge key={monthValue} variant="secondary" className="bg-blue-100 text-blue-800">
+                      {monthLabel}
+                    </Badge>
+                  )
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Sales Records Table */}
+        <Card className="bg-white/70 backdrop-blur-sm border-0 shadow-lg">
+          <CardHeader>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <CardTitle className="text-xl font-semibold text-gray-800">Sales Records</CardTitle>
+              <div className="flex items-center gap-4">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                  <Input
+                    placeholder="Search TIN, company, or location..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10 w-64"
+                  />
+                </div>
+                <Select value={entriesPerPage.toString()} onValueChange={(value) => setEntriesPerPage(Number(value))}>
+                  <SelectTrigger className="w-32">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10 entries</SelectItem>
+                    <SelectItem value="25">25 entries</SelectItem>
+                    <SelectItem value="50">50 entries</SelectItem>
+                    <SelectItem value="100">100 entries</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <div className="flex justify-center items-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                <span className="ml-2 text-gray-600">Loading sales records...</span>
+              </div>
+            ) : currentRecords.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <FileText className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                <p className="text-lg font-medium">No sales records found</p>
+                <p className="text-sm">Try adjusting your search or month filters</p>
+              </div>
+            ) : (
+              <>
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-gray-200">
+                        <th className="text-left py-3 px-4 font-medium text-gray-600">TIN #</th>
+                        <th className="text-left py-3 px-4 font-medium text-gray-600">Company Name</th>
+                        <th className="text-left py-3 px-4 font-medium text-gray-600">Location</th>
+                        <th className="text-right py-3 px-4 font-medium text-gray-600">Amount</th>
+                        <th className="text-center py-3 px-4 font-medium text-gray-600">Tax Type</th>
+                        <th className="text-center py-3 px-4 font-medium text-gray-600">Sales Month</th>
+                        <th className="text-center py-3 px-4 font-medium text-gray-600">Date Added</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {currentRecords.map((record) => (
+                        <tr key={record.id} className="border-b border-gray-100 hover:bg-gray-50">
+                          <td className="py-3 px-4 font-mono text-sm">{formatTinNumber(record.tin)}</td>
+                          <td className="py-3 px-4">
+                            <div className="font-medium text-gray-900">{record.name}</div>
+                          </td>
+                          <td className="py-3 px-4 text-sm text-gray-600">
+                            <div>{record.substreet_street_brgy}</div>
+                            <div className="text-xs text-gray-500">{record.district_city_zip}</div>
+                          </td>
+                          <td className="py-3 px-4 text-right font-medium">
+                            ₱{record.gross_taxable?.toLocaleString('en-PH', { minimumFractionDigits: 2 }) || '0.00'}
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            <Badge variant={record.tax_type === 'vat' ? 'default' : 'secondary'}>
+                              {record.tax_type?.toUpperCase() || 'N/A'}
+                            </Badge>
+                          </td>
+                          <td className="py-3 px-4 text-center text-sm">
+                            {record.tax_month ? new Date(record.tax_month).toLocaleDateString('en-US', { 
+                              month: 'short', 
+                              year: 'numeric' 
+                            }) : 'N/A'}
+                          </td>
+                          <td className="py-3 px-4 text-center text-sm text-gray-500">
+                            {new Date(record.created_at).toLocaleDateString()}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Pagination */}
+                <div className="flex flex-col sm:flex-row justify-between items-center mt-6 gap-4">
+                  <div className="text-sm text-gray-600">
+                    Showing {startIndex + 1} to {endIndex} of {totalRecords} entries
+                  </div>
+                  
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => goToPage(currentPage - 1)}
+                      disabled={currentPage === 1}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                      Previous
+                    </Button>
+                    
+                    {renderPaginationButtons()}
+                    
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => goToPage(currentPage + 1)}
+                      disabled={currentPage === totalPages}
+                    >
+                      Next
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Summary Section */}
+        <Card className="bg-white/70 backdrop-blur-sm border-0 shadow-lg">
+          <CardHeader>
+            <CardTitle className="text-xl font-semibold text-gray-800">Summary</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="text-center p-4 bg-gradient-to-r from-green-50 to-green-100 rounded-lg">
+                <div className="text-2xl font-bold text-green-600">
+                  ₱{statistics.totalSales.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                </div>
+                <div className="text-sm text-green-700 mt-1">Total Sales (Current View)</div>
+              </div>
+              
+              <div className="text-center p-4 bg-gradient-to-r from-blue-50 to-blue-100 rounded-lg">
+                <div className="text-2xl font-bold text-blue-600">
+                  ₱{statistics.vatTotal.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                </div>
+                <div className="text-sm text-blue-700 mt-1">VAT Sales Total</div>
+              </div>
+              
+              <div className="text-center p-4 bg-gradient-to-r from-purple-50 to-purple-100 rounded-lg">
+                <div className="text-2xl font-bold text-purple-600">
+                  ₱{statistics.nonVatTotal.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                </div>
+                <div className="text-sm text-purple-700 mt-1">Non-VAT Sales Total</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
-    </ProtectedRoute>
+    </div>
   )
 }

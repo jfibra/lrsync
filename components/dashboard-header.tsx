@@ -20,56 +20,54 @@ export function DashboardHeader() {
     return `/dashboard/${profile.role.replace("_", "-")}`
   }
 
-  const getNavigationItems = () => {
-    const baseItems = [
-      {
-        title: "Dashboard",
-        href: getDashboardUrl(),
-        icon: <LayoutDashboard className="h-4 w-4" />,
-        color: "bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100 hover:border-blue-300",
-      },
-    ]
-
-    // Add management items for Super Admin and Admin only
-    if (profile?.role === "super_admin" || profile?.role === "admin") {
-      return [
-        ...baseItems,
-        {
-          title: "Sales",
-          href: `/dashboard/${profile.role.replace("_", "-")}/sales`,
-          icon: <DollarSign className="h-4 w-4" />,
-          color: "bg-green-50 border-green-200 text-green-700 hover:bg-green-100 hover:border-green-300",
-        },
-        {
-          title: "TIN Library",
-          href: `/dashboard/${profile.role.replace("_", "-")}/tin-library`,
-          icon: <FileText className="h-4 w-4" />,
-          color: "bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100 hover:border-blue-300",
-        },
-        {
-          title: "Users",
-          href: `/dashboard/${profile.role.replace("_", "-")}/users`,
-          icon: <Users className="h-4 w-4" />,
-          color: "bg-red-50 border-red-200 text-red-700 hover:bg-red-100 hover:border-red-300",
-        },
-      ]
-    }
-
-    return baseItems
-  }
-
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200 shadow-sm">
+    <header className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-md border-b border-gray-200 shadow-sm">
       <div className="flex items-center justify-between px-4 sm:px-6 py-3">
         {/* Logo */}
         <div className="flex items-center">
-          <div className="bg-blue-600 text-white px-3 py-2 rounded-lg font-bold text-lg shadow-md hover:shadow-lg transition-shadow duration-200">
-            Leuterio Relief
+          <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 py-2 rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all duration-200">
+            BIR System
           </div>
         </div>
 
         {/* Desktop Navigation */}
         <div className="hidden md:flex items-center gap-4">
+          {/* Navigation Items */}
+          {(profile?.role === "super_admin" || profile?.role === "admin") && (
+            <div className="flex items-center gap-2">
+              <Link href={`/dashboard/${profile.role.replace("_", "-")}/sales`}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-green-600 hover:text-green-700 hover:bg-green-50 transition-all duration-200"
+                >
+                  <DollarSign className="h-4 w-4 mr-2" />
+                  Sales
+                </Button>
+              </Link>
+              <Link href={`/dashboard/${profile.role.replace("_", "-")}/tin-library`}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 transition-all duration-200"
+                >
+                  <FileText className="h-4 w-4 mr-2" />
+                  TIN Library
+                </Button>
+              </Link>
+              <Link href={`/dashboard/${profile.role.replace("_", "-")}/users`}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-purple-600 hover:text-purple-700 hover:bg-purple-50 transition-all duration-200"
+                >
+                  <Users className="h-4 w-4 mr-2" />
+                  Users
+                </Button>
+              </Link>
+            </div>
+          )}
+
           {/* Dashboard Button */}
           <Link href={getDashboardUrl()}>
             <Button
@@ -83,9 +81,9 @@ export function DashboardHeader() {
           </Link>
 
           {/* User Info */}
-          <div className="flex items-center gap-3 px-3 py-2 bg-gray-50 rounded-lg">
+          <div className="flex items-center gap-3 px-3 py-2 bg-gray-50/80 backdrop-blur-sm rounded-xl border border-gray-200">
             <Avatar className="h-8 w-8 ring-2 ring-blue-100">
-              <AvatarFallback className="bg-blue-600 text-white text-sm font-medium">
+              <AvatarFallback className="bg-gradient-to-r from-blue-600 to-purple-600 text-white text-sm font-medium">
                 {profile?.first_name?.[0] || profile?.full_name?.[0] || "U"}
               </AvatarFallback>
             </Avatar>
@@ -119,12 +117,12 @@ export function DashboardHeader() {
 
       {/* Mobile Menu */}
       {isMobileMenuOpen && (
-        <div className="md:hidden bg-white border-t border-gray-200 shadow-lg animate-in slide-in-from-top-2 duration-200">
+        <div className="md:hidden bg-white/95 backdrop-blur-md border-t border-gray-200 shadow-lg animate-in slide-in-from-top-2 duration-200">
           <div className="px-4 py-3 space-y-3">
             {/* User Info */}
             <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
               <Avatar className="h-10 w-10 ring-2 ring-blue-100">
-                <AvatarFallback className="bg-blue-600 text-white font-medium">
+                <AvatarFallback className="bg-gradient-to-r from-blue-600 to-purple-600 text-white font-medium">
                   {profile?.first_name?.[0] || profile?.full_name?.[0] || "U"}
                 </AvatarFallback>
               </Avatar>
@@ -135,6 +133,42 @@ export function DashboardHeader() {
                 <div className="text-xs text-gray-500 capitalize">{profile?.role?.replace("_", " ") || "User"}</div>
               </div>
             </div>
+
+            {/* Navigation Items */}
+            {(profile?.role === "super_admin" || profile?.role === "admin") && (
+              <>
+                <Link href={`/dashboard/${profile.role.replace("_", "-")}/sales`}>
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start text-green-600 hover:text-green-700 hover:bg-green-50"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    <DollarSign className="h-4 w-4 mr-2" />
+                    Sales
+                  </Button>
+                </Link>
+                <Link href={`/dashboard/${profile.role.replace("_", "-")}/tin-library`}>
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    <FileText className="h-4 w-4 mr-2" />
+                    TIN Library
+                  </Button>
+                </Link>
+                <Link href={`/dashboard/${profile.role.replace("_", "-")}/users`}>
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start text-purple-600 hover:text-purple-700 hover:bg-purple-50"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    <Users className="h-4 w-4 mr-2" />
+                    Users
+                  </Button>
+                </Link>
+              </>
+            )}
 
             {/* Dashboard Button */}
             <Link href={getDashboardUrl()}>

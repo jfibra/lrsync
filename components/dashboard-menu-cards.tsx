@@ -1,6 +1,7 @@
 "use client"
 
 import type React from "react"
+
 import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
 import { User, Users, FileText, ArrowRight, DollarSign } from "lucide-react"
@@ -16,28 +17,28 @@ interface MenuCardProps {
 
 function MenuCard({ title, description, href, icon, color }: MenuCardProps) {
   const colorClasses = {
-    blue: "bg-blue-600 hover:bg-blue-700",
-    red: "bg-red-600 hover:bg-red-700",
-    orange: "bg-orange-600 hover:bg-orange-700",
-    green: "bg-green-600 hover:bg-green-700",
+    blue: "from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700",
+    red: "from-red-500 to-red-600 hover:from-red-600 hover:to-red-700",
+    orange: "from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700",
+    green: "from-green-500 to-green-600 hover:from-green-600 hover:to-green-700",
   }
 
   const bgColorClasses = {
-    blue: "bg-blue-50 hover:bg-blue-100 border-blue-200",
-    red: "bg-red-50 hover:bg-red-100 border-red-200",
-    orange: "bg-orange-50 hover:bg-orange-100 border-orange-200",
-    green: "bg-green-50 hover:bg-green-100 border-green-200",
+    blue: "bg-blue-50/80 hover:bg-blue-100/80 border-blue-200",
+    red: "bg-red-50/80 hover:bg-red-100/80 border-red-200",
+    orange: "bg-orange-50/80 hover:bg-orange-100/80 border-orange-200",
+    green: "bg-green-50/80 hover:bg-green-100/80 border-green-200",
   }
 
   return (
     <Link href={href} className="group">
       <Card
-        className={`${bgColorClasses[color]} border-2 transition-all duration-300 hover:shadow-lg hover:scale-105 cursor-pointer h-full animate-in fade-in-50 slide-in-from-bottom-4`}
+        className={`${bgColorClasses[color]} border-2 backdrop-blur-sm transition-all duration-300 hover:shadow-xl hover:scale-105 cursor-pointer h-full animate-in fade-in-50 slide-in-from-bottom-4`}
       >
         <CardContent className="p-6">
           <div className="flex items-start gap-4">
             <div
-              className={`${colorClasses[color]} p-4 rounded-xl text-white shadow-md group-hover:shadow-lg transition-all duration-300 group-hover:scale-110`}
+              className={`bg-gradient-to-r ${colorClasses[color]} p-4 rounded-xl text-white shadow-lg group-hover:shadow-xl transition-all duration-300 group-hover:scale-110`}
             >
               {icon}
             </div>

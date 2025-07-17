@@ -10,6 +10,7 @@ export interface SalesRecord {
   created_at: string
   updated_at: string
   created_by?: string
+  is_deleted?: boolean
 }
 
 export interface SalesStats {
