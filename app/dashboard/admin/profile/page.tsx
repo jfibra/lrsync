@@ -22,9 +22,7 @@ export default function ProfilePage() {
   const [formData, setFormData] = useState({
     first_name: "",
     last_name: "",
-    city: "",
-    province: "",
-    country: "",
+    assigned_area: "",
   })
 
   const [passwordData, setPasswordData] = useState({
@@ -41,9 +39,7 @@ export default function ProfilePage() {
       setFormData({
         first_name: profile.first_name || "",
         last_name: profile.last_name || "",
-        city: profile.city || "",
-        province: profile.province || "",
-        country: profile.country || "",
+        assigned_area: profile.assigned_area || "",
       })
     }
   }, [profile])
@@ -65,9 +61,7 @@ export default function ProfilePage() {
           first_name: formData.first_name,
           last_name: formData.last_name,
           full_name: `${formData.first_name} ${formData.last_name}`.trim(),
-          city: formData.city,
-          province: formData.province,
-          country: formData.country,
+          assigned_area: formData.assigned_area,
         })
         .eq("id", profile.id)
 
@@ -91,9 +85,7 @@ export default function ProfilePage() {
       setFormData({
         first_name: profile.first_name || "",
         last_name: profile.last_name || "",
-        city: profile.city || "",
-        province: profile.province || "",
-        country: profile.country || "",
+        assigned_area: profile.assigned_area || "",
       })
     }
     setIsEditing(false)
@@ -220,32 +212,13 @@ export default function ProfilePage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="city">City</Label>
+                  <Label htmlFor="assigned_area">Assigned Area</Label>
                   <Input
-                    id="city"
-                    value={formData.city}
-                    onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                    id="assigned_area"
+                    value={formData.assigned_area}
+                    onChange={(e) => setFormData({ ...formData, assigned_area: e.target.value })}
                     disabled={!isEditing}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="province">Province</Label>
-                  <Input
-                    id="province"
-                    value={formData.province}
-                    onChange={(e) => setFormData({ ...formData, province: e.target.value })}
-                    disabled={!isEditing}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="country">Country</Label>
-                  <Input
-                    id="country"
-                    value={formData.country}
-                    onChange={(e) => setFormData({ ...formData, country: e.target.value })}
-                    disabled={!isEditing}
+                    placeholder="e.g., Metro Manila, Cebu City, Davao Region"
                   />
                 </div>
 
@@ -280,6 +253,11 @@ export default function ProfilePage() {
                 <CardDescription>Your account details</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Email</Label>
+                  <div className="px-3 py-2 bg-gray-50 rounded-md text-sm">{profile?.email || "Not available"}</div>
+                </div>
+
                 <div className="space-y-2">
                   <Label>Role</Label>
                   <div className="px-3 py-2 bg-gray-50 rounded-md text-sm capitalize">

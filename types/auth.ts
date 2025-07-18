@@ -9,9 +9,7 @@ export interface UserProfile {
   last_name: string | null
   full_name: string | null
   role: UserRole
-  city: string | null
-  province: string | null
-  country: string | null
+  assigned_area: string | null
   status: UserStatus
   last_login_at: string | null
   created_at: string

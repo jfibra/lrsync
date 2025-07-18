@@ -39,9 +39,7 @@ interface UserFormData {
   last_name: string
   role: UserRole
   status: UserStatus
-  city: string
-  province: string
-  country: string
+  assigned_area: string
 }
 
 const initialFormData: UserFormData = {
@@ -50,9 +48,7 @@ const initialFormData: UserFormData = {
   last_name: "",
   role: "secretary",
   status: "active",
-  city: "",
-  province: "",
-  country: "",
+  assigned_area: "",
 }
 
 export default function AdminUserManagement() {
@@ -126,7 +122,8 @@ export default function AdminUserManagement() {
       user.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.first_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.last_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.email?.toLowerCase().includes(searchTerm.toLowerCase()),
+      user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.assigned_area?.toLowerCase().includes(searchTerm.toLowerCase()),
   )
 
   const validateEmail = (email: string): boolean => {
@@ -213,9 +210,7 @@ export default function AdminUserManagement() {
         full_name: `${formData.first_name.trim()} ${formData.last_name.trim()}`,
         role: formData.role,
         status: formData.status,
-        city: formData.city.trim() || null,
-        province: formData.province.trim() || null,
-        country: formData.country.trim() || null,
+        assigned_area: formData.assigned_area.trim() || null,
       }
 
       console.log("Inserting profile data:", profileData)
@@ -259,9 +254,7 @@ export default function AdminUserManagement() {
       last_name: user.last_name || "",
       role: user.role,
       status: user.status,
-      city: user.city || "",
-      province: user.province || "",
-      country: user.country || "",
+      assigned_area: user.assigned_area || "",
     })
     setIsEditModalOpen(true)
   }
@@ -303,9 +296,7 @@ export default function AdminUserManagement() {
           full_name: `${formData.first_name.trim()} ${formData.last_name.trim()}`,
           role: formData.role,
           status: formData.status,
-          city: formData.city.trim() || null,
-          province: formData.province.trim() || null,
-          country: formData.country.trim() || null,
+          assigned_area: formData.assigned_area.trim() || null,
         })
         .eq("id", editingUser.id)
 
@@ -495,7 +486,6 @@ export default function AdminUserManagement() {
                           </p>
                         </div>
                         <div className="grid gap-4 py-4">
-                          {/* Rest of the form content remains the same */}
                           <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
                               <Label htmlFor="add_first_name">First Name *</Label>
@@ -571,37 +561,15 @@ export default function AdminUserManagement() {
                             </div>
                           </div>
 
-                          <div className="grid grid-cols-3 gap-4">
-                            <div className="space-y-2">
-                              <Label htmlFor="add_city">City</Label>
-                              <Input
-                                id="add_city"
-                                value={formData.city}
-                                onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                                disabled={isCreating}
-                                placeholder="Manila"
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label htmlFor="add_province">Province</Label>
-                              <Input
-                                id="add_province"
-                                value={formData.province}
-                                onChange={(e) => setFormData({ ...formData, province: e.target.value })}
-                                disabled={isCreating}
-                                placeholder="Metro Manila"
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label htmlFor="add_country">Country</Label>
-                              <Input
-                                id="add_country"
-                                value={formData.country}
-                                onChange={(e) => setFormData({ ...formData, country: e.target.value })}
-                                disabled={isCreating}
-                                placeholder="Philippines"
-                              />
-                            </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="add_assigned_area">Assigned Area</Label>
+                            <Input
+                              id="add_assigned_area"
+                              value={formData.assigned_area}
+                              onChange={(e) => setFormData({ ...formData, assigned_area: e.target.value })}
+                              disabled={isCreating}
+                              placeholder="e.g., Metro Manila, Cebu City, Davao Region"
+                            />
                           </div>
 
                           {/* Info box */}
@@ -677,7 +645,7 @@ export default function AdminUserManagement() {
                           <TableHead>Email</TableHead>
                           <TableHead>Role</TableHead>
                           <TableHead>Status</TableHead>
-                          <TableHead>Location</TableHead>
+                          <TableHead>Assigned Area</TableHead>
                           <TableHead>Created</TableHead>
                           <TableHead>Actions</TableHead>
                         </TableRow>
@@ -718,9 +686,7 @@ export default function AdminUserManagement() {
                                 </SelectContent>
                               </Select>
                             </TableCell>
-                            <TableCell>
-                              {[user.city, user.province, user.country].filter(Boolean).join(", ") || "N/A"}
-                            </TableCell>
+                            <TableCell>{user.assigned_area || "N/A"}</TableCell>
                             <TableCell>{new Date(user.created_at).toLocaleDateString()}</TableCell>
                             <TableCell>
                               <div className="flex gap-2">
@@ -847,37 +813,15 @@ export default function AdminUserManagement() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="edit_city">City</Label>
-                    <Input
-                      id="edit_city"
-                      value={formData.city}
-                      onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                      disabled={isUpdating}
-                      placeholder="Manila"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="edit_province">Province</Label>
-                    <Input
-                      id="edit_province"
-                      value={formData.province}
-                      onChange={(e) => setFormData({ ...formData, province: e.target.value })}
-                      disabled={isUpdating}
-                      placeholder="Metro Manila"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="edit_country">Country</Label>
-                    <Input
-                      id="edit_country"
-                      value={formData.country}
-                      onChange={(e) => setFormData({ ...formData, country: e.target.value })}
-                      disabled={isUpdating}
-                      placeholder="Philippines"
-                    />
-                  </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit_assigned_area">Assigned Area</Label>
+                  <Input
+                    id="edit_assigned_area"
+                    value={formData.assigned_area}
+                    onChange={(e) => setFormData({ ...formData, assigned_area: e.target.value })}
+                    disabled={isUpdating}
+                    placeholder="e.g., Metro Manila, Cebu City, Davao Region"
+                  />
                 </div>
               </div>
               <div className="flex justify-end gap-2">
