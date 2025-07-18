@@ -32,23 +32,81 @@ interface FileUpload {
   uploadedUrls: string[]
 }
 
-// S3 Upload function
-const uploadToS3 = async (file: File, key: string): Promise<string> => {
+// Laravel API Upload function
+const uploadToLaravelAPI = async (file: File, taxMonth: string, fileName: string): Promise<string> => {
+  const taxDate = new Date(taxMonth)
+  const taxYear = taxDate.getFullYear().toString()
+  const taxMonthNum = String(taxDate.getMonth() + 1).padStart(2, "0")
+  const taxDay = String(taxDate.getDate()).padStart(2, "0")
+
   const formData = new FormData()
   formData.append("file", file)
-  formData.append("key", key)
+  formData.append("tax_month", taxMonthNum)
+  formData.append("tax_year", taxYear)
+  formData.append("tax_date", taxDay)
+  formData.append("file_name", fileName)
 
-  const response = await fetch("/api/upload-s3", {
-    method: "POST",
-    body: formData,
+  // Construct the correct API URL
+  const apiUrl = `${process.env.NEXT_PUBLIC_NEXT_API_ROUTE_LR}/upload-tax-file`
+
+  console.log("Uploading to:", apiUrl)
+  console.log("Form data:", {
+    fileName,
+    tax_month: taxMonthNum,
+    tax_year: taxYear,
+    tax_date: taxDay,
+    fileSize: file.size,
+    fileType: file.type,
   })
 
-  if (!response.ok) {
-    throw new Error(`Upload failed: ${response.statusText}`)
-  }
+  try {
+    const response = await fetch(apiUrl, {
+      method: "POST",
+      body: formData,
+      headers: {
+        Accept: "application/json",
+        // Add CORS headers to the request
+        "Access-Control-Allow-Origin": "*", // This is NOT a solution, server must be configured
+        "Access-Control-Allow-Methods": "POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+      },
+    })
 
-  const result = await response.json()
-  return result.url
+    console.log("Response status:", response.status)
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error("Upload error response:", errorText)
+      throw new Error(`Upload failed: ${response.status} ${response.statusText}`)
+    }
+
+    const responseText = await response.text()
+    console.log("Raw response:", responseText)
+
+    // Check if response is empty
+    if (!responseText.trim()) {
+      throw new Error("Empty response from server")
+    }
+
+    try {
+      const result = JSON.parse(responseText)
+      console.log("Parsed response:", result)
+
+      // Handle the API response format: {"0": {"url": "..."}, "success": true}
+      if (result.success && result["0"] && result["0"].url) {
+        return result["0"].url
+      } else {
+        throw new Error("Invalid response structure: missing URL in response")
+      }
+    } catch (parseError) {
+      console.error("JSON parse error:", parseError)
+      console.error("Response was:", responseText)
+      throw new Error(`Invalid JSON response from server: ${parseError}`)
+    }
+  } catch (networkError) {
+    console.error("Network error:", networkError)
+    throw new Error(`Network error: ${networkError.message}`)
+  }
 }
 
 export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
@@ -73,7 +131,7 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
   const [searchingTin, setSearchingTin] = useState(false)
   const [showTinDropdown, setShowTinDropdown] = useState(false)
 
-  // File uploads with S3 support
+  // File uploads with Laravel API support
   const [fileUploads, setFileUploads] = useState<FileUpload[]>([
     { id: "cheque", name: "Cheque", files: [], required: true, uploading: false, uploadedUrls: [] },
     { id: "voucher", name: "Voucher", files: [], required: true, uploading: false, uploadedUrls: [] },
@@ -194,23 +252,17 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
     return validTypes.includes(file.type)
   }
 
-  // Generate S3 key for file upload
-  const generateS3Key = (taxMonth: string, tin: string, fileType: string, fileName: string): string => {
+  // Generate filename for Laravel API upload
+  const generateFileName = (taxMonth: string, tin: string, fileType: string, originalFileName: string): string => {
     const taxDate = new Date(taxMonth)
-    const taxYear = taxDate.getFullYear()
-    const taxMonthNum = String(taxDate.getMonth() + 1).padStart(2, "0")
-    const taxDay = String(taxDate.getDate()).padStart(2, "0")
-
     const currentDate = new Date()
     const dateStr = format(currentDate, "MMddyyyy")
-
     const cleanTin = tin.replace(/-/g, "")
-    const fileExtension = fileName.split(".").pop()
-
-    return `lrsync/${taxYear}/${taxMonthNum}/${taxDay}/${cleanTin}-${fileType}-${dateStr}.${fileExtension}`
+    const fileExtension = originalFileName.split(".").pop()
+    return `${cleanTin}-${fileType}-${dateStr}.${fileExtension}`
   }
 
-  // Handle file uploads with S3
+  // Handle file uploads with Laravel API
   const handleFileChange = async (uploadId: string, files: FileList | null) => {
     if (!files || !taxMonth || !tinSearch) return
 
@@ -224,13 +276,19 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
 
     if (validFiles.length === 0) return
 
+    // Check if API endpoint is configured
+    if (!process.env.NEXT_PUBLIC_NEXT_API_ROUTE_LR) {
+      alert("API endpoint not configured. Please check NEXT_PUBLIC_NEXT_API_ROUTE_LR environment variable.")
+      return
+    }
+
     // Set uploading state
     setFileUploads((prev) => prev.map((upload) => (upload.id === uploadId ? { ...upload, uploading: true } : upload)))
 
     try {
       const uploadPromises = validFiles.map(async (file) => {
-        const s3Key = generateS3Key(taxMonth, tinSearch, uploadId, file.name)
-        return await uploadToS3(file, s3Key)
+        const fileName = generateFileName(taxMonth, tinSearch, uploadId, file.name)
+        return await uploadToLaravelAPI(file, taxMonth, fileName)
       })
 
       const uploadedUrls = await Promise.all(uploadPromises)
@@ -249,7 +307,7 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
       )
     } catch (error) {
       console.error("Error uploading files:", error)
-      alert("Error uploading files. Please try again.")
+      alert(`Error uploading files: ${error instanceof Error ? error.message : "Unknown error"}. Please try again.`)
 
       setFileUploads((prev) =>
         prev.map((upload) => (upload.id === uploadId ? { ...upload, uploading: false } : upload)),
@@ -336,7 +394,7 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
         tinId = newTaxpayer.id
       }
 
-      // Prepare file URLs from S3 uploads
+      // Prepare file URLs from Laravel API uploads
       const fileArrays = {
         cheque: fileUploads.find((f) => f.id === "cheque")?.uploadedUrls || [],
         voucher: fileUploads.find((f) => f.id === "voucher")?.uploadedUrls || [],
@@ -348,7 +406,7 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
       // Format pickup date properly
       const formattedPickupDate = pickupDate ? format(pickupDate, "yyyy-MM-dd") : null
 
-      // Create sales record with S3 URLs
+      // Create sales record with Laravel API URLs
       const salesData = {
         tax_month: taxMonth,
         tin_id: tinId,
@@ -485,8 +543,7 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Company/Individual name"
                 className="border-gray-200 focus:border-blue-500 focus:ring-blue-500"
-                required
-              />
+              ></Input>
             </div>
 
             {/* Gross Taxable */}
@@ -500,8 +557,7 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
                 onChange={handleGrossTaxableChange}
                 placeholder="0"
                 className="border-gray-200 focus:border-blue-500 focus:ring-blue-500"
-                required
-              />
+              ></Input>
             </div>
 
             {/* Address Fields */}
@@ -515,7 +571,7 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
                 onChange={(e) => setSubstreetStreetBrgy(e.target.value)}
                 placeholder="Address details"
                 className="border-gray-200 focus:border-blue-500 focus:ring-blue-500"
-              />
+              ></Input>
             </div>
 
             <div className="space-y-2">
@@ -528,7 +584,7 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
                 onChange={(e) => setDistrictCityZip(e.target.value)}
                 placeholder="City and ZIP code"
                 className="border-gray-200 focus:border-blue-500 focus:ring-blue-500"
-              />
+              ></Input>
             </div>
 
             {/* Invoice Number */}
@@ -542,7 +598,7 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
                 onChange={(e) => setInvoiceNumber(e.target.value)}
                 placeholder="Invoice number"
                 className="border-gray-200 focus:border-blue-500 focus:ring-blue-500"
-              />
+              ></Input>
             </div>
 
             {/* Tax Type */}
@@ -590,6 +646,7 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
               <AlertCircle className="inline h-4 w-4 mr-1" />
               Required: Cheque, Voucher, Invoice | Optional: Doc 2307, Deposit Slip
             </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {fileUploads.map((upload) => (
                 <div key={upload.id} className="space-y-2">

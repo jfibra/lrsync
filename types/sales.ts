@@ -1,3 +1,29 @@
+export interface Sales {
+  id: string
+  tax_month: string
+  tin_id: string | null
+  tin: string
+  name: string
+  type: string
+  substreet_street_brgy: string | null
+  district_city_zip: string | null
+  gross_taxable: number
+  invoice_number: string | null
+  tax_type: string
+  pickup_date: string | null
+  cheque: string[] | null
+  voucher: string[] | null
+  doc_2307: string[] | null
+  invoice: string[] | null
+  deposit_slip: string[] | null
+  date_added: string
+  user_uuid: string | null
+  user_full_name: string | null
+  is_deleted: boolean
+  created_at: string
+  updated_at: string
+}
+
 export interface SalesRecord {
   id: string
   tin_number: string
