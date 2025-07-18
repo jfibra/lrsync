@@ -50,7 +50,12 @@ export default function SuperAdminSalesPage() {
       }
 
       if (filterMonth !== "all") {
-        query = query.gte("tax_month", `${filterMonth}-01`).lt("tax_month", `${filterMonth}-32`)
+        // Get the start and end of the selected month
+        const [year, month] = filterMonth.split("-")
+        const startDate = `${year}-${month}-01`
+        const endDate = new Date(Number.parseInt(year), Number.parseInt(month), 0).toISOString().split("T")[0] // Last day of month
+
+        query = query.gte("tax_month", startDate).lte("tax_month", endDate)
       }
 
       const { data, error } = await query
