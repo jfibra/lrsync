@@ -14,6 +14,8 @@ import { supabase } from "@/lib/supabase/client"
 import { ProtectedRoute } from "@/components/protected-route"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { AddSalesModal } from "@/components/add-sales-modal"
+import { ViewSalesModal } from "@/components/view-sales-modal"
+import { EditSalesModal } from "@/components/edit-sales-modal"
 import type { Sales } from "@/types/sales"
 
 export default function AdminSalesPage() {
@@ -23,6 +25,11 @@ export default function AdminSalesPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [filterTaxType, setFilterTaxType] = useState("all")
   const [filterMonth, setFilterMonth] = useState("all")
+
+  // Modal states
+  const [viewModalOpen, setViewModalOpen] = useState(false)
+  const [editModalOpen, setEditModalOpen] = useState(false)
+  const [selectedSale, setSelectedSale] = useState<Sales | null>(null)
 
   // Fetch sales data
   const fetchSales = async () => {
@@ -38,6 +45,7 @@ export default function AdminSalesPage() {
             district_city_zip
           )
         `)
+        .eq("is_deleted", false) // Only fetch non-deleted records
         .order("created_at", { ascending: false })
 
       // Apply filters
@@ -50,12 +58,16 @@ export default function AdminSalesPage() {
       }
 
       if (filterMonth !== "all") {
-        // Get the start and end of the selected month
+        // Use proper date range filtering
         const [year, month] = filterMonth.split("-")
         const startDate = `${year}-${month}-01`
-        const endDate = new Date(Number.parseInt(year), Number.parseInt(month), 0).toISOString().split("T")[0] // Last day of month
 
-        query = query.gte("tax_month", startDate).lte("tax_month", endDate)
+        // Calculate next month for upper bound
+        const nextMonth = Number.parseInt(month) === 12 ? 1 : Number.parseInt(month) + 1
+        const nextYear = Number.parseInt(month) === 12 ? Number.parseInt(year) + 1 : Number.parseInt(year)
+        const endDate = `${nextYear}-${String(nextMonth).padStart(2, "0")}-01`
+
+        query = query.gte("tax_month", startDate).lt("tax_month", endDate)
       }
 
       const { data, error } = await query
@@ -122,6 +134,43 @@ export default function AdminSalesPage() {
   }
 
   const monthOptions = generateMonthOptions()
+
+  // Handle view sale
+  const handleViewSale = (sale: Sales) => {
+    setSelectedSale(sale)
+    setViewModalOpen(true)
+  }
+
+  // Handle edit sale
+  const handleEditSale = (sale: Sales) => {
+    setSelectedSale(sale)
+    setEditModalOpen(true)
+  }
+
+  // Handle soft delete
+  const handleSoftDelete = async (sale: Sales) => {
+    if (!confirm(`Are you sure you want to delete the sales record for ${sale.name}?`)) {
+      return
+    }
+
+    try {
+      const { error } = await supabase
+        .from("sales")
+        .update({
+          is_deleted: true,
+          deleted_at: new Date().toISOString(),
+        })
+        .eq("id", sale.id)
+
+      if (error) throw error
+
+      // Refresh the data
+      fetchSales()
+    } catch (error) {
+      console.error("Error deleting sales record:", error)
+      alert("Error deleting sales record. Please try again.")
+    }
+  }
 
   return (
     <ProtectedRoute allowedRoles={["admin"]}>
@@ -348,13 +397,18 @@ export default function AdminSalesPage() {
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center space-x-2">
-                              <Button variant="ghost" size="sm">
+                              <Button variant="ghost" size="sm" onClick={() => handleViewSale(sale)}>
                                 <Eye className="h-4 w-4" />
                               </Button>
-                              <Button variant="ghost" size="sm">
+                              <Button variant="ghost" size="sm" onClick={() => handleEditSale(sale)}>
                                 <Edit className="h-4 w-4" />
                               </Button>
-                              <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleSoftDelete(sale)}
+                                className="text-red-600 hover:text-red-700"
+                              >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
                             </div>
@@ -368,6 +422,16 @@ export default function AdminSalesPage() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Modals */}
+        <ViewSalesModal open={viewModalOpen} onOpenChange={setViewModalOpen} sale={selectedSale} />
+
+        <EditSalesModal
+          open={editModalOpen}
+          onOpenChange={setEditModalOpen}
+          sale={selectedSale}
+          onSalesUpdated={fetchSales}
+        />
       </div>
     </ProtectedRoute>
   )
