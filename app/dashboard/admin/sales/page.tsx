@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { Search, Filter, Download, Eye, Edit, Trash2, FileText, Calendar } from "lucide-react"
+import { Search, Filter, Download, Eye, Edit, Trash2, FileText, Calendar, MapPin } from "lucide-react"
 import { format } from "date-fns"
 import { useAuth } from "@/contexts/auth-context"
 import { supabase } from "@/lib/supabase/client"
@@ -25,17 +25,39 @@ export default function AdminSalesPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [filterTaxType, setFilterTaxType] = useState("all")
   const [filterMonth, setFilterMonth] = useState("all")
+  const [filterArea, setFilterArea] = useState("all")
+  const [availableAreas, setAvailableAreas] = useState<string[]>([])
 
   // Modal states
   const [viewModalOpen, setViewModalOpen] = useState(false)
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [selectedSale, setSelectedSale] = useState<Sales | null>(null)
 
+  // Fetch available areas for filter dropdown
+  const fetchAvailableAreas = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("user_profiles")
+        .select("assigned_area")
+        .not("assigned_area", "is", null)
+        .order("assigned_area")
+
+      if (error) throw error
+
+      const uniqueAreas = [...new Set(data.map((item) => item.assigned_area).filter(Boolean))]
+      setAvailableAreas(uniqueAreas)
+    } catch (error) {
+      console.error("Error fetching available areas:", error)
+    }
+  }
+
   // Fetch sales data
   const fetchSales = async () => {
     try {
       setLoading(true)
-      let query = supabase
+
+      // First get sales data
+      let salesQuery = supabase
         .from("sales")
         .select(`
           *,
@@ -45,35 +67,64 @@ export default function AdminSalesPage() {
             district_city_zip
           )
         `)
-        .eq("is_deleted", false) // Only fetch non-deleted records
+        .eq("is_deleted", false)
         .order("created_at", { ascending: false })
 
       // Apply filters
       if (searchTerm) {
-        query = query.or(`name.ilike.%${searchTerm}%,tin.ilike.%${searchTerm}%,invoice_number.ilike.%${searchTerm}%`)
+        salesQuery = salesQuery.or(
+          `name.ilike.%${searchTerm}%,tin.ilike.%${searchTerm}%,invoice_number.ilike.%${searchTerm}%`,
+        )
       }
 
       if (filterTaxType !== "all") {
-        query = query.eq("tax_type", filterTaxType)
+        salesQuery = salesQuery.eq("tax_type", filterTaxType)
       }
 
       if (filterMonth !== "all") {
-        // Use proper date range filtering
         const [year, month] = filterMonth.split("-")
         const startDate = `${year}-${month}-01`
-
-        // Calculate next month for upper bound
         const nextMonth = Number.parseInt(month) === 12 ? 1 : Number.parseInt(month) + 1
         const nextYear = Number.parseInt(month) === 12 ? Number.parseInt(year) + 1 : Number.parseInt(year)
         const endDate = `${nextYear}-${String(nextMonth).padStart(2, "0")}-01`
-
-        query = query.gte("tax_month", startDate).lt("tax_month", endDate)
+        salesQuery = salesQuery.gte("tax_month", startDate).lt("tax_month", endDate)
       }
 
-      const { data, error } = await query
+      const { data: salesData, error: salesError } = await salesQuery
 
-      if (error) throw error
-      setSales(data || [])
+      if (salesError) throw salesError
+
+      // Get user profiles for the users who created these sales
+      const userUuids = [...new Set(salesData?.map((sale) => sale.user_uuid).filter(Boolean))]
+
+      let userProfiles = []
+      if (userUuids.length > 0) {
+        const { data: profilesData, error: profilesError } = await supabase
+          .from("user_profiles")
+          .select("auth_user_id, assigned_area, full_name")
+          .in("auth_user_id", userUuids)
+
+        if (profilesError) throw profilesError
+        userProfiles = profilesData || []
+      }
+
+      // Combine sales data with user profiles
+      const salesWithProfiles =
+        salesData?.map((sale) => {
+          const userProfile = userProfiles.find((profile) => profile.auth_user_id === sale.user_uuid)
+          return {
+            ...sale,
+            user_assigned_area: userProfile?.assigned_area || null,
+          }
+        }) || []
+
+      // Filter by area if selected
+      let filteredData = salesWithProfiles
+      if (filterArea !== "all") {
+        filteredData = filteredData.filter((sale) => sale.user_assigned_area === filterArea)
+      }
+
+      setSales(filteredData)
     } catch (error) {
       console.error("Error fetching sales:", error)
     } finally {
@@ -82,8 +133,12 @@ export default function AdminSalesPage() {
   }
 
   useEffect(() => {
+    fetchAvailableAreas()
+  }, [])
+
+  useEffect(() => {
     fetchSales()
-  }, [searchTerm, filterTaxType, filterMonth])
+  }, [searchTerm, filterTaxType, filterMonth, filterArea])
 
   // Format currency
   const formatCurrency = (amount: number) => {
@@ -246,7 +301,7 @@ export default function AdminSalesPage() {
               <CardTitle className="text-lg">Filters</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                   <Input
@@ -282,12 +337,27 @@ export default function AdminSalesPage() {
                   </SelectContent>
                 </Select>
 
+                <Select value={filterArea} onValueChange={setFilterArea}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Filter by area" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Areas</SelectItem>
+                    {availableAreas.map((area) => (
+                      <SelectItem key={area} value={area}>
+                        {area}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
                 <Button
                   variant="outline"
                   onClick={() => {
                     setSearchTerm("")
                     setFilterTaxType("all")
                     setFilterMonth("all")
+                    setFilterArea("all")
                   }}
                 >
                   <Filter className="h-4 w-4 mr-2" />
@@ -323,6 +393,7 @@ export default function AdminSalesPage() {
                       <TableHead>Gross Taxable</TableHead>
                       <TableHead>Invoice #</TableHead>
                       <TableHead>Pickup Date</TableHead>
+                      <TableHead>Area</TableHead>
                       <TableHead>Files</TableHead>
                       <TableHead>Actions</TableHead>
                     </TableRow>
@@ -330,7 +401,7 @@ export default function AdminSalesPage() {
                   <TableBody>
                     {loading ? (
                       <TableRow>
-                        <TableCell colSpan={9} className="text-center py-8">
+                        <TableCell colSpan={10} className="text-center py-8">
                           <div className="flex items-center justify-center">
                             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
                             <span className="ml-2">Loading sales records...</span>
@@ -339,7 +410,7 @@ export default function AdminSalesPage() {
                       </TableRow>
                     ) : sales.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={9} className="text-center py-8 text-gray-500">
+                        <TableCell colSpan={10} className="text-center py-8 text-gray-500">
                           No sales records found
                         </TableCell>
                       </TableRow>
@@ -365,6 +436,12 @@ export default function AdminSalesPage() {
                           <TableCell>{sale.invoice_number || "-"}</TableCell>
                           <TableCell>
                             {sale.pickup_date ? format(new Date(sale.pickup_date), "MMM dd, yyyy") : "-"}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center">
+                              <MapPin className="h-3 w-3 text-gray-400 mr-1" />
+                              <span className="text-sm">{sale.user_assigned_area || "N/A"}</span>
+                            </div>
                           </TableCell>
                           <TableCell>
                             <div className="flex flex-wrap gap-1">
