@@ -8,12 +8,14 @@ import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardMenuCards } from "@/components/dashboard-menu-cards"
 import { useAuth } from "@/contexts/auth-context"
 import { supabase } from "@/lib/supabase/client"
-import { Users, UserCheck, Building2, TrendingUp } from "lucide-react"
+import { Users, UserCheck, Building2, TrendingUp, FileText } from "lucide-react"
 
 interface DashboardStats {
   totalUsers: number
   activeUsers: number
-  regions: number
+  assignedAreas: number
+  totalSales: number
+  totalTaxpayers: number
 }
 
 export default function SuperAdminDashboard() {
@@ -21,7 +23,9 @@ export default function SuperAdminDashboard() {
   const [stats, setStats] = useState<DashboardStats>({
     totalUsers: 0,
     activeUsers: 0,
-    regions: 0,
+    assignedAreas: 0,
+    totalSales: 0,
+    totalTaxpayers: 0,
   })
   const [loading, setLoading] = useState(true)
 
@@ -38,15 +42,31 @@ export default function SuperAdminDashboard() {
         .select("*", { count: "exact", head: true })
         .eq("status", "active")
 
-      // Get unique regions (provinces)
-      const { data: regionData } = await supabase.from("user_profiles").select("province").not("province", "is", null)
+      // Get unique assigned areas
+      const { data: areaData } = await supabase
+        .from("user_profiles")
+        .select("assigned_area")
+        .not("assigned_area", "is", null)
 
-      const uniqueRegions = new Set(regionData?.map((item) => item.province) || [])
+      const uniqueAreas = new Set(areaData?.map((item) => item.assigned_area) || [])
+
+      // Get total sales records (non-deleted)
+      const { count: totalSales } = await supabase
+        .from("sales")
+        .select("*", { count: "exact", head: true })
+        .eq("is_deleted", false)
+
+      // Get total taxpayer listings
+      const { count: totalTaxpayers } = await supabase
+        .from("taxpayer_listings")
+        .select("*", { count: "exact", head: true })
 
       setStats({
         totalUsers: totalUsers || 0,
         activeUsers: activeUsers || 0,
-        regions: uniqueRegions.size,
+        assignedAreas: uniqueAreas.size,
+        totalSales: totalSales || 0,
+        totalTaxpayers: totalTaxpayers || 0,
       })
     } catch (error) {
       console.error("Error fetching dashboard stats:", error)
@@ -142,7 +162,7 @@ export default function SuperAdminDashboard() {
             </div>
 
             {/* Stats Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 mt-8">
               <StatCard
                 icon={<Users className="h-6 w-6" />}
                 title="Total Users"
@@ -159,10 +179,24 @@ export default function SuperAdminDashboard() {
               />
               <StatCard
                 icon={<Building2 className="h-6 w-6" />}
-                title="Regions"
-                value={stats.regions}
+                title="Assigned Areas"
+                value={stats.assignedAreas}
                 subtitle="Coverage areas"
                 color="purple"
+              />
+              <StatCard
+                icon={<TrendingUp className="h-6 w-6" />}
+                title="Sales Records"
+                value={stats.totalSales}
+                subtitle="Total sales entries"
+                color="orange"
+              />
+              <StatCard
+                icon={<FileText className="h-6 w-6" />}
+                title="Taxpayers"
+                value={stats.totalTaxpayers}
+                subtitle="Registered taxpayers"
+                color="blue"
               />
             </div>
           </div>

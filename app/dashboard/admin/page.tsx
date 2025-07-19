@@ -11,17 +11,19 @@ import { supabase } from "@/lib/supabase/client"
 import { Building2, Users, FileText, TrendingUp } from "lucide-react"
 
 interface DashboardStats {
-  regionalUsers: number
+  areaUsers: number
   departments: number
-  reports: number
+  areaSales: number
+  areaTaxpayers: number
 }
 
 export default function AdminDashboard() {
   const { profile } = useAuth()
   const [stats, setStats] = useState<DashboardStats>({
-    regionalUsers: 0,
+    areaUsers: 0,
     departments: 0,
-    reports: 0,
+    areaSales: 0,
+    areaTaxpayers: 0,
   })
   const [loading, setLoading] = useState(true)
 
@@ -29,22 +31,47 @@ export default function AdminDashboard() {
     try {
       setLoading(true)
 
-      // Get regional users (users in same province as admin)
-      const { count: regionalUsers } = await supabase
+      // Get users in same assigned area as admin
+      const { count: areaUsers } = await supabase
         .from("user_profiles")
         .select("*", { count: "exact", head: true })
-        .eq("province", profile?.province || "")
+        .eq("assigned_area", profile?.assigned_area || "")
         .eq("status", "active")
 
-      // Get unique departments (roles)
-      const { data: departmentData } = await supabase.from("user_profiles").select("role").eq("status", "active")
+      // Get unique departments (roles) in the same area
+      const { data: departmentData } = await supabase
+        .from("user_profiles")
+        .select("role")
+        .eq("assigned_area", profile?.assigned_area || "")
+        .eq("status", "active")
 
       const uniqueDepartments = new Set(departmentData?.map((item) => item.role) || [])
 
+      // Get sales records for users in the same area
+      const { data: areaUserIds } = await supabase
+        .from("user_profiles")
+        .select("auth_user_id")
+        .eq("assigned_area", profile?.assigned_area || "")
+
+      const userIds = areaUserIds?.map((user) => user.auth_user_id) || []
+
+      const { count: areaSales } = await supabase
+        .from("sales")
+        .select("*", { count: "exact", head: true })
+        .in("user_uuid", userIds)
+        .eq("is_deleted", false)
+
+      // Get taxpayer listings for users in the same area
+      const { count: areaTaxpayers } = await supabase
+        .from("taxpayer_listings")
+        .select("*", { count: "exact", head: true })
+        .in("user_uuid", userIds)
+
       setStats({
-        regionalUsers: regionalUsers || 0,
+        areaUsers: areaUsers || 0,
         departments: uniqueDepartments.size,
-        reports: 0, // Placeholder for future reports functionality
+        areaSales: areaSales || 0,
+        areaTaxpayers: areaTaxpayers || 0,
       })
     } catch (error) {
       console.error("Error fetching dashboard stats:", error)
@@ -121,7 +148,7 @@ export default function AdminDashboard() {
                   Welcome back, {profile?.first_name || "Admin"}!
                 </h1>
                 <p className="text-gray-600 text-lg">
-                  Manage your regional operations and oversee departmental activities.
+                  Manage your assigned area operations and oversee departmental activities.
                 </p>
               </div>
             </div>
@@ -144,12 +171,12 @@ export default function AdminDashboard() {
             </div>
 
             {/* Stats Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mt-8">
               <StatCard
                 icon={<Users className="h-6 w-6" />}
-                title="Regional Users"
-                value={stats.regionalUsers}
-                subtitle="In your region"
+                title="Area Users"
+                value={stats.areaUsers}
+                subtitle="In your area"
                 color="blue"
               />
               <StatCard
@@ -160,11 +187,18 @@ export default function AdminDashboard() {
                 color="green"
               />
               <StatCard
-                icon={<FileText className="h-6 w-6" />}
-                title="Reports"
-                value={stats.reports}
-                subtitle="Generated reports"
+                icon={<TrendingUp className="h-6 w-6" />}
+                title="Area Sales"
+                value={stats.areaSales}
+                subtitle="Sales in your area"
                 color="purple"
+              />
+              <StatCard
+                icon={<FileText className="h-6 w-6" />}
+                title="Area Taxpayers"
+                value={stats.areaTaxpayers}
+                subtitle="Taxpayers in area"
+                color="orange"
               />
             </div>
           </div>
