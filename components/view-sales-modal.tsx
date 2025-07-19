@@ -16,12 +16,10 @@ interface ViewSalesModalProps {
 export function ViewSalesModal({ open, onOpenChange, sale }: ViewSalesModalProps) {
   if (!sale) return null
 
-  // Format TIN display
+  // Format TIN display - add dash after every 3 digits
   const formatTin = (tin: string) => {
-    if (tin.length === 9) {
-      return `${tin.slice(0, 3)}-${tin.slice(3, 6)}-${tin.slice(6)}`
-    }
-    return tin
+    const digits = tin.replace(/\D/g, "")
+    return digits.replace(/(\d{3})(?=\d)/g, "$1-")
   }
 
   // Format currency

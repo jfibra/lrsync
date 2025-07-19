@@ -10,11 +10,11 @@ CREATE INDEX IF NOT EXISTS idx_user_profiles_auth_user_id ON user_profiles(auth_
 
 -- Update any existing sales records that might have null user_uuid
 -- This is optional and depends on your data
-UPDATE sales 
-SET user_uuid = (
-  SELECT auth_user_id 
-  FROM user_profiles 
-  WHERE user_profiles.full_name = sales.user_full_name
-  LIMIT 1
-)
-WHERE user_uuid IS NULL AND user_full_name IS NOT NULL;
+-- UPDATE sales 
+-- SET user_uuid = (
+--   SELECT auth_user_id 
+--   FROM user_profiles 
+--   WHERE user_profiles.full_name = sales.user_full_name
+--   LIMIT 1
+-- )
+-- WHERE user_uuid IS NULL AND user_full_name IS NOT NULL;

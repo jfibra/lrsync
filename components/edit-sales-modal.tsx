@@ -198,18 +198,10 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
 
   const taxMonthOptions = generateTaxMonthOptions()
 
-  // Format TIN input
+  // Format TIN input - add dash after every 3 digits
   const formatTinInput = (value: string) => {
     const digits = value.replace(/\D/g, "")
-    const limitedDigits = digits.slice(0, 9)
-
-    if (limitedDigits.length <= 3) {
-      return limitedDigits
-    } else if (limitedDigits.length <= 6) {
-      return `${limitedDigits.slice(0, 3)}-${limitedDigits.slice(3)}`
-    } else {
-      return `${limitedDigits.slice(0, 3)}-${limitedDigits.slice(3, 6)}-${limitedDigits.slice(6)}`
-    }
+    return digits.replace(/(\d{3})(?=\d)/g, "$1-")
   }
 
   // Search TIN in taxpayer_listings

@@ -13,6 +13,9 @@ export interface TaxpayerListing {
   user_full_name: string | null
   created_at: string
   updated_at: string
+  user_profiles?: {
+    assigned_area: string | null
+  } | null
 }
 
 export interface TaxpayerFormData {

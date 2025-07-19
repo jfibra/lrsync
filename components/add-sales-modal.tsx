@@ -3,218 +3,437 @@
 import type React from "react"
 
 import { useState } from "react"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Calendar } from "@/components/ui/calendar"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Badge } from "@/components/ui/badge"
-import { Plus, CalendarIcon, Search, Upload, X, FileText } from "lucide-react"
+import { CalendarIcon, Plus, Upload, X, AlertCircle } from "lucide-react"
 import { format } from "date-fns"
-import { cn } from "@/lib/utils"
-import { supabase } from "@/lib/supabase/client"
 import { useAuth } from "@/contexts/auth-context"
+import { supabase } from "@/lib/supabase/client"
 import type { TaxpayerListing } from "@/types/taxpayer"
 
 interface AddSalesModalProps {
-  onSalesAdded: () => void
+  onSalesAdded?: () => void
+}
+
+interface TaxMonthOption {
+  label: string
+  value: string
 }
 
 interface FileUpload {
-  file: File
-  preview: string
+  id: string
+  name: string
+  files: File[]
+  required: boolean
+  uploading: boolean
+  uploadedUrls: string[]
 }
 
-interface FileUploads {
-  cheque: FileUpload[]
-  voucher: FileUpload[]
-  invoice: FileUpload[]
-  doc_2307: FileUpload[]
-  deposit_slip: FileUpload[]
+// Laravel API Upload function
+const uploadToLaravelAPI = async (file: File, taxMonth: string, fileName: string): Promise<string> => {
+  const taxDate = new Date(taxMonth)
+  const taxYear = taxDate.getFullYear().toString()
+  const taxMonthNum = String(taxDate.getMonth() + 1).padStart(2, "0")
+  const taxDay = String(taxDate.getDate()).padStart(2, "0")
+
+  const formData = new FormData()
+  formData.append("file", file)
+  formData.append("tax_month", taxMonthNum)
+  formData.append("tax_year", taxYear)
+  formData.append("tax_date", taxDay)
+  formData.append("file_name", fileName)
+
+  // Construct the correct API URL
+  const apiUrl = `${process.env.NEXT_PUBLIC_NEXT_API_ROUTE_LR}/upload-tax-file`
+
+  console.log("Uploading to:", apiUrl)
+  console.log("Form data:", {
+    fileName,
+    tax_month: taxMonthNum,
+    tax_year: taxYear,
+    tax_date: taxDay,
+    fileSize: file.size,
+    fileType: file.type,
+  })
+
+  try {
+    const response = await fetch(apiUrl, {
+      method: "POST",
+      body: formData,
+      headers: {
+        Accept: "application/json",
+        // Add CORS headers to the request
+        "Access-Control-Allow-Origin": "*", // This is NOT a solution, server must be configured
+        "Access-Control-Allow-Methods": "POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+      },
+    })
+
+    console.log("Response status:", response.status)
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error("Upload error response:", errorText)
+      throw new Error(`Upload failed: ${response.status} ${response.statusText}`)
+    }
+
+    const responseText = await response.text()
+    console.log("Raw response:", responseText)
+
+    // Check if response is empty
+    if (!responseText.trim()) {
+      throw new Error("Empty response from server")
+    }
+
+    try {
+      const result = JSON.parse(responseText)
+      console.log("Parsed response:", result)
+
+      // Handle the API response format: {"0": {"url": "..."}, "success": true}
+      if (result.success && result["0"] && result["0"].url) {
+        return result["0"].url
+      } else {
+        throw new Error("Invalid response structure: missing URL in response")
+      }
+    } catch (parseError) {
+      console.error("JSON parse error:", parseError)
+      console.error("Response was:", responseText)
+      throw new Error(`Invalid JSON response from server: ${parseError}`)
+    }
+  } catch (networkError) {
+    console.error("Network error:", networkError)
+    throw new Error(`Network error: ${networkError.message}`)
+  }
 }
 
 export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
-  const { user, profile } = useAuth()
+  const { profile, user } = useAuth()
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [searchTerm, setSearchTerm] = useState("")
-  const [taxpayers, setTaxpayers] = useState<TaxpayerListing[]>([])
-  const [searchLoading, setSearchLoading] = useState(false)
-  const [selectedTaxpayer, setSelectedTaxpayer] = useState<TaxpayerListing | null>(null)
 
   // Form state
-  const [taxMonth, setTaxMonth] = useState<Date>()
+  const [taxMonth, setTaxMonth] = useState("")
+  const [tinSearch, setTinSearch] = useState("")
+  const [selectedTin, setSelectedTin] = useState<TaxpayerListing | null>(null)
+  const [name, setName] = useState("")
+  const [substreetStreetBrgy, setSubstreetStreetBrgy] = useState("")
+  const [districtCityZip, setDistrictCityZip] = useState("")
   const [grossTaxable, setGrossTaxable] = useState("")
   const [invoiceNumber, setInvoiceNumber] = useState("")
   const [taxType, setTaxType] = useState("")
-  const [pickupDate, setPickupDate] = useState<Date>()
+  const [pickupDate, setPickupDate] = useState<Date>(new Date())
 
-  // File uploads state
-  const [fileUploads, setFileUploads] = useState<FileUploads>({
-    cheque: [],
-    voucher: [],
-    invoice: [],
-    doc_2307: [],
-    deposit_slip: [],
-  })
+  // TIN search results
+  const [tinResults, setTinResults] = useState<TaxpayerListing[]>([])
+  const [searchingTin, setSearchingTin] = useState(false)
+  const [showTinDropdown, setShowTinDropdown] = useState(false)
 
-  // Search taxpayers
-  const searchTaxpayers = async (term: string) => {
-    if (!term.trim()) {
-      setTaxpayers([])
+  // File uploads with Laravel API support
+  const [fileUploads, setFileUploads] = useState<FileUpload[]>([
+    { id: "cheque", name: "Cheque", files: [], required: true, uploading: false, uploadedUrls: [] },
+    { id: "voucher", name: "Voucher", files: [], required: true, uploading: false, uploadedUrls: [] },
+    { id: "invoice", name: "Invoice", files: [], required: true, uploading: false, uploadedUrls: [] },
+    { id: "doc_2307", name: "Doc 2307", files: [], required: false, uploading: false, uploadedUrls: [] },
+    { id: "deposit_slip", name: "Deposit Slip", files: [], required: false, uploading: false, uploadedUrls: [] },
+  ])
+
+  // Generate tax month options (36 months from current month backwards)
+  const generateTaxMonthOptions = (): TaxMonthOption[] => {
+    const options: TaxMonthOption[] = []
+    const currentDate = new Date()
+
+    for (let i = 0; i < 36; i++) {
+      const date = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1)
+      const year = date.getFullYear()
+      const month = date.getMonth()
+
+      // Get last day of the month
+      const lastDay = new Date(year, month + 1, 0).getDate()
+      const monthName = date.toLocaleDateString("en-US", { month: "long", year: "numeric" })
+      const value = `${year}-${String(month + 1).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`
+
+      options.push({
+        label: monthName,
+        value: value,
+      })
+    }
+
+    return options
+  }
+
+  const taxMonthOptions = generateTaxMonthOptions()
+
+  // Format TIN input to add dashes after every 3 digits (no character limit)
+  const formatTinInput = (value: string) => {
+    // Remove all non-digits
+    const digits = value.replace(/\D/g, "")
+
+    // Add dashes after every 3 digits
+    const formatted = digits.replace(/(\d{3})(?=\d)/g, "$1-")
+
+    return formatted
+  }
+
+  // Search TIN in taxpayer_listings
+  const searchTin = async (searchTerm: string) => {
+    // Remove dashes for database search
+    const cleanTin = searchTerm.replace(/-/g, "")
+
+    if (cleanTin.length < 3) {
+      setTinResults([])
+      setShowTinDropdown(false)
       return
     }
 
-    setSearchLoading(true)
+    setSearchingTin(true)
     try {
       const { data, error } = await supabase
         .from("taxpayer_listings")
         .select("*")
-        .or(`tin.ilike.%${term}%,registered_name.ilike.%${term}%`)
+        .ilike("tin", `%${cleanTin}%`)
+        .eq("type", "sales")
         .limit(10)
 
       if (error) throw error
-      setTaxpayers(data || [])
+      setTinResults(data || [])
+      setShowTinDropdown((data || []).length > 0)
     } catch (error) {
-      console.error("Error searching taxpayers:", error)
+      console.error("Error searching TIN:", error)
+      setTinResults([])
+      setShowTinDropdown(false)
     } finally {
-      setSearchLoading(false)
+      setSearchingTin(false)
     }
   }
 
-  // Handle taxpayer selection
-  const handleTaxpayerSelect = (taxpayer: TaxpayerListing) => {
-    setSelectedTaxpayer(taxpayer)
-    setSearchTerm("")
-    setTaxpayers([])
+  // Handle TIN input change
+  const handleTinInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formatted = formatTinInput(e.target.value)
+    setTinSearch(formatted)
+    setSelectedTin(null)
+    searchTin(formatted)
   }
 
-  // Handle file upload
-  const handleFileUpload = (type: keyof FileUploads, files: FileList | null) => {
-    if (!files) return
+  // Handle TIN selection from dropdown
+  const handleTinSelect = (taxpayer: TaxpayerListing) => {
+    setSelectedTin(taxpayer)
+    setTinSearch(formatTinInput(taxpayer.tin))
+    setName(taxpayer.registered_name || "")
+    setSubstreetStreetBrgy(taxpayer.substreet_street_brgy || "")
+    setDistrictCityZip(taxpayer.district_city_zip || "")
+    setShowTinDropdown(false)
+  }
 
-    const newFiles: FileUpload[] = []
-    Array.from(files).forEach((file) => {
-      if (file.type.startsWith("image/") || file.type === "application/pdf") {
-        const preview = URL.createObjectURL(file)
-        newFiles.push({ file, preview })
+  // Format gross taxable with commas
+  const formatGrossTaxable = (value: string) => {
+    const numericValue = value.replace(/[^\d]/g, "")
+    if (!numericValue) return ""
+    return Number.parseInt(numericValue).toLocaleString()
+  }
+
+  const handleGrossTaxableChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formatted = formatGrossTaxable(e.target.value)
+    setGrossTaxable(formatted)
+  }
+
+  // Validate file type (images only)
+  const isValidImageFile = (file: File): boolean => {
+    const validTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"]
+    return validTypes.includes(file.type)
+  }
+
+  // Generate filename for Laravel API upload
+  const generateFileName = (taxMonth: string, tin: string, fileType: string, originalFileName: string): string => {
+    const taxDate = new Date(taxMonth)
+    const currentDate = new Date()
+    const dateStr = format(currentDate, "MMddyyyy")
+    const cleanTin = tin.replace(/-/g, "")
+    const fileExtension = originalFileName.split(".").pop()
+    return `${cleanTin}-${fileType}-${dateStr}.${fileExtension}`
+  }
+
+  // Handle file uploads with Laravel API
+  const handleFileChange = async (uploadId: string, files: FileList | null) => {
+    if (!files || !taxMonth || !tinSearch) return
+
+    const validFiles = Array.from(files).filter((file) => {
+      if (!isValidImageFile(file)) {
+        alert(`${file.name} is not a valid image file. Only JPEG, PNG, GIF, and WebP files are allowed.`)
+        return false
       }
+      return true
     })
 
-    setFileUploads((prev) => ({
-      ...prev,
-      [type]: [...prev[type], ...newFiles],
-    }))
-  }
+    if (validFiles.length === 0) return
 
-  // Remove file
-  const removeFile = (type: keyof FileUploads, index: number) => {
-    setFileUploads((prev) => ({
-      ...prev,
-      [type]: prev[type].filter((_, i) => i !== index),
-    }))
-  }
-
-  // Upload files to Laravel API
-  const uploadFiles = async (files: FileUpload[], type: string): Promise<string[]> => {
-    if (files.length === 0) return []
-
-    const uploadedUrls: string[] = []
-
-    for (const fileUpload of files) {
-      const formData = new FormData()
-      formData.append("file", fileUpload.file)
-      formData.append("type", type)
-      formData.append("tin", selectedTaxpayer?.tin || "")
-      formData.append("tax_month", taxMonth ? format(taxMonth, "yyyy-MM") : "")
-
-      try {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_NEXT_API_ROUTE_LR}/api/upload`, {
-          method: "POST",
-          body: formData,
-        })
-
-        if (!response.ok) {
-          throw new Error(`Upload failed: ${response.statusText}`)
-        }
-
-        const result = await response.json()
-        uploadedUrls.push(result.url)
-      } catch (error) {
-        console.error(`Error uploading ${type} file:`, error)
-        throw error
-      }
+    // Check if API endpoint is configured
+    if (!process.env.NEXT_PUBLIC_NEXT_API_ROUTE_LR) {
+      alert("API endpoint not configured. Please check NEXT_PUBLIC_NEXT_API_ROUTE_LR environment variable.")
+      return
     }
 
-    return uploadedUrls
+    // Set uploading state
+    setFileUploads((prev) => prev.map((upload) => (upload.id === uploadId ? { ...upload, uploading: true } : upload)))
+
+    try {
+      const uploadPromises = validFiles.map(async (file) => {
+        const fileName = generateFileName(taxMonth, tinSearch, uploadId, file.name)
+        return await uploadToLaravelAPI(file, taxMonth, fileName)
+      })
+
+      const uploadedUrls = await Promise.all(uploadPromises)
+
+      setFileUploads((prev) =>
+        prev.map((upload) =>
+          upload.id === uploadId
+            ? {
+                ...upload,
+                files: [...upload.files, ...validFiles],
+                uploadedUrls: [...upload.uploadedUrls, ...uploadedUrls],
+                uploading: false,
+              }
+            : upload,
+        ),
+      )
+    } catch (error) {
+      console.error("Error uploading files:", error)
+      alert(`Error uploading files: ${error instanceof Error ? error.message : "Unknown error"}. Please try again.`)
+
+      setFileUploads((prev) =>
+        prev.map((upload) => (upload.id === uploadId ? { ...upload, uploading: false } : upload)),
+      )
+    }
+  }
+
+  const removeFile = (uploadId: string, fileIndex: number) => {
+    setFileUploads((prev) =>
+      prev.map((upload) =>
+        upload.id === uploadId
+          ? {
+              ...upload,
+              files: upload.files.filter((_, index) => index !== fileIndex),
+              uploadedUrls: upload.uploadedUrls.filter((_, index) => index !== fileIndex),
+            }
+          : upload,
+      ),
+    )
+  }
+
+  // Check if required files are uploaded
+  const areRequiredFilesUploaded = (): boolean => {
+    const requiredUploads = fileUploads.filter((upload) => upload.required)
+    return requiredUploads.every((upload) => upload.files.length > 0)
+  }
+
+  // Reset form
+  const resetForm = () => {
+    setTaxMonth("")
+    setTinSearch("")
+    setSelectedTin(null)
+    setName("")
+    setSubstreetStreetBrgy("")
+    setDistrictCityZip("")
+    setGrossTaxable("")
+    setInvoiceNumber("")
+    setTaxType("")
+    setPickupDate(new Date())
+    setFileUploads((prev) =>
+      prev.map((upload) => ({
+        ...upload,
+        files: [],
+        uploadedUrls: [],
+        uploading: false,
+      })),
+    )
+    setShowTinDropdown(false)
   }
 
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!selectedTaxpayer || !taxMonth || !user || !profile) return
+    if (!profile || !user) return
+
+    // Check required files
+    if (!areRequiredFilesUploaded()) {
+      alert("Please upload required files: Cheque, Voucher, and Invoice")
+      return
+    }
 
     setLoading(true)
     try {
-      // Upload all files
-      const [chequeUrls, voucherUrls, invoiceUrls, doc2307Urls, depositSlipUrls] = await Promise.all([
-        uploadFiles(fileUploads.cheque, "cheque"),
-        uploadFiles(fileUploads.voucher, "voucher"),
-        uploadFiles(fileUploads.invoice, "invoice"),
-        uploadFiles(fileUploads.doc_2307, "doc_2307"),
-        uploadFiles(fileUploads.deposit_slip, "deposit_slip"),
-      ])
+      let tinId = selectedTin?.id
+      const cleanTin = tinSearch.replace(/-/g, "")
 
-      // Insert sales record
-      const { error } = await supabase.from("sales").insert({
-        tax_month: format(taxMonth, "yyyy-MM-dd"),
-        tin_id: selectedTaxpayer.id,
-        tin: selectedTaxpayer.tin,
-        name: selectedTaxpayer.registered_name || "",
-        type: selectedTaxpayer.type,
-        substreet_street_brgy: selectedTaxpayer.substreet_street_brgy,
-        district_city_zip: selectedTaxpayer.district_city_zip,
-        gross_taxable: Number.parseFloat(grossTaxable) || 0,
+      // If no TIN selected, create new taxpayer listing
+      if (!selectedTin && cleanTin) {
+        const { data: newTaxpayer, error: taxpayerError } = await supabase
+          .from("taxpayer_listings")
+          .insert({
+            tin: cleanTin,
+            registered_name: name,
+            substreet_street_brgy: substreetStreetBrgy,
+            district_city_zip: districtCityZip,
+            type: "sales",
+            user_uuid: user.id, // Save the logged-in user's UUID
+            user_full_name: profile.full_name,
+          })
+          .select()
+          .single()
+
+        if (taxpayerError) throw taxpayerError
+        tinId = newTaxpayer.id
+      }
+
+      // Prepare file URLs from Laravel API uploads
+      const fileArrays = {
+        cheque: fileUploads.find((f) => f.id === "cheque")?.uploadedUrls || [],
+        voucher: fileUploads.find((f) => f.id === "voucher")?.uploadedUrls || [],
+        doc_2307: fileUploads.find((f) => f.id === "doc_2307")?.uploadedUrls || [],
+        invoice: fileUploads.find((f) => f.id === "invoice")?.uploadedUrls || [],
+        deposit_slip: fileUploads.find((f) => f.id === "deposit_slip")?.uploadedUrls || [],
+      }
+
+      // Format pickup date properly
+      const formattedPickupDate = pickupDate ? format(pickupDate, "yyyy-MM-dd") : null
+
+      // Create sales record with Laravel API URLs
+      const salesData = {
+        tax_month: taxMonth,
+        tin_id: tinId,
+        tin: cleanTin,
+        name: name,
+        type: "sales",
+        substreet_street_brgy: substreetStreetBrgy || null,
+        district_city_zip: districtCityZip || null,
+        gross_taxable: Number.parseFloat(grossTaxable.replace(/,/g, "")) || 0,
         invoice_number: invoiceNumber || null,
         tax_type: taxType,
-        pickup_date: pickupDate ? format(pickupDate, "yyyy-MM-dd") : null,
-        cheque: chequeUrls.length > 0 ? chequeUrls : null,
-        voucher: voucherUrls.length > 0 ? voucherUrls : null,
-        invoice: invoiceUrls.length > 0 ? invoiceUrls : null,
-        doc_2307: doc2307Urls.length > 0 ? doc2307Urls : null,
-        deposit_slip: depositSlipUrls.length > 0 ? depositSlipUrls : null,
+        pickup_date: formattedPickupDate,
+        cheque: fileArrays.cheque,
+        voucher: fileArrays.voucher,
+        doc_2307: fileArrays.doc_2307,
+        invoice: fileArrays.invoice,
+        deposit_slip: fileArrays.deposit_slip,
         user_uuid: user.id, // Save the logged-in user's UUID
         user_full_name: profile.full_name,
-      })
+      }
 
-      if (error) throw error
+      console.log("Sales data to insert:", salesData)
 
-      // Reset form
-      setSelectedTaxpayer(null)
-      setTaxMonth(undefined)
-      setGrossTaxable("")
-      setInvoiceNumber("")
-      setTaxType("")
-      setPickupDate(undefined)
-      setFileUploads({
-        cheque: [],
-        voucher: [],
-        invoice: [],
-        doc_2307: [],
-        deposit_slip: [],
-      })
+      const { error: salesError } = await supabase.from("sales").insert(salesData)
 
+      if (salesError) {
+        console.error("Sales insert error:", salesError)
+        throw salesError
+      }
+
+      // Success
       setOpen(false)
-      onSalesAdded()
+      resetForm()
+      onSalesAdded?.()
     } catch (error) {
       console.error("Error adding sales record:", error)
       alert("Error adding sales record. Please try again.")
@@ -226,128 +445,165 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button>
+        <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transition-all duration-200">
           <Plus className="h-4 w-4 mr-2" />
           Add Sales Record
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Add New Sales Record</DialogTitle>
-          <DialogDescription>
-            Add a new sales record with taxpayer information and supporting documents.
-          </DialogDescription>
+          <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+            Add Sales Record
+          </DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Taxpayer Search */}
-          <div className="space-y-2">
-            <Label htmlFor="taxpayer-search">Search Taxpayer</Label>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Tax Month */}
+            <div className="space-y-2">
+              <Label htmlFor="tax-month" className="text-sm font-medium text-gray-700">
+                Tax Month *
+              </Label>
+              <Select value={taxMonth} onValueChange={setTaxMonth} required>
+                <SelectTrigger className="border-gray-200 focus:border-blue-500 focus:ring-blue-500">
+                  <SelectValue placeholder="Select tax month..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {taxMonthOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* TIN Search */}
+            <div className="space-y-2 relative">
+              <Label htmlFor="tin" className="text-sm font-medium text-gray-700">
+                TIN # *
+              </Label>
               <Input
-                id="taxpayer-search"
-                placeholder="Search by TIN or name..."
-                value={searchTerm}
-                onChange={(e) => {
-                  setSearchTerm(e.target.value)
-                  searchTaxpayers(e.target.value)
+                id="tin"
+                value={tinSearch}
+                onChange={handleTinInputChange}
+                placeholder="000-000-000-000..."
+                className="border-gray-200 focus:border-blue-500 focus:ring-blue-500"
+                onFocus={() => {
+                  if (tinResults.length > 0) {
+                    setShowTinDropdown(true)
+                  }
                 }}
-                className="pl-10"
+                onBlur={() => {
+                  // Delay hiding dropdown to allow for clicks
+                  setTimeout(() => setShowTinDropdown(false), 200)
+                }}
+                required
               />
-              {searchLoading && (
-                <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+
+              {/* TIN Dropdown */}
+              {showTinDropdown && (
+                <div className="absolute top-full left-0 right-0 z-50 bg-white border border-gray-200 rounded-md shadow-lg max-h-48 overflow-y-auto">
+                  {searchingTin ? (
+                    <div className="p-3 text-sm text-gray-500">Searching...</div>
+                  ) : tinResults.length > 0 ? (
+                    tinResults.map((taxpayer) => (
+                      <button
+                        key={taxpayer.id}
+                        type="button"
+                        className="w-full text-left p-3 hover:bg-gray-50 border-b border-gray-100 last:border-b-0 focus:bg-blue-50 focus:outline-none"
+                        onClick={() => handleTinSelect(taxpayer)}
+                      >
+                        <div className="font-medium text-gray-900">{formatTinInput(taxpayer.tin)}</div>
+                        <div className="text-sm text-gray-600">{taxpayer.registered_name}</div>
+                      </button>
+                    ))
+                  ) : (
+                    <div className="p-3 text-sm text-gray-500">No matching TIN found</div>
+                  )}
                 </div>
               )}
             </div>
 
-            {/* Search Results */}
-            {taxpayers.length > 0 && (
-              <div className="border rounded-md max-h-40 overflow-y-auto">
-                {taxpayers.map((taxpayer) => (
-                  <div
-                    key={taxpayer.id}
-                    className="p-3 hover:bg-gray-50 cursor-pointer border-b last:border-b-0"
-                    onClick={() => handleTaxpayerSelect(taxpayer)}
-                  >
-                    <div className="font-medium">{taxpayer.registered_name}</div>
-                    <div className="text-sm text-gray-500">TIN: {taxpayer.tin}</div>
-                    <div className="text-sm text-gray-500">{taxpayer.substreet_street_brgy}</div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Selected Taxpayer */}
-            {selectedTaxpayer && (
-              <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="font-medium">{selectedTaxpayer.registered_name}</div>
-                    <div className="text-sm text-gray-600">TIN: {selectedTaxpayer.tin}</div>
-                    <div className="text-sm text-gray-600">{selectedTaxpayer.substreet_street_brgy}</div>
-                  </div>
-                  <Button type="button" variant="ghost" size="sm" onClick={() => setSelectedTaxpayer(null)}>
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Form Fields */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Tax Month */}
+            {/* Name */}
             <div className="space-y-2">
-              <Label>Tax Month *</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn("w-full justify-start text-left font-normal", !taxMonth && "text-muted-foreground")}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {taxMonth ? format(taxMonth, "MMMM yyyy") : "Select month"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar mode="single" selected={taxMonth} onSelect={setTaxMonth} initialFocus />
-                </PopoverContent>
-              </Popover>
+              <Label htmlFor="name" className="text-sm font-medium text-gray-700">
+                Name *
+              </Label>
+              <Input
+                id="name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Company/Individual name"
+                className="border-gray-200 focus:border-blue-500 focus:ring-blue-500"
+                required
+              />
             </div>
 
             {/* Gross Taxable */}
             <div className="space-y-2">
-              <Label htmlFor="gross-taxable">Gross Taxable Amount *</Label>
+              <Label htmlFor="gross-taxable" className="text-sm font-medium text-gray-700">
+                Gross Taxable *
+              </Label>
               <Input
                 id="gross-taxable"
-                type="number"
-                step="0.01"
-                placeholder="0.00"
                 value={grossTaxable}
-                onChange={(e) => setGrossTaxable(e.target.value)}
+                onChange={handleGrossTaxableChange}
+                placeholder="0"
+                className="border-gray-200 focus:border-blue-500 focus:ring-blue-500"
                 required
+              />
+            </div>
+
+            {/* Address Fields */}
+            <div className="space-y-2">
+              <Label htmlFor="substreet" className="text-sm font-medium text-gray-700">
+                Substreet/Street/Barangay
+              </Label>
+              <Input
+                id="substreet"
+                value={substreetStreetBrgy}
+                onChange={(e) => setSubstreetStreetBrgy(e.target.value)}
+                placeholder="Address details"
+                className="border-gray-200 focus:border-blue-500 focus:ring-blue-500"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="district" className="text-sm font-medium text-gray-700">
+                District/City/ZIP
+              </Label>
+              <Input
+                id="district"
+                value={districtCityZip}
+                onChange={(e) => setDistrictCityZip(e.target.value)}
+                placeholder="City and ZIP code"
+                className="border-gray-200 focus:border-blue-500 focus:ring-blue-500"
               />
             </div>
 
             {/* Invoice Number */}
             <div className="space-y-2">
-              <Label htmlFor="invoice-number">Invoice Number</Label>
+              <Label htmlFor="invoice-number" className="text-sm font-medium text-gray-700">
+                Invoice Number
+              </Label>
               <Input
                 id="invoice-number"
-                placeholder="Enter invoice number"
                 value={invoiceNumber}
                 onChange={(e) => setInvoiceNumber(e.target.value)}
+                placeholder="Invoice number"
+                className="border-gray-200 focus:border-blue-500 focus:ring-blue-500"
               />
             </div>
 
             {/* Tax Type */}
             <div className="space-y-2">
-              <Label>Tax Type *</Label>
+              <Label htmlFor="tax-type" className="text-sm font-medium text-gray-700">
+                Tax Type *
+              </Label>
               <Select value={taxType} onValueChange={setTaxType} required>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select tax type" />
+                <SelectTrigger className="border-gray-200 focus:border-blue-500 focus:ring-blue-500">
+                  <SelectValue placeholder="Select tax type..." />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="vat">VAT</SelectItem>
@@ -358,79 +614,127 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
 
             {/* Pickup Date */}
             <div className="space-y-2 md:col-span-2">
-              <Label>Pickup Date</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn("w-full justify-start text-left font-normal", !pickupDate && "text-muted-foreground")}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {pickupDate ? format(pickupDate, "PPP") : "Select pickup date"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar mode="single" selected={pickupDate} onSelect={setPickupDate} initialFocus />
-                </PopoverContent>
-              </Popover>
+              <Label htmlFor="pickup-date" className="text-sm font-medium text-gray-700">
+                Pickup Date
+              </Label>
+              <div className="flex items-center space-x-2">
+                <CalendarIcon className="h-4 w-4 text-gray-500" />
+                <Input
+                  type="date"
+                  value={format(pickupDate, "yyyy-MM-dd")}
+                  onChange={(e) => {
+                    const newDate = new Date(e.target.value)
+                    if (!isNaN(newDate.getTime())) {
+                      setPickupDate(newDate)
+                    }
+                  }}
+                  className="border-gray-200 focus:border-blue-500 focus:ring-blue-500"
+                />
+              </div>
             </div>
           </div>
 
           {/* File Uploads */}
           <div className="space-y-4">
-            <Label className="text-base font-medium">Supporting Documents</Label>
+            <Label className="text-base font-semibold text-gray-700">File Uploads (Images Only)</Label>
+            <div className="text-sm text-gray-600 mb-4">
+              <AlertCircle className="inline h-4 w-4 mr-1" />
+              Required: Cheque, Voucher, Invoice | Optional: Doc 2307, Deposit Slip
+            </div>
 
-            {Object.entries(fileUploads).map(([type, files]) => (
-              <div key={type} className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label className="capitalize">{type.replace("_", " ")}</Label>
-                  <div className="relative">
-                    <Input
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {fileUploads.map((upload) => (
+                <div key={upload.id} className="space-y-2">
+                  <Label htmlFor={upload.id} className="text-sm font-medium text-gray-700 flex items-center">
+                    {upload.name}
+                    {upload.required && <span className="text-red-500 ml-1">*</span>}
+                  </Label>
+                  <div
+                    className={`border-2 border-dashed rounded-lg p-4 transition-colors ${
+                      upload.required && upload.files.length === 0
+                        ? "border-red-300 hover:border-red-400"
+                        : "border-gray-300 hover:border-blue-400"
+                    }`}
+                  >
+                    <input
+                      id={upload.id}
                       type="file"
                       multiple
-                      accept="image/*,application/pdf"
-                      onChange={(e) => handleFileUpload(type as keyof FileUploads, e.target.files)}
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => handleFileChange(upload.id, e.target.files)}
+                      disabled={upload.uploading || !taxMonth || !tinSearch}
                     />
-                    <Button type="button" variant="outline" size="sm">
-                      <Upload className="h-4 w-4 mr-2" />
-                      Upload {type.replace("_", " ")}
-                    </Button>
+                    <label
+                      htmlFor={upload.id}
+                      className={`flex flex-col items-center justify-center cursor-pointer ${
+                        upload.uploading || !taxMonth || !tinSearch ? "opacity-50 cursor-not-allowed" : ""
+                      }`}
+                    >
+                      {upload.uploading ? (
+                        <>
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mb-2"></div>
+                          <span className="text-sm text-blue-600">Uploading...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="h-8 w-8 text-gray-400 mb-2" />
+                          <span className="text-sm text-gray-500">
+                            {!taxMonth || !tinSearch ? "Select tax month & TIN first" : "Click to upload images"}
+                          </span>
+                        </>
+                      )}
+                    </label>
+
+                    {upload.files.length > 0 && (
+                      <div className="mt-2 space-y-1">
+                        {upload.files.map((file, index) => (
+                          <div key={index} className="flex items-center justify-between text-xs bg-gray-50 p-2 rounded">
+                            <span className="truncate flex-1">{file.name}</span>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => removeFile(upload.id, index)}
+                              className="h-4 w-4 p-0 hover:bg-red-100 ml-2"
+                              disabled={upload.uploading}
+                            >
+                              <X className="h-3 w-3 text-red-500" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
-
-                {files.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {files.map((fileUpload, index) => (
-                      <div key={index} className="relative">
-                        <Badge variant="outline" className="pr-6">
-                          <FileText className="h-3 w-3 mr-1" />
-                          {fileUpload.file.name}
-                        </Badge>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="absolute -top-1 -right-1 h-4 w-4 p-0"
-                          onClick={() => removeFile(type as keyof FileUploads, index)}
-                        >
-                          <X className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
 
-          {/* Submit Button */}
-          <div className="flex justify-end space-x-2">
-            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+          {/* Form Actions */}
+          <div className="flex justify-end space-x-4 pt-6 border-t">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setOpen(false)}
+              disabled={loading}
+              className="border-gray-200 hover:bg-gray-50"
+            >
               Cancel
             </Button>
-            <Button type="submit" disabled={loading || !selectedTaxpayer || !taxMonth || !grossTaxable || !taxType}>
-              {loading ? "Adding..." : "Add Sales Record"}
+            <Button
+              type="submit"
+              disabled={loading || !areRequiredFilesUploaded() || fileUploads.some((f) => f.uploading)}
+              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
+            >
+              {loading ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Adding...
+                </>
+              ) : (
+                "Add Sales Record"
+              )}
             </Button>
           </div>
         </form>

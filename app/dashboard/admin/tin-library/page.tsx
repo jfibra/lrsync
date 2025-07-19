@@ -35,6 +35,13 @@ import type { TaxpayerListing, TaxpayerFormData, TaxpayerType } from "@/types/ta
 import { Search, Edit, Trash2, Plus, CheckCircle, AlertCircle, RefreshCw, FileText } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
+const formatTin = (tin: string): string => {
+  if (!tin) return ""
+  // Remove any existing dashes and format with dashes after every 3 digits
+  const cleanTin = tin.replace(/-/g, "")
+  return cleanTin.replace(/(\d{3})(?=\d)/g, "$1-")
+}
+
 const initialFormData: TaxpayerFormData = {
   tin: "",
   registered_name: "",
@@ -63,12 +70,16 @@ export default function AdminTinLibraryPage() {
   const [formData, setFormData] = useState<TaxpayerFormData>(initialFormData)
   const [editingTaxpayer, setEditingTaxpayer] = useState<TaxpayerListing | null>(null)
 
+  const [areas, setAreas] = useState<string[]>([])
+  const [filterArea, setFilterArea] = useState<string>("all")
+
   const fetchTaxpayers = async () => {
     try {
       setLoading(true)
       setError("")
 
-      const { data, error: fetchError } = await supabase
+      // Fetch taxpayers first
+      const { data: taxpayersData, error: fetchError } = await supabase
         .from("taxpayer_listings")
         .select("*")
         .order("created_at", { ascending: false })
@@ -79,8 +90,42 @@ export default function AdminTinLibraryPage() {
         return
       }
 
-      console.log("Fetched taxpayers:", data?.length || 0)
-      setTaxpayers(data || [])
+      // Fetch user profiles separately using the correct column name
+      const { data: userProfiles, error: profilesError } = await supabase
+        .from("user_profiles")
+        .select("auth_user_id, assigned_area")
+
+      if (profilesError) {
+        console.error("Profiles fetch error:", profilesError)
+        setError("Error fetching user profiles: " + profilesError.message)
+        return
+      }
+
+      // Create a map of auth_user_id to assigned_area for quick lookup
+      const userAreaMap = new Map(userProfiles?.map((profile) => [profile.auth_user_id, profile.assigned_area]) || [])
+
+      // Combine the data - match user_uuid from taxpayer_listings with auth_user_id from user_profiles
+      const taxpayersWithAreas =
+        taxpayersData?.map((taxpayer) => ({
+          ...taxpayer,
+          user_profiles: taxpayer.user_uuid
+            ? {
+                assigned_area: userAreaMap.get(taxpayer.user_uuid) || null,
+              }
+            : null,
+        })) || []
+
+      console.log("Fetched taxpayers:", taxpayersWithAreas?.length || 0)
+      setTaxpayers(taxpayersWithAreas)
+
+      // Extract unique areas for filter
+      const uniqueAreas = [
+        ...new Set(
+          taxpayersWithAreas?.map((t) => t.user_profiles?.assigned_area).filter((area) => area && area.trim() !== ""),
+        ),
+      ] as string[]
+
+      setAreas(uniqueAreas.sort())
     } catch (error: any) {
       console.error("Unexpected error:", error)
       setError("An unexpected error occurred: " + error.message)
@@ -116,7 +161,9 @@ export default function AdminTinLibraryPage() {
 
     const matchesType = filterType === "all" || taxpayer.type === filterType
 
-    return matchesSearch && matchesType
+    const matchesArea = filterArea === "all" || taxpayer.user_profiles?.assigned_area === filterArea
+
+    return matchesSearch && matchesType && matchesArea
   })
 
   const validateForm = (data: TaxpayerFormData): string | null => {
@@ -296,11 +343,16 @@ export default function AdminTinLibraryPage() {
           <Label htmlFor="tin">TIN *</Label>
           <Input
             id="tin"
-            value={formData.tin}
-            onChange={(e) => setFormData({ ...formData, tin: e.target.value })}
+            value={formatTin(formData.tin)}
+            onChange={(e) => {
+              const cleanValue = e.target.value.replace(/-/g, "")
+              if (cleanValue.length <= 15 && /^\d*$/.test(cleanValue)) {
+                setFormData({ ...formData, tin: cleanValue })
+              }
+            }}
             disabled={isCreating || isUpdating}
             placeholder="000-000-000-000"
-            maxLength={20}
+            maxLength={19} // 15 digits + 4 dashes
           />
         </div>
         <div className="space-y-2">
@@ -414,6 +466,19 @@ export default function AdminTinLibraryPage() {
                       <SelectItem value="purchases">Purchases</SelectItem>
                     </SelectContent>
                   </Select>
+                  <Select value={filterArea} onValueChange={(value: string) => setFilterArea(value)}>
+                    <SelectTrigger className="w-40">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Areas</SelectItem>
+                      {areas.map((area) => (
+                        <SelectItem key={area} value={area}>
+                          {area}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <Button onClick={fetchTaxpayers} variant="outline" size="sm">
                     <RefreshCw className="h-4 w-4" />
                   </Button>
@@ -473,6 +538,7 @@ export default function AdminTinLibraryPage() {
                           <TableHead>Registered Name</TableHead>
                           <TableHead>Type</TableHead>
                           <TableHead>Address</TableHead>
+                          <TableHead>Area</TableHead>
                           <TableHead>Date Added</TableHead>
                           <TableHead>Actions</TableHead>
                         </TableRow>
@@ -480,7 +546,7 @@ export default function AdminTinLibraryPage() {
                       <TableBody>
                         {filteredTaxpayers.map((taxpayer) => (
                           <TableRow key={taxpayer.id}>
-                            <TableCell className="font-mono font-medium">{taxpayer.tin}</TableCell>
+                            <TableCell className="font-mono font-medium">{formatTin(taxpayer.tin)}</TableCell>
                             <TableCell>{taxpayer.registered_name || "N/A"}</TableCell>
                             <TableCell>
                               <span
@@ -499,6 +565,11 @@ export default function AdminTinLibraryPage() {
                                 <div className="text-xs text-gray-500">{taxpayer.district_city_zip || ""}</div>
                               </div>
                             </TableCell>
+                            <TableCell>
+                              <span className="text-sm text-gray-600">
+                                {taxpayer.user_profiles?.assigned_area || "N/A"}
+                              </span>
+                            </TableCell>
                             <TableCell>{new Date(taxpayer.date_added).toLocaleDateString()}</TableCell>
                             <TableCell>
                               <div className="flex gap-2">
@@ -516,7 +587,7 @@ export default function AdminTinLibraryPage() {
                                       <AlertDialogTitle>Delete Taxpayer Listing</AlertDialogTitle>
                                       <AlertDialogDescription>
                                         Are you sure you want to delete the taxpayer listing for TIN{" "}
-                                        <strong>{taxpayer.tin}</strong>? This action cannot be undone.
+                                        <strong>{formatTin(taxpayer.tin)}</strong>? This action cannot be undone.
                                       </AlertDialogDescription>
                                     </AlertDialogHeader>
                                     <AlertDialogFooter>
