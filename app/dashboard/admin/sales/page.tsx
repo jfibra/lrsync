@@ -17,6 +17,7 @@ import { AddSalesModal } from "@/components/add-sales-modal"
 import { ViewSalesModal } from "@/components/view-sales-modal"
 import { EditSalesModal } from "@/components/edit-sales-modal"
 import type { Sales } from "@/types/sales"
+import * as XLSX from "xlsx"
 
 export default function AdminSalesPage() {
   const { profile } = useAuth()
@@ -225,6 +226,156 @@ export default function AdminSalesPage() {
     }
   }
 
+  // Export to Excel function
+  const exportToExcel = () => {
+    // Calculate statistics
+    const totalSales = sales.length
+    const vatSales = sales.filter((s) => s.tax_type === "vat").length
+    const nonVatSales = sales.filter((s) => s.tax_type === "non-vat").length
+    const totalAmount = sales.reduce((sum, sale) => sum + (sale.gross_taxable || 0), 0)
+
+    // Create workbook
+    const wb = XLSX.utils.book_new()
+
+    // Create summary data
+    const summaryData = [
+      ["SALES MANAGEMENT REPORT"],
+      [
+        "Generated on:",
+        new Date().toLocaleDateString("en-PH", {
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+      ],
+      [""],
+      ["SUMMARY STATISTICS"],
+      ["Total Sales", totalSales, "Total records"],
+      ["VAT Sales", vatSales, "VAT registered"],
+      ["Non-VAT Sales", nonVatSales, "Non-VAT registered"],
+      ["Total Amount", formatCurrency(totalAmount), "Gross taxable"],
+      [""],
+      ["DETAILED SALES RECORDS"],
+      [
+        "Tax Month",
+        "TIN",
+        "Name",
+        "Address",
+        "Tax Type",
+        "Gross Taxable",
+        "Invoice #",
+        "Pickup Date",
+        "Area",
+        "Files Count",
+        "Cheque Files",
+        "Voucher Files",
+        "Invoice Files",
+        "2307 Files",
+        "Deposit Files",
+      ],
+    ]
+
+    // Add sales data
+    sales.forEach((sale) => {
+      const filesCount = [
+        ...(sale.cheque || []),
+        ...(sale.voucher || []),
+        ...(sale.invoice || []),
+        ...(sale.doc_2307 || []),
+        ...(sale.deposit_slip || []),
+      ].length
+
+      summaryData.push([
+        format(new Date(sale.tax_month), "MMM yyyy"),
+        formatTin(sale.tin),
+        sale.name,
+        sale.substreet_street_brgy || "",
+        sale.tax_type?.toUpperCase(),
+        sale.gross_taxable || 0,
+        sale.invoice_number || "",
+        sale.pickup_date ? format(new Date(sale.pickup_date), "MMM dd, yyyy") : "",
+        sale.user_assigned_area || "N/A",
+        filesCount,
+        sale.cheque?.join(", ") || "",
+        sale.voucher?.join(", ") || "",
+        sale.invoice?.join(", ") || "",
+        sale.doc_2307?.join(", ") || "",
+        sale.deposit_slip?.join(", ") || "",
+      ])
+    })
+
+    // Create worksheet
+    const ws = XLSX.utils.aoa_to_sheet(summaryData)
+
+    // Set column widths
+    ws["!cols"] = [
+      { width: 15 }, // Tax Month
+      { width: 15 }, // TIN
+      { width: 30 }, // Name
+      { width: 25 }, // Address
+      { width: 12 }, // Tax Type
+      { width: 15 }, // Gross Taxable
+      { width: 15 }, // Invoice #
+      { width: 15 }, // Pickup Date
+      { width: 15 }, // Area
+      { width: 12 }, // Files Count
+      { width: 30 }, // Cheque Files
+      { width: 30 }, // Voucher Files
+      { width: 30 }, // Invoice Files
+      { width: 30 }, // 2307 Files
+      { width: 30 }, // Deposit Files
+    ]
+
+    // Style the header rows
+    const headerStyle = {
+      font: { bold: true, size: 14 },
+      fill: { fgColor: { rgb: "366092" } },
+      alignment: { horizontal: "center" },
+    }
+
+    const summaryHeaderStyle = {
+      font: { bold: true, size: 12 },
+      fill: { fgColor: { rgb: "D9E2F3" } },
+    }
+
+    // Apply styles to specific cells
+    if (ws["A1"]) ws["A1"].s = { font: { bold: true, size: 16 }, alignment: { horizontal: "center" } }
+    if (ws["A4"]) ws["A4"].s = summaryHeaderStyle
+    if (ws["A10"]) ws["A10"].s = summaryHeaderStyle
+
+    // Style the data header row
+    for (let col = 0; col < 15; col++) {
+      const cellRef = XLSX.utils.encode_cell({ r: 10, c: col })
+      if (ws[cellRef]) {
+        ws[cellRef].s = {
+          font: { bold: true },
+          fill: { fgColor: { rgb: "E7E6E6" } },
+          alignment: { horizontal: "center" },
+        }
+      }
+    }
+
+    // Add worksheet to workbook
+    XLSX.utils.book_append_sheet(wb, ws, "Sales Report")
+
+    // Generate filename with current date
+    const filename = `Sales_Report_${new Date().toISOString().split("T")[0]}.xlsx`
+
+    // Save file
+    const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" })
+    const blob = new Blob([new Uint8Array(wbout)], { type: "application/octet-stream" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <ProtectedRoute allowedRoles={["admin"]}>
       <div className="min-h-screen bg-gray-50 pt-20">
@@ -373,7 +524,7 @@ export default function AdminSalesPage() {
                   <CardTitle>Sales Records</CardTitle>
                   <CardDescription>{loading ? "Loading..." : `${sales.length} records found`}</CardDescription>
                 </div>
-                <Button variant="outline" size="sm">
+                <Button variant="outline" size="sm" onClick={exportToExcel}>
                   <Download className="h-4 w-4 mr-2" />
                   Export
                 </Button>
