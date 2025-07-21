@@ -29,6 +29,8 @@ import { DashboardHeader } from "@/components/dashboard-header"
 import { AddSalesModal } from "@/components/add-sales-modal"
 import { ViewSalesModal } from "@/components/view-sales-modal"
 import { EditSalesModal } from "@/components/edit-sales-modal"
+import { CustomExportModal } from "@/components/custom-export-modal"
+import { ColumnVisibilityControl } from "@/components/column-visibility-control"
 import type { Sales } from "@/types/sales"
 import * as XLSX from "xlsx"
 
@@ -46,6 +48,27 @@ export default function SuperAdminSalesPage() {
   const [viewModalOpen, setViewModalOpen] = useState(false)
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [selectedSale, setSelectedSale] = useState<Sales | null>(null)
+
+  // Column visibility state
+  const [columnVisibility, setColumnVisibility] = useState([
+    { key: "tax_month", label: "Tax Month", visible: true },
+    { key: "tin", label: "TIN", visible: true },
+    { key: "name", label: "Name", visible: true },
+    { key: "tax_type", label: "Tax Type", visible: true },
+    { key: "sale_type", label: "Sale Type", visible: true },
+    { key: "gross_taxable", label: "Gross Taxable", visible: true },
+    { key: "total_actual_amount", label: "Total Actual Amount", visible: false },
+    { key: "invoice_number", label: "Invoice #", visible: true },
+    { key: "pickup_date", label: "Pickup Date", visible: true },
+    { key: "area", label: "Area", visible: true },
+    { key: "files", label: "Files", visible: true },
+    { key: "actions", label: "Actions", visible: true },
+  ])
+
+  // Toggle column visibility
+  const toggleColumnVisibility = (key: string) => {
+    setColumnVisibility((prev) => prev.map((col) => (col.key === key ? { ...col, visible: !col.visible } : col)))
+  }
 
   // Fetch available areas for filter dropdown
   const fetchAvailableAreas = async () => {
@@ -239,20 +262,24 @@ export default function SuperAdminSalesPage() {
     }
   }
 
-  // Export to Excel function
+  // Export to Excel function - exclude non-invoice sales
   const exportToExcel = () => {
-    // Calculate statistics
-    const totalSales = sales.length
-    const vatSales = sales.filter((s) => s.tax_type === "vat").length
-    const nonVatSales = sales.filter((s) => s.tax_type === "non-vat").length
-    const totalAmount = sales.reduce((sum, sale) => sum + (sale.gross_taxable || 0), 0)
+    // Filter out non-invoice sales for export
+    const invoiceSales = sales.filter((sale) => sale.sale_type === "invoice")
+
+    // Calculate statistics for invoice sales only
+    const totalSales = invoiceSales.length
+    const vatSales = invoiceSales.filter((s) => s.tax_type === "vat").length
+    const nonVatSales = invoiceSales.filter((s) => s.tax_type === "non-vat").length
+    const totalAmount = invoiceSales.reduce((sum, sale) => sum + (sale.gross_taxable || 0), 0)
+    const totalActualAmount = invoiceSales.reduce((sum, sale) => sum + (sale.total_actual_amount || 0), 0)
 
     // Create workbook
     const wb = XLSX.utils.book_new()
 
     // Create summary data
     const summaryData = [
-      ["SALES MANAGEMENT REPORT"],
+      ["SALES MANAGEMENT REPORT (Invoice Sales Only)"],
       [
         "Generated on:",
         new Date().toLocaleDateString("en-PH", {
@@ -265,10 +292,11 @@ export default function SuperAdminSalesPage() {
       ],
       [""],
       ["SUMMARY STATISTICS"],
-      ["Total Sales", totalSales, "Total records"],
+      ["Total Invoice Sales", totalSales, "Total invoice records"],
       ["VAT Sales", vatSales, "VAT registered"],
       ["Non-VAT Sales", nonVatSales, "Non-VAT registered"],
-      ["Total Amount", formatCurrency(totalAmount), "Gross taxable"],
+      ["Total Gross Taxable", formatCurrency(totalAmount), "Gross taxable amount"],
+      ["Total Actual Amount", formatCurrency(totalActualAmount), "Total actual amount"],
       [""],
       ["DETAILED SALES RECORDS"],
       [
@@ -277,7 +305,9 @@ export default function SuperAdminSalesPage() {
         "Name",
         "Address",
         "Tax Type",
+        "Sale Type",
         "Gross Taxable",
+        "Total Actual Amount",
         "Invoice #",
         "Pickup Date",
         "Area",
@@ -290,8 +320,8 @@ export default function SuperAdminSalesPage() {
       ],
     ]
 
-    // Add sales data
-    sales.forEach((sale) => {
+    // Add invoice sales data only
+    invoiceSales.forEach((sale) => {
       const filesCount = [
         ...(sale.cheque || []),
         ...(sale.voucher || []),
@@ -306,7 +336,9 @@ export default function SuperAdminSalesPage() {
         sale.name,
         sale.substreet_street_brgy || "",
         sale.tax_type?.toUpperCase(),
+        sale.sale_type?.toUpperCase() || "INVOICE",
         sale.gross_taxable || 0,
+        sale.total_actual_amount || 0,
         sale.invoice_number || "",
         sale.pickup_date ? format(new Date(sale.pickup_date), "MMM dd, yyyy") : "",
         sale.user_assigned_area || "N/A",
@@ -329,7 +361,9 @@ export default function SuperAdminSalesPage() {
       { width: 30 }, // Name
       { width: 25 }, // Address
       { width: 12 }, // Tax Type
+      { width: 12 }, // Sale Type
       { width: 15 }, // Gross Taxable
+      { width: 15 }, // Total Actual Amount
       { width: 15 }, // Invoice #
       { width: 15 }, // Pickup Date
       { width: 15 }, // Area
@@ -356,11 +390,11 @@ export default function SuperAdminSalesPage() {
     // Apply styles to specific cells
     if (ws["A1"]) ws["A1"].s = { font: { bold: true, size: 16 }, alignment: { horizontal: "center" } }
     if (ws["A4"]) ws["A4"].s = summaryHeaderStyle
-    if (ws["A10"]) ws["A10"].s = summaryHeaderStyle
+    if (ws["A11"]) ws["A11"].s = summaryHeaderStyle
 
     // Style the data header row
-    for (let col = 0; col < 15; col++) {
-      const cellRef = XLSX.utils.encode_cell({ r: 10, c: col })
+    for (let col = 0; col < 17; col++) {
+      const cellRef = XLSX.utils.encode_cell({ r: 11, c: col })
       if (ws[cellRef]) {
         ws[cellRef].s = {
           font: { bold: true },
@@ -371,10 +405,10 @@ export default function SuperAdminSalesPage() {
     }
 
     // Add worksheet to workbook
-    XLSX.utils.book_append_sheet(wb, ws, "Sales Report")
+    XLSX.utils.book_append_sheet(wb, ws, "Invoice Sales Report")
 
     // Generate filename with current date
-    const filename = `Sales_Report_${new Date().toISOString().split("T")[0]}.xlsx`
+    const filename = `Invoice_Sales_Report_${new Date().toISOString().split("T")[0]}.xlsx`
 
     /* ---- browser-safe download ---- */
     const wbArray = XLSX.write(wb, { bookType: "xlsx", type: "array" })
@@ -396,6 +430,7 @@ export default function SuperAdminSalesPage() {
   const vatSales = sales.filter((s) => s.tax_type === "vat").length
   const nonVatSales = sales.filter((s) => s.tax_type === "non-vat").length
   const totalAmount = sales.reduce((sum, sale) => sum + (sale.gross_taxable || 0), 0)
+  const totalActualAmount = sales.reduce((sum, sale) => sum + (sale.total_actual_amount || 0), 0)
 
   return (
     <ProtectedRoute allowedRoles={["super_admin"]}>
@@ -555,15 +590,19 @@ export default function SuperAdminSalesPage() {
                     {loading ? "Loading..." : `${sales.length} records found`}
                   </CardDescription>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={exportToExcel}
-                  className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white border-0 shadow-lg"
-                >
-                  <Download className="h-4 w-4 mr-2" />
-                  Export
-                </Button>
+                <div className="flex gap-2">
+                  <ColumnVisibilityControl columns={columnVisibility} onColumnToggle={toggleColumnVisibility} />
+                  <CustomExportModal sales={sales} />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={exportToExcel}
+                    className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white border-0 shadow-lg"
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Export (Invoice Only)
+                  </Button>
+                </div>
               </div>
             </CardHeader>
             <CardContent className="p-0">
@@ -571,22 +610,48 @@ export default function SuperAdminSalesPage() {
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-gray-50 border-b border-gray-200">
-                      <TableHead className="min-w-[120px] font-semibold text-gray-900">Tax Month</TableHead>
-                      <TableHead className="min-w-[120px] font-semibold text-gray-900">TIN</TableHead>
-                      <TableHead className="min-w-[180px] font-semibold text-gray-900">Name</TableHead>
-                      <TableHead className="min-w-[100px] font-semibold text-gray-900">Tax Type</TableHead>
-                      <TableHead className="min-w-[120px] font-semibold text-gray-900">Gross Taxable</TableHead>
-                      <TableHead className="min-w-[120px] font-semibold text-gray-900">Invoice #</TableHead>
-                      <TableHead className="min-w-[120px] font-semibold text-gray-900">Pickup Date</TableHead>
-                      <TableHead className="min-w-[100px] font-semibold text-gray-900">Area</TableHead>
-                      <TableHead className="min-w-[150px] font-semibold text-gray-900">Files</TableHead>
-                      <TableHead className="min-w-[120px] font-semibold text-gray-900">Actions</TableHead>
+                      {columnVisibility.find((col) => col.key === "tax_month")?.visible && (
+                        <TableHead className="min-w-[120px] font-semibold text-gray-900">Tax Month</TableHead>
+                      )}
+                      {columnVisibility.find((col) => col.key === "tin")?.visible && (
+                        <TableHead className="min-w-[120px] font-semibold text-gray-900">TIN</TableHead>
+                      )}
+                      {columnVisibility.find((col) => col.key === "name")?.visible && (
+                        <TableHead className="min-w-[180px] font-semibold text-gray-900">Name</TableHead>
+                      )}
+                      {columnVisibility.find((col) => col.key === "tax_type")?.visible && (
+                        <TableHead className="min-w-[100px] font-semibold text-gray-900">Tax Type</TableHead>
+                      )}
+                      {columnVisibility.find((col) => col.key === "sale_type")?.visible && (
+                        <TableHead className="min-w-[100px] font-semibold text-gray-900">Sale Type</TableHead>
+                      )}
+                      {columnVisibility.find((col) => col.key === "gross_taxable")?.visible && (
+                        <TableHead className="min-w-[120px] font-semibold text-gray-900">Gross Taxable</TableHead>
+                      )}
+                      {columnVisibility.find((col) => col.key === "total_actual_amount")?.visible && (
+                        <TableHead className="min-w-[140px] font-semibold text-gray-900">Total Actual Amount</TableHead>
+                      )}
+                      {columnVisibility.find((col) => col.key === "invoice_number")?.visible && (
+                        <TableHead className="min-w-[120px] font-semibold text-gray-900">Invoice #</TableHead>
+                      )}
+                      {columnVisibility.find((col) => col.key === "pickup_date")?.visible && (
+                        <TableHead className="min-w-[120px] font-semibold text-gray-900">Pickup Date</TableHead>
+                      )}
+                      {columnVisibility.find((col) => col.key === "area")?.visible && (
+                        <TableHead className="min-w-[100px] font-semibold text-gray-900">Area</TableHead>
+                      )}
+                      {columnVisibility.find((col) => col.key === "files")?.visible && (
+                        <TableHead className="min-w-[150px] font-semibold text-gray-900">Files</TableHead>
+                      )}
+                      {columnVisibility.find((col) => col.key === "actions")?.visible && (
+                        <TableHead className="min-w-[120px] font-semibold text-gray-900">Actions</TableHead>
+                      )}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {loading ? (
                       <TableRow>
-                        <TableCell colSpan={10} className="text-center py-12">
+                        <TableCell colSpan={12} className="text-center py-12">
                           <div className="flex flex-col items-center justify-center">
                             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mb-4"></div>
                             <span className="text-gray-600 font-medium">Loading sales records...</span>
@@ -595,7 +660,7 @@ export default function SuperAdminSalesPage() {
                       </TableRow>
                     ) : sales.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={10} className="text-center py-12">
+                        <TableCell colSpan={12} className="text-center py-12">
                           <BarChart3 className="h-16 w-16 text-gray-300 mx-auto mb-4" />
                           <h3 className="text-lg font-medium text-gray-900 mb-2">No sales records found</h3>
                           <p className="text-gray-500">Create your first sales record to get started!</p>
@@ -604,118 +669,144 @@ export default function SuperAdminSalesPage() {
                     ) : (
                       sales.map((sale) => (
                         <TableRow key={sale.id} className="hover:bg-gray-50 transition-colors">
-                          <TableCell className="text-gray-900 font-medium">
-                            <div className="flex items-center gap-2">
-                              <Calendar className="h-4 w-4 text-indigo-500" />
-                              {format(new Date(sale.tax_month), "MMM yyyy")}
-                            </div>
-                          </TableCell>
-                          <TableCell className="font-mono text-gray-900">
-                            <div className="flex items-center gap-2">
-                              <div className="w-2 h-2 bg-indigo-500 rounded-full"></div>
-                              {formatTin(sale.tin)}
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-gray-900">
-                            <div>
-                              <div className="font-medium">{sale.name}</div>
-                              {sale.substreet_street_brgy && (
-                                <div className="text-sm text-gray-500 flex items-center gap-1">
-                                  <MapPin className="h-3 w-3" />
-                                  {sale.substreet_street_brgy}
-                                </div>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge className={getTaxTypeBadgeColor(sale.tax_type)}>
-                              {sale.tax_type?.toUpperCase()}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-gray-900 font-semibold">
-                            {formatCurrency(sale.gross_taxable || 0)}
-                          </TableCell>
-                          <TableCell className="text-gray-600">{sale.invoice_number || "-"}</TableCell>
-                          <TableCell className="text-gray-600">
-                            {sale.pickup_date ? format(new Date(sale.pickup_date), "MMM dd, yyyy") : "-"}
-                          </TableCell>
-                          <TableCell className="text-gray-600">
-                            <div className="flex items-center gap-1">
-                              <MapPin className="h-3 w-3 text-gray-400" />
-                              <span className="text-sm bg-gray-100 px-2 py-1 rounded">
-                                {sale.user_assigned_area || "N/A"}
-                              </span>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex flex-wrap gap-1">
-                              {sale.cheque && sale.cheque.length > 0 && (
-                                <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
-                                  Cheque ({sale.cheque.length})
-                                </Badge>
-                              )}
-                              {sale.voucher && sale.voucher.length > 0 && (
-                                <Badge
-                                  variant="outline"
-                                  className="text-xs bg-green-50 text-green-700 border-green-200"
-                                >
-                                  Voucher ({sale.voucher.length})
-                                </Badge>
-                              )}
-                              {sale.invoice && sale.invoice.length > 0 && (
-                                <Badge
-                                  variant="outline"
-                                  className="text-xs bg-purple-50 text-purple-700 border-purple-200"
-                                >
-                                  Invoice ({sale.invoice.length})
-                                </Badge>
-                              )}
-                              {sale.doc_2307 && sale.doc_2307.length > 0 && (
-                                <Badge
-                                  variant="outline"
-                                  className="text-xs bg-orange-50 text-orange-700 border-orange-200"
-                                >
-                                  2307 ({sale.doc_2307.length})
-                                </Badge>
-                              )}
-                              {sale.deposit_slip && sale.deposit_slip.length > 0 && (
-                                <Badge
-                                  variant="outline"
-                                  className="text-xs bg-indigo-50 text-indigo-700 border-indigo-200"
-                                >
-                                  Deposit ({sale.deposit_slip.length})
-                                </Badge>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center space-x-2">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleViewSale(sale)}
-                                className="hover:bg-blue-50 hover:text-blue-600"
+                          {columnVisibility.find((col) => col.key === "tax_month")?.visible && (
+                            <TableCell className="text-gray-900 font-medium">
+                              <div className="flex items-center gap-2">
+                                <Calendar className="h-4 w-4 text-indigo-500" />
+                                {format(new Date(sale.tax_month), "MMM yyyy")}
+                              </div>
+                            </TableCell>
+                          )}
+                          {columnVisibility.find((col) => col.key === "tin")?.visible && (
+                            <TableCell className="font-mono text-gray-900">
+                              <div className="flex items-center gap-2">
+                                <div className="w-2 h-2 bg-indigo-500 rounded-full"></div>
+                                {formatTin(sale.tin)}
+                              </div>
+                            </TableCell>
+                          )}
+                          {columnVisibility.find((col) => col.key === "name")?.visible && (
+                            <TableCell className="text-gray-900">
+                              <div>
+                                <div className="font-medium">{sale.name}</div>
+                                {sale.substreet_street_brgy && (
+                                  <div className="text-sm text-gray-500 flex items-center gap-1">
+                                    <MapPin className="h-3 w-3" />
+                                    {sale.substreet_street_brgy}
+                                  </div>
+                                )}
+                              </div>
+                            </TableCell>
+                          )}
+                          {columnVisibility.find((col) => col.key === "tax_type")?.visible && (
+                            <TableCell>
+                              <Badge className={getTaxTypeBadgeColor(sale.tax_type)}>
+                                {sale.tax_type?.toUpperCase()}
+                              </Badge>
+                            </TableCell>
+                          )}
+                          {columnVisibility.find((col) => col.key === "sale_type")?.visible && (
+                            <TableCell>
+                              <Badge
+                                className={
+                                  sale.sale_type === "invoice"
+                                    ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                                    : "bg-orange-100 text-orange-800 border border-orange-200"
+                                }
                               >
-                                <Eye className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleEditSale(sale)}
-                                className="hover:bg-green-50 hover:text-green-600"
-                              >
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleSoftDelete(sale)}
-                                className="hover:bg-red-50 hover:text-red-600"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </TableCell>
+                                {sale.sale_type?.toUpperCase() || "INVOICE"}
+                              </Badge>
+                            </TableCell>
+                          )}
+                          {columnVisibility.find((col) => col.key === "gross_taxable")?.visible && (
+                            <TableCell className="text-gray-900 font-semibold">
+                              {formatCurrency(sale.gross_taxable || 0)}
+                            </TableCell>
+                          )}
+                          {columnVisibility.find((col) => col.key === "total_actual_amount")?.visible && (
+                            <TableCell className="text-gray-900 font-semibold">
+                              {formatCurrency(sale.total_actual_amount || 0)}
+                            </TableCell>
+                          )}
+                          {columnVisibility.find((col) => col.key === "invoice_number")?.visible && (
+                            <TableCell className="text-gray-600">{sale.invoice_number || "-"}</TableCell>
+                          )}
+                          {columnVisibility.find((col) => col.key === "pickup_date")?.visible && (
+                            <TableCell className="text-gray-600">
+                              {sale.pickup_date ? format(new Date(sale.pickup_date), "MMM dd, yyyy") : "-"}
+                            </TableCell>
+                          )}
+                          {columnVisibility.find((col) => col.key === "area")?.visible && (
+                            <TableCell className="text-gray-600">
+                              <div className="flex items-center gap-1">
+                                <MapPin className="h-3 w-3 text-gray-400" />
+                                <span className="text-sm bg-gray-100 px-2 py-1 rounded">
+                                  {sale.user_assigned_area || "N/A"}
+                                </span>
+                              </div>
+                            </TableCell>
+                          )}
+                          {columnVisibility.find((col) => col.key === "files")?.visible && (
+                            <TableCell>
+                              <div className="flex flex-wrap gap-1">
+                                {sale.cheque && sale.cheque.length > 0 && (
+                                  <Badge variant="outline" className="text-xs">
+                                    Cheque ({sale.cheque.length})
+                                  </Badge>
+                                )}
+                                {sale.voucher && sale.voucher.length > 0 && (
+                                  <Badge variant="outline" className="text-xs">
+                                    Voucher ({sale.voucher.length})
+                                  </Badge>
+                                )}
+                                {sale.invoice && sale.invoice.length > 0 && (
+                                  <Badge variant="outline" className="text-xs">
+                                    Invoice ({sale.invoice.length})
+                                  </Badge>
+                                )}
+                                {sale.doc_2307 && sale.doc_2307.length > 0 && (
+                                  <Badge variant="outline" className="text-xs">
+                                    2307 ({sale.doc_2307.length})
+                                  </Badge>
+                                )}
+                                {sale.deposit_slip && sale.deposit_slip.length > 0 && (
+                                  <Badge variant="outline" className="text-xs">
+                                    Deposit ({sale.deposit_slip.length})
+                                  </Badge>
+                                )}
+                              </div>
+                            </TableCell>
+                          )}
+                          {columnVisibility.find((col) => col.key === "actions")?.visible && (
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleViewSale(sale)}
+                                  className="h-8 w-8 p-0 hover:bg-blue-100"
+                                >
+                                  <Eye className="h-4 w-4 text-blue-600" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleEditSale(sale)}
+                                  className="h-8 w-8 p-0 hover:bg-green-100"
+                                >
+                                  <Edit className="h-4 w-4 text-green-600" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleSoftDelete(sale)}
+                                  className="h-8 w-8 p-0 hover:bg-red-100"
+                                >
+                                  <Trash2 className="h-4 w-4 text-red-600" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          )}
                         </TableRow>
                       ))
                     )}
@@ -727,14 +818,17 @@ export default function SuperAdminSalesPage() {
         </div>
 
         {/* Modals */}
-        <ViewSalesModal open={viewModalOpen} onOpenChange={setViewModalOpen} sale={selectedSale} />
-
-        <EditSalesModal
-          open={editModalOpen}
-          onOpenChange={setEditModalOpen}
-          sale={selectedSale}
-          onSalesUpdated={fetchSales}
-        />
+        {selectedSale && (
+          <>
+            <ViewSalesModal sale={selectedSale} open={viewModalOpen} onOpenChange={setViewModalOpen} />
+            <EditSalesModal
+              sale={selectedSale}
+              open={editModalOpen}
+              onOpenChange={setEditModalOpen}
+              onSalesUpdated={fetchSales}
+            />
+          </>
+        )}
       </div>
     </ProtectedRoute>
   )

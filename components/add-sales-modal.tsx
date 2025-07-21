@@ -122,8 +122,10 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
   const [substreetStreetBrgy, setSubstreetStreetBrgy] = useState("")
   const [districtCityZip, setDistrictCityZip] = useState("")
   const [grossTaxable, setGrossTaxable] = useState("")
+  const [totalActualAmount, setTotalActualAmount] = useState("")
   const [invoiceNumber, setInvoiceNumber] = useState("")
   const [taxType, setTaxType] = useState("")
+  const [saleType, setSaleType] = useState("")
   const [pickupDate, setPickupDate] = useState<Date>(new Date())
 
   // TIN search results
@@ -227,16 +229,21 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
     setShowTinDropdown(false)
   }
 
-  // Format gross taxable with commas
-  const formatGrossTaxable = (value: string) => {
+  // Format currency amounts with commas
+  const formatCurrencyAmount = (value: string) => {
     const numericValue = value.replace(/[^\d]/g, "")
     if (!numericValue) return ""
     return Number.parseInt(numericValue).toLocaleString()
   }
 
   const handleGrossTaxableChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const formatted = formatGrossTaxable(e.target.value)
+    const formatted = formatCurrencyAmount(e.target.value)
     setGrossTaxable(formatted)
+  }
+
+  const handleTotalActualAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formatted = formatCurrencyAmount(e.target.value)
+    setTotalActualAmount(formatted)
   }
 
   // Validate file type (images only)
@@ -337,8 +344,10 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
     setSubstreetStreetBrgy("")
     setDistrictCityZip("")
     setGrossTaxable("")
+    setTotalActualAmount("")
     setInvoiceNumber("")
     setTaxType("")
+    setSaleType("")
     setPickupDate(new Date())
     setFileUploads((prev) =>
       prev.map((upload) => ({
@@ -409,8 +418,10 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
         substreet_street_brgy: substreetStreetBrgy || null,
         district_city_zip: districtCityZip || null,
         gross_taxable: Number.parseFloat(grossTaxable.replace(/,/g, "")) || 0,
+        total_actual_amount: Number.parseFloat(totalActualAmount.replace(/,/g, "")) || 0,
         invoice_number: invoiceNumber || null,
         tax_type: taxType,
+        sale_type: saleType,
         pickup_date: formattedPickupDate,
         cheque: fileArrays.cheque,
         voucher: fileArrays.voucher,
@@ -450,239 +461,238 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
           Add Sales Record
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-6xl max-h-[95vh] overflow-y-auto">
-        <DialogHeader className="pb-6 border-b border-gray-200">
-          <DialogTitle className="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-            Add Sales Record
-          </DialogTitle>
-          <p className="text-gray-600 mt-2">Create a new sales record with tax filing information</p>
+      <DialogContent className="max-w-4xl max-h-[95vh] overflow-y-auto bg-white">
+        <DialogHeader className="pb-4">
+          <DialogTitle className="text-2xl font-bold text-gray-900">Add Sales Record</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-8">
-          {/* Basic Information Section */}
-          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-lg border border-blue-200">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-              <CalendarIcon className="h-5 w-5 text-indigo-600" />
-              Basic Information
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Tax Month */}
-              <div className="space-y-2">
-                <Label htmlFor="tax-month" className="text-sm font-medium text-gray-700">
-                  Tax Month *
-                </Label>
-                <Select value={taxMonth} onValueChange={setTaxMonth} required>
-                  <SelectTrigger className="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500">
-                    <SelectValue placeholder="Select tax month..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {taxMonthOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* TIN Search */}
-              <div className="space-y-2 relative">
-                <Label htmlFor="tin" className="text-sm font-medium text-gray-700">
-                  TIN # *
-                </Label>
-                <Input
-                  id="tin"
-                  value={tinSearch}
-                  onChange={handleTinInputChange}
-                  placeholder="000-000-000-000..."
-                  className="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500"
-                  onFocus={() => {
-                    if (tinResults.length > 0) {
-                      setShowTinDropdown(true)
-                    }
-                  }}
-                  onBlur={() => {
-                    // Delay hiding dropdown to allow for clicks
-                    setTimeout(() => setShowTinDropdown(false), 200)
-                  }}
-                  required
-                />
-
-                {/* TIN Dropdown */}
-                {showTinDropdown && (
-                  <div className="absolute top-full left-0 right-0 z-50 bg-white border border-gray-200 rounded-md shadow-lg max-h-48 overflow-y-auto">
-                    {searchingTin ? (
-                      <div className="p-3 text-sm text-gray-500">Searching...</div>
-                    ) : tinResults.length > 0 ? (
-                      tinResults.map((taxpayer) => (
-                        <button
-                          key={taxpayer.id}
-                          type="button"
-                          className="w-full text-left p-3 hover:bg-gray-50 border-b border-gray-100 last:border-b-0 focus:bg-blue-50 focus:outline-none"
-                          onClick={() => handleTinSelect(taxpayer)}
-                        >
-                          <div className="font-medium text-gray-900">{formatTinInput(taxpayer.tin)}</div>
-                          <div className="text-sm text-gray-600">{taxpayer.registered_name}</div>
-                        </button>
-                      ))
-                    ) : (
-                      <div className="p-3 text-sm text-gray-500">No matching TIN found</div>
-                    )}
-                  </div>
-                )}
-              </div>
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Form Fields Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Tax Month */}
+            <div className="space-y-2">
+              <Label htmlFor="tax-month" className="text-sm font-medium text-gray-700">
+                Tax Month *
+              </Label>
+              <Select value={taxMonth} onValueChange={setTaxMonth} required>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select tax month..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {taxMonthOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-          </div>
 
-          {/* Company Information Section */}
-          <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-6 rounded-lg border border-green-200">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Company Information</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Name */}
-              <div className="space-y-2">
-                <Label htmlFor="name" className="text-sm font-medium text-gray-700">
-                  Company/Individual Name *
-                </Label>
-                <Input
-                  id="name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Company or individual name"
-                  className="border-gray-300 focus:border-emerald-500 focus:ring-emerald-500"
-                  required
-                />
-              </div>
+            {/* TIN Search */}
+            <div className="space-y-2 relative">
+              <Label htmlFor="tin" className="text-sm font-medium text-gray-700">
+                TIN # *
+              </Label>
+              <Input
+                id="tin"
+                value={tinSearch}
+                onChange={handleTinInputChange}
+                placeholder="000-000-000-000..."
+                onFocus={() => {
+                  if (tinResults.length > 0) {
+                    setShowTinDropdown(true)
+                  }
+                }}
+                onBlur={() => {
+                  // Delay hiding dropdown to allow for clicks
+                  setTimeout(() => setShowTinDropdown(false), 200)
+                }}
+                required
+              />
 
-              {/* Gross Taxable */}
-              <div className="space-y-2">
-                <Label htmlFor="gross-taxable" className="text-sm font-medium text-gray-700">
-                  Gross Taxable Amount *
-                </Label>
-                <Input
-                  id="gross-taxable"
-                  value={grossTaxable}
-                  onChange={handleGrossTaxableChange}
-                  placeholder="0"
-                  className="border-gray-300 focus:border-emerald-500 focus:ring-emerald-500"
-                  required
-                />
-              </div>
-
-              {/* Address Fields */}
-              <div className="space-y-2">
-                <Label htmlFor="substreet" className="text-sm font-medium text-gray-700">
-                  Substreet/Street/Barangay
-                </Label>
-                <Input
-                  id="substreet"
-                  value={substreetStreetBrgy}
-                  onChange={(e) => setSubstreetStreetBrgy(e.target.value)}
-                  placeholder="Address details"
-                  className="border-gray-300 focus:border-emerald-500 focus:ring-emerald-500"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="district" className="text-sm font-medium text-gray-700">
-                  District/City/ZIP
-                </Label>
-                <Input
-                  id="district"
-                  value={districtCityZip}
-                  onChange={(e) => setDistrictCityZip(e.target.value)}
-                  placeholder="City and ZIP code"
-                  className="border-gray-300 focus:border-emerald-500 focus:ring-emerald-500"
-                />
-              </div>
+              {/* TIN Dropdown */}
+              {showTinDropdown && (
+                <div className="absolute top-full left-0 right-0 z-50 bg-white border border-gray-200 rounded-md shadow-lg max-h-48 overflow-y-auto">
+                  {searchingTin ? (
+                    <div className="p-3 text-sm text-gray-500">Searching...</div>
+                  ) : tinResults.length > 0 ? (
+                    tinResults.map((taxpayer) => (
+                      <button
+                        key={taxpayer.id}
+                        type="button"
+                        className="w-full text-left p-3 hover:bg-gray-50 border-b border-gray-100 last:border-b-0 focus:bg-blue-50 focus:outline-none"
+                        onClick={() => handleTinSelect(taxpayer)}
+                      >
+                        <div className="font-medium text-gray-900">{formatTinInput(taxpayer.tin)}</div>
+                        <div className="text-sm text-gray-600">{taxpayer.registered_name}</div>
+                      </button>
+                    ))
+                  ) : (
+                    <div className="p-3 text-sm text-gray-500">No matching TIN found</div>
+                  )}
+                </div>
+              )}
             </div>
-          </div>
 
-          {/* Tax Information Section */}
-          <div className="bg-gradient-to-r from-purple-50 to-pink-50 p-6 rounded-lg border border-purple-200">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Tax Information</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* Invoice Number */}
-              <div className="space-y-2">
-                <Label htmlFor="invoice-number" className="text-sm font-medium text-gray-700">
-                  Invoice Number
-                </Label>
-                <Input
-                  id="invoice-number"
-                  value={invoiceNumber}
-                  onChange={(e) => setInvoiceNumber(e.target.value)}
-                  placeholder="Invoice number"
-                  className="border-gray-300 focus:border-purple-500 focus:ring-purple-500"
-                />
-              </div>
+            {/* Name */}
+            <div className="space-y-2">
+              <Label htmlFor="name" className="text-sm font-medium text-gray-700">
+                Name *
+              </Label>
+              <Input
+                id="name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Company/Individual name"
+                required
+              />
+            </div>
 
-              {/* Tax Type */}
-              <div className="space-y-2">
-                <Label htmlFor="tax-type" className="text-sm font-medium text-gray-700">
-                  Tax Type *
-                </Label>
-                <Select value={taxType} onValueChange={setTaxType} required>
-                  <SelectTrigger className="border-gray-300 focus:border-purple-500 focus:ring-purple-500">
-                    <SelectValue placeholder="Select tax type..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="vat">VAT</SelectItem>
-                    <SelectItem value="non-vat">Non-VAT</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Pickup Date */}
-              <div className="space-y-2">
-                <Label htmlFor="pickup-date" className="text-sm font-medium text-gray-700">
-                  Pickup Date
-                </Label>
-                <div className="flex items-center space-x-2">
-                  <CalendarIcon className="h-4 w-4 text-gray-500" />
+            {/* Gross Taxable and Total Actual Amount - Side by Side */}
+            <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label htmlFor="gross-taxable" className="text-sm font-medium text-gray-700">
+                    Gross Taxable *
+                  </Label>
                   <Input
-                    type="date"
-                    value={format(pickupDate, "yyyy-MM-dd")}
-                    onChange={(e) => {
-                      const newDate = new Date(e.target.value)
-                      if (!isNaN(newDate.getTime())) {
-                        setPickupDate(newDate)
-                      }
-                    }}
-                    className="border-gray-300 focus:border-purple-500 focus:ring-purple-500"
+                    id="gross-taxable"
+                    value={grossTaxable}
+                    onChange={handleGrossTaxableChange}
+                    placeholder="0"
+                    required
                   />
                 </div>
+                <div>
+                  <Label htmlFor="total-actual-amount" className="text-sm font-medium text-gray-700">
+                    Total Actual Amount
+                  </Label>
+                  <Input
+                    id="total-actual-amount"
+                    value={totalActualAmount}
+                    onChange={handleTotalActualAmountChange}
+                    placeholder="0"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Substreet/Street/Barangay */}
+            <div className="space-y-2">
+              <Label htmlFor="substreet" className="text-sm font-medium text-gray-700">
+                Substreet/Street/Barangay
+              </Label>
+              <Input
+                id="substreet"
+                value={substreetStreetBrgy}
+                onChange={(e) => setSubstreetStreetBrgy(e.target.value)}
+                placeholder="Address details"
+              />
+            </div>
+
+            {/* District/City/ZIP */}
+            <div className="space-y-2">
+              <Label htmlFor="district" className="text-sm font-medium text-gray-700">
+                District/City/ZIP
+              </Label>
+              <Input
+                id="district"
+                value={districtCityZip}
+                onChange={(e) => setDistrictCityZip(e.target.value)}
+                placeholder="City and ZIP code"
+              />
+            </div>
+
+            {/* Invoice Number */}
+            <div className="space-y-2">
+              <Label htmlFor="invoice-number" className="text-sm font-medium text-gray-700">
+                Invoice Number
+              </Label>
+              <Input
+                id="invoice-number"
+                value={invoiceNumber}
+                onChange={(e) => setInvoiceNumber(e.target.value)}
+                placeholder="Invoice number"
+              />
+            </div>
+
+            {/* Tax Type */}
+            <div className="space-y-2">
+              <Label htmlFor="tax-type" className="text-sm font-medium text-gray-700">
+                Tax Type *
+              </Label>
+              <Select value={taxType} onValueChange={setTaxType} required>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select tax type..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="vat">VAT</SelectItem>
+                  <SelectItem value="non-vat">Non-VAT</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Sale Type */}
+            <div className="space-y-2">
+              <Label htmlFor="sale-type" className="text-sm font-medium text-gray-700">
+                Sale Type *
+              </Label>
+              <Select value={saleType} onValueChange={setSaleType} required>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select sale type..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="invoice">Invoice</SelectItem>
+                  <SelectItem value="non-invoice">Non-Invoice</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Pickup Date */}
+            <div className="space-y-2">
+              <Label htmlFor="pickup-date" className="text-sm font-medium text-gray-700">
+                Pickup Date
+              </Label>
+              <div className="flex items-center space-x-2">
+                <CalendarIcon className="h-4 w-4 text-gray-500" />
+                <Input
+                  type="date"
+                  value={format(pickupDate, "yyyy-MM-dd")}
+                  onChange={(e) => {
+                    const newDate = new Date(e.target.value)
+                    if (!isNaN(newDate.getTime())) {
+                      setPickupDate(newDate)
+                    }
+                  }}
+                />
               </div>
             </div>
           </div>
 
           {/* File Uploads Section */}
-          <div className="bg-gradient-to-r from-orange-50 to-red-50 p-6 rounded-lg border border-orange-200">
-            <div className="flex items-center gap-2 mb-4">
-              <Upload className="h-5 w-5 text-orange-600" />
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
               <h3 className="text-lg font-semibold text-gray-900">File Uploads (Images Only)</h3>
             </div>
-            <div className="bg-white p-4 rounded-lg border border-orange-200 mb-6">
-              <div className="flex items-center gap-2 text-sm text-orange-800">
+            <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
+              <div className="flex items-center gap-2 text-sm text-blue-800">
                 <AlertCircle className="h-4 w-4" />
-                <span className="font-medium">Required Files:</span>
-                <span>Cheque, Voucher, Invoice</span>
-                <span className="mx-2">|</span>
-                <span className="font-medium">Optional:</span>
-                <span>Doc 2307, Deposit Slip</span>
+                <span>Required: Cheque, Voucher, Invoice | Optional: Doc 2307, Deposit Slip</span>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {fileUploads.map((upload) => (
-                <div key={upload.id} className="space-y-3">
-                  <Label htmlFor={upload.id} className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                <div key={upload.id} className="space-y-2">
+                  <Label className="text-sm font-medium text-gray-700 flex items-center gap-2">
                     {upload.name}
-                    {upload.required && <span className="text-red-500 text-xs">*Required</span>}
+                    {upload.required && <span className="text-red-500 text-xs">*</span>}
                   </Label>
                   <div
                     className={`border-2 border-dashed rounded-lg p-6 transition-colors ${
                       upload.required && upload.files.length === 0
                         ? "border-red-300 hover:border-red-400 bg-red-50"
-                        : "border-gray-300 hover:border-orange-400 bg-white"
+                        : "border-gray-300 hover:border-gray-400 bg-gray-50"
                     }`}
                   >
                     <input
@@ -702,25 +712,17 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
                     >
                       {upload.uploading ? (
                         <>
-                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mb-3"></div>
-                          <span className="text-sm text-orange-600 font-medium">Uploading...</span>
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mb-2"></div>
+                          <span className="text-sm text-blue-600 font-medium">Uploading...</span>
                         </>
                       ) : (
                         <>
-                          <Upload className="h-8 w-8 text-gray-400 mb-3" />
+                          <Upload className="h-8 w-8 text-gray-400 mb-2" />
                           <span className="text-sm text-gray-600 text-center">
                             {!taxMonth || !tinSearch ? (
-                              <>
-                                <span className="font-medium">Select tax month & TIN first</span>
-                                <br />
-                                <span className="text-xs">to enable file upload</span>
-                              </>
+                              <>Select tax month & TIN first</>
                             ) : (
-                              <>
-                                <span className="font-medium">Click to upload images</span>
-                                <br />
-                                <span className="text-xs">JPEG, PNG, GIF, WebP</span>
-                              </>
+                              <>Select tax month & TIN first</>
                             )}
                           </span>
                         </>
@@ -728,11 +730,11 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
                     </label>
 
                     {upload.files.length > 0 && (
-                      <div className="mt-4 space-y-2">
+                      <div className="mt-3 space-y-2">
                         {upload.files.map((file, index) => (
                           <div
                             key={index}
-                            className="flex items-center justify-between text-xs bg-gray-50 p-3 rounded border"
+                            className="flex items-center justify-between text-xs bg-white p-2 rounded border"
                           >
                             <span className="truncate flex-1 font-medium">{file.name}</span>
                             <Button
@@ -756,20 +758,14 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
           </div>
 
           {/* Form Actions */}
-          <div className="flex justify-end space-x-4 pt-6 border-t border-gray-200">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setOpen(false)}
-              disabled={loading}
-              className="border-gray-300 hover:bg-gray-50 px-6"
-            >
+          <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
+            <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={loading}>
               Cancel
             </Button>
             <Button
               type="submit"
               disabled={loading || !areRequiredFilesUploaded() || fileUploads.some((f) => f.uploading)}
-              className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white px-8"
+              className="bg-blue-600 hover:bg-blue-700 text-white"
             >
               {loading ? (
                 <>
