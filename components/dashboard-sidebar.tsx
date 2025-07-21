@@ -5,7 +5,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
 import { Button } from "@/components/ui/button"
-import { LayoutDashboard, Users, LogOut, Menu, X, UserCheck, Building2, User } from "lucide-react"
+import { LayoutDashboard, Users, LogOut, Menu, X, UserCheck, Building2, User, DollarSign, BookText } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 interface SidebarProps {
@@ -23,6 +23,16 @@ export function DashboardSidebar({ userRole }: SidebarProps) {
         name: "Dashboard",
         href: `/dashboard/${userRole.replace("_", "-")}`,
         icon: LayoutDashboard,
+      },
+      {
+        name: "Sales",
+        href: `/dashboard/${userRole.replace("_", "-")}/sales`,
+        icon: DollarSign, // Assuming DollarSign icon from lucide-react
+      },
+      {
+        name: "TIN Library",
+        href: `/dashboard/${userRole.replace("_", "-")}/tin-library`,
+        icon: BookText, // Assuming BookText icon from lucide-react
       },
     ]
 
@@ -47,14 +57,12 @@ export function DashboardSidebar({ userRole }: SidebarProps) {
       )
     }
 
-    // Add profile editing for super_admin and admin
-    if (userRole === "super_admin" || userRole === "admin") {
-      baseItems.push({
-        name: "My Profile",
-        href: `/dashboard/${userRole.replace("_", "-")}/profile`,
-        icon: User,
-      })
-    }
+    // My Profile should be available for all roles
+    baseItems.push({
+      name: "My Profile",
+      href: `/dashboard/${userRole.replace("_", "-")}/profile`,
+      icon: User,
+    })
 
     return baseItems
   }

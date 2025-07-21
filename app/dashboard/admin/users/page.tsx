@@ -519,9 +519,6 @@ export default function AdminUserManagement() {
                               disabled={isCreating}
                               placeholder="john.doe@gmail.com"
                             />
-                            <p className="text-xs text-gray-500">
-                              Any email format is accepted - no domain restrictions apply for profile-only users.
-                            </p>
                           </div>
 
                           <div className="grid grid-cols-2 gap-4">
@@ -570,35 +567,6 @@ export default function AdminUserManagement() {
                               disabled={isCreating}
                               placeholder="e.g., Metro Manila, Cebu City, Davao Region"
                             />
-                          </div>
-
-                          {/* Info box */}
-                          <div
-                            className={`p-3 rounded-md ${creationMode === "with-auth" ? "bg-green-50" : "bg-blue-50"}`}
-                          >
-                            <p
-                              className={`text-sm font-medium ${creationMode === "with-auth" ? "text-green-800" : "text-blue-800"}`}
-                            >
-                              {creationMode === "with-auth" ? "Full User Account:" : "Profile-Only User:"}
-                            </p>
-                            <ul
-                              className={`text-xs mt-1 space-y-1 ${creationMode === "with-auth" ? "text-green-700" : "text-blue-700"}`}
-                            >
-                              {creationMode === "with-auth" ? (
-                                <>
-                                  <li>• Creates both profile and authentication account</li>
-                                  <li>• User can login with email and default password</li>
-                                  <li>• May fail due to email domain restrictions</li>
-                                  <li>• Default password: TempPass123! (user should change)</li>
-                                </>
-                              ) : (
-                                <>
-                                  <li>• Profile-only user (no login capability)</li>
-                                  <li>• Any email domain accepted (@gmail.com, @yahoo.com, etc.)</li>
-                                  <li>• For administrative tracking and management</li>
-                                </>
-                              )}
-                            </ul>
                           </div>
                         </div>
                       </div>
