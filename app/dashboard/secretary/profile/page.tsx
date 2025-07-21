@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useAuth } from "@/contexts/auth-context"
 import { supabase } from "@/lib/supabase/client"
-import { CheckCircle, AlertCircle, User } from "lucide-react"
+import { CheckCircle, AlertCircle, User, Settings, Shield, Clock, Mail } from "lucide-react"
 
 export default function SecretaryProfilePage() {
   const { profile, refreshProfile } = useAuth()
@@ -164,12 +164,12 @@ export default function SecretaryProfilePage() {
   if (!profile) {
     return (
       <ProtectedRoute allowedRoles={["secretary"]}>
-        <div className="min-h-screen bg-gray-50">
+        <div className="min-h-screen bg-gradient-to-br from-rose-50 via-orange-50 to-amber-50">
           <DashboardHeader />
           <div className="pt-20 flex items-center justify-center">
             <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-rose-600 mx-auto mb-4"></div>
               <h2 className="text-2xl font-bold text-gray-900 mb-4">Loading Profile...</h2>
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
             </div>
           </div>
         </div>
@@ -179,80 +179,109 @@ export default function SecretaryProfilePage() {
 
   return (
     <ProtectedRoute allowedRoles={["secretary"]}>
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-gradient-to-br from-rose-50 via-orange-50 to-amber-50">
         <DashboardHeader />
 
-        <div className="pt-20 px-6 py-8">
+        <div className="pt-20 px-4 sm:px-6 lg:px-8 py-8">
+          {/* Header Section */}
           <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900">My Profile</h1>
-            <p className="text-gray-600 mt-2">Manage your personal information</p>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-3 bg-gradient-to-r from-rose-500 to-orange-600 rounded-xl shadow-lg">
+                <User className="h-8 w-8 text-white" />
+              </div>
+              <div>
+                <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
+                  My Profile
+                </h1>
+                <p className="text-gray-600 mt-1">Manage your personal information and account settings</p>
+              </div>
+            </div>
           </div>
 
+          {/* Alerts */}
           {error && (
-            <Alert variant="destructive" className="mb-4">
+            <Alert variant="destructive" className="mb-6 border-red-200 bg-red-50">
               <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{error}</AlertDescription>
+              <AlertDescription className="text-red-800">{error}</AlertDescription>
             </Alert>
           )}
 
           {success && (
-            <Alert className="mb-4">
-              <CheckCircle className="h-4 w-4" />
-              <AlertDescription>{success}</AlertDescription>
+            <Alert className="mb-6 border-green-200 bg-green-50">
+              <CheckCircle className="h-4 w-4 text-green-600" />
+              <AlertDescription className="text-green-800">{success}</AlertDescription>
             </Alert>
           )}
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-8">
             {/* Profile Information */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <User className="h-5 w-5" />
+            <Card className="shadow-2xl border-0 bg-white/80 backdrop-blur-sm">
+              <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
+                <CardTitle className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                  <Settings className="h-6 w-6 text-rose-600" />
                   Profile Information
                 </CardTitle>
-                <CardDescription>Update your personal details</CardDescription>
+                <CardDescription className="text-gray-600">Update your personal details</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="p-6 space-y-6">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="first_name">First Name *</Label>
+                    <Label htmlFor="first_name" className="text-sm font-medium text-gray-700">
+                      First Name *
+                    </Label>
                     <Input
                       id="first_name"
                       value={formData.first_name}
                       onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
                       disabled={!isEditing || isSaving}
                       placeholder="Enter first name"
+                      className="border-gray-300 focus:border-rose-500 focus:ring-rose-500"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="last_name">Last Name *</Label>
+                    <Label htmlFor="last_name" className="text-sm font-medium text-gray-700">
+                      Last Name *
+                    </Label>
                     <Input
                       id="last_name"
                       value={formData.last_name}
                       onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
                       disabled={!isEditing || isSaving}
                       placeholder="Enter last name"
+                      className="border-gray-300 focus:border-rose-500 focus:ring-rose-500"
                     />
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="assigned_area">Assigned Area</Label>
+                  <Label htmlFor="assigned_area" className="text-sm font-medium text-gray-700">
+                    Assigned Area
+                  </Label>
                   <Input
                     id="assigned_area"
                     value={formData.assigned_area}
                     onChange={(e) => setFormData({ ...formData, assigned_area: e.target.value })}
                     disabled={!isEditing || isSaving}
                     placeholder="e.g., Metro Manila, Cebu City, Davao Region"
+                    className="border-gray-300 focus:border-rose-500 focus:ring-rose-500"
                   />
                 </div>
 
-                <div className="flex gap-2 pt-4">
+                <div className="flex gap-3 pt-4">
                   {!isEditing ? (
-                    <Button onClick={() => setIsEditing(true)}>Edit Profile</Button>
+                    <Button
+                      onClick={() => setIsEditing(true)}
+                      className="bg-gradient-to-r from-rose-600 to-orange-600 hover:from-rose-700 hover:to-orange-700 shadow-lg"
+                    >
+                      Edit Profile
+                    </Button>
                   ) : (
                     <>
-                      <Button onClick={handleSave} disabled={isSaving}>
+                      <Button
+                        onClick={handleSave}
+                        disabled={isSaving}
+                        className="bg-gradient-to-r from-rose-600 to-orange-600 hover:from-rose-700 hover:to-orange-700 shadow-lg"
+                      >
                         {isSaving ? (
                           <>
                             <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
@@ -262,7 +291,12 @@ export default function SecretaryProfilePage() {
                           "Save Changes"
                         )}
                       </Button>
-                      <Button variant="outline" onClick={handleCancel} disabled={isSaving}>
+                      <Button
+                        variant="outline"
+                        onClick={handleCancel}
+                        disabled={isSaving}
+                        className="border-gray-300 hover:bg-gray-50 bg-transparent"
+                      >
                         Cancel
                       </Button>
                     </>
@@ -272,103 +306,139 @@ export default function SecretaryProfilePage() {
             </Card>
 
             {/* Account Information (Read-only) */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Account Information</CardTitle>
-                <CardDescription>Your account details</CardDescription>
+            <Card className="shadow-2xl border-0 bg-white/80 backdrop-blur-sm">
+              <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
+                <CardTitle className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                  <Shield className="h-6 w-6 text-rose-600" />
+                  Account Information
+                </CardTitle>
+                <CardDescription className="text-gray-600">View your account details</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="p-6 space-y-6">
                 <div className="space-y-2">
-                  <Label>Email</Label>
-                  <div className="px-3 py-2 bg-gray-50 rounded-md text-sm">{profile.email || "Not available"}</div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Role</Label>
-                  <div className="px-3 py-2 bg-gray-50 rounded-md text-sm capitalize">
-                    {profile.role.replace("_", " ")}
+                  <Label className="text-sm font-medium text-gray-700">Email Address</Label>
+                  <div className="flex items-center gap-3 px-3 py-2 bg-gray-50 rounded-md border border-gray-200">
+                    <Mail className="h-4 w-4 text-gray-500" />
+                    <span className="text-sm text-gray-900">{profile?.email ?? "Not available"}</span>
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Status</Label>
-                  <div className="px-3 py-2 bg-gray-50 rounded-md text-sm capitalize">{profile.status}</div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Member Since</Label>
-                  <div className="px-3 py-2 bg-gray-50 rounded-md text-sm">
-                    {new Date(profile.created_at).toLocaleDateString()}
+                  <Label className="text-sm font-medium text-gray-700">Role</Label>
+                  <div className="flex items-center gap-3 px-3 py-2 bg-gray-50 rounded-md border border-gray-200">
+                    <Shield className="h-4 w-4 text-gray-500" />
+                    <span className="text-sm text-gray-900 capitalize">
+                      {profile?.role ? profile.role.replace("_", " ") : "N/A"}
+                    </span>
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Last Login</Label>
-                  <div className="px-3 py-2 bg-gray-50 rounded-md text-sm">
-                    {profile.last_login_at ? new Date(profile.last_login_at).toLocaleDateString() : "Never"}
+                  <Label className="text-sm font-medium text-gray-700">Status</Label>
+                  <div className="flex items-center gap-3 px-3 py-2 bg-gray-50 rounded-md border border-gray-200">
+                    <CheckCircle className="h-4 w-4 text-green-500" />
+                    <span className="text-sm text-gray-900 capitalize">{profile?.status ?? "N/A"}</span>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-gray-700">Member Since</Label>
+                  <div className="flex items-center gap-3 px-3 py-2 bg-gray-50 rounded-md border border-gray-200">
+                    <Clock className="h-4 w-4 text-gray-500" />
+                    <span className="text-sm text-gray-900">
+                      {profile?.created_at ? new Date(profile.created_at).toLocaleDateString() : "N/A"}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-gray-700">Last Login</Label>
+                  <div className="flex items-center gap-3 px-3 py-2 bg-gray-50 rounded-md border border-gray-200">
+                    <Clock className="h-4 w-4 text-gray-500" />
+                    <span className="text-sm text-gray-900">
+                      {profile?.last_login_at ? new Date(profile.last_login_at).toLocaleDateString() : "Never"}
+                    </span>
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Password Change */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Change Password</CardTitle>
-                <CardDescription>Update your account password</CardDescription>
+            {/* Change Password */}
+            <Card className="shadow-2xl border-0 bg-white/80 backdrop-blur-sm">
+              <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
+                <CardTitle className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                  <Settings className="h-6 w-6 text-rose-600" />
+                  Change Password
+                </CardTitle>
+                <CardDescription className="text-gray-600">Update your account password</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="p-6 space-y-6">
                 {passwordError && (
-                  <Alert variant="destructive">
+                  <Alert variant="destructive" className="border-red-200 bg-red-50">
                     <AlertCircle className="h-4 w-4" />
-                    <AlertDescription>{passwordError}</AlertDescription>
+                    <AlertDescription className="text-red-800">{passwordError}</AlertDescription>
                   </Alert>
                 )}
 
                 {passwordSuccess && (
-                  <Alert>
-                    <CheckCircle className="h-4 w-4" />
-                    <AlertDescription>{passwordSuccess}</AlertDescription>
+                  <Alert className="border-green-200 bg-green-50">
+                    <CheckCircle className="h-4 w-4 text-green-600" />
+                    <AlertDescription className="text-green-800">{passwordSuccess}</AlertDescription>
                   </Alert>
                 )}
 
-                <div className="space-y-2">
-                  <Label htmlFor="current_password">Current Password</Label>
-                  <Input
-                    id="current_password"
-                    type="password"
-                    value={passwordData.currentPassword}
-                    onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
-                    disabled={isChangingPassword}
-                    placeholder="Enter current password"
-                  />
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="currentPassword" className="text-sm font-medium text-gray-700">
+                      Current Password
+                    </Label>
+                    <Input
+                      id="currentPassword"
+                      type="password"
+                      value={passwordData.currentPassword}
+                      onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
+                      disabled={isChangingPassword}
+                      placeholder="Enter current password"
+                      className="border-gray-300 focus:border-rose-500 focus:ring-rose-500"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="newPassword" className="text-sm font-medium text-gray-700">
+                      New Password
+                    </Label>
+                    <Input
+                      id="newPassword"
+                      type="password"
+                      value={passwordData.newPassword}
+                      onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
+                      disabled={isChangingPassword}
+                      placeholder="Enter new password (min 6 characters)"
+                      className="border-gray-300 focus:border-rose-500 focus:ring-rose-500"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="confirmPassword" className="text-sm font-medium text-gray-700">
+                      Confirm New Password
+                    </Label>
+                    <Input
+                      id="confirmPassword"
+                      type="password"
+                      value={passwordData.confirmPassword}
+                      onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
+                      disabled={isChangingPassword}
+                      placeholder="Confirm new password"
+                      className="border-gray-300 focus:border-rose-500 focus:ring-rose-500"
+                    />
+                  </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="new_password">New Password</Label>
-                  <Input
-                    id="new_password"
-                    type="password"
-                    value={passwordData.newPassword}
-                    onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
-                    disabled={isChangingPassword}
-                    placeholder="Enter new password (min 6 characters)"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="confirm_password">Confirm New Password</Label>
-                  <Input
-                    id="confirm_password"
-                    type="password"
-                    value={passwordData.confirmPassword}
-                    onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
-                    disabled={isChangingPassword}
-                    placeholder="Confirm new password"
-                  />
-                </div>
-
-                <Button onClick={handleChangePassword} disabled={isChangingPassword} className="w-full">
+                <Button
+                  onClick={handleChangePassword}
+                  disabled={isChangingPassword}
+                  className="w-full bg-gradient-to-r from-rose-600 to-orange-600 hover:from-rose-700 hover:to-orange-700 shadow-lg"
+                >
                   {isChangingPassword ? (
                     <>
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>

@@ -322,7 +322,7 @@ export default function LoginPage() {
 
                     <Button
                       type="submit"
-                      className="w-full h-11 text-base font-medium"
+                      className="w-full h-11 text-white font-medium"
                       style={{ backgroundColor: "#1a242f" }}
                       disabled={isLoading}
                     >

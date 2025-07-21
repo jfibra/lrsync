@@ -73,8 +73,8 @@ export default function ProfilePage() {
       setSuccess("Profile updated successfully!")
       setIsEditing(false)
       await refreshProfile()
-    } catch (error) {
-      setError("An unexpected error occurred")
+    } catch (error: any) {
+      setError("An unexpected error occurred: " + error.message)
     } finally {
       setIsSaving(false)
     }
@@ -147,8 +147,8 @@ export default function ProfilePage() {
         newPassword: "",
         confirmPassword: "",
       })
-    } catch (error) {
-      setPasswordError("An unexpected error occurred")
+    } catch (error: any) {
+      setPasswordError("An unexpected error occurred: " + error.message)
     } finally {
       setIsChangingPassword(false)
     }
@@ -156,19 +156,19 @@ export default function ProfilePage() {
 
   return (
     <ProtectedRoute allowedRoles={["admin"]}>
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-gradient-to-br from-rose-50 via-orange-50 to-amber-50">
         <DashboardHeader />
 
         <div className="pt-20 px-6 py-8">
           <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900">My Profile</h1>
-            <p className="text-gray-600 mt-2">Manage your personal information</p>
+            <h1 className="text-3xl font-bold text-navy">My Profile</h1>
+            <p className="text-navy mt-2">Manage your personal information and account settings</p>
           </div>
 
           {error && (
             <Alert variant="destructive" className="mb-4">
               <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{error}</AlertDescription>
+              <AlertDescription className="whitespace-pre-line">{error}</AlertDescription>
             </Alert>
           )}
 
@@ -181,53 +181,66 @@ export default function ProfilePage() {
 
           <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
             {/* Profile Information */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <User className="h-5 w-5" />
+            <Card className="bg-gradient-to-br from-rose-100 via-orange-100 to-amber-100 backdrop-blur-sm shadow-lg border border-rose-200">
+              <CardHeader className="border-b border-rose-200 pb-4">
+                <CardTitle className="flex items-center gap-2 text-navy">
+                  <div className="p-2 rounded-full bg-gradient-to-br from-rose-200 to-orange-200 text-navy">
+                    <User className="h-5 w-5" />
+                  </div>
                   Profile Information
                 </CardTitle>
-                <CardDescription>Update your personal details</CardDescription>
+                <CardDescription className="text-navy">Update your personal details</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+              <CardContent className="space-y-4 pt-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="first_name">First Name</Label>
+                    <Label htmlFor="first_name" className="text-navy">
+                      First Name
+                    </Label>
                     <Input
                       id="first_name"
                       value={formData.first_name}
                       onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
                       disabled={!isEditing}
+                      className="bg-white border-rose-200 text-navy focus:ring-rose-300"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="last_name">Last Name</Label>
+                    <Label htmlFor="last_name" className="text-navy">
+                      Last Name
+                    </Label>
                     <Input
                       id="last_name"
                       value={formData.last_name}
                       onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
                       disabled={!isEditing}
+                      className="bg-white border-rose-200 text-navy focus:ring-rose-300"
                     />
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="assigned_area">Assigned Area</Label>
+                  <Label htmlFor="assigned_area" className="text-navy">
+                    Assigned Area
+                  </Label>
                   <Input
                     id="assigned_area"
                     value={formData.assigned_area}
                     onChange={(e) => setFormData({ ...formData, assigned_area: e.target.value })}
                     disabled={!isEditing}
                     placeholder="e.g., Metro Manila, Cebu City, Davao Region"
+                    className="bg-white border-rose-200 text-navy focus:ring-rose-300"
                   />
                 </div>
 
                 <div className="flex gap-2 pt-4">
                   {!isEditing ? (
-                    <Button onClick={() => setIsEditing(true)}>Edit Profile</Button>
+                    <Button onClick={() => setIsEditing(true)} className="bg-navy text-white hover:bg-navy/90">
+                      Edit Profile
+                    </Button>
                   ) : (
                     <>
-                      <Button onClick={handleSave} disabled={isSaving}>
+                      <Button onClick={handleSave} disabled={isSaving} className="bg-navy text-white hover:bg-navy/90">
                         {isSaving ? (
                           <>
                             <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
@@ -237,7 +250,12 @@ export default function ProfilePage() {
                           "Save Changes"
                         )}
                       </Button>
-                      <Button variant="outline" onClick={handleCancel} disabled={isSaving}>
+                      <Button
+                        variant="outline"
+                        onClick={handleCancel}
+                        disabled={isSaving}
+                        className="border-navy text-navy hover:bg-navy/10 bg-transparent"
+                      >
                         Cancel
                       </Button>
                     </>
@@ -247,39 +265,43 @@ export default function ProfilePage() {
             </Card>
 
             {/* Account Information (Read-only) */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Account Information</CardTitle>
-                <CardDescription>Your account details</CardDescription>
+            <Card className="bg-gradient-to-br from-orange-100 via-amber-100 to-rose-100 backdrop-blur-sm shadow-lg border border-orange-200">
+              <CardHeader className="border-b border-orange-200 pb-4">
+                <CardTitle className="text-navy">Account Information</CardTitle>
+                <CardDescription className="text-navy">Your account details</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-4 pt-6">
                 <div className="space-y-2">
-                  <Label>Email</Label>
-                  <div className="px-3 py-2 bg-gray-50 rounded-md text-sm">{profile?.email || "Not available"}</div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Role</Label>
-                  <div className="px-3 py-2 bg-gray-50 rounded-md text-sm capitalize">
-                    {profile?.role.replace("_", " ")}
+                  <Label className="text-navy">Email</Label>
+                  <div className="px-3 py-2 bg-white rounded-md text-sm text-navy border border-orange-200">
+                    {profile?.email || "Not available"}
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Status</Label>
-                  <div className="px-3 py-2 bg-gray-50 rounded-md text-sm capitalize">{profile?.status}</div>
+                  <Label className="text-navy">Role</Label>
+                  <div className="px-3 py-2 bg-white rounded-md text-sm capitalize text-navy border border-orange-200">
+                    {profile?.role?.replace("_", " ") || "N/A"}
+                  </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Member Since</Label>
-                  <div className="px-3 py-2 bg-gray-50 rounded-md text-sm">
+                  <Label className="text-navy">Status</Label>
+                  <div className="px-3 py-2 bg-white rounded-md text-sm capitalize text-navy border border-orange-200">
+                    {profile?.status || "N/A"}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-navy">Member Since</Label>
+                  <div className="px-3 py-2 bg-white rounded-md text-sm text-navy border border-orange-200">
                     {profile?.created_at ? new Date(profile.created_at).toLocaleDateString() : "N/A"}
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Last Login</Label>
-                  <div className="px-3 py-2 bg-gray-50 rounded-md text-sm">
+                  <Label className="text-navy">Last Login</Label>
+                  <div className="px-3 py-2 bg-white rounded-md text-sm text-navy border border-orange-200">
                     {profile?.last_login_at ? new Date(profile.last_login_at).toLocaleDateString() : "Never"}
                   </div>
                 </div>
@@ -287,12 +309,12 @@ export default function ProfilePage() {
             </Card>
 
             {/* Password Change */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Change Password</CardTitle>
-                <CardDescription>Update your account password</CardDescription>
+            <Card className="bg-gradient-to-br from-amber-100 via-rose-100 to-orange-100 backdrop-blur-sm shadow-lg border border-amber-200">
+              <CardHeader className="border-b border-amber-200 pb-4">
+                <CardTitle className="text-navy">Change Password</CardTitle>
+                <CardDescription className="text-navy">Update your account password</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-4 pt-6">
                 {passwordError && (
                   <Alert variant="destructive">
                     <AlertCircle className="h-4 w-4" />
@@ -308,7 +330,9 @@ export default function ProfilePage() {
                 )}
 
                 <div className="space-y-2">
-                  <Label htmlFor="current_password">Current Password</Label>
+                  <Label htmlFor="current_password" className="text-navy">
+                    Current Password
+                  </Label>
                   <Input
                     id="current_password"
                     type="password"
@@ -316,11 +340,14 @@ export default function ProfilePage() {
                     onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
                     disabled={isChangingPassword}
                     placeholder="Enter current password"
+                    className="bg-white border-amber-200 text-navy focus:ring-amber-300"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="new_password">New Password</Label>
+                  <Label htmlFor="new_password" className="text-navy">
+                    New Password
+                  </Label>
                   <Input
                     id="new_password"
                     type="password"
@@ -328,11 +355,14 @@ export default function ProfilePage() {
                     onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
                     disabled={isChangingPassword}
                     placeholder="Enter new password (min 6 characters)"
+                    className="bg-white border-amber-200 text-navy focus:ring-amber-300"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="confirm_password">Confirm New Password</Label>
+                  <Label htmlFor="confirm_password" className="text-navy">
+                    Confirm New Password
+                  </Label>
                   <Input
                     id="confirm_password"
                     type="password"
@@ -340,10 +370,15 @@ export default function ProfilePage() {
                     onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
                     disabled={isChangingPassword}
                     placeholder="Confirm new password"
+                    className="bg-white border-amber-200 text-navy focus:ring-amber-300"
                   />
                 </div>
 
-                <Button onClick={handleChangePassword} disabled={isChangingPassword} className="w-full">
+                <Button
+                  onClick={handleChangePassword}
+                  disabled={isChangingPassword}
+                  className="w-full bg-navy text-white hover:bg-navy/90"
+                >
                   {isChangingPassword ? (
                     <>
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>

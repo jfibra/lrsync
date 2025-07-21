@@ -7,7 +7,20 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { Search, Filter, Download, Eye, Edit, Trash2, FileText, Calendar, MapPin } from "lucide-react"
+import {
+  Search,
+  Filter,
+  Download,
+  Eye,
+  Edit,
+  Trash2,
+  FileText,
+  Calendar,
+  MapPin,
+  TrendingUp,
+  DollarSign,
+  BarChart3,
+} from "lucide-react"
 import { format } from "date-fns"
 import { useAuth } from "@/contexts/auth-context"
 import { supabase } from "@/lib/supabase/client"
@@ -159,11 +172,11 @@ export default function SuperAdminSalesPage() {
   const getTaxTypeBadgeColor = (taxType: string) => {
     switch (taxType) {
       case "vat":
-        return "bg-blue-100 text-blue-800"
+        return "bg-blue-100 text-blue-800 border border-blue-200"
       case "non-vat":
-        return "bg-green-100 text-green-800"
+        return "bg-green-100 text-green-800 border border-green-200"
       default:
-        return "bg-gray-100 text-gray-800"
+        return "bg-gray-100 text-gray-800 border border-gray-200"
     }
   }
 
@@ -378,18 +391,31 @@ export default function SuperAdminSalesPage() {
     URL.revokeObjectURL(url)
   }
 
+  // Calculate stats
+  const totalSales = sales.length
+  const vatSales = sales.filter((s) => s.tax_type === "vat").length
+  const nonVatSales = sales.filter((s) => s.tax_type === "non-vat").length
+  const totalAmount = sales.reduce((sum, sale) => sum + (sale.gross_taxable || 0), 0)
+
   return (
     <ProtectedRoute allowedRoles={["super_admin"]}>
-      <div className="min-h-screen bg-gray-50 pt-20">
+      <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50">
         <DashboardHeader />
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          {/* Header */}
+        <div className="pt-20 px-4 sm:px-6 lg:px-8 py-8">
+          {/* Header Section */}
           <div className="mb-8">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h1 className="text-3xl font-bold text-gray-900">Sales Management</h1>
-                <p className="mt-2 text-gray-600">Manage and track sales records and tax filings</p>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-3 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl shadow-lg">
+                  <BarChart3 className="h-8 w-8 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
+                    Sales Management
+                  </h1>
+                  <p className="text-gray-600 mt-1">Comprehensive sales tracking and tax filing management</p>
+                </div>
               </div>
               <div className="mt-4 sm:mt-0">
                 <AddSalesModal onSalesAdded={fetchSales} />
@@ -398,73 +424,73 @@ export default function SuperAdminSalesPage() {
           </div>
 
           {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-            <Card>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <Card className="bg-gradient-to-r from-indigo-500 to-indigo-600 border-0 shadow-xl">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Sales</CardTitle>
-                <FileText className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm font-medium text-indigo-100">Total Sales</CardTitle>
+                <FileText className="h-8 w-8 text-indigo-200" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{sales.length}</div>
-                <p className="text-xs text-muted-foreground">Total records</p>
+                <div className="text-3xl font-bold text-white">{totalSales}</div>
+                <p className="text-xs text-indigo-100">Total records</p>
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="bg-gradient-to-r from-blue-500 to-blue-600 border-0 shadow-xl">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">VAT Sales</CardTitle>
-                <Badge className="bg-blue-100 text-blue-800">VAT</Badge>
+                <CardTitle className="text-sm font-medium text-blue-100">VAT Sales</CardTitle>
+                <TrendingUp className="h-8 w-8 text-blue-200" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{sales.filter((s) => s.tax_type === "vat").length}</div>
-                <p className="text-xs text-muted-foreground">VAT registered</p>
+                <div className="text-3xl font-bold text-white">{vatSales}</div>
+                <p className="text-xs text-blue-100">VAT registered</p>
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="bg-gradient-to-r from-green-500 to-green-600 border-0 shadow-xl">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Non-VAT Sales</CardTitle>
-                <Badge className="bg-green-100 text-green-800">Non-VAT</Badge>
+                <CardTitle className="text-sm font-medium text-green-100">Non-VAT Sales</CardTitle>
+                <BarChart3 className="h-8 w-8 text-green-200" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{sales.filter((s) => s.tax_type === "non-vat").length}</div>
-                <p className="text-xs text-muted-foreground">Non-VAT registered</p>
+                <div className="text-3xl font-bold text-white">{nonVatSales}</div>
+                <p className="text-xs text-green-100">Non-VAT registered</p>
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="bg-gradient-to-r from-purple-500 to-purple-600 border-0 shadow-xl">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Amount</CardTitle>
-                <Calendar className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm font-medium text-purple-100">Total Amount</CardTitle>
+                <DollarSign className="h-8 w-8 text-purple-200" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">
-                  {formatCurrency(sales.reduce((sum, sale) => sum + (sale.gross_taxable || 0), 0))}
-                </div>
-                <p className="text-xs text-muted-foreground">Gross taxable</p>
+                <div className="text-2xl font-bold text-white">{formatCurrency(totalAmount)}</div>
+                <p className="text-xs text-purple-100">Gross taxable</p>
               </CardContent>
             </Card>
           </div>
 
           {/* Filters */}
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle className="text-lg">Filters</CardTitle>
+          <Card className="mb-6 shadow-xl border-0 bg-white/80 backdrop-blur-sm">
+            <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
+              <CardTitle className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <Filter className="h-5 w-5 text-indigo-600" />
+                Advanced Filters
+              </CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-                <div className="relative">
+            <CardContent className="p-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                <div className="relative col-span-full sm:col-span-1 lg:col-span-1">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                   <Input
                     placeholder="Search by name, TIN, or invoice..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10"
+                    className="pl-10 w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500"
                   />
                 </div>
-
                 <Select value={filterTaxType} onValueChange={setFilterTaxType}>
-                  <SelectTrigger>
+                  <SelectTrigger className="w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500">
                     <SelectValue placeholder="Filter by tax type" />
                   </SelectTrigger>
                   <SelectContent>
@@ -473,9 +499,8 @@ export default function SuperAdminSalesPage() {
                     <SelectItem value="non-vat">Non-VAT</SelectItem>
                   </SelectContent>
                 </Select>
-
                 <Select value={filterMonth} onValueChange={setFilterMonth}>
-                  <SelectTrigger>
+                  <SelectTrigger className="w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500">
                     <SelectValue placeholder="Filter by month" />
                   </SelectTrigger>
                   <SelectContent>
@@ -487,9 +512,8 @@ export default function SuperAdminSalesPage() {
                     ))}
                   </SelectContent>
                 </Select>
-
                 <Select value={filterArea} onValueChange={setFilterArea}>
-                  <SelectTrigger>
+                  <SelectTrigger className="w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500">
                     <SelectValue placeholder="Filter by area" />
                   </SelectTrigger>
                   <SelectContent>
@@ -501,7 +525,6 @@ export default function SuperAdminSalesPage() {
                     ))}
                   </SelectContent>
                 </Select>
-
                 <Button
                   variant="outline"
                   onClick={() => {
@@ -510,6 +533,7 @@ export default function SuperAdminSalesPage() {
                     setFilterMonth("all")
                     setFilterArea("all")
                   }}
+                  className="w-full border-gray-300 hover:bg-gray-50"
                 >
                   <Filter className="h-4 w-4 mr-2" />
                   Clear Filters
@@ -519,62 +543,87 @@ export default function SuperAdminSalesPage() {
           </Card>
 
           {/* Sales Table */}
-          <Card>
-            <CardHeader>
+          <Card className="shadow-2xl border-0 bg-white/80 backdrop-blur-sm">
+            <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle>Sales Records</CardTitle>
-                  <CardDescription>{loading ? "Loading..." : `${sales.length} records found`}</CardDescription>
+                  <CardTitle className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+                    <BarChart3 className="h-6 w-6 text-indigo-600" />
+                    Sales Records
+                  </CardTitle>
+                  <CardDescription className="text-gray-600 mt-1">
+                    {loading ? "Loading..." : `${sales.length} records found`}
+                  </CardDescription>
                 </div>
-                <Button variant="outline" size="sm" onClick={exportToExcel}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={exportToExcel}
+                  className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white border-0 shadow-lg"
+                >
                   <Download className="h-4 w-4 mr-2" />
                   Export
                 </Button>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-0">
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
-                    <TableRow>
-                      <TableHead>Tax Month</TableHead>
-                      <TableHead>TIN</TableHead>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Tax Type</TableHead>
-                      <TableHead>Gross Taxable</TableHead>
-                      <TableHead>Invoice #</TableHead>
-                      <TableHead>Pickup Date</TableHead>
-                      <TableHead>Area</TableHead>
-                      <TableHead>Files</TableHead>
-                      <TableHead>Actions</TableHead>
+                    <TableRow className="bg-gray-50 border-b border-gray-200">
+                      <TableHead className="min-w-[120px] font-semibold text-gray-900">Tax Month</TableHead>
+                      <TableHead className="min-w-[120px] font-semibold text-gray-900">TIN</TableHead>
+                      <TableHead className="min-w-[180px] font-semibold text-gray-900">Name</TableHead>
+                      <TableHead className="min-w-[100px] font-semibold text-gray-900">Tax Type</TableHead>
+                      <TableHead className="min-w-[120px] font-semibold text-gray-900">Gross Taxable</TableHead>
+                      <TableHead className="min-w-[120px] font-semibold text-gray-900">Invoice #</TableHead>
+                      <TableHead className="min-w-[120px] font-semibold text-gray-900">Pickup Date</TableHead>
+                      <TableHead className="min-w-[100px] font-semibold text-gray-900">Area</TableHead>
+                      <TableHead className="min-w-[150px] font-semibold text-gray-900">Files</TableHead>
+                      <TableHead className="min-w-[120px] font-semibold text-gray-900">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {loading ? (
                       <TableRow>
-                        <TableCell colSpan={10} className="text-center py-8">
-                          <div className="flex items-center justify-center">
-                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-                            <span className="ml-2">Loading sales records...</span>
+                        <TableCell colSpan={10} className="text-center py-12">
+                          <div className="flex flex-col items-center justify-center">
+                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mb-4"></div>
+                            <span className="text-gray-600 font-medium">Loading sales records...</span>
                           </div>
                         </TableCell>
                       </TableRow>
                     ) : sales.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={10} className="text-center py-8 text-gray-500">
-                          No sales records found
+                        <TableCell colSpan={10} className="text-center py-12">
+                          <BarChart3 className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                          <h3 className="text-lg font-medium text-gray-900 mb-2">No sales records found</h3>
+                          <p className="text-gray-500">Create your first sales record to get started!</p>
                         </TableCell>
                       </TableRow>
                     ) : (
                       sales.map((sale) => (
-                        <TableRow key={sale.id}>
-                          <TableCell>{format(new Date(sale.tax_month), "MMM yyyy")}</TableCell>
-                          <TableCell className="font-mono">{formatTin(sale.tin)}</TableCell>
-                          <TableCell>
+                        <TableRow key={sale.id} className="hover:bg-gray-50 transition-colors">
+                          <TableCell className="text-gray-900 font-medium">
+                            <div className="flex items-center gap-2">
+                              <Calendar className="h-4 w-4 text-indigo-500" />
+                              {format(new Date(sale.tax_month), "MMM yyyy")}
+                            </div>
+                          </TableCell>
+                          <TableCell className="font-mono text-gray-900">
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 bg-indigo-500 rounded-full"></div>
+                              {formatTin(sale.tin)}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-gray-900">
                             <div>
                               <div className="font-medium">{sale.name}</div>
                               {sale.substreet_street_brgy && (
-                                <div className="text-sm text-gray-500">{sale.substreet_street_brgy}</div>
+                                <div className="text-sm text-gray-500 flex items-center gap-1">
+                                  <MapPin className="h-3 w-3" />
+                                  {sale.substreet_street_brgy}
+                                </div>
                               )}
                             </div>
                           </TableCell>
@@ -583,41 +632,57 @@ export default function SuperAdminSalesPage() {
                               {sale.tax_type?.toUpperCase()}
                             </Badge>
                           </TableCell>
-                          <TableCell>{formatCurrency(sale.gross_taxable || 0)}</TableCell>
-                          <TableCell>{sale.invoice_number || "-"}</TableCell>
-                          <TableCell>
+                          <TableCell className="text-gray-900 font-semibold">
+                            {formatCurrency(sale.gross_taxable || 0)}
+                          </TableCell>
+                          <TableCell className="text-gray-600">{sale.invoice_number || "-"}</TableCell>
+                          <TableCell className="text-gray-600">
                             {sale.pickup_date ? format(new Date(sale.pickup_date), "MMM dd, yyyy") : "-"}
                           </TableCell>
-                          <TableCell>
-                            <div className="flex items-center">
-                              <MapPin className="h-3 w-3 text-gray-400 mr-1" />
-                              <span className="text-sm">{sale.user_assigned_area || "N/A"}</span>
+                          <TableCell className="text-gray-600">
+                            <div className="flex items-center gap-1">
+                              <MapPin className="h-3 w-3 text-gray-400" />
+                              <span className="text-sm bg-gray-100 px-2 py-1 rounded">
+                                {sale.user_assigned_area || "N/A"}
+                              </span>
                             </div>
                           </TableCell>
                           <TableCell>
                             <div className="flex flex-wrap gap-1">
                               {sale.cheque && sale.cheque.length > 0 && (
-                                <Badge variant="outline" className="text-xs">
+                                <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
                                   Cheque ({sale.cheque.length})
                                 </Badge>
                               )}
                               {sale.voucher && sale.voucher.length > 0 && (
-                                <Badge variant="outline" className="text-xs">
+                                <Badge
+                                  variant="outline"
+                                  className="text-xs bg-green-50 text-green-700 border-green-200"
+                                >
                                   Voucher ({sale.voucher.length})
                                 </Badge>
                               )}
                               {sale.invoice && sale.invoice.length > 0 && (
-                                <Badge variant="outline" className="text-xs">
+                                <Badge
+                                  variant="outline"
+                                  className="text-xs bg-purple-50 text-purple-700 border-purple-200"
+                                >
                                   Invoice ({sale.invoice.length})
                                 </Badge>
                               )}
                               {sale.doc_2307 && sale.doc_2307.length > 0 && (
-                                <Badge variant="outline" className="text-xs">
+                                <Badge
+                                  variant="outline"
+                                  className="text-xs bg-orange-50 text-orange-700 border-orange-200"
+                                >
                                   2307 ({sale.doc_2307.length})
                                 </Badge>
                               )}
                               {sale.deposit_slip && sale.deposit_slip.length > 0 && (
-                                <Badge variant="outline" className="text-xs">
+                                <Badge
+                                  variant="outline"
+                                  className="text-xs bg-indigo-50 text-indigo-700 border-indigo-200"
+                                >
                                   Deposit ({sale.deposit_slip.length})
                                 </Badge>
                               )}
@@ -625,17 +690,27 @@ export default function SuperAdminSalesPage() {
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center space-x-2">
-                              <Button variant="ghost" size="sm" onClick={() => handleViewSale(sale)}>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleViewSale(sale)}
+                                className="hover:bg-blue-50 hover:text-blue-600"
+                              >
                                 <Eye className="h-4 w-4" />
                               </Button>
-                              <Button variant="ghost" size="sm" onClick={() => handleEditSale(sale)}>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleEditSale(sale)}
+                                className="hover:bg-green-50 hover:text-green-600"
+                              >
                                 <Edit className="h-4 w-4" />
                               </Button>
                               <Button
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => handleSoftDelete(sale)}
-                                className="text-red-600 hover:text-red-700"
+                                className="hover:bg-red-50 hover:text-red-600"
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>

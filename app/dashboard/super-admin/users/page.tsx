@@ -30,7 +30,19 @@ import {
 import { Label } from "@/components/ui/label"
 import { supabase } from "@/lib/supabase/client"
 import type { UserProfile, UserRole, UserStatus } from "@/types/auth"
-import { Search, Edit, Trash2, UserPlus, CheckCircle, AlertCircle, RefreshCw, Mail } from "lucide-react"
+import {
+  Search,
+  Edit,
+  Trash2,
+  UserPlus,
+  CheckCircle,
+  AlertCircle,
+  RefreshCw,
+  Mail,
+  Users,
+  Shield,
+  Clock,
+} from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
 interface UserFormData {
@@ -68,8 +80,6 @@ export default function UserManagement() {
   // Form data
   const [formData, setFormData] = useState<UserFormData>(initialFormData)
   const [editingUser, setEditingUser] = useState<UserProfile | null>(null)
-
-  const [creationMode, setCreationMode] = useState<"profile-only" | "with-auth">("profile-only")
 
   const [isSendingMagicLink, setIsSendingMagicLink] = useState<string | null>(null)
 
@@ -151,7 +161,7 @@ export default function UserManagement() {
         return
       }
 
-      console.log(`Creating user in ${creationMode} mode...`)
+      console.log("Creating user with authentication account...")
 
       // Check if user already exists by email
       const { data: existingUser, error: checkError } = await supabase
@@ -172,33 +182,29 @@ export default function UserManagement() {
 
       let authUserId = null
 
-      // Create auth account if requested
-      if (creationMode === "with-auth") {
-        console.log("Creating authentication account...")
+      // Create auth account
+      console.log("Creating authentication account...")
 
-        const { data: authData, error: authError } = await supabase.auth.signUp({
-          email: formData.email.toLowerCase().trim(),
-          password: "TempPass123!", // Default password - user should change it
-          options: {
-            emailRedirectTo: undefined,
-            data: {
-              first_name: formData.first_name,
-              last_name: formData.last_name,
-              email_confirm: false,
-            },
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: formData.email.toLowerCase().trim(),
+        password: "TempPass123!", // Default password - user should change it
+        options: {
+          emailRedirectTo: undefined,
+          data: {
+            first_name: formData.first_name,
+            last_name: formData.last_name,
+            email_confirm: false,
           },
-        })
+        },
+      })
 
-        if (authError) {
-          console.error("Auth error:", authError)
-          setError(
-            `Authentication account creation failed: ${authError.message}. Creating profile-only user instead...`,
-          )
-          // Continue with profile-only creation
-        } else if (authData.user) {
-          authUserId = authData.user.id
-          console.log("Auth account created:", authUserId)
-        }
+      if (authError) {
+        console.error("Auth error:", authError)
+        setError(`Authentication account creation failed: ${authError.message}`)
+        return
+      } else if (authData.user) {
+        authUserId = authData.user.id
+        console.log("Auth account created:", authUserId)
       }
 
       // Create user profile
@@ -229,14 +235,11 @@ export default function UserManagement() {
 
       console.log("User profile created successfully:", newUser)
 
-      const successMessage = authUserId
-        ? `User "${formData.first_name} ${formData.last_name}" (${formData.email}) created successfully with login capabilities! Default password: TempPass123! (user should change this)`
-        : `User "${formData.first_name} ${formData.last_name}" (${formData.email}) created successfully as profile-only user.`
+      const successMessage = `User "${formData.first_name} ${formData.last_name}" (${formData.email}) created successfully with login capabilities! Default password: TempPass123! (user should change this)`
 
       setSuccess(successMessage)
       setIsAddModalOpen(false)
       setFormData(initialFormData)
-      setCreationMode("profile-only")
       fetchUsers()
     } catch (error: any) {
       console.error("Unexpected error:", error)
@@ -402,248 +405,284 @@ export default function UserManagement() {
   const resetForm = () => {
     setFormData(initialFormData)
     setEditingUser(null)
-    setCreationMode("profile-only")
     setError("")
     setSuccess("")
   }
 
+  // Calculate stats
+  const totalUsers = users.length
+  const activeUsers = users.filter((user) => user.status === "active").length
+  const adminUsers = users.filter((user) => user.role === "admin" || user.role === "super_admin").length
+
   return (
     <ProtectedRoute allowedRoles={["super_admin"]}>
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
         <DashboardHeader />
 
-        <div className="pt-20 px-6 py-8">
+        <div className="pt-20 px-4 sm:px-6 lg:px-8 py-8">
+          {/* Header Section */}
           <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900">User Management</h1>
-            <p className="text-gray-600 mt-2">Create and manage user profiles for manual administration</p>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-3 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-xl shadow-lg">
+                <Users className="h-8 w-8 text-white" />
+              </div>
+              <div>
+                <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
+                  User Management
+                </h1>
+                <p className="text-gray-600 mt-1">Manage user profiles and permissions across the system</p>
+              </div>
+            </div>
           </div>
 
+          {/* Stats Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <Card className="bg-gradient-to-r from-blue-500 to-blue-600 border-0 shadow-xl">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-blue-100 text-sm font-medium">Total Users</p>
+                    <p className="text-3xl font-bold text-white">{totalUsers}</p>
+                  </div>
+                  <Users className="h-12 w-12 text-blue-200" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-gradient-to-r from-green-500 to-green-600 border-0 shadow-xl">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-green-100 text-sm font-medium">Active Users</p>
+                    <p className="text-3xl font-bold text-white">{activeUsers}</p>
+                  </div>
+                  <CheckCircle className="h-12 w-12 text-green-200" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-gradient-to-r from-purple-500 to-purple-600 border-0 shadow-xl">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-purple-100 text-sm font-medium">Admin Users</p>
+                    <p className="text-3xl font-bold text-white">{adminUsers}</p>
+                  </div>
+                  <Shield className="h-12 w-12 text-purple-200" />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Alerts */}
           {error && (
-            <Alert variant="destructive" className="mb-4">
+            <Alert variant="destructive" className="mb-6 border-red-200 bg-red-50">
               <AlertCircle className="h-4 w-4" />
-              <AlertDescription className="whitespace-pre-line">{error}</AlertDescription>
+              <AlertDescription className="text-red-800">{error}</AlertDescription>
             </Alert>
           )}
 
           {success && (
-            <Alert className="mb-4">
-              <CheckCircle className="h-4 w-4" />
-              <AlertDescription>{success}</AlertDescription>
+            <Alert className="mb-6 border-green-200 bg-green-50">
+              <CheckCircle className="h-4 w-4 text-green-600" />
+              <AlertDescription className="text-green-800">{success}</AlertDescription>
             </Alert>
           )}
 
           {/* Info Alert */}
-          <Alert className="mb-4">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>
-              <strong>Manual User Management:</strong> Users created here are profile-only entries for administrative
-              purposes. They do not have login capabilities and bypass all email domain restrictions.
-            </AlertDescription>
-          </Alert>
-
-          {/* Magic Link Info Alert */}
-          <Alert className="mb-4">
-            <Mail className="h-4 w-4" />
-            <AlertDescription>
+          <Alert className="mb-6 border-indigo-200 bg-indigo-50">
+            <Mail className="h-4 w-4 text-indigo-600" />
+            <AlertDescription className="text-indigo-800">
               <strong>Magic Link Feature:</strong> Click the mail icon next to any user with an email address to send
               them a magic link for passwordless login.
             </AlertDescription>
           </Alert>
 
-          <Card>
-            <CardHeader>
+          {/* Main Content Card */}
+          <Card className="shadow-2xl border-0 bg-white/80 backdrop-blur-sm">
+            <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
-                  <CardTitle>Users ({users.length})</CardTitle>
-                  <CardDescription>Manage user profiles for manual administration</CardDescription>
+                  <CardTitle className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+                    <Users className="h-6 w-6 text-blue-600" />
+                    Users Directory ({users.length})
+                  </CardTitle>
+                  <CardDescription className="text-gray-600 mt-1">
+                    Manage user profiles and authentication
+                  </CardDescription>
                 </div>
 
-                <div className="flex gap-2">
+                <div className="flex gap-3">
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                     <Input
                       placeholder="Search users..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10 w-full sm:w-64"
+                      className="pl-10 w-full sm:w-64 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
                     />
                   </div>
-                  <Button onClick={fetchUsers} variant="outline" size="sm">
+                  <Button
+                    onClick={fetchUsers}
+                    variant="outline"
+                    size="sm"
+                    className="border-gray-300 hover:bg-gray-50 bg-transparent"
+                  >
                     <RefreshCw className="h-4 w-4" />
                   </Button>
                   <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
                     <DialogTrigger asChild>
-                      <Button onClick={resetForm}>
+                      <Button
+                        onClick={resetForm}
+                        className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-lg"
+                      >
                         <UserPlus className="h-4 w-4 mr-2" />
                         Add User
                       </Button>
                     </DialogTrigger>
-                    <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
-                      <DialogHeader>
-                        <DialogTitle>Add New User Profile</DialogTitle>
-                        <DialogDescription>
-                          Create a new user profile for manual management. No authentication account will be created.
+                    <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+                      <DialogHeader className="pb-6 border-b border-gray-200">
+                        <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                          Add New User Profile
+                        </DialogTitle>
+                        <DialogDescription className="text-gray-600 mt-2">
+                          Create a new user with full authentication capabilities and login access
                         </DialogDescription>
                       </DialogHeader>
                       <div className="max-h-[60vh] overflow-y-auto px-1">
-                        {/* Creation Mode Selection */}
-                        <div className="bg-gray-50 p-4 rounded-md">
-                          <Label className="text-sm font-medium">Creation Mode</Label>
-                          <div className="mt-2 space-y-2">
-                            <div className="flex items-center space-x-2">
-                              <input
-                                type="radio"
-                                id="profile-only"
-                                name="creationMode"
-                                value="profile-only"
-                                checked={creationMode === "profile-only"}
-                                onChange={(e) => setCreationMode(e.target.value as "profile-only" | "with-auth")}
-                                disabled={isCreating}
-                              />
-                              <Label htmlFor="profile-only" className="text-sm">
-                                Profile Only (No login capability)
+                        <div className="space-y-6 py-6">
+                          {/* Personal Information Section */}
+                          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-lg border border-blue-200">
+                            <h4 className="text-lg font-semibold text-gray-900 mb-4">Personal Information</h4>
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <Label htmlFor="add_first_name" className="text-sm font-medium text-gray-700">
+                                  First Name *
+                                </Label>
+                                <Input
+                                  id="add_first_name"
+                                  value={formData.first_name}
+                                  onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
+                                  disabled={isCreating}
+                                  placeholder="John"
+                                  className="border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor="add_last_name" className="text-sm font-medium text-gray-700">
+                                  Last Name *
+                                </Label>
+                                <Input
+                                  id="add_last_name"
+                                  value={formData.last_name}
+                                  onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
+                                  disabled={isCreating}
+                                  placeholder="Doe"
+                                  className="border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Account Information Section */}
+                          <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-6 rounded-lg border border-green-200">
+                            <h4 className="text-lg font-semibold text-gray-900 mb-4">Account Information</h4>
+                            <div className="space-y-4">
+                              <div className="space-y-2">
+                                <Label htmlFor="add_email" className="text-sm font-medium text-gray-700">
+                                  Email Address *
+                                </Label>
+                                <Input
+                                  id="add_email"
+                                  type="email"
+                                  value={formData.email}
+                                  onChange={(e) =>
+                                    setFormData({ ...formData, email: e.target.value.toLowerCase().trim() })
+                                  }
+                                  disabled={isCreating}
+                                  placeholder="john.doe@example.com"
+                                  className="border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                                />
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                  <Label htmlFor="add_role" className="text-sm font-medium text-gray-700">
+                                    Role
+                                  </Label>
+                                  <Select
+                                    value={formData.role}
+                                    onValueChange={(value: UserRole) => setFormData({ ...formData, role: value })}
+                                    disabled={isCreating}
+                                  >
+                                    <SelectTrigger className="border-gray-300 focus:border-blue-500 focus:ring-blue-500">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="secretary">Secretary</SelectItem>
+                                      <SelectItem value="admin">Admin</SelectItem>
+                                      <SelectItem value="super_admin">Super Admin</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+
+                                <div className="space-y-2">
+                                  <Label htmlFor="add_status" className="text-sm font-medium text-gray-700">
+                                    Status
+                                  </Label>
+                                  <Select
+                                    value={formData.status}
+                                    onValueChange={(value: UserStatus) => setFormData({ ...formData, status: value })}
+                                    disabled={isCreating}
+                                  >
+                                    <SelectTrigger className="border-gray-300 focus:border-blue-500 focus:ring-blue-500">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="active">Active</SelectItem>
+                                      <SelectItem value="inactive">Inactive</SelectItem>
+                                      <SelectItem value="suspended">Suspended</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Work Information Section */}
+                          <div className="bg-gradient-to-r from-purple-50 to-pink-50 p-6 rounded-lg border border-purple-200">
+                            <h4 className="text-lg font-semibold text-gray-900 mb-4">Work Information</h4>
+                            <div className="space-y-2">
+                              <Label htmlFor="add_assigned_area" className="text-sm font-medium text-gray-700">
+                                Assigned Area
                               </Label>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                              <input
-                                type="radio"
-                                id="with-auth"
-                                name="creationMode"
-                                value="with-auth"
-                                checked={creationMode === "with-auth"}
-                                onChange={(e) => setCreationMode(e.target.value as "profile-only" | "with-auth")}
-                                disabled={isCreating}
-                              />
-                              <Label htmlFor="with-auth" className="text-sm">
-                                With Login Capability (Creates auth account)
-                              </Label>
-                            </div>
-                          </div>
-                          <p className="text-xs text-gray-500 mt-2">
-                            {creationMode === "with-auth"
-                              ? "Creates both profile and authentication account. Default password: TempPass123!"
-                              : "Creates profile only for manual management. No email restrictions."}
-                          </p>
-                        </div>
-                        <div className="grid gap-4 py-4">
-                          <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                              <Label htmlFor="add_first_name">First Name *</Label>
                               <Input
-                                id="add_first_name"
-                                value={formData.first_name}
-                                onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
+                                id="add_assigned_area"
+                                value={formData.assigned_area}
+                                onChange={(e) => setFormData({ ...formData, assigned_area: e.target.value })}
                                 disabled={isCreating}
-                                placeholder="John"
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label htmlFor="add_last_name">Last Name *</Label>
-                              <Input
-                                id="add_last_name"
-                                value={formData.last_name}
-                                onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
-                                disabled={isCreating}
-                                placeholder="Doe"
+                                placeholder="e.g., Metro Manila, Cebu City, Davao Region"
+                                className="border-gray-300 focus:border-blue-500 focus:ring-blue-500"
                               />
                             </div>
                           </div>
 
-                          <div className="space-y-2">
-                            <Label htmlFor="add_email">Email Address *</Label>
-                            <Input
-                              id="add_email"
-                              type="email"
-                              value={formData.email}
-                              onChange={(e) => setFormData({ ...formData, email: e.target.value.toLowerCase().trim() })}
-                              disabled={isCreating}
-                              placeholder="john.doe@gmail.com"
-                            />
-                            <p className="text-xs text-gray-500">
-                              Any email format is accepted - no domain restrictions apply for manual user management.
-                            </p>
-                          </div>
-
-                          <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                              <Label htmlFor="add_role">Role</Label>
-                              <Select
-                                value={formData.role}
-                                onValueChange={(value: UserRole) => setFormData({ ...formData, role: value })}
-                                disabled={isCreating}
-                              >
-                                <SelectTrigger>
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="secretary">Secretary</SelectItem>
-                                  <SelectItem value="admin">Admin</SelectItem>
-                                  <SelectItem value="super_admin">Super Admin</SelectItem>
-                                </SelectContent>
-                              </Select>
+                          {/* Authentication Info */}
+                          <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-4 rounded-lg border border-green-200">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Shield className="h-5 w-5 text-green-600" />
+                              <p className="text-sm font-medium text-green-800">Full User Account</p>
                             </div>
-
-                            <div className="space-y-2">
-                              <Label htmlFor="add_status">Status</Label>
-                              <Select
-                                value={formData.status}
-                                onValueChange={(value: UserStatus) => setFormData({ ...formData, status: value })}
-                                disabled={isCreating}
-                              >
-                                <SelectTrigger>
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="active">Active</SelectItem>
-                                  <SelectItem value="inactive">Inactive</SelectItem>
-                                  <SelectItem value="suspended">Suspended</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                          </div>
-
-                          <div className="space-y-2">
-                            <Label htmlFor="add_assigned_area">Assigned Area</Label>
-                            <Input
-                              id="add_assigned_area"
-                              value={formData.assigned_area}
-                              onChange={(e) => setFormData({ ...formData, assigned_area: e.target.value })}
-                              disabled={isCreating}
-                              placeholder="e.g., Metro Manila, Cebu City, Davao Region"
-                            />
-                          </div>
-
-                          {/* Info box */}
-                          <div
-                            className={`p-3 rounded-md ${creationMode === "with-auth" ? "bg-green-50" : "bg-blue-50"}`}
-                          >
-                            <p
-                              className={`text-sm font-medium ${creationMode === "with-auth" ? "text-green-800" : "text-blue-800"}`}
-                            >
-                              {creationMode === "with-auth" ? "Full User Account:" : "Manual User Management:"}
-                            </p>
-                            <ul
-                              className={`text-xs mt-1 space-y-1 ${creationMode === "with-auth" ? "text-green-700" : "text-blue-700"}`}
-                            >
-                              {creationMode === "with-auth" ? (
-                                <>
-                                  <li>• Creates both profile and authentication account</li>
-                                  <li>• User can login with email and default password</li>
-                                  <li>• May fail due to email domain restrictions</li>
-                                  <li>• Default password: TempPass123! (user should change)</li>
-                                </>
-                              ) : (
-                                <>
-                                  <li>• Profile-only user (no login capability)</li>
-                                  <li>• Any email domain accepted (@gmail.com, @yahoo.com, etc.)</li>
-                                  <li>• For administrative tracking and management</li>
-                                </>
-                              )}
+                            <ul className="text-xs text-green-700 space-y-1">
+                              <li>• Creates both profile and authentication account</li>
+                              <li>• User can login with email and default password</li>
+                              <li>• Default password: TempPass123! (user should change)</li>
+                              <li>• Full access to system based on assigned role</li>
                             </ul>
                           </div>
                         </div>
                       </div>
-                      <div className="flex justify-end gap-2 pt-4 border-t">
+                      <div className="flex justify-end gap-3 pt-6 border-t border-gray-200">
                         <Button
                           variant="outline"
                           onClick={() => {
@@ -651,14 +690,19 @@ export default function UserManagement() {
                             resetForm()
                           }}
                           disabled={isCreating}
+                          className="border-gray-300 hover:bg-gray-50 px-6"
                         >
                           Cancel
                         </Button>
-                        <Button onClick={handleCreateUser} disabled={isCreating}>
+                        <Button
+                          onClick={handleCreateUser}
+                          disabled={isCreating}
+                          className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 px-8"
+                        >
                           {isCreating ? (
                             <>
                               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                              Creating...
+                              Creating User...
                             </>
                           ) : (
                             "Create User Profile"
@@ -670,242 +714,149 @@ export default function UserManagement() {
                 </div>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-0">
               {loading ? (
-                <div className="flex flex-col items-center justify-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4"></div>
-                  <p className="text-gray-500">Loading users...</p>
+                <div className="flex flex-col items-center justify-center py-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
+                  <p className="text-gray-600 font-medium">Loading users...</p>
                 </div>
               ) : (
                 <>
                   {filteredUsers.length > 0 ? (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Name</TableHead>
-                          <TableHead>Email</TableHead>
-                          <TableHead>Role</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Assigned Area</TableHead>
-                          <TableHead>Created</TableHead>
-                          <TableHead>Actions</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {filteredUsers.map((user) => (
-                          <TableRow key={user.id}>
-                            <TableCell className="font-medium">
-                              {user.full_name || `${user.first_name || ""} ${user.last_name || ""}`.trim() || "N/A"}
-                            </TableCell>
-                            <TableCell className="text-sm text-gray-600">{user.email || "N/A"}</TableCell>
-                            <TableCell>
-                              <Select
-                                value={user.role}
-                                onValueChange={(value: UserRole) => handleQuickRoleUpdate(user.id, value)}
-                              >
-                                <SelectTrigger className="w-32">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="secretary">Secretary</SelectItem>
-                                  <SelectItem value="admin">Admin</SelectItem>
-                                  <SelectItem value="super_admin">Super Admin</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </TableCell>
-                            <TableCell>
-                              <Select
-                                value={user.status}
-                                onValueChange={(value: UserStatus) => handleQuickStatusUpdate(user.id, value)}
-                              >
-                                <SelectTrigger className="w-28">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="active">Active</SelectItem>
-                                  <SelectItem value="inactive">Inactive</SelectItem>
-                                  <SelectItem value="suspended">Suspended</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </TableCell>
-                            <TableCell>{user.assigned_area || "N/A"}</TableCell>
-                            <TableCell>{new Date(user.created_at).toLocaleDateString()}</TableCell>
-                            <TableCell>
-                              <div className="flex gap-2">
-                                {user.email && (
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="bg-gray-50 border-b border-gray-200">
+                            <TableHead className="font-semibold text-gray-900">Name</TableHead>
+                            <TableHead className="font-semibold text-gray-900">Email</TableHead>
+                            <TableHead className="font-semibold text-gray-900">Role</TableHead>
+                            <TableHead className="font-semibold text-gray-900">Status</TableHead>
+                            <TableHead className="font-semibold text-gray-900">Assigned Area</TableHead>
+                            <TableHead className="font-semibold text-gray-900">Created</TableHead>
+                            <TableHead className="font-semibold text-gray-900">Actions</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {filteredUsers.map((user) => (
+                            <TableRow key={user.id} className="hover:bg-gray-50 transition-colors">
+                              <TableCell className="font-medium text-gray-900">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full flex items-center justify-center">
+                                    <span className="text-white text-sm font-medium">
+                                      {(user.first_name?.[0] || user.full_name?.[0] || "U").toUpperCase()}
+                                    </span>
+                                  </div>
+                                  {user.full_name || `${user.first_name || ""} ${user.last_name || ""}`.trim() || "N/A"}
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-gray-600">{user.email || "N/A"}</TableCell>
+                              <TableCell>
+                                <Select
+                                  value={user.role}
+                                  onValueChange={(value: UserRole) => handleQuickRoleUpdate(user.id, value)}
+                                >
+                                  <SelectTrigger className="w-32 border-gray-300">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="secretary">Secretary</SelectItem>
+                                    <SelectItem value="admin">Admin</SelectItem>
+                                    <SelectItem value="super_admin">Super Admin</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </TableCell>
+                              <TableCell>
+                                <Select
+                                  value={user.status}
+                                  onValueChange={(value: UserStatus) => handleQuickStatusUpdate(user.id, value)}
+                                >
+                                  <SelectTrigger className="w-28 border-gray-300">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="active">Active</SelectItem>
+                                    <SelectItem value="inactive">Inactive</SelectItem>
+                                    <SelectItem value="suspended">Suspended</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </TableCell>
+                              <TableCell className="text-gray-600">{user.assigned_area || "N/A"}</TableCell>
+                              <TableCell className="text-gray-600">
+                                <div className="flex items-center gap-2">
+                                  <Clock className="h-4 w-4 text-gray-400" />
+                                  {new Date(user.created_at).toLocaleDateString()}
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex gap-2">
+                                  {user.email && (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => handleSendMagicLink(user)}
+                                      disabled={isSendingMagicLink === user.id}
+                                      title="Send Magic Link"
+                                      className="hover:bg-blue-50 hover:text-blue-600"
+                                    >
+                                      {isSendingMagicLink === user.id ? (
+                                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                                      ) : (
+                                        <Mail className="h-4 w-4" />
+                                      )}
+                                    </Button>
+                                  )}
                                   <Button
                                     variant="ghost"
                                     size="sm"
-                                    onClick={() => handleSendMagicLink(user)}
-                                    disabled={isSendingMagicLink === user.id}
-                                    title="Send Magic Link"
+                                    onClick={() => handleEditUser(user)}
+                                    className="hover:bg-green-50 hover:text-green-600"
                                   >
-                                    {isSendingMagicLink === user.id ? (
-                                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600"></div>
-                                    ) : (
-                                      <Mail className="h-4 w-4" />
-                                    )}
+                                    <Edit className="h-4 w-4" />
                                   </Button>
-                                )}
-                                <Button variant="ghost" size="sm" onClick={() => handleEditUser(user)}>
-                                  <Edit className="h-4 w-4" />
-                                </Button>
-                                <AlertDialog>
-                                  <AlertDialogTrigger asChild>
-                                    <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700">
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                  </AlertDialogTrigger>
-                                  <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                      <AlertDialogTitle>Delete User Profile</AlertDialogTitle>
-                                      <AlertDialogDescription>
-                                        Are you sure you want to delete the profile for{" "}
-                                        <strong>{user.full_name || `${user.first_name} ${user.last_name}`}</strong>?
-                                        This action cannot be undone.
-                                      </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                      <AlertDialogAction
-                                        onClick={() => handleDeleteUser(user)}
-                                        className="bg-red-600 hover:bg-red-700"
-                                        disabled={isDeleting}
-                                      >
-                                        {isDeleting ? "Deleting..." : "Delete Profile"}
-                                      </AlertDialogAction>
-                                    </AlertDialogFooter>
-                                  </AlertDialogContent>
-                                </AlertDialog>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+                                  <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                      <Button variant="ghost" size="sm" className="hover:bg-red-50 hover:text-red-600">
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle>Delete User Profile</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                          Are you sure you want to delete the profile for{" "}
+                                          <strong>{user.full_name || `${user.first_name} ${user.last_name}`}</strong>?
+                                          This action cannot be undone.
+                                        </AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction
+                                          onClick={() => handleDeleteUser(user)}
+                                          className="bg-red-600 hover:bg-red-700"
+                                          disabled={isDeleting}
+                                        >
+                                          {isDeleting ? "Deleting..." : "Delete Profile"}
+                                        </AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
                   ) : (
-                    <div className="text-center py-8 text-gray-500">
-                      {searchTerm ? "No users found matching your search." : "No users found. Create your first user!"}
+                    <div className="flex flex-col items-center justify-center py-12">
+                      <AlertCircle className="h-10 w-10 text-gray-400 mb-4" />
+                      <p className="text-gray-600 font-medium">No users found.</p>
                     </div>
                   )}
                 </>
               )}
             </CardContent>
           </Card>
-
-          {/* Edit User Modal */}
-          <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-            <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Edit User Profile</DialogTitle>
-                <DialogDescription>Update user information and permissions.</DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="edit_first_name">First Name *</Label>
-                    <Input
-                      id="edit_first_name"
-                      value={formData.first_name}
-                      onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
-                      disabled={isUpdating}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="edit_last_name">Last Name *</Label>
-                    <Input
-                      id="edit_last_name"
-                      value={formData.last_name}
-                      onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
-                      disabled={isUpdating}
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="edit_email">Email Address *</Label>
-                  <Input
-                    id="edit_email"
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value.toLowerCase().trim() })}
-                    disabled={isUpdating}
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="edit_role">Role</Label>
-                    <Select
-                      value={formData.role}
-                      onValueChange={(value: UserRole) => setFormData({ ...formData, role: value })}
-                      disabled={isUpdating}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="secretary">Secretary</SelectItem>
-                        <SelectItem value="admin">Admin</SelectItem>
-                        <SelectItem value="super_admin">Super Admin</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="edit_status">Status</Label>
-                    <Select
-                      value={formData.status}
-                      onValueChange={(value: UserStatus) => setFormData({ ...formData, status: value })}
-                      disabled={isUpdating}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="active">Active</SelectItem>
-                        <SelectItem value="inactive">Inactive</SelectItem>
-                        <SelectItem value="suspended">Suspended</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="edit_assigned_area">Assigned Area</Label>
-                  <Input
-                    id="edit_assigned_area"
-                    value={formData.assigned_area}
-                    onChange={(e) => setFormData({ ...formData, assigned_area: e.target.value })}
-                    disabled={isUpdating}
-                    placeholder="e.g., Metro Manila, Cebu City, Davao Region"
-                  />
-                </div>
-              </div>
-              <div className="flex justify-end gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setIsEditModalOpen(false)
-                    resetForm()
-                  }}
-                  disabled={isUpdating}
-                >
-                  Cancel
-                </Button>
-                <Button onClick={handleUpdateUser} disabled={isUpdating}>
-                  {isUpdating ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                      Updating...
-                    </>
-                  ) : (
-                    "Update Profile"
-                  )}
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
         </div>
       </div>
     </ProtectedRoute>

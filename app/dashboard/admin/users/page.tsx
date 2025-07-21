@@ -69,7 +69,7 @@ export default function AdminUserManagement() {
   const [formData, setFormData] = useState<UserFormData>(initialFormData)
   const [editingUser, setEditingUser] = useState<UserProfile | null>(null)
 
-  const [creationMode, setCreationMode] = useState<"profile-only" | "with-auth">("profile-only")
+  // Removed creationMode state as it will always be "with-auth" implicitly
 
   const fetchUsers = async () => {
     try {
@@ -151,7 +151,7 @@ export default function AdminUserManagement() {
         return
       }
 
-      console.log(`Creating user in ${creationMode} mode...`)
+      console.log(`Creating user with login capability...`)
 
       // Check if user already exists by email
       const { data: existingUser, error: checkError } = await supabase
@@ -172,33 +172,29 @@ export default function AdminUserManagement() {
 
       let authUserId = null
 
-      // Create auth account if requested
-      if (creationMode === "with-auth") {
-        console.log("Creating authentication account...")
+      // Always create auth account
+      console.log("Creating authentication account...")
 
-        const { data: authData, error: authError } = await supabase.auth.signUp({
-          email: formData.email.toLowerCase().trim(),
-          password: "TempPass123!", // Default password - user should change it
-          options: {
-            emailRedirectTo: undefined,
-            data: {
-              first_name: formData.first_name,
-              last_name: formData.last_name,
-              email_confirm: false,
-            },
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: formData.email.toLowerCase().trim(),
+        password: "TempPass123!", // Default password - user should change it
+        options: {
+          emailRedirectTo: undefined,
+          data: {
+            first_name: formData.first_name,
+            last_name: formData.last_name,
+            email_confirm: false,
           },
-        })
+        },
+      })
 
-        if (authError) {
-          console.error("Auth error:", authError)
-          setError(
-            `Authentication account creation failed: ${authError.message}. Creating profile-only user instead...`,
-          )
-          // Continue with profile-only creation
-        } else if (authData.user) {
-          authUserId = authData.user.id
-          console.log("Auth account created:", authUserId)
-        }
+      if (authError) {
+        console.error("Auth error:", authError)
+        setError(`Authentication account creation failed: ${authError.message}.`)
+        return // Stop if auth creation fails
+      } else if (authData.user) {
+        authUserId = authData.user.id
+        console.log("Auth account created:", authUserId)
       }
 
       // Create user profile
@@ -229,14 +225,11 @@ export default function AdminUserManagement() {
 
       console.log("User profile created successfully:", newUser)
 
-      const successMessage = authUserId
-        ? `User "${formData.first_name} ${formData.last_name}" (${formData.email}) created successfully with login capabilities! Default password: TempPass123! (user should change this)`
-        : `User "${formData.first_name} ${formData.last_name}" (${formData.email}) created successfully as profile-only user.`
+      const successMessage = `User "${formData.first_name} ${formData.last_name}" (${formData.email}) created successfully with login capabilities! Default password: TempPass123! (user should change this)`
 
       setSuccess(successMessage)
       setIsAddModalOpen(false)
       setFormData(initialFormData)
-      setCreationMode("profile-only")
       fetchUsers()
     } catch (error: any) {
       console.error("Unexpected error:", error)
@@ -349,7 +342,7 @@ export default function AdminUserManagement() {
       setSuccess("Status updated successfully")
       fetchUsers()
     } catch (error: any) {
-      setError("An unexpected error occurred")
+      setError("An unexpected error occurred: " + error.message)
     }
   }
 
@@ -364,27 +357,26 @@ export default function AdminUserManagement() {
       setSuccess("Role updated successfully")
       fetchUsers()
     } catch (error: any) {
-      setError("An unexpected error occurred")
+      setError("An unexpected error occurred: " + error.message)
     }
   }
 
   const resetForm = () => {
     setFormData(initialFormData)
     setEditingUser(null)
-    setCreationMode("profile-only")
     setError("")
     setSuccess("")
   }
 
   return (
     <ProtectedRoute allowedRoles={["admin"]}>
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-gradient-to-br from-rose-50 via-orange-50 to-amber-50">
         <DashboardHeader />
 
         <div className="pt-20 px-6 py-8">
           <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900">User Management</h1>
-            <p className="text-gray-600 mt-2">Create and manage user profiles for manual administration</p>
+            <h1 className="text-3xl font-bold text-navy">User Management</h1>
+            <p className="text-navy mt-2">Create and manage user profiles for manual administration</p>
           </div>
 
           {error && (
@@ -402,115 +394,89 @@ export default function AdminUserManagement() {
           )}
 
           {/* Info Alert */}
-          <Alert className="mb-4">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>
-              <strong>User Management:</strong> Create user profiles with or without login capabilities. Profile-only
-              users bypass email domain restrictions.
+          <Alert className="mb-4 bg-gradient-to-r from-rose-100 to-orange-100 border-rose-200 text-navy">
+            <AlertCircle className="h-4 w-4 text-rose-600" />
+            <AlertDescription className="text-navy">
+              <strong>User Management:</strong> Create user profiles with login capabilities.
             </AlertDescription>
           </Alert>
 
-          <Card>
-            <CardHeader>
+          <Card className="bg-gradient-to-br from-rose-100 via-orange-100 to-amber-100 backdrop-blur-sm shadow-lg border border-rose-200">
+            <CardHeader className="border-b border-rose-200 pb-4">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
-                  <CardTitle>Users ({users.length})</CardTitle>
-                  <CardDescription>Manage user profiles and permissions</CardDescription>
+                  <CardTitle className="text-navy">Users ({users.length})</CardTitle>
+                  <CardDescription className="text-navy">Manage user profiles and permissions</CardDescription>
                 </div>
 
                 <div className="flex gap-2">
                   <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-navy h-4 w-4" />
                     <Input
                       placeholder="Search users..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10 w-full sm:w-64"
+                      className="pl-10 w-full sm:w-64 bg-white border-rose-200 text-navy focus:ring-rose-300"
                     />
                   </div>
-                  <Button onClick={fetchUsers} variant="outline" size="sm">
+                  <Button
+                    onClick={fetchUsers}
+                    variant="outline"
+                    size="sm"
+                    className="border-navy text-navy hover:bg-navy/10 bg-transparent"
+                  >
                     <RefreshCw className="h-4 w-4" />
                   </Button>
                   <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
                     <DialogTrigger asChild>
-                      <Button onClick={resetForm}>
+                      <Button onClick={resetForm} className="bg-navy text-white hover:bg-navy/90">
                         <UserPlus className="h-4 w-4 mr-2" />
                         Add User
                       </Button>
                     </DialogTrigger>
-                    <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
+                    <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto bg-gradient-to-br from-rose-50 via-orange-50 to-amber-50 backdrop-blur-sm shadow-lg border border-rose-200">
                       <DialogHeader>
-                        <DialogTitle>Add New User Profile</DialogTitle>
-                        <DialogDescription>
-                          Create a new user profile with optional login capabilities.
+                        <DialogTitle className="text-navy">Add New User Profile</DialogTitle>
+                        <DialogDescription className="text-navy">
+                          Create a new user profile with login capabilities.
                         </DialogDescription>
                       </DialogHeader>
                       <div className="max-h-[60vh] overflow-y-auto px-1">
-                        {/* Creation Mode Selection */}
-                        <div className="bg-gray-50 p-4 rounded-md">
-                          <Label className="text-sm font-medium">Creation Mode</Label>
-                          <div className="mt-2 space-y-2">
-                            <div className="flex items-center space-x-2">
-                              <input
-                                type="radio"
-                                id="profile-only"
-                                name="creationMode"
-                                value="profile-only"
-                                checked={creationMode === "profile-only"}
-                                onChange={(e) => setCreationMode(e.target.value as "profile-only" | "with-auth")}
-                                disabled={isCreating}
-                              />
-                              <Label htmlFor="profile-only" className="text-sm">
-                                Profile Only (No login capability)
-                              </Label>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                              <input
-                                type="radio"
-                                id="with-auth"
-                                name="creationMode"
-                                value="with-auth"
-                                checked={creationMode === "with-auth"}
-                                onChange={(e) => setCreationMode(e.target.value as "profile-only" | "with-auth")}
-                                disabled={isCreating}
-                              />
-                              <Label htmlFor="with-auth" className="text-sm">
-                                With Login Capability (Creates auth account)
-                              </Label>
-                            </div>
-                          </div>
-                          <p className="text-xs text-gray-500 mt-2">
-                            {creationMode === "with-auth"
-                              ? "Creates both profile and authentication account. Default password: TempPass123!"
-                              : "Creates profile only for manual management. No email restrictions."}
-                          </p>
-                        </div>
+                        {/* Removed Creation Mode Selection */}
                         <div className="grid gap-4 py-4">
-                          <div className="grid grid-cols-2 gap-4">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div className="space-y-2">
-                              <Label htmlFor="add_first_name">First Name *</Label>
+                              <Label htmlFor="add_first_name" className="text-navy">
+                                First Name *
+                              </Label>
                               <Input
                                 id="add_first_name"
                                 value={formData.first_name}
                                 onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
                                 disabled={isCreating}
                                 placeholder="John"
+                                className="bg-white border-rose-200 text-navy focus:ring-rose-300"
                               />
                             </div>
                             <div className="space-y-2">
-                              <Label htmlFor="add_last_name">Last Name *</Label>
+                              <Label htmlFor="add_last_name" className="text-navy">
+                                Last Name *
+                              </Label>
                               <Input
                                 id="add_last_name"
                                 value={formData.last_name}
                                 onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
                                 disabled={isCreating}
                                 placeholder="Doe"
+                                className="bg-white border-rose-200 text-navy focus:ring-rose-300"
                               />
                             </div>
                           </div>
 
                           <div className="space-y-2">
-                            <Label htmlFor="add_email">Email Address *</Label>
+                            <Label htmlFor="add_email" className="text-navy">
+                              Email Address *
+                            </Label>
                             <Input
                               id="add_email"
                               type="email"
@@ -518,21 +484,24 @@ export default function AdminUserManagement() {
                               onChange={(e) => setFormData({ ...formData, email: e.target.value.toLowerCase().trim() })}
                               disabled={isCreating}
                               placeholder="john.doe@gmail.com"
+                              className="bg-white border-rose-200 text-navy focus:ring-rose-300"
                             />
                           </div>
 
-                          <div className="grid grid-cols-2 gap-4">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div className="space-y-2">
-                              <Label htmlFor="add_role">Role</Label>
+                              <Label htmlFor="add_role" className="text-navy">
+                                Role
+                              </Label>
                               <Select
                                 value={formData.role}
                                 onValueChange={(value: UserRole) => setFormData({ ...formData, role: value })}
                                 disabled={isCreating}
                               >
-                                <SelectTrigger>
+                                <SelectTrigger className="bg-white border-rose-200 text-navy focus:ring-rose-300">
                                   <SelectValue />
                                 </SelectTrigger>
-                                <SelectContent>
+                                <SelectContent className="bg-white border-rose-200 text-navy">
                                   <SelectItem value="secretary">Secretary</SelectItem>
                                   <SelectItem value="admin">Admin</SelectItem>
                                 </SelectContent>
@@ -540,16 +509,18 @@ export default function AdminUserManagement() {
                             </div>
 
                             <div className="space-y-2">
-                              <Label htmlFor="add_status">Status</Label>
+                              <Label htmlFor="add_status" className="text-navy">
+                                Status
+                              </Label>
                               <Select
                                 value={formData.status}
                                 onValueChange={(value: UserStatus) => setFormData({ ...formData, status: value })}
                                 disabled={isCreating}
                               >
-                                <SelectTrigger>
+                                <SelectTrigger className="bg-white border-rose-200 text-navy focus:ring-rose-300">
                                   <SelectValue />
                                 </SelectTrigger>
-                                <SelectContent>
+                                <SelectContent className="bg-white border-rose-200 text-navy">
                                   <SelectItem value="active">Active</SelectItem>
                                   <SelectItem value="inactive">Inactive</SelectItem>
                                   <SelectItem value="suspended">Suspended</SelectItem>
@@ -559,18 +530,21 @@ export default function AdminUserManagement() {
                           </div>
 
                           <div className="space-y-2">
-                            <Label htmlFor="add_assigned_area">Assigned Area</Label>
+                            <Label htmlFor="add_assigned_area" className="text-navy">
+                              Assigned Area
+                            </Label>
                             <Input
                               id="add_assigned_area"
                               value={formData.assigned_area}
                               onChange={(e) => setFormData({ ...formData, assigned_area: e.target.value })}
                               disabled={isCreating}
                               placeholder="e.g., Metro Manila, Cebu City, Davao Region"
+                              className="bg-white border-rose-200 text-navy focus:ring-rose-300"
                             />
                           </div>
                         </div>
                       </div>
-                      <div className="flex justify-end gap-2 pt-4 border-t">
+                      <div className="flex justify-end gap-2 pt-4 border-t border-rose-200">
                         <Button
                           variant="outline"
                           onClick={() => {
@@ -578,10 +552,15 @@ export default function AdminUserManagement() {
                             resetForm()
                           }}
                           disabled={isCreating}
+                          className="border-navy text-navy hover:bg-navy/10"
                         >
                           Cancel
                         </Button>
-                        <Button onClick={handleCreateUser} disabled={isCreating}>
+                        <Button
+                          onClick={handleCreateUser}
+                          disabled={isCreating}
+                          className="bg-navy text-white hover:bg-navy/90"
+                        >
                           {isCreating ? (
                             <>
                               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
@@ -600,40 +579,40 @@ export default function AdminUserManagement() {
             <CardContent>
               {loading ? (
                 <div className="flex flex-col items-center justify-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4"></div>
-                  <p className="text-gray-500">Loading users...</p>
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-navy mb-4"></div>
+                  <p className="text-navy">Loading users...</p>
                 </div>
               ) : (
                 <>
                   {filteredUsers.length > 0 ? (
                     <Table>
                       <TableHeader>
-                        <TableRow>
-                          <TableHead>Name</TableHead>
-                          <TableHead>Email</TableHead>
-                          <TableHead>Role</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Assigned Area</TableHead>
-                          <TableHead>Created</TableHead>
-                          <TableHead>Actions</TableHead>
+                        <TableRow className="bg-rose-100 hover:bg-rose-100">
+                          <TableHead className="text-navy">Name</TableHead>
+                          <TableHead className="text-navy">Email</TableHead>
+                          <TableHead className="text-navy">Role</TableHead>
+                          <TableHead className="text-navy">Status</TableHead>
+                          <TableHead className="text-navy">Assigned Area</TableHead>
+                          <TableHead className="text-navy">Created</TableHead>
+                          <TableHead className="text-navy">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {filteredUsers.map((user) => (
-                          <TableRow key={user.id}>
-                            <TableCell className="font-medium">
+                          <TableRow key={user.id} className="hover:bg-orange-50/50">
+                            <TableCell className="font-medium text-navy">
                               {user.full_name || `${user.first_name || ""} ${user.last_name || ""}`.trim() || "N/A"}
                             </TableCell>
-                            <TableCell className="text-sm text-gray-600">{user.email || "N/A"}</TableCell>
+                            <TableCell className="text-sm text-navy">{user.email || "N/A"}</TableCell>
                             <TableCell>
                               <Select
                                 value={user.role}
                                 onValueChange={(value: UserRole) => handleQuickRoleUpdate(user.id, value)}
                               >
-                                <SelectTrigger className="w-32">
+                                <SelectTrigger className="w-32 bg-white border-orange-200 text-navy focus:ring-orange-300">
                                   <SelectValue />
                                 </SelectTrigger>
-                                <SelectContent>
+                                <SelectContent className="bg-white border-orange-200 text-navy">
                                   <SelectItem value="secretary">Secretary</SelectItem>
                                   <SelectItem value="admin">Admin</SelectItem>
                                 </SelectContent>
@@ -644,43 +623,58 @@ export default function AdminUserManagement() {
                                 value={user.status}
                                 onValueChange={(value: UserStatus) => handleQuickStatusUpdate(user.id, value)}
                               >
-                                <SelectTrigger className="w-28">
+                                <SelectTrigger className="w-28 bg-white border-orange-200 text-navy focus:ring-orange-300">
                                   <SelectValue />
                                 </SelectTrigger>
-                                <SelectContent>
+                                <SelectContent className="bg-white border-orange-200 text-navy">
                                   <SelectItem value="active">Active</SelectItem>
                                   <SelectItem value="inactive">Inactive</SelectItem>
                                   <SelectItem value="suspended">Suspended</SelectItem>
                                 </SelectContent>
                               </Select>
                             </TableCell>
-                            <TableCell>{user.assigned_area || "N/A"}</TableCell>
-                            <TableCell>{new Date(user.created_at).toLocaleDateString()}</TableCell>
+                            <TableCell className="text-navy">{user.assigned_area || "N/A"}</TableCell>
+                            <TableCell className="text-navy">
+                              {new Date(user.created_at).toLocaleDateString()}
+                            </TableCell>
                             <TableCell>
                               <div className="flex gap-2">
-                                <Button variant="ghost" size="sm" onClick={() => handleEditUser(user)}>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleEditUser(user)}
+                                  className="text-navy hover:bg-orange-200"
+                                >
                                   <Edit className="h-4 w-4" />
                                 </Button>
                                 <AlertDialog>
                                   <AlertDialogTrigger asChild>
-                                    <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="text-red-600 hover:bg-red-100 hover:text-red-700"
+                                    >
                                       <Trash2 className="h-4 w-4" />
                                     </Button>
                                   </AlertDialogTrigger>
-                                  <AlertDialogContent>
+                                  <AlertDialogContent className="bg-gradient-to-br from-rose-50 via-orange-50 to-amber-50 backdrop-blur-sm shadow-lg border border-rose-200">
                                     <AlertDialogHeader>
-                                      <AlertDialogTitle>Delete User Profile</AlertDialogTitle>
-                                      <AlertDialogDescription>
+                                      <AlertDialogTitle className="text-navy">Delete User Profile</AlertDialogTitle>
+                                      <AlertDialogDescription className="text-navy">
                                         Are you sure you want to delete the profile for{" "}
-                                        <strong>{user.full_name || `${user.first_name} ${user.last_name}`}</strong>?
-                                        This action cannot be undone.
+                                        <strong className="text-navy">
+                                          {user.full_name || `${user.first_name} ${user.last_name}`}
+                                        </strong>
+                                        ? This action cannot be undone.
                                       </AlertDialogDescription>
                                     </AlertDialogHeader>
                                     <AlertDialogFooter>
-                                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                      <AlertDialogCancel className="border-navy text-navy hover:bg-navy/10">
+                                        Cancel
+                                      </AlertDialogCancel>
                                       <AlertDialogAction
                                         onClick={() => handleDeleteUser(user)}
-                                        className="bg-red-600 hover:bg-red-700"
+                                        className="bg-red-600 hover:bg-red-700 text-white"
                                         disabled={isDeleting}
                                       >
                                         {isDeleting ? "Deleting..." : "Delete Profile"}
@@ -695,7 +689,7 @@ export default function AdminUserManagement() {
                       </TableBody>
                     </Table>
                   ) : (
-                    <div className="text-center py-8 text-gray-500">
+                    <div className="text-center py-8 text-navy">
                       {searchTerm ? "No users found matching your search." : "No users found. Create your first user!"}
                     </div>
                   )}
@@ -706,56 +700,67 @@ export default function AdminUserManagement() {
 
           {/* Edit User Modal */}
           <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-            <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
+            <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto bg-gradient-to-br from-rose-50 via-orange-50 to-amber-50 backdrop-blur-sm shadow-lg border border-rose-200">
               <DialogHeader>
-                <DialogTitle>Edit User Profile</DialogTitle>
-                <DialogDescription>Update user information and permissions.</DialogDescription>
+                <DialogTitle className="text-navy">Edit User Profile</DialogTitle>
+                <DialogDescription className="text-navy">Update user information and permissions.</DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="edit_first_name">First Name *</Label>
+                    <Label htmlFor="edit_first_name" className="text-navy">
+                      First Name *
+                    </Label>
                     <Input
                       id="edit_first_name"
                       value={formData.first_name}
                       onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
                       disabled={isUpdating}
+                      className="bg-white border-rose-200 text-navy focus:ring-rose-300"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="edit_last_name">Last Name *</Label>
+                    <Label htmlFor="edit_last_name" className="text-navy">
+                      Last Name *
+                    </Label>
                     <Input
                       id="edit_last_name"
                       value={formData.last_name}
                       onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
                       disabled={isUpdating}
+                      className="bg-white border-rose-200 text-navy focus:ring-rose-300"
                     />
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="edit_email">Email Address *</Label>
+                  <Label htmlFor="edit_email" className="text-navy">
+                    Email Address *
+                  </Label>
                   <Input
                     id="edit_email"
                     type="email"
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value.toLowerCase().trim() })}
                     disabled={isUpdating}
+                    className="bg-white border-rose-200 text-navy focus:ring-rose-300"
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="edit_role">Role</Label>
+                    <Label htmlFor="edit_role" className="text-navy">
+                      Role
+                    </Label>
                     <Select
                       value={formData.role}
                       onValueChange={(value: UserRole) => setFormData({ ...formData, role: value })}
                       disabled={isUpdating}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className="bg-white border-rose-200 text-navy focus:ring-rose-300">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="bg-white border-rose-200 text-navy">
                         <SelectItem value="secretary">Secretary</SelectItem>
                         <SelectItem value="admin">Admin</SelectItem>
                       </SelectContent>
@@ -763,16 +768,18 @@ export default function AdminUserManagement() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="edit_status">Status</Label>
+                    <Label htmlFor="edit_status" className="text-navy">
+                      Status
+                    </Label>
                     <Select
                       value={formData.status}
                       onValueChange={(value: UserStatus) => setFormData({ ...formData, status: value })}
                       disabled={isUpdating}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className="bg-white border-rose-200 text-navy focus:ring-rose-300">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="bg-white border-rose-200 text-navy">
                         <SelectItem value="active">Active</SelectItem>
                         <SelectItem value="inactive">Inactive</SelectItem>
                         <SelectItem value="suspended">Suspended</SelectItem>
@@ -782,17 +789,20 @@ export default function AdminUserManagement() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="edit_assigned_area">Assigned Area</Label>
+                  <Label htmlFor="edit_assigned_area" className="text-navy">
+                    Assigned Area
+                  </Label>
                   <Input
                     id="edit_assigned_area"
                     value={formData.assigned_area}
                     onChange={(e) => setFormData({ ...formData, assigned_area: e.target.value })}
                     disabled={isUpdating}
                     placeholder="e.g., Metro Manila, Cebu City, Davao Region"
+                    className="bg-white border-rose-200 text-navy focus:ring-rose-300"
                   />
                 </div>
               </div>
-              <div className="flex justify-end gap-2">
+              <div className="flex justify-end gap-2 border-t border-rose-200 pt-4">
                 <Button
                   variant="outline"
                   onClick={() => {
@@ -800,10 +810,15 @@ export default function AdminUserManagement() {
                     resetForm()
                   }}
                   disabled={isUpdating}
+                  className="border-navy text-navy hover:bg-navy/10"
                 >
                   Cancel
                 </Button>
-                <Button onClick={handleUpdateUser} disabled={isUpdating}>
+                <Button
+                  onClick={handleUpdateUser}
+                  disabled={isUpdating}
+                  className="bg-navy text-white hover:bg-navy/90"
+                >
                   {isUpdating ? (
                     <>
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>

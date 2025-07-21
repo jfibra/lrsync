@@ -32,7 +32,19 @@ import { Textarea } from "@/components/ui/textarea"
 import { supabase } from "@/lib/supabase/client"
 import { useAuth } from "@/contexts/auth-context"
 import type { TaxpayerListing, TaxpayerFormData, TaxpayerType } from "@/types/taxpayer"
-import { Search, Edit, Trash2, Plus, CheckCircle, AlertCircle, RefreshCw, FileText } from "lucide-react"
+import {
+  Search,
+  Edit,
+  Trash2,
+  Plus,
+  CheckCircle,
+  AlertCircle,
+  RefreshCw,
+  FileText,
+  Building2,
+  Receipt,
+  MapPin,
+} from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
 const formatTin = (tin: string): string => {
@@ -337,127 +349,210 @@ export default function TinLibraryPage() {
   }
 
   const renderFormFields = () => (
-    <div className="grid gap-4 py-4">
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="tin">TIN *</Label>
-          <Input
-            id="tin"
-            value={formatTin(formData.tin)}
-            onChange={(e) => {
-              const cleanValue = e.target.value.replace(/-/g, "")
-              if (cleanValue.length <= 15 && /^\d*$/.test(cleanValue)) {
-                setFormData({ ...formData, tin: cleanValue })
-              }
-            }}
-            disabled={isCreating || isUpdating}
-            placeholder="000-000-000-000"
-            maxLength={19} // 15 digits + 4 dashes
-          />
+    <div className="space-y-6">
+      {/* TIN and Type Section */}
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-lg border border-blue-200">
+        <h4 className="text-lg font-semibold text-gray-900 mb-4">Basic Information</h4>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+          <div className="space-y-2">
+            <Label htmlFor="tin" className="text-sm font-medium text-gray-700">
+              TIN Number *
+            </Label>
+            <Input
+              id="tin"
+              value={formatTin(formData.tin)}
+              onChange={(e) => {
+                const cleanValue = e.target.value.replace(/-/g, "")
+                if (cleanValue.length <= 15 && /^\d*$/.test(cleanValue)) {
+                  setFormData({ ...formData, tin: cleanValue })
+                }
+              }}
+              disabled={isCreating || isUpdating}
+              placeholder="000-000-000-000"
+              maxLength={19} // 15 digits + 4 dashes
+              className="border-gray-300 focus:border-emerald-500 focus:ring-emerald-500"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="type" className="text-sm font-medium text-gray-700">
+              Taxpayer Type *
+            </Label>
+            <Select
+              value={formData.type}
+              onValueChange={(value: TaxpayerType) => setFormData({ ...formData, type: value })}
+              disabled={isCreating || isUpdating}
+            >
+              <SelectTrigger className="border-gray-300 focus:border-emerald-500 focus:ring-emerald-500">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="sales">Sales</SelectItem>
+                <SelectItem value="purchases">Purchases</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
-        <div className="space-y-2">
-          <Label htmlFor="type">Type *</Label>
-          <Select
-            value={formData.type}
-            onValueChange={(value: TaxpayerType) => setFormData({ ...formData, type: value })}
-            disabled={isCreating || isUpdating}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="sales">Sales</SelectItem>
-              <SelectItem value="purchases">Purchases</SelectItem>
-            </SelectContent>
-          </Select>
+      </div>
+
+      {/* Company Information Section */}
+      <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-6 rounded-lg border border-green-200">
+        <h4 className="text-lg font-semibold text-gray-900 mb-4">Company Information</h4>
+        <div className="space-y-6">
+          <div className="space-y-2">
+            <Label htmlFor="registered_name" className="text-sm font-medium text-gray-700">
+              Registered Name *
+            </Label>
+            <Input
+              id="registered_name"
+              value={formData.registered_name}
+              onChange={(e) => setFormData({ ...formData, registered_name: e.target.value })}
+              disabled={isCreating || isUpdating}
+              placeholder="Company or business name"
+              maxLength={255}
+              className="border-gray-300 focus:border-emerald-500 focus:ring-emerald-500"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="substreet_street_brgy" className="text-sm font-medium text-gray-700">
+              Substreet/Street/Barangay
+            </Label>
+            <Textarea
+              id="substreet_street_brgy"
+              value={formData.substreet_street_brgy}
+              onChange={(e) => setFormData({ ...formData, substreet_street_brgy: e.target.value })}
+              disabled={isCreating || isUpdating}
+              placeholder="Complete address line"
+              rows={3}
+              className="border-gray-300 focus:border-emerald-500 focus:ring-emerald-500"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="district_city_zip" className="text-sm font-medium text-gray-700">
+              District/City/ZIP
+            </Label>
+            <Input
+              id="district_city_zip"
+              value={formData.district_city_zip}
+              onChange={(e) => setFormData({ ...formData, district_city_zip: e.target.value })}
+              disabled={isCreating || isUpdating}
+              placeholder="District, City, ZIP code"
+              className="border-gray-300 focus:border-emerald-500 focus:ring-emerald-500"
+            />
+          </div>
         </div>
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="registered_name">Registered Name *</Label>
-        <Input
-          id="registered_name"
-          value={formData.registered_name}
-          onChange={(e) => setFormData({ ...formData, registered_name: e.target.value })}
-          disabled={isCreating || isUpdating}
-          placeholder="Company or business name"
-          maxLength={255}
-        />
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="substreet_street_brgy">Substreet/Street/Barangay</Label>
-        <Textarea
-          id="substreet_street_brgy"
-          value={formData.substreet_street_brgy}
-          onChange={(e) => setFormData({ ...formData, substreet_street_brgy: e.target.value })}
-          disabled={isCreating || isUpdating}
-          placeholder="Complete address line"
-          rows={2}
-        />
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="district_city_zip">District/City/ZIP</Label>
-        <Input
-          id="district_city_zip"
-          value={formData.district_city_zip}
-          onChange={(e) => setFormData({ ...formData, district_city_zip: e.target.value })}
-          disabled={isCreating || isUpdating}
-          placeholder="District, City, ZIP code"
-        />
       </div>
     </div>
   )
 
+  // Calculate stats
+  const totalTaxpayers = taxpayers.length
+  const salesTaxpayers = taxpayers.filter((t) => t.type === "sales").length
+  const purchasesTaxpayers = taxpayers.filter((t) => t.type === "purchases").length
+
   return (
     <ProtectedRoute allowedRoles={["super_admin"]}>
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50">
         <DashboardHeader />
 
-        <div className="pt-20 px-6 py-8">
+        <div className="pt-20 px-4 sm:px-6 lg:px-8 py-8">
+          {/* Header Section */}
           <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900">TIN Library</h1>
-            <p className="text-gray-600 mt-2">Manage taxpayer listings for sales and purchases</p>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-3 bg-gradient-to-r from-emerald-500 to-teal-600 rounded-xl shadow-lg">
+                <FileText className="h-8 w-8 text-white" />
+              </div>
+              <div>
+                <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
+                  TIN Library
+                </h1>
+                <p className="text-gray-600 mt-1">Comprehensive taxpayer identification database management</p>
+              </div>
+            </div>
           </div>
 
+          {/* Stats Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <Card className="bg-gradient-to-r from-emerald-500 to-emerald-600 border-0 shadow-xl">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-emerald-100 text-sm font-medium">Total Taxpayers</p>
+                    <p className="text-3xl font-bold text-white">{totalTaxpayers}</p>
+                  </div>
+                  <Building2 className="h-12 w-12 text-emerald-200" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-gradient-to-r from-blue-500 to-blue-600 border-0 shadow-xl">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-blue-100 text-sm font-medium">Sales Records</p>
+                    <p className="text-3xl font-bold text-white">{salesTaxpayers}</p>
+                  </div>
+                  <Receipt className="h-12 w-12 text-blue-200" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-gradient-to-r from-purple-500 to-purple-600 border-0 shadow-xl">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-purple-100 text-sm font-medium">Purchase Records</p>
+                    <p className="text-3xl font-bold text-white">{purchasesTaxpayers}</p>
+                  </div>
+                  <FileText className="h-12 w-12 text-purple-200" />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Alerts */}
           {error && (
-            <Alert variant="destructive" className="mb-4">
+            <Alert variant="destructive" className="mb-6 border-red-200 bg-red-50">
               <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{error}</AlertDescription>
+              <AlertDescription className="text-red-800">{error}</AlertDescription>
             </Alert>
           )}
-
           {success && (
-            <Alert className="mb-4">
-              <CheckCircle className="h-4 w-4" />
-              <AlertDescription>{success}</AlertDescription>
+            <Alert className="mb-6 border-green-200 bg-green-50">
+              <CheckCircle className="h-4 w-4 text-green-600" />
+              <AlertDescription className="text-green-800">{success}</AlertDescription>
             </Alert>
           )}
 
-          <Card>
-            <CardHeader>
+          {/* Main Content Card */}
+          <Card className="shadow-2xl border-0 bg-white/80 backdrop-blur-sm">
+            <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <FileText className="h-5 w-5" />
-                    Taxpayer Listings ({filteredTaxpayers.length})
+                  <CardTitle className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+                    <FileText className="h-6 w-6 text-emerald-600" />
+                    Taxpayer Directory ({filteredTaxpayers.length})
                   </CardTitle>
-                  <CardDescription>Manage TIN database for sales and purchases tracking</CardDescription>
+                  <CardDescription className="text-gray-600 mt-1">
+                    Manage TIN database for sales and purchases tracking
+                  </CardDescription>
                 </div>
 
-                <div className="flex gap-2">
-                  <div className="relative">
+                <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+                  {/* Search Input */}
+                  <div className="relative w-full sm:w-64">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                     <Input
                       placeholder="Search TIN, name, address..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10 w-full sm:w-64"
+                      className="pl-10 w-full border-gray-300 focus:border-emerald-500 focus:ring-emerald-500"
                     />
                   </div>
+                  {/* Type Filter */}
                   <Select value={filterType} onValueChange={(value: TaxpayerType | "all") => setFilterType(value)}>
-                    <SelectTrigger className="w-32">
+                    <SelectTrigger className="w-full sm:w-32 border-gray-300 focus:border-emerald-500 focus:ring-emerald-500">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -466,8 +561,9 @@ export default function TinLibraryPage() {
                       <SelectItem value="purchases">Purchases</SelectItem>
                     </SelectContent>
                   </Select>
+                  {/* Area Filter */}
                   <Select value={filterArea} onValueChange={(value: string) => setFilterArea(value)}>
-                    <SelectTrigger className="w-40">
+                    <SelectTrigger className="w-full sm:w-40 border-gray-300 focus:border-emerald-500 focus:ring-emerald-500">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -479,23 +575,35 @@ export default function TinLibraryPage() {
                       ))}
                     </SelectContent>
                   </Select>
-                  <Button onClick={fetchTaxpayers} variant="outline" size="sm">
+                  <Button
+                    onClick={fetchTaxpayers}
+                    variant="outline"
+                    size="sm"
+                    className="w-full sm:w-auto border-gray-300 hover:bg-gray-50 bg-transparent"
+                  >
                     <RefreshCw className="h-4 w-4" />
                   </Button>
                   <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
                     <DialogTrigger asChild>
-                      <Button onClick={resetForm}>
+                      <Button
+                        onClick={resetForm}
+                        className="w-full sm:w-auto bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 shadow-lg"
+                      >
                         <Plus className="h-4 w-4 mr-2" />
                         Add Taxpayer
                       </Button>
                     </DialogTrigger>
-                    <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
-                      <DialogHeader>
-                        <DialogTitle>Add New Taxpayer Listing</DialogTitle>
-                        <DialogDescription>Create a new taxpayer entry for the TIN library.</DialogDescription>
+                    <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+                      <DialogHeader className="pb-6 border-b border-gray-200">
+                        <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">
+                          Add New Taxpayer Listing
+                        </DialogTitle>
+                        <DialogDescription className="text-gray-600 mt-2">
+                          Create a new taxpayer entry for the TIN library database
+                        </DialogDescription>
                       </DialogHeader>
                       <div className="max-h-[60vh] overflow-y-auto px-1">{renderFormFields()}</div>
-                      <div className="flex justify-end gap-2 pt-4 border-t">
+                      <div className="flex justify-end gap-3 pt-6 border-t border-gray-200">
                         <Button
                           variant="outline"
                           onClick={() => {
@@ -503,14 +611,19 @@ export default function TinLibraryPage() {
                             resetForm()
                           }}
                           disabled={isCreating}
+                          className="border-gray-300 hover:bg-gray-50 px-6"
                         >
                           Cancel
                         </Button>
-                        <Button onClick={handleCreateTaxpayer} disabled={isCreating}>
+                        <Button
+                          onClick={handleCreateTaxpayer}
+                          disabled={isCreating}
+                          className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 px-8"
+                        >
                           {isCreating ? (
                             <>
                               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                              Creating...
+                              Creating Taxpayer...
                             </>
                           ) : (
                             "Create Taxpayer"
@@ -522,97 +635,125 @@ export default function TinLibraryPage() {
                 </div>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-0">
               {loading ? (
-                <div className="flex flex-col items-center justify-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4"></div>
-                  <p className="text-gray-500">Loading taxpayer listings...</p>
+                <div className="flex flex-col items-center justify-center py-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600 mb-4"></div>
+                  <p className="text-gray-600 font-medium">Loading taxpayer listings...</p>
                 </div>
               ) : (
                 <>
                   {filteredTaxpayers.length > 0 ? (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>TIN</TableHead>
-                          <TableHead>Registered Name</TableHead>
-                          <TableHead>Type</TableHead>
-                          <TableHead>Address</TableHead>
-                          <TableHead>Area</TableHead>
-                          <TableHead>Date Added</TableHead>
-                          <TableHead>Actions</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {filteredTaxpayers.map((taxpayer) => (
-                          <TableRow key={taxpayer.id}>
-                            <TableCell className="font-mono font-medium">{formatTin(taxpayer.tin)}</TableCell>
-                            <TableCell>{taxpayer.registered_name || "N/A"}</TableCell>
-                            <TableCell>
-                              <span
-                                className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                  taxpayer.type === "sales"
-                                    ? "bg-green-100 text-green-800"
-                                    : "bg-blue-100 text-blue-800"
-                                }`}
-                              >
-                                {taxpayer.type}
-                              </span>
-                            </TableCell>
-                            <TableCell>
-                              <div className="max-w-xs">
-                                <div className="text-sm">{taxpayer.substreet_street_brgy || "N/A"}</div>
-                                <div className="text-xs text-gray-500">{taxpayer.district_city_zip || ""}</div>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <span className="text-sm text-gray-600">
-                                {taxpayer.user_profiles?.assigned_area || "N/A"}
-                              </span>
-                            </TableCell>
-                            <TableCell>{new Date(taxpayer.date_added).toLocaleDateString()}</TableCell>
-                            <TableCell>
-                              <div className="flex gap-2">
-                                <Button variant="ghost" size="sm" onClick={() => handleEditTaxpayer(taxpayer)}>
-                                  <Edit className="h-4 w-4" />
-                                </Button>
-                                <AlertDialog>
-                                  <AlertDialogTrigger asChild>
-                                    <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700">
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                  </AlertDialogTrigger>
-                                  <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                      <AlertDialogTitle>Delete Taxpayer Listing</AlertDialogTitle>
-                                      <AlertDialogDescription>
-                                        Are you sure you want to delete the taxpayer listing for TIN{" "}
-                                        <strong>{formatTin(taxpayer.tin)}</strong>? This action cannot be undone.
-                                      </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                      <AlertDialogAction
-                                        onClick={() => handleDeleteTaxpayer(taxpayer)}
-                                        className="bg-red-600 hover:bg-red-700"
-                                        disabled={isDeleting}
-                                      >
-                                        {isDeleting ? "Deleting..." : "Delete"}
-                                      </AlertDialogAction>
-                                    </AlertDialogFooter>
-                                  </AlertDialogContent>
-                                </AlertDialog>
-                              </div>
-                            </TableCell>
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="bg-gray-50 border-b border-gray-200">
+                            <TableHead className="min-w-[120px] font-semibold text-gray-900">TIN</TableHead>
+                            <TableHead className="min-w-[180px] font-semibold text-gray-900">Registered Name</TableHead>
+                            <TableHead className="min-w-[80px] font-semibold text-gray-900">Type</TableHead>
+                            <TableHead className="min-w-[250px] font-semibold text-gray-900">Address</TableHead>
+                            <TableHead className="min-w-[100px] font-semibold text-gray-900">Area</TableHead>
+                            <TableHead className="min-w-[120px] font-semibold text-gray-900">Date Added</TableHead>
+                            <TableHead className="min-w-[120px] font-semibold text-gray-900">Actions</TableHead>
                           </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+                        </TableHeader>
+                        <TableBody>
+                          {filteredTaxpayers.map((taxpayer) => (
+                            <TableRow key={taxpayer.id} className="hover:bg-gray-50 transition-colors">
+                              <TableCell className="font-mono font-medium text-gray-900">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
+                                  {formatTin(taxpayer.tin)}
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-gray-900">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-8 h-8 bg-gradient-to-r from-emerald-500 to-teal-600 rounded-full flex items-center justify-center">
+                                    <Building2 className="h-4 w-4 text-white" />
+                                  </div>
+                                  <span className="font-medium">{taxpayer.registered_name || "N/A"}</span>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <span
+                                  className={`px-3 py-1 rounded-full text-xs font-medium ${
+                                    taxpayer.type === "sales"
+                                      ? "bg-green-100 text-green-800 border border-green-200"
+                                      : "bg-blue-100 text-blue-800 border border-blue-200"
+                                  }`}
+                                >
+                                  {taxpayer.type.toUpperCase()}
+                                </span>
+                              </TableCell>
+                              <TableCell className="text-gray-600">
+                                <div className="max-w-xs">
+                                  <div className="text-sm font-medium">{taxpayer.substreet_street_brgy || "N/A"}</div>
+                                  <div className="text-xs text-gray-500 flex items-center gap-1">
+                                    <MapPin className="h-3 w-3" />
+                                    {taxpayer.district_city_zip || ""}
+                                  </div>
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-gray-600">
+                                <span className="text-sm bg-gray-100 px-2 py-1 rounded">
+                                  {taxpayer.user_profiles?.assigned_area || "N/A"}
+                                </span>
+                              </TableCell>
+                              <TableCell className="text-gray-600">
+                                {new Date(taxpayer.created_at).toLocaleDateString()}
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex gap-2">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleEditTaxpayer(taxpayer)}
+                                    className="hover:bg-emerald-50 hover:text-emerald-600"
+                                  >
+                                    <Edit className="h-4 w-4" />
+                                  </Button>
+                                  <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                      <Button variant="ghost" size="sm" className="hover:bg-red-50 hover:text-red-600">
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle>Delete Taxpayer Listing</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                          Are you sure you want to delete the taxpayer listing for TIN{" "}
+                                          <strong>{formatTin(taxpayer.tin)}</strong>? This action cannot be undone.
+                                        </AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction
+                                          onClick={() => handleDeleteTaxpayer(taxpayer)}
+                                          className="bg-red-600 hover:bg-red-700"
+                                          disabled={isDeleting}
+                                        >
+                                          {isDeleting ? "Deleting..." : "Delete"}
+                                        </AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
                   ) : (
-                    <div className="text-center py-8 text-gray-500">
-                      {searchTerm || filterType !== "all"
-                        ? "No taxpayer listings found matching your criteria."
-                        : "No taxpayer listings found. Create your first entry!"}
+                    <div className="text-center py-12">
+                      <FileText className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                      <h3 className="text-lg font-medium text-gray-900 mb-2">No taxpayer listings found</h3>
+                      <p className="text-gray-500">
+                        {searchTerm || filterType !== "all" || filterArea !== "all"
+                          ? "No taxpayer listings found matching your criteria."
+                          : "Create your first taxpayer entry to get started!"}
+                      </p>
                     </div>
                   )}
                 </>
@@ -622,13 +763,17 @@ export default function TinLibraryPage() {
 
           {/* Edit Taxpayer Modal */}
           <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-            <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Edit Taxpayer Listing</DialogTitle>
-                <DialogDescription>Update taxpayer information and details.</DialogDescription>
+            <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader className="pb-6 border-b border-gray-200">
+                <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">
+                  Edit Taxpayer Listing
+                </DialogTitle>
+                <DialogDescription className="text-gray-600 mt-2">
+                  Update taxpayer information and details
+                </DialogDescription>
               </DialogHeader>
               <div className="max-h-[60vh] overflow-y-auto px-1">{renderFormFields()}</div>
-              <div className="flex justify-end gap-2 pt-4 border-t">
+              <div className="flex justify-end gap-3 pt-6 border-t border-gray-200">
                 <Button
                   variant="outline"
                   onClick={() => {
@@ -636,14 +781,19 @@ export default function TinLibraryPage() {
                     resetForm()
                   }}
                   disabled={isUpdating}
+                  className="border-gray-300 hover:bg-gray-50 px-6"
                 >
                   Cancel
                 </Button>
-                <Button onClick={handleUpdateTaxpayer} disabled={isUpdating}>
+                <Button
+                  onClick={handleUpdateTaxpayer}
+                  disabled={isUpdating}
+                  className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 px-8"
+                >
                   {isUpdating ? (
                     <>
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                      Updating...
+                      Updating Taxpayer...
                     </>
                   ) : (
                     "Update Taxpayer"
