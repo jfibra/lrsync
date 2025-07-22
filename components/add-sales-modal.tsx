@@ -329,14 +329,17 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
         <input
           type="file"
           multiple
-          accept="image/*"
+          accept="image/*,application/pdf"
           onChange={(e) => handleFileUpload(field, e.target.files)}
           className="hidden"
           id={`file-${field}`}
         />
         <label htmlFor={`file-${field}`} className="cursor-pointer">
           <Upload className="mx-auto h-8 w-8 text-[#001f3f] mb-2" />
-          <p className="text-sm text-[#001f3f]/60">Select tax month & TIN first</p>
+          <p className="text-sm text-[#001f3f]/60">
+            Select tax month & TIN first<br />
+            <span className="block mt-1">Accepted: <span className="font-semibold">Image</span> or <span className="font-semibold">PDF</span> files</span>
+          </p>
         </label>
       </div>
       {(formData[field] as string[]).length > 0 && (
@@ -623,19 +626,19 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
           {/* File Uploads Section */}
           <div className="space-y-4">
             <div className="border-t pt-4">
-              <h3 className="text-lg font-medium text-[#001f3f] mb-4">File Uploads (Images Only)</h3>
+              <h3 className="text-lg font-medium text-[#001f3f] mb-4">File Uploads (Images and PDF Accepted)</h3>
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
                 <p className="text-sm text-blue-800">
-                  <span className="font-medium">Required:</span> Voucher, Deposit Slip |{" "}
-                  <span className="font-medium">Optional:</span> Cheque, Invoice, Doc 2307
+                  <span className="font-medium">Required:</span> None | {" "}
+                  <span className="font-medium">Optional:</span> Voucher, Deposit Slip , Cheque, Invoice, Doc 2307
                 </p>
               </div>
             </div>
 
             {/* First row of file uploads */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <FileUploadArea field="deposit_slip" label="Deposit Slip" required />
-              <FileUploadArea field="voucher" label="Voucher" required />
+              <FileUploadArea field="deposit_slip" label="Deposit Slip"/>
+              <FileUploadArea field="voucher" label="Voucher"/>
             </div>
 
             {/* Second row of file uploads */}
@@ -657,7 +660,7 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
             </Button>
             <Button
               type="submit"
-              disabled={loading || !areRequiredFilesUploaded()}
+              disabled={loading}
               className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white px-6"
             >
               {loading ? "Adding..." : "Add Sales Record"}
