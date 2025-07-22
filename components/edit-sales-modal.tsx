@@ -115,6 +115,7 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
   const [substreetStreetBrgy, setSubstreetStreetBrgy] = useState("")
   const [districtCityZip, setDistrictCityZip] = useState("")
   const [grossTaxable, setGrossTaxable] = useState("")
+  const [totalActualAmount, setTotalActualAmount] = useState("")
   const [invoiceNumber, setInvoiceNumber] = useState("")
   const [taxType, setTaxType] = useState("")
   const [pickupDate, setPickupDate] = useState<Date>(new Date())
@@ -130,17 +131,17 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
     { id: "voucher", name: "Voucher", files: [], required: true, uploading: false, uploadedUrls: [], existingUrls: [] },
     { id: "invoice", name: "Invoice", files: [], required: true, uploading: false, uploadedUrls: [], existingUrls: [] },
     {
-      id: "doc_2307",
-      name: "Doc 2307",
+      id: "deposit_slip",
+      name: "Deposit Slip",
       files: [],
-      required: false,
+      required: true,
       uploading: false,
       uploadedUrls: [],
       existingUrls: [],
     },
     {
-      id: "deposit_slip",
-      name: "Deposit Slip",
+      id: "doc_2307",
+      name: "Doc 2307",
       files: [],
       required: false,
       uploading: false,
@@ -158,6 +159,7 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
       setSubstreetStreetBrgy(sale.substreet_street_brgy || "")
       setDistrictCityZip(sale.district_city_zip || "")
       setGrossTaxable(sale.gross_taxable ? sale.gross_taxable.toLocaleString() : "")
+      setTotalActualAmount(sale.total_actual_amount ? sale.total_actual_amount.toLocaleString() : "")
       setInvoiceNumber(sale.invoice_number || "")
       setTaxType(sale.tax_type)
       setPickupDate(sale.pickup_date ? new Date(sale.pickup_date) : new Date())
@@ -204,7 +206,7 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
     return digits.replace(/(\d{3})(?=\d)/g, "$1-")
   }
 
-  // Search TIN in taxpayer_listings
+  // Format number with commas
   const formatGrossTaxable = (value: string) => {
     const numericValue = value.replace(/[^\d]/g, "")
     if (!numericValue) return ""
@@ -214,6 +216,11 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
   const handleGrossTaxableChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const formatted = formatGrossTaxable(e.target.value)
     setGrossTaxable(formatted)
+  }
+
+  const handleTotalActualAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formatted = formatGrossTaxable(e.target.value)
+    setTotalActualAmount(formatted)
   }
 
   // Validate file type
@@ -316,7 +323,7 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
     if (!profile || !sale) return
 
     if (!areRequiredFilesAvailable()) {
-      alert("Please ensure required files are available: Cheque, Voucher, and Invoice")
+      alert("Please ensure required files are available: Cheque, Voucher, Invoice, and Deposit Slip")
       return
     }
 
@@ -360,6 +367,7 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
         substreet_street_brgy: substreetStreetBrgy || null,
         district_city_zip: districtCityZip || null,
         gross_taxable: Number.parseFloat(grossTaxable.replace(/,/g, "")) || 0,
+        total_actual_amount: Number.parseFloat(totalActualAmount.replace(/,/g, "")) || 0,
         invoice_number: invoiceNumber || null,
         tax_type: taxType,
         pickup_date: formattedPickupDate,
@@ -456,6 +464,21 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
               />
             </div>
 
+            {/* Total Actual Amount */}
+            <div className="space-y-2">
+              <Label htmlFor="total-actual-amount" className="text-sm font-medium text-gray-700">
+                Total Actual Amount *
+              </Label>
+              <Input
+                id="total-actual-amount"
+                value={totalActualAmount}
+                onChange={handleTotalActualAmountChange}
+                placeholder="0"
+                className="border-gray-200 focus:border-blue-500 focus:ring-blue-500"
+                required
+              />
+            </div>
+
             {/* Address Fields - Read Only */}
             <div className="space-y-2">
               <Label htmlFor="substreet" className="text-sm font-medium text-gray-700">
@@ -538,7 +561,7 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
             <Label className="text-base font-semibold text-gray-700">File Management</Label>
             <div className="text-sm text-gray-600 mb-4">
               <AlertCircle className="inline h-4 w-4 mr-1" />
-              Required: Cheque, Voucher, Invoice | Optional: Doc 2307, Deposit Slip
+              Required: Cheque, Voucher, Invoice, Deposit Slip | Optional: Doc 2307
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

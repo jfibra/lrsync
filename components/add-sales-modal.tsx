@@ -81,6 +81,12 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
 
   const taxMonthOptions = generateTaxMonthOptions()
 
+  // Format TIN with dashes
+  const formatTinInput = (value: string): string => {
+    const digits = value.replace(/\D/g, "")
+    return digits.replace(/(\d{3})(?=\d)/g, "$1-")
+  }
+
   // Format number with commas
   const formatNumberWithCommas = (value: string): string => {
     if (!value) return ""
@@ -122,7 +128,8 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
 
   // Handle TIN input change
   const handleTinChange = (value: string) => {
-    setFormData({ ...formData, tin: value })
+    const formattedTin = formatTinInput(value)
+    setFormData({ ...formData, tin: formattedTin })
 
     // Search for taxpayers when first 3 digits are entered
     const cleanTin = value.replace(/[^0-9]/g, "")
@@ -527,8 +534,8 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
               <h3 className="text-lg font-medium text-gray-900 mb-4">File Uploads (Images Only)</h3>
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
                 <p className="text-sm text-blue-800">
-                  <span className="font-medium">Required:</span> Cheque, Voucher, Invoice |{" "}
-                  <span className="font-medium">Optional:</span> Doc 2307, Deposit Slip
+                  <span className="font-medium">Required:</span> Cheque, Voucher, Invoice, Deposit Slip |{" "}
+                  <span className="font-medium">Optional:</span> Doc 2307
                 </p>
               </div>
             </div>
@@ -542,8 +549,8 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
 
             {/* Second row of file uploads */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <FileUploadArea field="deposit_slip" label="Deposit Slip" required />
               <FileUploadArea field="doc_2307" label="Doc 2307" />
-              <FileUploadArea field="deposit_slip" label="Deposit Slip" />
             </div>
           </div>
 
