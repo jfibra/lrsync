@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Calendar } from "@/components/ui/calendar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { CalendarIcon, Upload, X, AlertCircle } from "lucide-react"
 import { format } from "date-fns"
 import { useAuth } from "@/contexts/auth-context"
@@ -129,7 +131,15 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
   const [fileUploads, setFileUploads] = useState<FileUpload[]>([
     { id: "voucher", name: "Voucher", files: [], required: true, uploading: false, uploadedUrls: [], existingUrls: [] },
     { id: "cheque", name: "Cheque", files: [], required: false, uploading: false, uploadedUrls: [], existingUrls: [] },
-    { id: "invoice", name: "Invoice", files: [], required: false, uploading: false, uploadedUrls: [], existingUrls: [] },
+    {
+      id: "invoice",
+      name: "Invoice",
+      files: [],
+      required: false,
+      uploading: false,
+      uploadedUrls: [],
+      existingUrls: [],
+    },
     {
       id: "deposit_slip",
       name: "Deposit Slip",
@@ -323,7 +333,7 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
     if (!profile || !sale) return
 
     if (!areRequiredFilesAvailable()) {
-      alert("Please ensure required files are available: Cheque, Voucher, Invoice, and Deposit Slip")
+      alert("Please ensure required files are available: Voucher and Deposit Slip")
       return
     }
 
@@ -403,9 +413,7 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-white text-[#001f3f]">
         <DialogHeader>
-          <DialogTitle className="text-2xl font-bold text-[#001f3f]">
-            Edit Sales Record
-          </DialogTitle>
+          <DialogTitle className="text-2xl font-bold text-[#001f3f]">Edit Sales Record</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -528,8 +536,12 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
                   <SelectValue placeholder="Select tax type..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="vat" className="text-[#001f3f]">VAT</SelectItem>
-                  <SelectItem value="non-vat" className="text-[#001f3f]">Non-VAT</SelectItem>
+                  <SelectItem value="vat" className="text-[#001f3f]">
+                    VAT
+                  </SelectItem>
+                  <SelectItem value="non-vat" className="text-[#001f3f]">
+                    Non-VAT
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -540,7 +552,6 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
                 Pickup Date
               </Label>
               <div className="flex items-center space-x-2">
-                <CalendarIcon className="h-4 w-4 text-[#001f3f]" />
                 <Input
                   type="date"
                   value={format(pickupDate, "yyyy-MM-dd")}
@@ -550,8 +561,28 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
                       setPickupDate(newDate)
                     }
                   }}
-                  className="border-[#001f3f] focus:border-blue-500 focus:ring-blue-500 text-[#001f3f] bg-white"
+                  className="border-[#001f3f] focus:border-blue-500 focus:ring-blue-500 text-[#001f3f] bg-white flex-1"
                 />
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="border-[#001f3f] text-[#001f3f] hover:bg-[#001f3f]/10 bg-transparent"
+                    >
+                      <CalendarIcon className="h-4 w-4" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0 bg-white text-[#001f3f]" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={pickupDate}
+                      onSelect={setPickupDate}
+                      disabled={(date) => date > new Date() || date < new Date("1900-01-01")}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
               </div>
             </div>
           </div>
@@ -561,7 +592,7 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
             <Label className="text-base font-semibold text-[#001f3f]">File Management</Label>
             <div className="text-sm text-[#001f3f]/80 mb-4">
               <AlertCircle className="inline h-4 w-4 mr-1" />
-              Required: Voucher, Doc 2307 | Optional: Cheque,  Invoice, Deposit Slip
+              Required: Voucher, Deposit Slip | Optional: Cheque, Invoice, Doc 2307
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

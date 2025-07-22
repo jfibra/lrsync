@@ -11,7 +11,6 @@ import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { CalendarIcon, Plus, Upload, X } from "lucide-react"
 import { format } from "date-fns"
-import { cn } from "@/lib/utils"
 import { supabase } from "@/lib/supabase/client"
 import { useAuth } from "@/contexts/auth-context"
 
@@ -177,6 +176,62 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
     }))
   }, [])
 
+  // Check if required files are uploaded
+  const areRequiredFilesUploaded = (): boolean => {
+    return formData.voucher.length > 0 && formData.deposit_slip.length > 0
+  }
+
+  // Function to handle taxpayer listing creation or retrieval
+  const getOrCreateTaxpayerListing = async (tinData: {
+    tin: string
+    name: string
+    substreet_street_brgy: string
+    district_city_zip: string
+  }) => {
+    try {
+      // First, check if taxpayer already exists
+      const { data: existingTaxpayer, error: searchError } = await supabase
+        .from("taxpayer_listings")
+        .select("id")
+        .eq("tin", tinData.tin.replace(/[^0-9]/g, "")) // Remove dashes for comparison
+        .single()
+
+      if (searchError && searchError.code !== "PGRST116") {
+        // PGRST116 is "not found" error, which is expected if taxpayer doesn't exist
+        throw searchError
+      }
+
+      // If taxpayer exists, return the existing ID
+      if (existingTaxpayer) {
+        return existingTaxpayer.id
+      }
+
+      // If taxpayer doesn't exist, create a new one
+      const { data: newTaxpayer, error: insertError } = await supabase
+        .from("taxpayer_listings")
+        .insert([
+          {
+            tin: tinData.tin.replace(/[^0-9]/g, ""), // Store TIN without dashes
+            registered_name: tinData.name,
+            substreet_street_brgy: tinData.substreet_street_brgy,
+            district_city_zip: tinData.district_city_zip,
+            type: "sales", // Default type for sales records
+            date_added: format(new Date(), "yyyy-MM-dd"),
+            user_uuid: user?.id || null,
+          },
+        ])
+        .select("id")
+        .single()
+
+      if (insertError) throw insertError
+
+      return newTaxpayer.id
+    } catch (error) {
+      console.error("Error handling taxpayer listing:", error)
+      throw error
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!user || !taxMonth) {
@@ -184,10 +239,24 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
       return
     }
 
+    if (!areRequiredFilesUploaded()) {
+      alert("Please upload required files: Voucher and Deposit Slip")
+      return
+    }
+
     setLoading(true)
     try {
+      // Get or create taxpayer listing
+      const taxpayerListingId = await getOrCreateTaxpayerListing({
+        tin: formData.tin,
+        name: formData.name,
+        substreet_street_brgy: formData.substreet_street_brgy,
+        district_city_zip: formData.district_city_zip,
+      })
+
       const salesData = {
         user_uuid: user.id,
+        tin_id: taxpayerListingId, // Use tin_id instead of taxpayer_listing_id
         tax_month: taxMonth,
         tin: formData.tin,
         name: formData.name,
@@ -253,10 +322,10 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
     required?: boolean
   }) => (
     <div className="space-y-2">
-      <Label className="text-sm font-medium text-gray-700">
+      <Label className="text-sm font-medium text-[#001f3f]">
         {label} {required && "*"}
       </Label>
-      <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-gray-400 transition-colors">
+      <div className="border-2 border-dashed border-[#001f3f] rounded-lg p-4 text-center hover:border-blue-400 transition-colors">
         <input
           type="file"
           multiple
@@ -266,15 +335,15 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
           id={`file-${field}`}
         />
         <label htmlFor={`file-${field}`} className="cursor-pointer">
-          <Upload className="mx-auto h-8 w-8 text-gray-400 mb-2" />
-          <p className="text-sm text-gray-600">Select tax month & TIN first</p>
+          <Upload className="mx-auto h-8 w-8 text-[#001f3f] mb-2" />
+          <p className="text-sm text-[#001f3f]/60">Select tax month & TIN first</p>
         </label>
       </div>
       {(formData[field] as string[]).length > 0 && (
         <div className="space-y-1">
           {(formData[field] as string[]).map((fileName, index) => (
             <div key={index} className="flex items-center justify-between bg-gray-50 p-2 rounded">
-              <span className="text-sm text-gray-700 truncate">{fileName}</span>
+              <span className="text-sm text-[#001f3f] truncate">{fileName}</span>
               <Button
                 type="button"
                 variant="ghost"
@@ -476,8 +545,12 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
                   <SelectValue placeholder="Select tax type..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="vat" className="text-white">VAT</SelectItem>
-                  <SelectItem value="non-vat" className="text-white">Non-VAT</SelectItem>
+                  <SelectItem value="vat" className="text-white">
+                    VAT
+                  </SelectItem>
+                  <SelectItem value="non-vat" className="text-white">
+                    Non-VAT
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -486,29 +559,39 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
               <Label htmlFor="pickup_date" className="text-sm font-medium text-[#001f3f]">
                 Pickup Date
               </Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "w-full justify-start text-left font-normal bg-white text-[#001f3f] border-[#001f3f]",
-                      !pickupDate && "text-gray-400",
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {pickupDate ? format(pickupDate, "MM/dd/yyyy") : "07/22/2025"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0 bg-white text-[#001f3f]" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={pickupDate}
-                    onSelect={setPickupDate}
-                    disabled={(date) => date > new Date() || date < new Date("1900-01-01")}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
+              <div className="flex items-center space-x-2">
+                <Input
+                  type="date"
+                  value={pickupDate ? format(pickupDate, "yyyy-MM-dd") : ""}
+                  onChange={(e) => {
+                    const newDate = new Date(e.target.value)
+                    if (!isNaN(newDate.getTime())) {
+                      setPickupDate(newDate)
+                    }
+                  }}
+                  className="bg-white text-[#001f3f] border-[#001f3f] flex-1"
+                />
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="border-[#001f3f] text-[#001f3f] hover:bg-[#001f3f]/10 bg-transparent"
+                    >
+                      <CalendarIcon className="h-4 w-4" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0 bg-white text-[#001f3f]" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={pickupDate}
+                      onSelect={setPickupDate}
+                      disabled={(date) => date > new Date() || date < new Date("1900-01-01")}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
             </div>
           </div>
 
@@ -526,8 +609,12 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
                   <SelectValue placeholder="Select sale type..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="invoice" className="text-white">Invoice</SelectItem>
-                  <SelectItem value="non-invoice" className="text-white">Non-Invoice</SelectItem>
+                  <SelectItem value="invoice" className="text-white">
+                    Invoice
+                  </SelectItem>
+                  <SelectItem value="non-invoice" className="text-white">
+                    Non-Invoice
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -560,10 +647,19 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
           </div>
 
           <DialogFooter className="flex gap-3 pt-6">
-            <Button type="button" variant="outline" onClick={() => setOpen(false)} className="px-6 border-[#001f3f] text-white hover:bg-[#001f3f]/10">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setOpen(false)}
+              className="px-6 border-[#001f3f] text-white hover:bg-[#001f3f]/10"
+            >
               Cancel
             </Button>
-            <Button type="submit" disabled={loading} className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white px-6">
+            <Button
+              type="submit"
+              disabled={loading || !areRequiredFilesUploaded()}
+              className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white px-6"
+            >
               {loading ? "Adding..." : "Add Sales Record"}
             </Button>
           </DialogFooter>
