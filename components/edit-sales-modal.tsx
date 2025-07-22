@@ -127,9 +127,9 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
 
   // File uploads
   const [fileUploads, setFileUploads] = useState<FileUpload[]>([
-    { id: "cheque", name: "Cheque", files: [], required: true, uploading: false, uploadedUrls: [], existingUrls: [] },
     { id: "voucher", name: "Voucher", files: [], required: true, uploading: false, uploadedUrls: [], existingUrls: [] },
-    { id: "invoice", name: "Invoice", files: [], required: true, uploading: false, uploadedUrls: [], existingUrls: [] },
+    { id: "cheque", name: "Cheque", files: [], required: false, uploading: false, uploadedUrls: [], existingUrls: [] },
+    { id: "invoice", name: "Invoice", files: [], required: false, uploading: false, uploadedUrls: [], existingUrls: [] },
     {
       id: "deposit_slip",
       name: "Deposit Slip",
@@ -401,9 +401,9 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-white text-[#001f3f]">
         <DialogHeader>
-          <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+          <DialogTitle className="text-2xl font-bold text-[#001f3f]">
             Edit Sales Record
           </DialogTitle>
         </DialogHeader>
@@ -412,46 +412,46 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Tax Month - Read Only */}
             <div className="space-y-2">
-              <Label htmlFor="tax-month" className="text-sm font-medium text-gray-700">
+              <Label htmlFor="tax-month" className="text-sm font-medium text-[#001f3f]">
                 Tax Month (Read Only)
               </Label>
               <Input
                 id="tax-month"
                 value={taxMonthOptions.find((option) => option.value === taxMonth)?.label || taxMonth}
                 readOnly
-                className="border-gray-200 bg-gray-50 text-gray-600 cursor-not-allowed"
+                className="border-[#001f3f] bg-gray-200 text-[#001f3f] cursor-not-allowed"
               />
             </div>
 
             {/* TIN Search - Read Only */}
             <div className="space-y-2 relative">
-              <Label htmlFor="tin" className="text-sm font-medium text-gray-700">
+              <Label htmlFor="tin" className="text-sm font-medium text-[#001f3f]">
                 TIN # (Read Only)
               </Label>
               <Input
                 id="tin"
                 value={tinSearch}
                 readOnly
-                className="border-gray-200 bg-gray-50 text-gray-600 cursor-not-allowed"
+                className="border-[#001f3f] bg-gray-200 text-[#001f3f] cursor-not-allowed"
               />
             </div>
 
             {/* Name - Read Only */}
             <div className="space-y-2">
-              <Label htmlFor="name" className="text-sm font-medium text-gray-700">
+              <Label htmlFor="name" className="text-sm font-medium text-[#001f3f]">
                 Name (Read Only)
               </Label>
               <Input
                 id="name"
                 value={name}
                 readOnly
-                className="border-gray-200 bg-gray-50 text-gray-600 cursor-not-allowed"
+                className="border-[#001f3f] bg-gray-200 text-[#001f3f] cursor-not-allowed"
               />
             </div>
 
             {/* Gross Taxable */}
             <div className="space-y-2">
-              <Label htmlFor="gross-taxable" className="text-sm font-medium text-gray-700">
+              <Label htmlFor="gross-taxable" className="text-sm font-medium text-[#001f3f]">
                 Gross Taxable *
               </Label>
               <Input
@@ -459,14 +459,14 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
                 value={grossTaxable}
                 onChange={handleGrossTaxableChange}
                 placeholder="0"
-                className="border-gray-200 focus:border-blue-500 focus:ring-blue-500"
+                className="border-[#001f3f] focus:border-blue-500 focus:ring-blue-500 text-[#001f3f] bg-white"
                 required
               />
             </div>
 
             {/* Total Actual Amount */}
             <div className="space-y-2">
-              <Label htmlFor="total-actual-amount" className="text-sm font-medium text-gray-700">
+              <Label htmlFor="total-actual-amount" className="text-sm font-medium text-[#001f3f]">
                 Total Actual Amount *
               </Label>
               <Input
@@ -474,39 +474,39 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
                 value={totalActualAmount}
                 onChange={handleTotalActualAmountChange}
                 placeholder="0"
-                className="border-gray-200 focus:border-blue-500 focus:ring-blue-500"
+                className="border-[#001f3f] focus:border-blue-500 focus:ring-blue-500 text-[#001f3f] bg-white"
                 required
               />
             </div>
 
             {/* Address Fields - Read Only */}
             <div className="space-y-2">
-              <Label htmlFor="substreet" className="text-sm font-medium text-gray-700">
+              <Label htmlFor="substreet" className="text-sm font-medium text-[#001f3f]">
                 Substreet/Street/Barangay (Read Only)
               </Label>
               <Input
                 id="substreet"
                 value={substreetStreetBrgy}
                 readOnly
-                className="border-gray-200 bg-gray-50 text-gray-600 cursor-not-allowed"
+                className="border-[#001f3f] bg-gray-200 text-[#001f3f] cursor-not-allowed"
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="district" className="text-sm font-medium text-gray-700">
+              <Label htmlFor="district" className="text-sm font-medium text-[#001f3f]">
                 District/City/ZIP (Read Only)
               </Label>
               <Input
                 id="district"
                 value={districtCityZip}
                 readOnly
-                className="border-gray-200 bg-gray-50 text-gray-600 cursor-not-allowed"
+                className="border-[#001f3f] bg-gray-200 text-[#001f3f] cursor-not-allowed"
               />
             </div>
 
             {/* Invoice Number */}
             <div className="space-y-2">
-              <Label htmlFor="invoice-number" className="text-sm font-medium text-gray-700">
+              <Label htmlFor="invoice-number" className="text-sm font-medium text-[#001f3f]">
                 Invoice Number
               </Label>
               <Input
@@ -514,33 +514,33 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
                 value={invoiceNumber}
                 onChange={(e) => setInvoiceNumber(e.target.value)}
                 placeholder="Invoice number"
-                className="border-gray-200 focus:border-blue-500 focus:ring-blue-500"
+                className="border-[#001f3f] focus:border-blue-500 focus:ring-blue-500 text-[#001f3f] bg-white"
               />
             </div>
 
             {/* Tax Type */}
             <div className="space-y-2">
-              <Label htmlFor="tax-type" className="text-sm font-medium text-gray-700">
+              <Label htmlFor="tax-type" className="text-sm font-medium text-[#001f3f]">
                 Tax Type *
               </Label>
               <Select value={taxType} onValueChange={setTaxType} required>
-                <SelectTrigger className="border-gray-200 focus:border-blue-500 focus:ring-blue-500">
+                <SelectTrigger className="border-[#001f3f] focus:border-blue-500 focus:ring-blue-500 text-[#001f3f] bg-white">
                   <SelectValue placeholder="Select tax type..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="vat">VAT</SelectItem>
-                  <SelectItem value="non-vat">Non-VAT</SelectItem>
+                  <SelectItem value="vat" className="text-[#001f3f]">VAT</SelectItem>
+                  <SelectItem value="non-vat" className="text-[#001f3f]">Non-VAT</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             {/* Pickup Date */}
             <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="pickup-date" className="text-sm font-medium text-gray-700">
+              <Label htmlFor="pickup-date" className="text-sm font-medium text-[#001f3f]">
                 Pickup Date
               </Label>
               <div className="flex items-center space-x-2">
-                <CalendarIcon className="h-4 w-4 text-gray-500" />
+                <CalendarIcon className="h-4 w-4 text-[#001f3f]" />
                 <Input
                   type="date"
                   value={format(pickupDate, "yyyy-MM-dd")}
@@ -550,7 +550,7 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
                       setPickupDate(newDate)
                     }
                   }}
-                  className="border-gray-200 focus:border-blue-500 focus:ring-blue-500"
+                  className="border-[#001f3f] focus:border-blue-500 focus:ring-blue-500 text-[#001f3f] bg-white"
                 />
               </div>
             </div>
@@ -558,16 +558,16 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
 
           {/* File Uploads */}
           <div className="space-y-4">
-            <Label className="text-base font-semibold text-gray-700">File Management</Label>
-            <div className="text-sm text-gray-600 mb-4">
+            <Label className="text-base font-semibold text-[#001f3f]">File Management</Label>
+            <div className="text-sm text-[#001f3f]/80 mb-4">
               <AlertCircle className="inline h-4 w-4 mr-1" />
-              Required: Cheque, Voucher, Invoice, Deposit Slip | Optional: Doc 2307
+              Required: Voucher, Doc 2307 | Optional: Cheque,  Invoice, Deposit Slip
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {fileUploads.map((upload) => (
                 <div key={upload.id} className="space-y-2">
-                  <Label className="text-sm font-medium text-gray-700 flex items-center">
+                  <Label className="text-sm font-medium text-[#001f3f] flex items-center">
                     {upload.name}
                     {upload.required && <span className="text-red-500 ml-1">*</span>}
                   </Label>
@@ -575,10 +575,10 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
                   {/* Existing Files */}
                   {upload.existingUrls.length > 0 && (
                     <div className="space-y-2">
-                      <div className="text-xs text-gray-500">Existing Files:</div>
+                      <div className="text-xs text-[#001f3f]/60">Existing Files:</div>
                       {upload.existingUrls.map((url, index) => (
                         <div key={index} className="flex items-center justify-between bg-blue-50 p-2 rounded text-xs">
-                          <span className="truncate flex-1">
+                          <span className="truncate flex-1 text-[#001f3f]">
                             Existing {upload.name} {index + 1}
                           </span>
                           <Button
@@ -598,10 +598,10 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
                   {/* New Files */}
                   {upload.files.length > 0 && (
                     <div className="space-y-2">
-                      <div className="text-xs text-gray-500">New Files:</div>
+                      <div className="text-xs text-[#001f3f]/60">New Files:</div>
                       {upload.files.map((file, index) => (
                         <div key={index} className="flex items-center justify-between bg-green-50 p-2 rounded text-xs">
-                          <span className="truncate flex-1">{file.name}</span>
+                          <span className="truncate flex-1 text-[#001f3f]">{file.name}</span>
                           <Button
                             type="button"
                             variant="ghost"
@@ -618,7 +618,7 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
                   )}
 
                   {/* Upload Area */}
-                  <div className="border-2 border-dashed rounded-lg p-4 transition-colors border-gray-300 hover:border-blue-400">
+                  <div className="border-2 border-dashed rounded-lg p-4 transition-colors border-[#001f3f] hover:border-blue-400">
                     <input
                       id={upload.id}
                       type="file"
@@ -641,8 +641,8 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
                         </>
                       ) : (
                         <>
-                          <Upload className="h-6 w-6 text-gray-400 mb-2" />
-                          <span className="text-xs text-gray-500">
+                          <Upload className="h-6 w-6 text-[#001f3f] mb-2" />
+                          <span className="text-xs text-[#001f3f]/60">
                             {!taxMonth || !tinSearch ? "Select tax month & TIN first" : "Add more files"}
                           </span>
                         </>
@@ -661,7 +661,7 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
               variant="outline"
               onClick={() => onOpenChange(false)}
               disabled={loading}
-              className="border-gray-200 hover:bg-gray-50"
+              className="border-[#001f3f] hover:bg-[#001f3f]/10 text-white"
             >
               Cancel
             </Button>

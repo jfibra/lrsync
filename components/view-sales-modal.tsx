@@ -44,7 +44,7 @@ export function ViewSalesModal({ open, onOpenChange, sale }: ViewSalesModalProps
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-white text-[#001f3f]">
         <DialogHeader>
           <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
             Sales Record Details
@@ -56,22 +56,22 @@ export function ViewSalesModal({ open, onOpenChange, sale }: ViewSalesModalProps
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-4">
               <div>
-                <label className="text-sm font-medium text-gray-700">Tax Month</label>
+                <label className="text-sm font-medium text-[#001f3f]">Tax Month</label>
                 <div className="text-lg font-semibold">{format(new Date(sale.tax_month), "MMMM yyyy")}</div>
               </div>
 
               <div>
-                <label className="text-sm font-medium text-gray-700">TIN</label>
+                <label className="text-sm font-medium text-[#001f3f]">TIN</label>
                 <div className="text-lg font-mono">{formatTin(sale.tin)}</div>
               </div>
 
               <div>
-                <label className="text-sm font-medium text-gray-700">Name</label>
+                <label className="text-sm font-medium text-[#001f3f]">Name</label>
                 <div className="text-lg font-semibold">{sale.name}</div>
               </div>
 
               <div>
-                <label className="text-sm font-medium text-gray-700">Tax Type</label>
+                <label className="text-sm font-medium text-[#001f3f]">Tax Type</label>
                 <div>
                   <Badge className={getTaxTypeBadgeColor(sale.tax_type)}>{sale.tax_type?.toUpperCase()}</Badge>
                 </div>
@@ -80,24 +80,24 @@ export function ViewSalesModal({ open, onOpenChange, sale }: ViewSalesModalProps
 
             <div className="space-y-4">
               <div>
-                <label className="text-sm font-medium text-gray-700">Gross Taxable</label>
+                <label className="text-sm font-medium text-[#001f3f]">Gross Taxable</label>
                 <div className="text-lg font-semibold text-green-600">{formatCurrency(sale.gross_taxable || 0)}</div>
               </div>
 
               <div>
-                <label className="text-sm font-medium text-gray-700">Invoice Number</label>
+                <label className="text-sm font-medium text-[#001f3f]">Invoice Number</label>
                 <div className="text-lg">{sale.invoice_number || "N/A"}</div>
               </div>
 
               <div>
-                <label className="text-sm font-medium text-gray-700">Pickup Date</label>
+                <label className="text-sm font-medium text-[#001f3f]">Pickup Date</label>
                 <div className="text-lg">
                   {sale.pickup_date ? format(new Date(sale.pickup_date), "MMM dd, yyyy") : "N/A"}
                 </div>
               </div>
 
               <div>
-                <label className="text-sm font-medium text-gray-700">Date Added</label>
+                <label className="text-sm font-medium text-[#001f3f]">Date Added</label>
                 <div className="text-lg">{format(new Date(sale.created_at), "MMM dd, yyyy")}</div>
               </div>
             </div>
@@ -106,17 +106,17 @@ export function ViewSalesModal({ open, onOpenChange, sale }: ViewSalesModalProps
           {/* Address Information */}
           {(sale.substreet_street_brgy || sale.district_city_zip) && (
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-gray-900">Address Information</h3>
+              <h3 className="text-lg font-semibold text-[#001f3f]">Address Information</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {sale.substreet_street_brgy && (
                   <div>
-                    <label className="text-sm font-medium text-gray-700">Substreet/Street/Barangay</label>
+                    <label className="text-sm font-medium text-[#001f3f]">Substreet/Street/Barangay</label>
                     <div className="text-base">{sale.substreet_street_brgy}</div>
                   </div>
                 )}
                 {sale.district_city_zip && (
                   <div>
-                    <label className="text-sm font-medium text-gray-700">District/City/ZIP</label>
+                    <label className="text-sm font-medium text-[#001f3f]">District/City/ZIP</label>
                     <div className="text-base">{sale.district_city_zip}</div>
                   </div>
                 )}
@@ -126,19 +126,19 @@ export function ViewSalesModal({ open, onOpenChange, sale }: ViewSalesModalProps
 
           {/* File Attachments */}
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900">File Attachments</h3>
+            <h3 className="text-lg font-semibold text-[#001f3f]">File Attachments</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {/* Cheque Files */}
               {sale.cheque && sale.cheque.length > 0 && (
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700">Cheque ({sale.cheque.length})</label>
+                  <label className="text-sm font-medium text-[#001f3f]">Cheque ({sale.cheque.length})</label>
                   <div className="space-y-1">
                     {sale.cheque.map((url, index) => (
                       <Button
                         key={index}
                         variant="outline"
                         size="sm"
-                        className="w-full justify-start bg-transparent"
+                        className="w-full justify-start bg-white text-[#001f3f] border-[#001f3f]"
                         onClick={() => window.open(url, "_blank")}
                       >
                         <ExternalLink className="h-3 w-3 mr-2" />
@@ -152,14 +152,14 @@ export function ViewSalesModal({ open, onOpenChange, sale }: ViewSalesModalProps
               {/* Voucher Files */}
               {sale.voucher && sale.voucher.length > 0 && (
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700">Voucher ({sale.voucher.length})</label>
+                  <label className="text-sm font-medium text-[#001f3f]">Voucher ({sale.voucher.length})</label>
                   <div className="space-y-1">
                     {sale.voucher.map((url, index) => (
                       <Button
                         key={index}
                         variant="outline"
                         size="sm"
-                        className="w-full justify-start bg-transparent"
+                        className="w-full justify-start bg-white text-[#001f3f] border-[#001f3f]"
                         onClick={() => window.open(url, "_blank")}
                       >
                         <ExternalLink className="h-3 w-3 mr-2" />
@@ -173,14 +173,14 @@ export function ViewSalesModal({ open, onOpenChange, sale }: ViewSalesModalProps
               {/* Invoice Files */}
               {sale.invoice && sale.invoice.length > 0 && (
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700">Invoice ({sale.invoice.length})</label>
+                  <label className="text-sm font-medium text-[#001f3f]">Invoice ({sale.invoice.length})</label>
                   <div className="space-y-1">
                     {sale.invoice.map((url, index) => (
                       <Button
                         key={index}
                         variant="outline"
                         size="sm"
-                        className="w-full justify-start bg-transparent"
+                        className="w-full justify-start bg-white text-[#001f3f] border-[#001f3f]"
                         onClick={() => window.open(url, "_blank")}
                       >
                         <ExternalLink className="h-3 w-3 mr-2" />
@@ -194,14 +194,14 @@ export function ViewSalesModal({ open, onOpenChange, sale }: ViewSalesModalProps
               {/* Doc 2307 Files */}
               {sale.doc_2307 && sale.doc_2307.length > 0 && (
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700">Doc 2307 ({sale.doc_2307.length})</label>
+                  <label className="text-sm font-medium text-[#001f3f]">Doc 2307 ({sale.doc_2307.length})</label>
                   <div className="space-y-1">
                     {sale.doc_2307.map((url, index) => (
                       <Button
                         key={index}
                         variant="outline"
                         size="sm"
-                        className="w-full justify-start bg-transparent"
+                        className="w-full justify-start bg-white text-[#001f3f] border-[#001f3f]"
                         onClick={() => window.open(url, "_blank")}
                       >
                         <ExternalLink className="h-3 w-3 mr-2" />
@@ -215,14 +215,14 @@ export function ViewSalesModal({ open, onOpenChange, sale }: ViewSalesModalProps
               {/* Deposit Slip Files */}
               {sale.deposit_slip && sale.deposit_slip.length > 0 && (
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700">Deposit Slip ({sale.deposit_slip.length})</label>
+                  <label className="text-sm font-medium text-[#001f3f]">Deposit Slip ({sale.deposit_slip.length})</label>
                   <div className="space-y-1">
                     {sale.deposit_slip.map((url, index) => (
                       <Button
                         key={index}
                         variant="outline"
                         size="sm"
-                        className="w-full justify-start bg-transparent"
+                        className="w-full justify-start bg-white text-[#001f3f] border-[#001f3f]"
                         onClick={() => window.open(url, "_blank")}
                       >
                         <ExternalLink className="h-3 w-3 mr-2" />
@@ -238,7 +238,7 @@ export function ViewSalesModal({ open, onOpenChange, sale }: ViewSalesModalProps
           {/* User Information */}
           {sale.user_full_name && (
             <div className="space-y-2 pt-4 border-t">
-              <label className="text-sm font-medium text-gray-700">Added by</label>
+              <label className="text-sm font-medium text-[#001f3f]">Added by</label>
               <div className="text-base">{sale.user_full_name}</div>
             </div>
           )}

@@ -299,25 +299,25 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
           Add Sales Record
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-white text-[#001f3f]">
         <DialogHeader>
-          <DialogTitle className="text-xl font-bold text-gray-900">Add Sales Record</DialogTitle>
+          <DialogTitle className="text-xl font-bold text-[#001f3f]">Add Sales Record</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* First Row */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="tax_month" className="text-sm font-medium text-gray-700">
+              <Label htmlFor="tax_month" className="text-sm font-medium text-[#001f3f]">
                 Tax Month *
               </Label>
               <Select value={taxMonth} onValueChange={setTaxMonth} required>
-                <SelectTrigger className="w-full">
+                <SelectTrigger className="w-full bg-white text-[#001f3f] border-[#001f3f]">
                   <SelectValue placeholder="Select tax month..." />
                 </SelectTrigger>
                 <SelectContent>
                   {taxMonthOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
+                    <SelectItem key={option.value} value={option.value} className="text-white">
                       {option.label}
                     </SelectItem>
                   ))}
@@ -326,7 +326,7 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
             </div>
 
             <div className="space-y-2 relative">
-              <Label htmlFor="tin" className="text-sm font-medium text-gray-700">
+              <Label htmlFor="tin" className="text-sm font-medium text-[#001f3f]">
                 TIN # *
               </Label>
               <Input
@@ -335,28 +335,27 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
                 onChange={(e) => handleTinChange(e.target.value)}
                 placeholder="000-000-000-000..."
                 required
-                className="bg-gray-900 text-white border-gray-700"
+                className="bg-white text-[#001f3f] border-[#001f3f]"
                 onFocus={() => {
                   if (taxpayerSuggestions.length > 0) {
                     setShowSuggestions(true)
                   }
                 }}
                 onBlur={() => {
-                  // Delay hiding suggestions to allow for selection
                   setTimeout(() => setShowSuggestions(false), 200)
                 }}
               />
               {showSuggestions && taxpayerSuggestions.length > 0 && (
-                <div className="absolute top-full left-0 right-0 z-50 bg-white border border-gray-300 rounded-md shadow-lg max-h-48 overflow-y-auto">
+                <div className="absolute top-full left-0 right-0 z-50 bg-white border border-[#001f3f] rounded-md shadow-lg max-h-48 overflow-y-auto">
                   {taxpayerSuggestions.map((suggestion, index) => (
                     <div
                       key={index}
-                      className="p-3 hover:bg-gray-100 cursor-pointer border-b border-gray-100 last:border-b-0"
+                      className="p-3 hover:bg-[#e6f0ff] cursor-pointer border-b border-gray-100 last:border-b-0"
                       onClick={() => handleSuggestionSelect(suggestion)}
                     >
-                      <div className="font-medium text-gray-900">{formatTinDisplay(suggestion.tin)}</div>
-                      <div className="text-sm text-gray-600">{suggestion.registered_name}</div>
-                      <div className="text-xs text-gray-500">
+                      <div className="font-medium text-[#001f3f]">{formatTinDisplay(suggestion.tin)}</div>
+                      <div className="text-sm text-[#001f3f]/80">{suggestion.registered_name}</div>
+                      <div className="text-xs text-[#001f3f]/60">
                         {suggestion.substreet_street_brgy}, {suggestion.district_city_zip}
                       </div>
                     </div>
@@ -369,7 +368,7 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
           {/* Second Row */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="name" className="text-sm font-medium text-gray-700">
+              <Label htmlFor="name" className="text-sm font-medium text-[#001f3f]">
                 Name *
               </Label>
               <Input
@@ -378,12 +377,12 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 placeholder="Company/Individual name"
                 required
-                className="bg-gray-900 text-white border-gray-700"
+                className="bg-white text-[#001f3f] border-[#001f3f]"
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="gross_taxable" className="text-sm font-medium text-gray-700">
+              <Label htmlFor="gross_taxable" className="text-sm font-medium text-[#001f3f]">
                 Gross Taxable *
               </Label>
               <Input
@@ -397,12 +396,12 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
                   }
                 }}
                 placeholder="0"
-                className="bg-gray-900 text-white border-gray-700"
+                className="bg-white text-[#001f3f] border-[#001f3f]"
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="total_actual_amount" className="text-sm font-medium text-gray-700">
+              <Label htmlFor="total_actual_amount" className="text-sm font-medium text-[#001f3f]">
                 Total Actual Amount
               </Label>
               <Input
@@ -416,7 +415,7 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
                   }
                 }}
                 placeholder="0"
-                className="bg-gray-900 text-white border-gray-700"
+                className="bg-white text-[#001f3f] border-[#001f3f]"
               />
             </div>
           </div>
@@ -424,7 +423,7 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
           {/* Third Row */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="substreet_street_brgy" className="text-sm font-medium text-gray-700">
+              <Label htmlFor="substreet_street_brgy" className="text-sm font-medium text-[#001f3f]">
                 Substreet/Street/Barangay
               </Label>
               <Input
@@ -432,12 +431,12 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
                 value={formData.substreet_street_brgy}
                 onChange={(e) => setFormData({ ...formData, substreet_street_brgy: e.target.value })}
                 placeholder="Address details"
-                className="bg-gray-900 text-white border-gray-700"
+                className="bg-white text-[#001f3f] border-[#001f3f]"
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="district_city_zip" className="text-sm font-medium text-gray-700">
+              <Label htmlFor="district_city_zip" className="text-sm font-medium text-[#001f3f]">
                 District/City/ZIP
               </Label>
               <Input
@@ -445,7 +444,7 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
                 value={formData.district_city_zip}
                 onChange={(e) => setFormData({ ...formData, district_city_zip: e.target.value })}
                 placeholder="City and ZIP code"
-                className="bg-gray-900 text-white border-gray-700"
+                className="bg-white text-[#001f3f] border-[#001f3f]"
               />
             </div>
           </div>
@@ -453,7 +452,7 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
           {/* Fourth Row */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="invoice_number" className="text-sm font-medium text-gray-700">
+              <Label htmlFor="invoice_number" className="text-sm font-medium text-[#001f3f]">
                 Invoice Number
               </Label>
               <Input
@@ -461,30 +460,30 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
                 value={formData.invoice_number}
                 onChange={(e) => setFormData({ ...formData, invoice_number: e.target.value })}
                 placeholder="Invoice number"
-                className="bg-gray-900 text-white border-gray-700"
+                className="bg-white text-[#001f3f] border-[#001f3f]"
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="tax_type" className="text-sm font-medium text-gray-700">
+              <Label htmlFor="tax_type" className="text-sm font-medium text-[#001f3f]">
                 Tax Type *
               </Label>
               <Select
                 value={formData.tax_type}
                 onValueChange={(value) => setFormData({ ...formData, tax_type: value })}
               >
-                <SelectTrigger className="bg-gray-900 text-white border-gray-700">
+                <SelectTrigger className="bg-white text-[#001f3f] border-[#001f3f]">
                   <SelectValue placeholder="Select tax type..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="vat">VAT</SelectItem>
-                  <SelectItem value="non-vat">Non-VAT</SelectItem>
+                  <SelectItem value="vat" className="text-white">VAT</SelectItem>
+                  <SelectItem value="non-vat" className="text-white">Non-VAT</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="pickup_date" className="text-sm font-medium text-gray-700">
+              <Label htmlFor="pickup_date" className="text-sm font-medium text-[#001f3f]">
                 Pickup Date
               </Label>
               <Popover>
@@ -492,7 +491,7 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
                   <Button
                     variant="outline"
                     className={cn(
-                      "w-full justify-start text-left font-normal bg-gray-900 text-white border-gray-700",
+                      "w-full justify-start text-left font-normal bg-white text-[#001f3f] border-[#001f3f]",
                       !pickupDate && "text-gray-400",
                     )}
                   >
@@ -500,7 +499,7 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
                     {pickupDate ? format(pickupDate, "MM/dd/yyyy") : "07/22/2025"}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
+                <PopoverContent className="w-auto p-0 bg-white text-[#001f3f]" align="start">
                   <Calendar
                     mode="single"
                     selected={pickupDate}
@@ -516,19 +515,19 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
           {/* Fifth Row */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="sale_type" className="text-sm font-medium text-gray-700">
+              <Label htmlFor="sale_type" className="text-sm font-medium text-[#001f3f]">
                 Sale Type *
               </Label>
               <Select
                 value={formData.sale_type}
                 onValueChange={(value) => setFormData({ ...formData, sale_type: value })}
               >
-                <SelectTrigger className="bg-gray-900 text-white border-gray-700">
+                <SelectTrigger className="bg-white text-[#001f3f] border-[#001f3f]">
                   <SelectValue placeholder="Select sale type..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="invoice">Invoice</SelectItem>
-                  <SelectItem value="non-invoice">Non-Invoice</SelectItem>
+                  <SelectItem value="invoice" className="text-white">Invoice</SelectItem>
+                  <SelectItem value="non-invoice" className="text-white">Non-Invoice</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -537,34 +536,34 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
           {/* File Uploads Section */}
           <div className="space-y-4">
             <div className="border-t pt-4">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">File Uploads (Images Only)</h3>
+              <h3 className="text-lg font-medium text-[#001f3f] mb-4">File Uploads (Images Only)</h3>
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
                 <p className="text-sm text-blue-800">
-                  <span className="font-medium">Required:</span> Cheque, Voucher, Invoice, Deposit Slip |{" "}
-                  <span className="font-medium">Optional:</span> Doc 2307
+                  <span className="font-medium">Required:</span> Voucher, Deposit Slip |{" "}
+                  <span className="font-medium">Optional:</span> Cheque, Invoice, Doc 2307
                 </p>
               </div>
             </div>
 
             {/* First row of file uploads */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <FileUploadArea field="cheque" label="Cheque" required />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <FileUploadArea field="deposit_slip" label="Deposit Slip" required />
               <FileUploadArea field="voucher" label="Voucher" required />
-              <FileUploadArea field="invoice" label="Invoice" required />
             </div>
 
             {/* Second row of file uploads */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <FileUploadArea field="deposit_slip" label="Deposit Slip" required />
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <FileUploadArea field="cheque" label="Cheque" />
+              <FileUploadArea field="invoice" label="Invoice" />
               <FileUploadArea field="doc_2307" label="Doc 2307" />
             </div>
           </div>
 
           <DialogFooter className="flex gap-3 pt-6">
-            <Button type="button" variant="outline" onClick={() => setOpen(false)} className="px-6">
+            <Button type="button" variant="outline" onClick={() => setOpen(false)} className="px-6 border-[#001f3f] text-white hover:bg-[#001f3f]/10">
               Cancel
             </Button>
-            <Button type="submit" disabled={loading} className="bg-blue-600 hover:bg-blue-700 text-white px-6">
+            <Button type="submit" disabled={loading} className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white px-6">
               {loading ? "Adding..." : "Add Sales Record"}
             </Button>
           </DialogFooter>
