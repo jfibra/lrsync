@@ -434,7 +434,7 @@ export default function SuperAdminSalesPage() {
 
   return (
     <ProtectedRoute allowedRoles={["super_admin"]}>
-      <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50">
+      <div className="min-h-screen bg-gray-50">
         <DashboardHeader />
 
         <div className="pt-20 px-4 sm:px-6 lg:px-8 py-8">
@@ -446,9 +446,7 @@ export default function SuperAdminSalesPage() {
                   <BarChart3 className="h-8 w-8 text-white" />
                 </div>
                 <div>
-                  <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
-                    Sales Management
-                  </h1>
+                  <h1 className="text-4xl font-bold text-gray-900">Sales Management</h1>
                   <p className="text-gray-600 mt-1">Comprehensive sales tracking and tax filing management</p>
                 </div>
               </div>
@@ -506,8 +504,8 @@ export default function SuperAdminSalesPage() {
           </div>
 
           {/* Filters */}
-          <Card className="mb-6 shadow-xl border-0 bg-white/80 backdrop-blur-sm">
-            <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
+          <Card className="mb-6 shadow-lg border border-gray-200 bg-white">
+            <CardHeader className="bg-gray-50 border-b border-gray-200">
               <CardTitle className="text-lg font-semibold text-gray-900 flex items-center gap-2">
                 <Filter className="h-5 w-5 text-indigo-600" />
                 Advanced Filters
@@ -521,40 +519,50 @@ export default function SuperAdminSalesPage() {
                     placeholder="Search by name, TIN, or invoice..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10 w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500"
+                    className="pl-10 w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white text-gray-900"
                   />
                 </div>
                 <Select value={filterTaxType} onValueChange={setFilterTaxType}>
-                  <SelectTrigger className="w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500">
+                  <SelectTrigger className="w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white text-gray-900">
                     <SelectValue placeholder="Filter by tax type" />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Tax Types</SelectItem>
-                    <SelectItem value="vat">VAT</SelectItem>
-                    <SelectItem value="non-vat">Non-VAT</SelectItem>
+                  <SelectContent className="bg-white border border-gray-200">
+                    <SelectItem value="all" className="text-gray-900 hover:bg-gray-100">
+                      All Tax Types
+                    </SelectItem>
+                    <SelectItem value="vat" className="text-gray-900 hover:bg-gray-100">
+                      VAT
+                    </SelectItem>
+                    <SelectItem value="non-vat" className="text-gray-900 hover:bg-gray-100">
+                      Non-VAT
+                    </SelectItem>
                   </SelectContent>
                 </Select>
                 <Select value={filterMonth} onValueChange={setFilterMonth}>
-                  <SelectTrigger className="w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500">
+                  <SelectTrigger className="w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white text-gray-900">
                     <SelectValue placeholder="Filter by month" />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Months</SelectItem>
+                  <SelectContent className="bg-white border border-gray-200">
+                    <SelectItem value="all" className="text-gray-900 hover:bg-gray-100">
+                      All Months
+                    </SelectItem>
                     {monthOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
+                      <SelectItem key={option.value} value={option.value} className="text-gray-900 hover:bg-gray-100">
                         {option.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
                 <Select value={filterArea} onValueChange={setFilterArea}>
-                  <SelectTrigger className="w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500">
+                  <SelectTrigger className="w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white text-gray-900">
                     <SelectValue placeholder="Filter by area" />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Areas</SelectItem>
+                  <SelectContent className="bg-white border border-gray-200">
+                    <SelectItem value="all" className="text-gray-900 hover:bg-gray-100">
+                      All Areas
+                    </SelectItem>
                     {availableAreas.map((area) => (
-                      <SelectItem key={area} value={area}>
+                      <SelectItem key={area} value={area} className="text-gray-900 hover:bg-gray-100">
                         {area}
                       </SelectItem>
                     ))}
@@ -568,7 +576,7 @@ export default function SuperAdminSalesPage() {
                     setFilterMonth("all")
                     setFilterArea("all")
                   }}
-                  className="w-full border-gray-300 hover:bg-gray-50"
+                  className="w-full border-gray-300 hover:bg-gray-50 text-gray-700"
                 >
                   <Filter className="h-4 w-4 mr-2" />
                   Clear Filters
@@ -578,8 +586,8 @@ export default function SuperAdminSalesPage() {
           </Card>
 
           {/* Sales Table */}
-          <Card className="shadow-2xl border-0 bg-white/80 backdrop-blur-sm">
-            <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
+          <Card className="shadow-lg border border-gray-200 bg-white">
+            <CardHeader className="bg-gray-50 border-b border-gray-200">
               <div className="flex items-center justify-between">
                 <div>
                   <CardTitle className="text-2xl font-bold text-gray-900 flex items-center gap-2">
@@ -668,7 +676,7 @@ export default function SuperAdminSalesPage() {
                       </TableRow>
                     ) : (
                       sales.map((sale) => (
-                        <TableRow key={sale.id} className="hover:bg-gray-50 transition-colors">
+                        <TableRow key={sale.id} className="hover:bg-gray-50 transition-colors border-b border-gray-100">
                           {columnVisibility.find((col) => col.key === "tax_month")?.visible && (
                             <TableCell className="text-gray-900 font-medium">
                               <div className="flex items-center gap-2">
