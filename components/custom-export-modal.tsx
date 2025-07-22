@@ -238,20 +238,20 @@ export function CustomExportModal({ sales, userArea }: CustomExportModalProps) {
           Custom Export
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto bg-white text-[#001f3f]">
         <DialogHeader>
-          <DialogTitle className="text-xl font-bold text-gray-900">Custom Export Settings</DialogTitle>
-          <DialogDescription className="text-gray-600">
+          <DialogTitle className="text-xl font-bold text-[#001f3f]">Custom Export Settings</DialogTitle>
+          <DialogDescription className="text-[#001f3f]/80">
             Select the fields you want to include in your export file.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={selectAll} className="text-xs bg-transparent">
+            <Button variant="outline" size="sm" onClick={selectAll} className="text-xs bg-transparent text-[#001f3f] border-[#001f3f] hover:bg-[#001f3f]/10">
               Select All
             </Button>
-            <Button variant="outline" size="sm" onClick={selectNone} className="text-xs bg-transparent">
+            <Button variant="outline" size="sm" onClick={selectNone} className="text-xs bg-transparent text-[#001f3f] border-[#001f3f] hover:bg-[#001f3f]/10">
               Select None
             </Button>
           </div>
@@ -260,14 +260,14 @@ export function CustomExportModal({ sales, userArea }: CustomExportModalProps) {
             {exportFields.map((field) => (
               <div key={field.key} className="flex items-center space-x-2">
                 <Checkbox id={field.key} checked={field.selected} onCheckedChange={() => toggleField(field.key)} />
-                <Label htmlFor={field.key} className="text-sm font-medium text-gray-700 cursor-pointer">
+                <Label htmlFor={field.key} className="text-sm font-medium text-[#001f3f] cursor-pointer">
                   {field.label}
                 </Label>
               </div>
             ))}
           </div>
 
-          <div className="text-sm text-gray-500 bg-gray-50 p-3 rounded-md">
+          <div className="text-sm text-[#001f3f] bg-[#f8fafc] p-3 rounded-md">
             <strong>Export Summary:</strong>
             <br />• Total records: {sales.length}
             <br />• Selected fields: {exportFields.filter((f) => f.selected).length}
@@ -279,7 +279,7 @@ export function CustomExportModal({ sales, userArea }: CustomExportModalProps) {
           <Button
             variant="outline"
             onClick={() => setOpen(false)}
-            className="border-gray-300 text-gray-700 hover:bg-gray-50"
+            className="border-[#001f3f] text-white hover:bg-[#001f3f]/10"
           >
             Cancel
           </Button>

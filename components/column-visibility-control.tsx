@@ -33,8 +33,8 @@ export function ColumnVisibilityControl({ columns, onColumnToggle }: ColumnVisib
           Columns ({visibleCount}/{totalCount})
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
-        <DropdownMenuLabel className="text-sm font-semibold text-gray-900">Toggle Columns</DropdownMenuLabel>
+      <DropdownMenuContent align="end" className="w-56 bg-white text-[#001f3f]">
+        <DropdownMenuLabel className="text-sm font-semibold text-[#001f3f]">Toggle Columns</DropdownMenuLabel>
         <DropdownMenuSeparator />
         {columns.map((column) => (
           <DropdownMenuCheckboxItem

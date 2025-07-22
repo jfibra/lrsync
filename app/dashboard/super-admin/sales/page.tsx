@@ -1,12 +1,31 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Badge } from "@/components/ui/badge"
+import { useState, useEffect } from "react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
 import {
   Search,
   Filter,
@@ -20,34 +39,34 @@ import {
   TrendingUp,
   DollarSign,
   BarChart3,
-} from "lucide-react"
-import { format } from "date-fns"
-import { useAuth } from "@/contexts/auth-context"
-import { supabase } from "@/lib/supabase/client"
-import { ProtectedRoute } from "@/components/protected-route"
-import { DashboardHeader } from "@/components/dashboard-header"
-import { AddSalesModal } from "@/components/add-sales-modal"
-import { ViewSalesModal } from "@/components/view-sales-modal"
-import { EditSalesModal } from "@/components/edit-sales-modal"
-import { CustomExportModal } from "@/components/custom-export-modal"
-import { ColumnVisibilityControl } from "@/components/column-visibility-control"
-import type { Sales } from "@/types/sales"
-import * as XLSX from "xlsx"
+} from "lucide-react";
+import { format } from "date-fns";
+import { useAuth } from "@/contexts/auth-context";
+import { supabase } from "@/lib/supabase/client";
+import { ProtectedRoute } from "@/components/protected-route";
+import { DashboardHeader } from "@/components/dashboard-header";
+import { AddSalesModal } from "@/components/add-sales-modal";
+import { ViewSalesModal } from "@/components/view-sales-modal";
+import { EditSalesModal } from "@/components/edit-sales-modal";
+import { CustomExportModal } from "@/components/custom-export-modal";
+import { ColumnVisibilityControl } from "@/components/column-visibility-control";
+import type { Sales } from "@/types/sales";
+import * as XLSX from "xlsx";
 
 export default function SuperAdminSalesPage() {
-  const { profile } = useAuth()
-  const [sales, setSales] = useState<Sales[]>([])
-  const [loading, setLoading] = useState(true)
-  const [searchTerm, setSearchTerm] = useState("")
-  const [filterTaxType, setFilterTaxType] = useState("all")
-  const [filterMonth, setFilterMonth] = useState("all")
-  const [filterArea, setFilterArea] = useState("all")
-  const [availableAreas, setAvailableAreas] = useState<string[]>([])
+  const { profile } = useAuth();
+  const [sales, setSales] = useState<Sales[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterTaxType, setFilterTaxType] = useState("all");
+  const [filterMonth, setFilterMonth] = useState("all");
+  const [filterArea, setFilterArea] = useState("all");
+  const [availableAreas, setAvailableAreas] = useState<string[]>([]);
 
   // Modal states
-  const [viewModalOpen, setViewModalOpen] = useState(false)
-  const [editModalOpen, setEditModalOpen] = useState(false)
-  const [selectedSale, setSelectedSale] = useState<Sales | null>(null)
+  const [viewModalOpen, setViewModalOpen] = useState(false);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [selectedSale, setSelectedSale] = useState<Sales | null>(null);
 
   // Column visibility state
   const [columnVisibility, setColumnVisibility] = useState([
@@ -57,18 +76,26 @@ export default function SuperAdminSalesPage() {
     { key: "tax_type", label: "Tax Type", visible: true },
     { key: "sale_type", label: "Sale Type", visible: true },
     { key: "gross_taxable", label: "Gross Taxable", visible: true },
-    { key: "total_actual_amount", label: "Total Actual Amount", visible: false },
+    {
+      key: "total_actual_amount",
+      label: "Total Actual Amount",
+      visible: false,
+    },
     { key: "invoice_number", label: "Invoice #", visible: true },
     { key: "pickup_date", label: "Pickup Date", visible: true },
     { key: "area", label: "Area", visible: true },
     { key: "files", label: "Files", visible: true },
     { key: "actions", label: "Actions", visible: true },
-  ])
+  ]);
 
   // Toggle column visibility
   const toggleColumnVisibility = (key: string) => {
-    setColumnVisibility((prev) => prev.map((col) => (col.key === key ? { ...col, visible: !col.visible } : col)))
-  }
+    setColumnVisibility((prev) =>
+      prev.map((col) =>
+        col.key === key ? { ...col, visible: !col.visible } : col
+      )
+    );
+  };
 
   // Fetch available areas for filter dropdown
   const fetchAvailableAreas = async () => {
@@ -77,170 +104,197 @@ export default function SuperAdminSalesPage() {
         .from("user_profiles")
         .select("assigned_area")
         .not("assigned_area", "is", null)
-        .order("assigned_area")
+        .order("assigned_area");
 
-      if (error) throw error
+      if (error) throw error;
 
-      const uniqueAreas = [...new Set(data.map((item) => item.assigned_area).filter(Boolean))]
-      setAvailableAreas(uniqueAreas)
+      const uniqueAreas = [
+        ...new Set(data.map((item) => item.assigned_area).filter(Boolean)),
+      ];
+      setAvailableAreas(uniqueAreas);
     } catch (error) {
-      console.error("Error fetching available areas:", error)
+      console.error("Error fetching available areas:", error);
     }
-  }
+  };
 
   // Fetch sales data
   const fetchSales = async () => {
     try {
-      setLoading(true)
+      setLoading(true);
 
       // First get sales data
       let salesQuery = supabase
         .from("sales")
-        .select(`
+        .select(
+          `
           *,
           taxpayer_listings (
             registered_name,
             substreet_street_brgy,
             district_city_zip
           )
-        `)
+        `
+        )
         .eq("is_deleted", false)
-        .order("created_at", { ascending: false })
+        .order("created_at", { ascending: false });
 
       // Apply filters
       if (searchTerm) {
         salesQuery = salesQuery.or(
-          `name.ilike.%${searchTerm}%,tin.ilike.%${searchTerm}%,invoice_number.ilike.%${searchTerm}%`,
-        )
+          `name.ilike.%${searchTerm}%,tin.ilike.%${searchTerm}%,invoice_number.ilike.%${searchTerm}%`
+        );
       }
 
       if (filterTaxType !== "all") {
-        salesQuery = salesQuery.eq("tax_type", filterTaxType)
+        salesQuery = salesQuery.eq("tax_type", filterTaxType);
       }
 
       if (filterMonth !== "all") {
-        const [year, month] = filterMonth.split("-")
-        const startDate = `${year}-${month}-01`
-        const nextMonth = Number.parseInt(month) === 12 ? 1 : Number.parseInt(month) + 1
-        const nextYear = Number.parseInt(month) === 12 ? Number.parseInt(year) + 1 : Number.parseInt(year)
-        const endDate = `${nextYear}-${String(nextMonth).padStart(2, "0")}-01`
-        salesQuery = salesQuery.gte("tax_month", startDate).lt("tax_month", endDate)
+        const [year, month] = filterMonth.split("-");
+        const startDate = `${year}-${month}-01`;
+        const nextMonth =
+          Number.parseInt(month) === 12 ? 1 : Number.parseInt(month) + 1;
+        const nextYear =
+          Number.parseInt(month) === 12
+            ? Number.parseInt(year) + 1
+            : Number.parseInt(year);
+        const endDate = `${nextYear}-${String(nextMonth).padStart(2, "0")}-01`;
+        salesQuery = salesQuery
+          .gte("tax_month", startDate)
+          .lt("tax_month", endDate);
       }
 
-      const { data: salesData, error: salesError } = await salesQuery
+      const { data: salesData, error: salesError } = await salesQuery;
 
-      if (salesError) throw salesError
+      if (salesError) throw salesError;
 
       // Get user profiles for the users who created these sales
-      const userUuids = [...new Set(salesData?.map((sale) => sale.user_uuid).filter(Boolean))]
+      const userUuids = [
+        ...new Set(salesData?.map((sale) => sale.user_uuid).filter(Boolean)),
+      ];
 
-      let userProfiles = []
+      let userProfiles = [];
       if (userUuids.length > 0) {
         const { data: profilesData, error: profilesError } = await supabase
           .from("user_profiles")
           .select("auth_user_id, assigned_area, full_name")
-          .in("auth_user_id", userUuids)
+          .in("auth_user_id", userUuids);
 
-        if (profilesError) throw profilesError
-        userProfiles = profilesData || []
+        if (profilesError) throw profilesError;
+        userProfiles = profilesData || [];
       }
 
       // Combine sales data with user profiles
       const salesWithProfiles =
         salesData?.map((sale) => {
-          const userProfile = userProfiles.find((profile) => profile.auth_user_id === sale.user_uuid)
+          const userProfile = userProfiles.find(
+            (profile) => profile.auth_user_id === sale.user_uuid
+          );
           return {
             ...sale,
             user_assigned_area: userProfile?.assigned_area || null,
-          }
-        }) || []
+          };
+        }) || [];
 
       // Filter by area if selected
-      let filteredData = salesWithProfiles
+      let filteredData = salesWithProfiles;
       if (filterArea !== "all") {
-        filteredData = filteredData.filter((sale) => sale.user_assigned_area === filterArea)
+        filteredData = filteredData.filter(
+          (sale) => sale.user_assigned_area === filterArea
+        );
       }
 
-      setSales(filteredData)
+      setSales(filteredData);
     } catch (error) {
-      console.error("Error fetching sales:", error)
+      console.error("Error fetching sales:", error);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   useEffect(() => {
-    fetchAvailableAreas()
-  }, [])
+    fetchAvailableAreas();
+  }, []);
 
   useEffect(() => {
-    fetchSales()
-  }, [searchTerm, filterTaxType, filterMonth, filterArea])
+    fetchSales();
+  }, [searchTerm, filterTaxType, filterMonth, filterArea]);
 
   // Format currency
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-PH", {
       style: "currency",
       currency: "PHP",
-    }).format(amount)
-  }
+    }).format(amount);
+  };
 
   // Format TIN display - add dash after every 3 digits
   const formatTin = (tin: string) => {
-    const digits = tin.replace(/\D/g, "")
-    return digits.replace(/(\d{3})(?=\d)/g, "$1-")
-  }
+    const digits = tin.replace(/\D/g, "");
+    return digits.replace(/(\d{3})(?=\d)/g, "$1-");
+  };
 
   // Get tax type badge color
   const getTaxTypeBadgeColor = (taxType: string) => {
     switch (taxType) {
       case "vat":
-        return "bg-blue-100 text-blue-800 border border-blue-200"
+        return "bg-blue-100 text-blue-800 border border-blue-200";
       case "non-vat":
-        return "bg-green-100 text-green-800 border border-green-200"
+        return "bg-green-100 text-green-800 border border-green-200";
       default:
-        return "bg-gray-100 text-gray-800 border border-gray-200"
+        return "bg-gray-100 text-gray-800 border border-gray-200";
     }
-  }
+  };
 
   // Generate month options for filter
   const generateMonthOptions = () => {
-    const options = []
-    const currentDate = new Date()
+    const options = [];
+    const currentDate = new Date();
 
     for (let i = 0; i < 24; i++) {
-      const date = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1)
-      const year = date.getFullYear()
-      const month = String(date.getMonth() + 1).padStart(2, "0")
-      const monthName = date.toLocaleDateString("en-US", { month: "long", year: "numeric" })
+      const date = new Date(
+        currentDate.getFullYear(),
+        currentDate.getMonth() - i,
+        1
+      );
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const monthName = date.toLocaleDateString("en-US", {
+        month: "long",
+        year: "numeric",
+      });
 
       options.push({
         value: `${year}-${month}`,
         label: monthName,
-      })
+      });
     }
 
-    return options
-  }
+    return options;
+  };
 
-  const monthOptions = generateMonthOptions()
+  const monthOptions = generateMonthOptions();
 
   // Handle view sale
   const handleViewSale = (sale: Sales) => {
-    setSelectedSale(sale)
-    setViewModalOpen(true)
-  }
+    setSelectedSale(sale);
+    setViewModalOpen(true);
+  };
 
   // Handle edit sale
   const handleEditSale = (sale: Sales) => {
-    setSelectedSale(sale)
-    setEditModalOpen(true)
-  }
+    setSelectedSale(sale);
+    setEditModalOpen(true);
+  };
 
   // Handle soft delete
   const handleSoftDelete = async (sale: Sales) => {
-    if (!confirm(`Are you sure you want to delete the sales record for ${sale.name}?`)) {
-      return
+    if (
+      !confirm(
+        `Are you sure you want to delete the sales record for ${sale.name}?`
+      )
+    ) {
+      return;
     }
 
     try {
@@ -250,32 +304,40 @@ export default function SuperAdminSalesPage() {
           is_deleted: true,
           deleted_at: new Date().toISOString(),
         })
-        .eq("id", sale.id)
+        .eq("id", sale.id);
 
-      if (error) throw error
+      if (error) throw error;
 
       // Refresh the data
-      fetchSales()
+      fetchSales();
     } catch (error) {
-      console.error("Error deleting sales record:", error)
-      alert("Error deleting sales record. Please try again.")
+      console.error("Error deleting sales record:", error);
+      alert("Error deleting sales record. Please try again.");
     }
-  }
+  };
 
   // Export to Excel function - exclude non-invoice sales
   const exportToExcel = () => {
     // Filter out non-invoice sales for export
-    const invoiceSales = sales.filter((sale) => sale.sale_type === "invoice")
+    const invoiceSales = sales.filter((sale) => sale.sale_type === "invoice");
 
     // Calculate statistics for invoice sales only
-    const totalSales = invoiceSales.length
-    const vatSales = invoiceSales.filter((s) => s.tax_type === "vat").length
-    const nonVatSales = invoiceSales.filter((s) => s.tax_type === "non-vat").length
-    const totalAmount = invoiceSales.reduce((sum, sale) => sum + (sale.gross_taxable || 0), 0)
-    const totalActualAmount = invoiceSales.reduce((sum, sale) => sum + (sale.total_actual_amount || 0), 0)
+    const totalSales = invoiceSales.length;
+    const vatSales = invoiceSales.filter((s) => s.tax_type === "vat").length;
+    const nonVatSales = invoiceSales.filter(
+      (s) => s.tax_type === "non-vat"
+    ).length;
+    const totalAmount = invoiceSales.reduce(
+      (sum, sale) => sum + (sale.gross_taxable || 0),
+      0
+    );
+    const totalActualAmount = invoiceSales.reduce(
+      (sum, sale) => sum + (sale.total_actual_amount || 0),
+      0
+    );
 
     // Create workbook
-    const wb = XLSX.utils.book_new()
+    const wb = XLSX.utils.book_new();
 
     // Create summary data
     const summaryData = [
@@ -295,8 +357,16 @@ export default function SuperAdminSalesPage() {
       ["Total Invoice Sales", totalSales, "Total invoice records"],
       ["VAT Sales", vatSales, "VAT registered"],
       ["Non-VAT Sales", nonVatSales, "Non-VAT registered"],
-      ["Total Gross Taxable", formatCurrency(totalAmount), "Gross taxable amount"],
-      ["Total Actual Amount", formatCurrency(totalActualAmount), "Total actual amount"],
+      [
+        "Total Gross Taxable",
+        formatCurrency(totalAmount),
+        "Gross taxable amount",
+      ],
+      [
+        "Total Actual Amount",
+        formatCurrency(totalActualAmount),
+        "Total actual amount",
+      ],
       [""],
       ["DETAILED SALES RECORDS"],
       [
@@ -318,7 +388,7 @@ export default function SuperAdminSalesPage() {
         "2307 Files",
         "Deposit Files",
       ],
-    ]
+    ];
 
     // Add invoice sales data only
     invoiceSales.forEach((sale) => {
@@ -328,7 +398,7 @@ export default function SuperAdminSalesPage() {
         ...(sale.invoice || []),
         ...(sale.doc_2307 || []),
         ...(sale.deposit_slip || []),
-      ].length
+      ].length;
 
       summaryData.push([
         format(new Date(sale.tax_month), "MMM yyyy"),
@@ -340,7 +410,9 @@ export default function SuperAdminSalesPage() {
         sale.gross_taxable || 0,
         sale.total_actual_amount || 0,
         sale.invoice_number || "",
-        sale.pickup_date ? format(new Date(sale.pickup_date), "MMM dd, yyyy") : "",
+        sale.pickup_date
+          ? format(new Date(sale.pickup_date), "MMM dd, yyyy")
+          : "",
         sale.user_assigned_area || "N/A",
         filesCount,
         sale.cheque?.join(", ") || "",
@@ -348,11 +420,11 @@ export default function SuperAdminSalesPage() {
         sale.invoice?.join(", ") || "",
         sale.doc_2307?.join(", ") || "",
         sale.deposit_slip?.join(", ") || "",
-      ])
-    })
+      ]);
+    });
 
     // Create worksheet
-    const ws = XLSX.utils.aoa_to_sheet(summaryData)
+    const ws = XLSX.utils.aoa_to_sheet(summaryData);
 
     // Set column widths
     ws["!cols"] = [
@@ -373,64 +445,76 @@ export default function SuperAdminSalesPage() {
       { width: 30 }, // Invoice Files
       { width: 30 }, // 2307 Files
       { width: 30 }, // Deposit Files
-    ]
+    ];
 
     // Style the header rows
     const headerStyle = {
       font: { bold: true, size: 14 },
       fill: { fgColor: { rgb: "366092" } },
       alignment: { horizontal: "center" },
-    }
+    };
 
     const summaryHeaderStyle = {
       font: { bold: true, size: 12 },
       fill: { fgColor: { rgb: "D9E2F3" } },
-    }
+    };
 
     // Apply styles to specific cells
-    if (ws["A1"]) ws["A1"].s = { font: { bold: true, size: 16 }, alignment: { horizontal: "center" } }
-    if (ws["A4"]) ws["A4"].s = summaryHeaderStyle
-    if (ws["A11"]) ws["A11"].s = summaryHeaderStyle
+    if (ws["A1"])
+      ws["A1"].s = {
+        font: { bold: true, size: 16 },
+        alignment: { horizontal: "center" },
+      };
+    if (ws["A4"]) ws["A4"].s = summaryHeaderStyle;
+    if (ws["A11"]) ws["A11"].s = summaryHeaderStyle;
 
     // Style the data header row
     for (let col = 0; col < 17; col++) {
-      const cellRef = XLSX.utils.encode_cell({ r: 11, c: col })
+      const cellRef = XLSX.utils.encode_cell({ r: 11, c: col });
       if (ws[cellRef]) {
         ws[cellRef].s = {
           font: { bold: true },
           fill: { fgColor: { rgb: "E7E6E6" } },
           alignment: { horizontal: "center" },
-        }
+        };
       }
     }
 
     // Add worksheet to workbook
-    XLSX.utils.book_append_sheet(wb, ws, "Invoice Sales Report")
+    XLSX.utils.book_append_sheet(wb, ws, "Invoice Sales Report");
 
     // Generate filename with current date
-    const filename = `Invoice_Sales_Report_${new Date().toISOString().split("T")[0]}.xlsx`
+    const filename = `Invoice_Sales_Report_${
+      new Date().toISOString().split("T")[0]
+    }.xlsx`;
 
     /* ---- browser-safe download ---- */
-    const wbArray = XLSX.write(wb, { bookType: "xlsx", type: "array" })
+    const wbArray = XLSX.write(wb, { bookType: "xlsx", type: "array" });
     const blob = new Blob([wbArray], {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement("a")
-    link.href = url
-    link.download = filename
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    URL.revokeObjectURL(url)
-  }
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
 
   // Calculate stats
-  const totalSales = sales.length
-  const vatSales = sales.filter((s) => s.tax_type === "vat").length
-  const nonVatSales = sales.filter((s) => s.tax_type === "non-vat").length
-  const totalAmount = sales.reduce((sum, sale) => sum + (sale.gross_taxable || 0), 0)
-  const totalActualAmount = sales.reduce((sum, sale) => sum + (sale.total_actual_amount || 0), 0)
+  const totalSales = sales.length;
+  const vatSales = sales.filter((s) => s.tax_type === "vat").length;
+  const nonVatSales = sales.filter((s) => s.tax_type === "non-vat").length;
+  const totalAmount = sales.reduce(
+    (sum, sale) => sum + (sale.gross_taxable || 0),
+    0
+  );
+  const totalActualAmount = sales.reduce(
+    (sum, sale) => sum + (sale.total_actual_amount || 0),
+    0
+  );
 
   return (
     <ProtectedRoute allowedRoles={["super_admin"]}>
@@ -446,8 +530,12 @@ export default function SuperAdminSalesPage() {
                   <BarChart3 className="h-8 w-8 text-white" />
                 </div>
                 <div>
-                  <h1 className="text-4xl font-bold text-gray-900">Sales Management</h1>
-                  <p className="text-gray-600 mt-1">Comprehensive sales tracking and tax filing management</p>
+                  <h1 className="text-4xl font-bold text-gray-900">
+                    Sales Management
+                  </h1>
+                  <p className="text-gray-600 mt-1">
+                    Comprehensive sales tracking and tax filing management
+                  </p>
                 </div>
               </div>
               <div className="mt-4 sm:mt-0">
@@ -460,18 +548,24 @@ export default function SuperAdminSalesPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <Card className="bg-gradient-to-r from-indigo-500 to-indigo-600 border-0 shadow-xl">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-indigo-100">Total Sales</CardTitle>
+                <CardTitle className="text-sm font-medium text-indigo-100">
+                  Total Sales
+                </CardTitle>
                 <FileText className="h-8 w-8 text-indigo-200" />
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold text-white">{totalSales}</div>
+                <div className="text-3xl font-bold text-white">
+                  {totalSales}
+                </div>
                 <p className="text-xs text-indigo-100">Total records</p>
               </CardContent>
             </Card>
 
             <Card className="bg-gradient-to-r from-blue-500 to-blue-600 border-0 shadow-xl">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-blue-100">VAT Sales</CardTitle>
+                <CardTitle className="text-sm font-medium text-blue-100">
+                  VAT Sales
+                </CardTitle>
                 <TrendingUp className="h-8 w-8 text-blue-200" />
               </CardHeader>
               <CardContent>
@@ -482,22 +576,30 @@ export default function SuperAdminSalesPage() {
 
             <Card className="bg-gradient-to-r from-green-500 to-green-600 border-0 shadow-xl">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-green-100">Non-VAT Sales</CardTitle>
+                <CardTitle className="text-sm font-medium text-green-100">
+                  Non-VAT Sales
+                </CardTitle>
                 <BarChart3 className="h-8 w-8 text-green-200" />
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold text-white">{nonVatSales}</div>
+                <div className="text-3xl font-bold text-white">
+                  {nonVatSales}
+                </div>
                 <p className="text-xs text-green-100">Non-VAT registered</p>
               </CardContent>
             </Card>
 
             <Card className="bg-gradient-to-r from-purple-500 to-purple-600 border-0 shadow-xl">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-purple-100">Total Amount</CardTitle>
+                <CardTitle className="text-sm font-medium text-purple-100">
+                  Total Amount
+                </CardTitle>
                 <DollarSign className="h-8 w-8 text-purple-200" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-white">{formatCurrency(totalAmount)}</div>
+                <div className="text-2xl font-bold text-white">
+                  {formatCurrency(totalAmount)}
+                </div>
                 <p className="text-xs text-purple-100">Gross taxable</p>
               </CardContent>
             </Card>
@@ -527,13 +629,22 @@ export default function SuperAdminSalesPage() {
                     <SelectValue placeholder="Filter by tax type" />
                   </SelectTrigger>
                   <SelectContent className="bg-white border border-gray-200">
-                    <SelectItem value="all" className="text-gray-900 hover:bg-gray-100">
+                    <SelectItem
+                      value="all"
+                      className="text-gray-900 hover:bg-gray-100"
+                    >
                       All Tax Types
                     </SelectItem>
-                    <SelectItem value="vat" className="text-gray-900 hover:bg-gray-100">
+                    <SelectItem
+                      value="vat"
+                      className="text-gray-900 hover:bg-gray-100"
+                    >
                       VAT
                     </SelectItem>
-                    <SelectItem value="non-vat" className="text-gray-900 hover:bg-gray-100">
+                    <SelectItem
+                      value="non-vat"
+                      className="text-gray-900 hover:bg-gray-100"
+                    >
                       Non-VAT
                     </SelectItem>
                   </SelectContent>
@@ -543,11 +654,18 @@ export default function SuperAdminSalesPage() {
                     <SelectValue placeholder="Filter by month" />
                   </SelectTrigger>
                   <SelectContent className="bg-white border border-gray-200">
-                    <SelectItem value="all" className="text-gray-900 hover:bg-gray-100">
+                    <SelectItem
+                      value="all"
+                      className="text-gray-900 hover:bg-gray-100"
+                    >
                       All Months
                     </SelectItem>
                     {monthOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value} className="text-gray-900 hover:bg-gray-100">
+                      <SelectItem
+                        key={option.value}
+                        value={option.value}
+                        className="text-gray-900 hover:bg-gray-100"
+                      >
                         {option.label}
                       </SelectItem>
                     ))}
@@ -558,11 +676,18 @@ export default function SuperAdminSalesPage() {
                     <SelectValue placeholder="Filter by area" />
                   </SelectTrigger>
                   <SelectContent className="bg-white border border-gray-200">
-                    <SelectItem value="all" className="text-gray-900 hover:bg-gray-100">
+                    <SelectItem
+                      value="all"
+                      className="text-gray-900 hover:bg-gray-100"
+                    >
                       All Areas
                     </SelectItem>
                     {availableAreas.map((area) => (
-                      <SelectItem key={area} value={area} className="text-gray-900 hover:bg-gray-100">
+                      <SelectItem
+                        key={area}
+                        value={area}
+                        className="text-gray-900 hover:bg-gray-100"
+                      >
                         {area}
                       </SelectItem>
                     ))}
@@ -571,14 +696,13 @@ export default function SuperAdminSalesPage() {
                 <Button
                   variant="outline"
                   onClick={() => {
-                    setSearchTerm("")
-                    setFilterTaxType("all")
-                    setFilterMonth("all")
-                    setFilterArea("all")
+                    setSearchTerm("");
+                    setFilterTaxType("all");
+                    setFilterMonth("all");
                   }}
-                  className="w-full border-gray-300 hover:bg-gray-50 text-gray-700"
+                  className="w-full border-0 bg-gradient-to-r from-red-500 to-pink-500 text-white font-semibold shadow-md hover:from-red-600 hover:to-pink-600 transition-all duration-150 flex items-center justify-center gap-2"
                 >
-                  <Filter className="h-4 w-4 mr-2" />
+                  <Filter className="h-4 w-4 mr-1" />
                   Clear Filters
                 </Button>
               </div>
@@ -599,7 +723,10 @@ export default function SuperAdminSalesPage() {
                   </CardDescription>
                 </div>
                 <div className="flex gap-2">
-                  <ColumnVisibilityControl columns={columnVisibility} onColumnToggle={toggleColumnVisibility} />
+                  <ColumnVisibilityControl
+                    columns={columnVisibility}
+                    onColumnToggle={toggleColumnVisibility}
+                  />
                   <CustomExportModal sales={sales} />
                   <Button
                     variant="outline"
@@ -618,41 +745,80 @@ export default function SuperAdminSalesPage() {
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-gray-50 border-b border-gray-200">
-                      {columnVisibility.find((col) => col.key === "tax_month")?.visible && (
-                        <TableHead className="min-w-[120px] font-semibold text-gray-900">Tax Month</TableHead>
+                      {columnVisibility.find((col) => col.key === "tax_month")
+                        ?.visible && (
+                        <TableHead className="min-w-[120px] font-semibold text-gray-900">
+                          Tax Month
+                        </TableHead>
                       )}
-                      {columnVisibility.find((col) => col.key === "tin")?.visible && (
-                        <TableHead className="min-w-[120px] font-semibold text-gray-900">TIN</TableHead>
+                      {columnVisibility.find((col) => col.key === "tin")
+                        ?.visible && (
+                        <TableHead className="min-w-[120px] font-semibold text-gray-900">
+                          TIN
+                        </TableHead>
                       )}
-                      {columnVisibility.find((col) => col.key === "name")?.visible && (
-                        <TableHead className="min-w-[180px] font-semibold text-gray-900">Name</TableHead>
+                      {columnVisibility.find((col) => col.key === "name")
+                        ?.visible && (
+                        <TableHead className="min-w-[180px] font-semibold text-gray-900">
+                          Name
+                        </TableHead>
                       )}
-                      {columnVisibility.find((col) => col.key === "tax_type")?.visible && (
-                        <TableHead className="min-w-[100px] font-semibold text-gray-900">Tax Type</TableHead>
+                      {columnVisibility.find((col) => col.key === "tax_type")
+                        ?.visible && (
+                        <TableHead className="min-w-[100px] font-semibold text-gray-900">
+                          Tax Type
+                        </TableHead>
                       )}
-                      {columnVisibility.find((col) => col.key === "sale_type")?.visible && (
-                        <TableHead className="min-w-[100px] font-semibold text-gray-900">Sale Type</TableHead>
+                      {columnVisibility.find((col) => col.key === "sale_type")
+                        ?.visible && (
+                        <TableHead className="min-w-[100px] font-semibold text-gray-900">
+                          Sale Type
+                        </TableHead>
                       )}
-                      {columnVisibility.find((col) => col.key === "gross_taxable")?.visible && (
-                        <TableHead className="min-w-[120px] font-semibold text-gray-900">Gross Taxable</TableHead>
+                      {columnVisibility.find(
+                        (col) => col.key === "gross_taxable"
+                      )?.visible && (
+                        <TableHead className="min-w-[120px] font-semibold text-gray-900">
+                          Gross Taxable
+                        </TableHead>
                       )}
-                      {columnVisibility.find((col) => col.key === "total_actual_amount")?.visible && (
-                        <TableHead className="min-w-[140px] font-semibold text-gray-900">Total Actual Amount</TableHead>
+                      {columnVisibility.find(
+                        (col) => col.key === "total_actual_amount"
+                      )?.visible && (
+                        <TableHead className="min-w-[140px] font-semibold text-gray-900">
+                          Total Actual Amount
+                        </TableHead>
                       )}
-                      {columnVisibility.find((col) => col.key === "invoice_number")?.visible && (
-                        <TableHead className="min-w-[120px] font-semibold text-gray-900">Invoice #</TableHead>
+                      {columnVisibility.find(
+                        (col) => col.key === "invoice_number"
+                      )?.visible && (
+                        <TableHead className="min-w-[120px] font-semibold text-gray-900">
+                          Invoice #
+                        </TableHead>
                       )}
-                      {columnVisibility.find((col) => col.key === "pickup_date")?.visible && (
-                        <TableHead className="min-w-[120px] font-semibold text-gray-900">Pickup Date</TableHead>
+                      {columnVisibility.find((col) => col.key === "pickup_date")
+                        ?.visible && (
+                        <TableHead className="min-w-[120px] font-semibold text-gray-900">
+                          Pickup Date
+                        </TableHead>
                       )}
-                      {columnVisibility.find((col) => col.key === "area")?.visible && (
-                        <TableHead className="min-w-[100px] font-semibold text-gray-900">Area</TableHead>
+                      {columnVisibility.find((col) => col.key === "area")
+                        ?.visible && (
+                        <TableHead className="min-w-[100px] font-semibold text-gray-900">
+                          Area
+                        </TableHead>
                       )}
-                      {columnVisibility.find((col) => col.key === "files")?.visible && (
-                        <TableHead className="min-w-[150px] font-semibold text-gray-900">Files</TableHead>
+                      {columnVisibility.find((col) => col.key === "files")
+                        ?.visible && (
+                        <TableHead className="min-w-[150px] font-semibold text-gray-900">
+                          Files
+                        </TableHead>
                       )}
-                      {columnVisibility.find((col) => col.key === "actions")?.visible && (
-                        <TableHead className="min-w-[120px] font-semibold text-gray-900">Actions</TableHead>
+                      {columnVisibility.find((col) => col.key === "actions")
+                        ?.visible && (
+                        <TableHead className="min-w-[120px] font-semibold text-gray-900">
+                          Actions
+                        </TableHead>
                       )}
                     </TableRow>
                   </TableHeader>
@@ -662,7 +828,9 @@ export default function SuperAdminSalesPage() {
                         <TableCell colSpan={12} className="text-center py-12">
                           <div className="flex flex-col items-center justify-center">
                             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mb-4"></div>
-                            <span className="text-gray-600 font-medium">Loading sales records...</span>
+                            <span className="text-gray-600 font-medium">
+                              Loading sales records...
+                            </span>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -670,14 +838,23 @@ export default function SuperAdminSalesPage() {
                       <TableRow>
                         <TableCell colSpan={12} className="text-center py-12">
                           <BarChart3 className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                          <h3 className="text-lg font-medium text-gray-900 mb-2">No sales records found</h3>
-                          <p className="text-gray-500">Create your first sales record to get started!</p>
+                          <h3 className="text-lg font-medium text-gray-900 mb-2">
+                            No sales records found
+                          </h3>
+                          <p className="text-gray-500">
+                            Create your first sales record to get started!
+                          </p>
                         </TableCell>
                       </TableRow>
                     ) : (
                       sales.map((sale) => (
-                        <TableRow key={sale.id} className="hover:bg-gray-50 transition-colors border-b border-gray-100">
-                          {columnVisibility.find((col) => col.key === "tax_month")?.visible && (
+                        <TableRow
+                          key={sale.id}
+                          className="hover:bg-gray-50 transition-colors border-b border-gray-100"
+                        >
+                          {columnVisibility.find(
+                            (col) => col.key === "tax_month"
+                          )?.visible && (
                             <TableCell className="text-gray-900 font-medium">
                               <div className="flex items-center gap-2">
                                 <Calendar className="h-4 w-4 text-indigo-500" />
@@ -685,7 +862,8 @@ export default function SuperAdminSalesPage() {
                               </div>
                             </TableCell>
                           )}
-                          {columnVisibility.find((col) => col.key === "tin")?.visible && (
+                          {columnVisibility.find((col) => col.key === "tin")
+                            ?.visible && (
                             <TableCell className="font-mono text-gray-900">
                               <div className="flex items-center gap-2">
                                 <div className="w-2 h-2 bg-indigo-500 rounded-full"></div>
@@ -693,7 +871,8 @@ export default function SuperAdminSalesPage() {
                               </div>
                             </TableCell>
                           )}
-                          {columnVisibility.find((col) => col.key === "name")?.visible && (
+                          {columnVisibility.find((col) => col.key === "name")
+                            ?.visible && (
                             <TableCell className="text-gray-900">
                               <div>
                                 <div className="font-medium">{sale.name}</div>
@@ -706,14 +885,20 @@ export default function SuperAdminSalesPage() {
                               </div>
                             </TableCell>
                           )}
-                          {columnVisibility.find((col) => col.key === "tax_type")?.visible && (
+                          {columnVisibility.find(
+                            (col) => col.key === "tax_type"
+                          )?.visible && (
                             <TableCell>
-                              <Badge className={getTaxTypeBadgeColor(sale.tax_type)}>
+                              <Badge
+                                className={getTaxTypeBadgeColor(sale.tax_type)}
+                              >
                                 {sale.tax_type?.toUpperCase()}
                               </Badge>
                             </TableCell>
                           )}
-                          {columnVisibility.find((col) => col.key === "sale_type")?.visible && (
+                          {columnVisibility.find(
+                            (col) => col.key === "sale_type"
+                          )?.visible && (
                             <TableCell>
                               <Badge
                                 className={
@@ -726,25 +911,41 @@ export default function SuperAdminSalesPage() {
                               </Badge>
                             </TableCell>
                           )}
-                          {columnVisibility.find((col) => col.key === "gross_taxable")?.visible && (
+                          {columnVisibility.find(
+                            (col) => col.key === "gross_taxable"
+                          )?.visible && (
                             <TableCell className="text-gray-900 font-semibold">
                               {formatCurrency(sale.gross_taxable || 0)}
                             </TableCell>
                           )}
-                          {columnVisibility.find((col) => col.key === "total_actual_amount")?.visible && (
+                          {columnVisibility.find(
+                            (col) => col.key === "total_actual_amount"
+                          )?.visible && (
                             <TableCell className="text-gray-900 font-semibold">
                               {formatCurrency(sale.total_actual_amount || 0)}
                             </TableCell>
                           )}
-                          {columnVisibility.find((col) => col.key === "invoice_number")?.visible && (
-                            <TableCell className="text-gray-600">{sale.invoice_number || "-"}</TableCell>
-                          )}
-                          {columnVisibility.find((col) => col.key === "pickup_date")?.visible && (
+                          {columnVisibility.find(
+                            (col) => col.key === "invoice_number"
+                          )?.visible && (
                             <TableCell className="text-gray-600">
-                              {sale.pickup_date ? format(new Date(sale.pickup_date), "MMM dd, yyyy") : "-"}
+                              {sale.invoice_number || "-"}
                             </TableCell>
                           )}
-                          {columnVisibility.find((col) => col.key === "area")?.visible && (
+                          {columnVisibility.find(
+                            (col) => col.key === "pickup_date"
+                          )?.visible && (
+                            <TableCell className="text-gray-600">
+                              {sale.pickup_date
+                                ? format(
+                                    new Date(sale.pickup_date),
+                                    "MMM dd, yyyy"
+                                  )
+                                : "-"}
+                            </TableCell>
+                          )}
+                          {columnVisibility.find((col) => col.key === "area")
+                            ?.visible && (
                             <TableCell className="text-gray-600">
                               <div className="flex items-center gap-1">
                                 <MapPin className="h-3 w-3 text-gray-400" />
@@ -754,38 +955,46 @@ export default function SuperAdminSalesPage() {
                               </div>
                             </TableCell>
                           )}
-                          {columnVisibility.find((col) => col.key === "files")?.visible && (
+                          {columnVisibility.find((col) => col.key === "files")
+                            ?.visible && (
                             <TableCell>
                               <div className="flex flex-wrap gap-1">
                                 {sale.cheque && sale.cheque.length > 0 && (
-                                  <Badge variant="outline" className="text-xs">
-                                    Cheque ({sale.cheque.length})
+                                  <Badge
+                                    variant="outline"
+                                    className="text-xs font-semibold bg-blue-50 text-blue-800 border border-blue-200 px-2 py-1 rounded-lg shadow-sm"
+                                  >
+                                    {" "}
+                                    Cheque ( {sale.cheque.length}){" "}
                                   </Badge>
                                 )}
                                 {sale.voucher && sale.voucher.length > 0 && (
-                                  <Badge variant="outline" className="text-xs">
-                                    Voucher ({sale.voucher.length})
-                                  </Badge>
+                                  <Badge variant="outline" className="text-xs font-semibold bg-green-50 text-green-800 border border-green-200 px-2 py-1 rounded-lg shadow-sm" > Voucher ({sale.voucher.length}) </Badge>
                                 )}
                                 {sale.invoice && sale.invoice.length > 0 && (
-                                  <Badge variant="outline" className="text-xs">
+                                  <Badge variant="outline" className="text-xs font-semibold bg-green-50 text-green-800 border border-green-200 px-2 py-1 rounded-lg shadow-sm">
                                     Invoice ({sale.invoice.length})
                                   </Badge>
                                 )}
                                 {sale.doc_2307 && sale.doc_2307.length > 0 && (
-                                  <Badge variant="outline" className="text-xs">
+                                  <Badge variant="outline" className="text-xs font-semibold bg-gray-50 text-gray-800 border border-gray-200 px-2 py-1 rounded-lg shadow-sm">
                                     2307 ({sale.doc_2307.length})
                                   </Badge>
                                 )}
-                                {sale.deposit_slip && sale.deposit_slip.length > 0 && (
-                                  <Badge variant="outline" className="text-xs">
-                                    Deposit ({sale.deposit_slip.length})
-                                  </Badge>
-                                )}
+                                {sale.deposit_slip &&
+                                  sale.deposit_slip.length > 0 && (
+                                    <Badge
+                                      variant="outline"
+                                      className="text-xs font-semibold bg-green-50 text-green-800 border border-green-200 px-2 py-1 rounded-lg shadow-sm"
+                                    >
+                                      Deposit ({sale.deposit_slip.length})
+                                    </Badge>
+                                  )}
                               </div>
                             </TableCell>
                           )}
-                          {columnVisibility.find((col) => col.key === "actions")?.visible && (
+                          {columnVisibility.find((col) => col.key === "actions")
+                            ?.visible && (
                             <TableCell>
                               <div className="flex items-center gap-2">
                                 <Button
@@ -828,7 +1037,11 @@ export default function SuperAdminSalesPage() {
         {/* Modals */}
         {selectedSale && (
           <>
-            <ViewSalesModal sale={selectedSale} open={viewModalOpen} onOpenChange={setViewModalOpen} />
+            <ViewSalesModal
+              sale={selectedSale}
+              open={viewModalOpen}
+              onOpenChange={setViewModalOpen}
+            />
             <EditSalesModal
               sale={selectedSale}
               open={editModalOpen}
@@ -839,5 +1052,5 @@ export default function SuperAdminSalesPage() {
         )}
       </div>
     </ProtectedRoute>
-  )
+  );
 }
