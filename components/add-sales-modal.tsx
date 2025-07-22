@@ -87,6 +87,12 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
     return digits.replace(/(\d{3})(?=\d)/g, "$1-")
   }
 
+  // Format TIN for display (used for suggestions)
+  const formatTinDisplay = (tin: string): string => {
+    const digits = tin.replace(/\D/g, "")
+    return digits.replace(/(\d{3})(?=\d)/g, "$1-")
+  }
+
   // Format number with commas
   const formatNumberWithCommas = (value: string): string => {
     if (!value) return ""
@@ -146,7 +152,7 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
   const handleSuggestionSelect = (suggestion: TaxpayerSuggestion) => {
     setFormData({
       ...formData,
-      tin: suggestion.tin,
+      tin: formatTinDisplay(suggestion.tin),
       name: suggestion.registered_name,
       substreet_street_brgy: suggestion.substreet_street_brgy,
       district_city_zip: suggestion.district_city_zip,
@@ -348,7 +354,7 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
                       className="p-3 hover:bg-gray-100 cursor-pointer border-b border-gray-100 last:border-b-0"
                       onClick={() => handleSuggestionSelect(suggestion)}
                     >
-                      <div className="font-medium text-gray-900">{suggestion.tin}</div>
+                      <div className="font-medium text-gray-900">{formatTinDisplay(suggestion.tin)}</div>
                       <div className="text-sm text-gray-600">{suggestion.registered_name}</div>
                       <div className="text-xs text-gray-500">
                         {suggestion.substreet_street_brgy}, {suggestion.district_city_zip}
