@@ -24,12 +24,21 @@ interface TaxMonthOption {
   value: string
 }
 
+interface TaxpayerSuggestion {
+  tin: string
+  registered_name: string
+  substreet_street_brgy: string
+  district_city_zip: string
+}
+
 export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
   const { user } = useAuth()
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [taxMonth, setTaxMonth] = useState<string>("")
   const [pickupDate, setPickupDate] = useState<Date>()
+  const [taxpayerSuggestions, setTaxpayerSuggestions] = useState<TaxpayerSuggestion[]>([])
+  const [showSuggestions, setShowSuggestions] = useState(false)
 
   const [formData, setFormData] = useState({
     tin: "",
@@ -72,6 +81,72 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
 
   const taxMonthOptions = generateTaxMonthOptions()
 
+  // Format number with commas
+  const formatNumberWithCommas = (value: string): string => {
+    if (!value) return ""
+    const numericValue = value.replace(/,/g, "")
+    if (isNaN(Number(numericValue))) return value
+    return Number(numericValue).toLocaleString()
+  }
+
+  // Remove commas from formatted number
+  const removeCommas = (value: string): string => {
+    return value.replace(/,/g, "")
+  }
+
+  // Search taxpayers based on TIN prefix
+  const searchTaxpayers = async (tinPrefix: string) => {
+    if (tinPrefix.length < 3) {
+      setTaxpayerSuggestions([])
+      setShowSuggestions(false)
+      return
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from("taxpayer_listings")
+        .select("tin, registered_name, substreet_street_brgy, district_city_zip")
+        .ilike("tin", `${tinPrefix}%`)
+        .limit(5)
+
+      if (error) throw error
+
+      setTaxpayerSuggestions(data || [])
+      setShowSuggestions(data && data.length > 0)
+    } catch (error) {
+      console.error("Error searching taxpayers:", error)
+      setTaxpayerSuggestions([])
+      setShowSuggestions(false)
+    }
+  }
+
+  // Handle TIN input change
+  const handleTinChange = (value: string) => {
+    setFormData({ ...formData, tin: value })
+
+    // Search for taxpayers when first 3 digits are entered
+    const cleanTin = value.replace(/[^0-9]/g, "")
+    if (cleanTin.length >= 3) {
+      const prefix = cleanTin.substring(0, 3)
+      searchTaxpayers(prefix)
+    } else {
+      setTaxpayerSuggestions([])
+      setShowSuggestions(false)
+    }
+  }
+
+  // Handle taxpayer suggestion selection
+  const handleSuggestionSelect = (suggestion: TaxpayerSuggestion) => {
+    setFormData({
+      ...formData,
+      tin: suggestion.tin,
+      name: suggestion.registered_name,
+      substreet_street_brgy: suggestion.substreet_street_brgy,
+      district_city_zip: suggestion.district_city_zip,
+    })
+    setShowSuggestions(false)
+  }
+
   const handleFileUpload = useCallback((field: keyof typeof formData, files: FileList | null) => {
     if (!files) return
 
@@ -107,8 +182,10 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
         district_city_zip: formData.district_city_zip,
         tax_type: formData.tax_type,
         sale_type: formData.sale_type,
-        gross_taxable: formData.gross_taxable ? Number.parseFloat(formData.gross_taxable) : null,
-        total_actual_amount: formData.total_actual_amount ? Number.parseFloat(formData.total_actual_amount) : null,
+        gross_taxable: formData.gross_taxable ? Number.parseFloat(removeCommas(formData.gross_taxable)) : null,
+        total_actual_amount: formData.total_actual_amount
+          ? Number.parseFloat(removeCommas(formData.total_actual_amount))
+          : null,
         invoice_number: formData.invoice_number || null,
         pickup_date: pickupDate ? format(pickupDate, "yyyy-MM-dd") : null,
         cheque: formData.cheque.length > 0 ? formData.cheque : null,
@@ -141,6 +218,8 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
       })
       setTaxMonth("")
       setPickupDate(undefined)
+      setTaxpayerSuggestions([])
+      setShowSuggestions(false)
       setOpen(false)
       onSalesAdded()
     } catch (error) {
@@ -233,18 +312,44 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
               </Select>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-2 relative">
               <Label htmlFor="tin" className="text-sm font-medium text-gray-700">
                 TIN # *
               </Label>
               <Input
                 id="tin"
                 value={formData.tin}
-                onChange={(e) => setFormData({ ...formData, tin: e.target.value })}
+                onChange={(e) => handleTinChange(e.target.value)}
                 placeholder="000-000-000-000..."
                 required
                 className="bg-gray-900 text-white border-gray-700"
+                onFocus={() => {
+                  if (taxpayerSuggestions.length > 0) {
+                    setShowSuggestions(true)
+                  }
+                }}
+                onBlur={() => {
+                  // Delay hiding suggestions to allow for selection
+                  setTimeout(() => setShowSuggestions(false), 200)
+                }}
               />
+              {showSuggestions && taxpayerSuggestions.length > 0 && (
+                <div className="absolute top-full left-0 right-0 z-50 bg-white border border-gray-300 rounded-md shadow-lg max-h-48 overflow-y-auto">
+                  {taxpayerSuggestions.map((suggestion, index) => (
+                    <div
+                      key={index}
+                      className="p-3 hover:bg-gray-100 cursor-pointer border-b border-gray-100 last:border-b-0"
+                      onClick={() => handleSuggestionSelect(suggestion)}
+                    >
+                      <div className="font-medium text-gray-900">{suggestion.tin}</div>
+                      <div className="text-sm text-gray-600">{suggestion.registered_name}</div>
+                      <div className="text-xs text-gray-500">
+                        {suggestion.substreet_street_brgy}, {suggestion.district_city_zip}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
@@ -270,10 +375,14 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
               </Label>
               <Input
                 id="gross_taxable"
-                type="number"
-                step="0.01"
-                value={formData.gross_taxable}
-                onChange={(e) => setFormData({ ...formData, gross_taxable: e.target.value })}
+                type="text"
+                value={formatNumberWithCommas(formData.gross_taxable)}
+                onChange={(e) => {
+                  const rawValue = removeCommas(e.target.value)
+                  if (rawValue === "" || /^\d*\.?\d*$/.test(rawValue)) {
+                    setFormData({ ...formData, gross_taxable: rawValue })
+                  }
+                }}
                 placeholder="0"
                 className="bg-gray-900 text-white border-gray-700"
               />
@@ -285,10 +394,14 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
               </Label>
               <Input
                 id="total_actual_amount"
-                type="number"
-                step="0.01"
-                value={formData.total_actual_amount}
-                onChange={(e) => setFormData({ ...formData, total_actual_amount: e.target.value })}
+                type="text"
+                value={formatNumberWithCommas(formData.total_actual_amount)}
+                onChange={(e) => {
+                  const rawValue = removeCommas(e.target.value)
+                  if (rawValue === "" || /^\d*\.?\d*$/.test(rawValue)) {
+                    setFormData({ ...formData, total_actual_amount: rawValue })
+                  }
+                }}
                 placeholder="0"
                 className="bg-gray-900 text-white border-gray-700"
               />
