@@ -328,7 +328,7 @@ export default function AdminTinLibraryPage() {
       {/* Row 1 */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
         <div className="space-y-2">
-          <Label htmlFor="tin">TIN *</Label>
+          <Label htmlFor="tin" className="text-gray-900">TIN *</Label>
           <Input
             id="tin"
             placeholder="000-000-000-000"
@@ -341,21 +341,22 @@ export default function AdminTinLibraryPage() {
               }
             }}
             disabled={isCreating || isUpdating}
+            className="bg-white text-gray-900 border border-gray-300 focus:border-emerald-500 focus:ring-emerald-500 placeholder-gray-500"
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="type">Type *</Label>
+          <Label htmlFor="type" className="text-gray-900">Type *</Label>
           <Select
             value={formData.type}
             onValueChange={(v: TaxpayerType) => setFormData((p) => ({ ...p, type: v }))}
             disabled={isCreating || isUpdating}
           >
-            <SelectTrigger>
-              <SelectValue />
+            <SelectTrigger className="bg-white text-gray-900 border border-gray-300 focus:border-emerald-500 focus:ring-emerald-500">
+              <SelectValue className="text-gray-900" />
             </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="sales">Sales</SelectItem>
-              <SelectItem value="purchases">Purchases</SelectItem>
+            <SelectContent className="bg-white text-gray-900">
+              <SelectItem value="sales" className="text-gray-900">Sales</SelectItem>
+              <SelectItem value="purchases" className="text-gray-900">Purchases</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -363,35 +364,38 @@ export default function AdminTinLibraryPage() {
 
       {/* Row 2 */}
       <div className="space-y-2">
-        <Label htmlFor="registered_name">Registered Name *</Label>
+        <Label htmlFor="registered_name" className="text-gray-900">Registered Name *</Label>
         <Input
           id="registered_name"
           value={formData.registered_name}
           onChange={({ target }) => setFormData((p) => ({ ...p, registered_name: target.value }))}
           disabled={isCreating || isUpdating}
+          className="bg-white text-gray-900 border border-gray-300 focus:border-emerald-500 focus:ring-emerald-500 placeholder-gray-500"
         />
       </div>
 
       {/* Row 3 */}
       <div className="space-y-2">
-        <Label htmlFor="substreet_street_brgy">Substreet / Street / Barangay</Label>
+        <Label htmlFor="substreet_street_brgy" className="text-gray-900">Substreet / Street / Barangay</Label>
         <Textarea
           id="substreet_street_brgy"
           rows={3}
           value={formData.substreet_street_brgy}
           onChange={({ target }) => setFormData((p) => ({ ...p, substreet_street_brgy: target.value }))}
           disabled={isCreating || isUpdating}
+          className="bg-white text-gray-900 border border-gray-300 focus:border-emerald-500 focus:ring-emerald-500 placeholder-gray-500"
         />
       </div>
 
       {/* Row 4 */}
       <div className="space-y-2">
-        <Label htmlFor="district_city_zip">District / City / ZIP</Label>
+        <Label htmlFor="district_city_zip" className="text-gray-900">District / City / ZIP</Label>
         <Input
           id="district_city_zip"
           value={formData.district_city_zip}
           onChange={({ target }) => setFormData((p) => ({ ...p, district_city_zip: target.value }))}
           disabled={isCreating || isUpdating}
+          className="bg-white text-gray-900 border border-gray-300 focus:border-emerald-500 focus:ring-emerald-500 placeholder-gray-500"
         />
       </div>
     </div>
@@ -402,11 +406,11 @@ export default function AdminTinLibraryPage() {
   // ──────────────────────────────────────────────────────────────────────────
   return (
     <ProtectedRoute allowedRoles={["admin"]}>
-      <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50">
+      <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 text-gray-900">
         {/* Sticky header */}
         <DashboardHeader />
 
-        <main className="pt-20 px-4 sm:px-6 lg:px-8 py-8">
+        <main className="pt-20 px-4 sm:px-6 lg:px-8 py-8 text-gray-900">
           {/* TITLE */}
           <section className="mb-8">
             <div className="flex items-center gap-3 mb-2">
@@ -417,7 +421,7 @@ export default function AdminTinLibraryPage() {
                 TIN Library
               </h1>
             </div>
-            <p className="text-gray-600">
+            <p className="text-gray-700">
               Comprehensive taxpayer identification database management for the admin dashboard
             </p>
           </section>
@@ -468,15 +472,15 @@ export default function AdminTinLibraryPage() {
           )}
 
           {/* MAIN CARD */}
-          <Card className="shadow-2xl border-0 bg-white/80 backdrop-blur-sm">
-            <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-gray-100">
+          <Card className="shadow-2xl border-0 bg-white/90 backdrop-blur-sm text-gray-900">
+            <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-gray-100 text-gray-900">
               <div className="flex flex-col sm:flex-row justify-between gap-4">
                 <div>
                   <CardTitle className="flex items-center gap-2 text-gray-900">
                     <FileText className="h-6 w-6 text-emerald-600" />
                     Taxpayer Directory ({filteredTaxpayers.length})
                   </CardTitle>
-                  <CardDescription>Manage TIN database for sales and purchases tracking</CardDescription>
+                  <CardDescription className="text-gray-700">Manage TIN database for sales and purchases tracking</CardDescription>
                 </div>
 
                 {/* TOOLS */}
@@ -485,7 +489,7 @@ export default function AdminTinLibraryPage() {
                   <div className="relative w-full sm:w-64">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
                     <Input
-                      className="pl-10"
+                      className="pl-10 text-gray-900 placeholder-gray-500 bg-white border-gray-300 focus:border-emerald-500 focus:ring-emerald-500"
                       placeholder="Search TIN, name, address..."
                       value={searchTerm}
                       onChange={({ target }) => setSearchTerm(target.value)}
@@ -493,26 +497,26 @@ export default function AdminTinLibraryPage() {
                   </div>
 
                   {/* Type Filter */}
-                  <Select value={filterType} onValueChange={(v) => setFilterType(v as TaxpayerType | "all")}>
-                    <SelectTrigger className="sm:w-32">
-                      <SelectValue placeholder="Type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Types</SelectItem>
-                      <SelectItem value="sales">Sales</SelectItem>
-                      <SelectItem value="purchases">Purchases</SelectItem>
-                    </SelectContent>
+                  <Select value={filterType} onValueChange={(v) => setFilterType(v as TaxpayerType | "all")}> 
+                    <SelectTrigger className="sm:w-32 bg-white text-gray-900 border border-gray-300 focus:border-emerald-500 focus:ring-emerald-500"> 
+                      <SelectValue placeholder="Type" className="text-gray-900" /> 
+                    </SelectTrigger> 
+                    <SelectContent className="bg-white text-gray-900"> 
+                      <SelectItem value="all" className="text-gray-900">All Types</SelectItem> 
+                      <SelectItem value="sales" className="text-gray-900">Sales</SelectItem> 
+                      <SelectItem value="purchases" className="text-gray-900">Purchases</SelectItem> 
+                    </SelectContent> 
                   </Select>
 
                   {/* Area Filter */}
                   <Select value={filterArea} onValueChange={(v) => setFilterArea(v)}>
-                    <SelectTrigger className="sm:w-40">
-                      <SelectValue placeholder="Area" />
+                    <SelectTrigger className="sm:w-40 bg-white text-gray-900 border border-gray-300 focus:border-emerald-500 focus:ring-emerald-500">
+                      <SelectValue placeholder="Area" className="text-gray-900" />
                     </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Areas</SelectItem>
+                    <SelectContent className="bg-white text-gray-900">
+                      <SelectItem value="all" className="text-gray-900">All Areas</SelectItem>
                       {areas.map((a) => (
-                        <SelectItem key={a} value={a}>
+                        <SelectItem key={a} value={a} className="text-gray-900">
                           {a}
                         </SelectItem>
                       ))}
@@ -520,7 +524,12 @@ export default function AdminTinLibraryPage() {
                   </Select>
 
                   {/* Refresh */}
-                  <Button variant="outline" size="sm" onClick={fetchTaxpayers}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={fetchTaxpayers}
+                    className="bg-white text-gray-900 border border-gray-300 hover:bg-gray-100 focus:border-emerald-500 focus:ring-emerald-500"
+                  >
                     <RefreshCw className="h-4 w-4" />
                   </Button>
 
@@ -532,17 +541,17 @@ export default function AdminTinLibraryPage() {
                         Add Taxpayer
                       </Button>
                     </DialogTrigger>
-                    <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
+                    <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto bg-white text-gray-900">
                       <DialogHeader>
                         <DialogTitle>Add New Taxpayer Listing</DialogTitle>
                         <DialogDescription>Create a new taxpayer entry</DialogDescription>
                       </DialogHeader>
                       {renderFormFields()}
                       <div className="flex justify-end gap-3 pt-4 border-t">
-                        <Button variant="outline" onClick={() => setIsAddOpen(false)} disabled={isCreating}>
+                        <Button variant="outline" onClick={() => setIsAddOpen(false)} disabled={isCreating} className="text-gray-900 border-gray-300 bg-white hover:bg-gray-100">
                           Cancel
                         </Button>
-                        <Button onClick={handleCreate} disabled={isCreating}>
+                        <Button onClick={handleCreate} disabled={isCreating} className="bg-emerald-600 hover:bg-emerald-700 text-white">
                           {isCreating ? "Creating..." : "Create"}
                         </Button>
                       </div>
@@ -561,7 +570,7 @@ export default function AdminTinLibraryPage() {
               ) : filteredTaxpayers.length === 0 ? (
                 <div className="text-center py-12">No taxpayer listings found.</div>
               ) : (
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto text-gray-900">
                   <Table>
                     <TableHeader>
                       <TableRow className="bg-gray-50">
@@ -577,12 +586,14 @@ export default function AdminTinLibraryPage() {
                     <TableBody>
                       {filteredTaxpayers.map((t) => (
                         <TableRow key={t.id} className="hover:bg-gray-50">
-                          <TableCell className="font-mono">{formatTin(t.tin)}</TableCell>
-                          <TableCell>{t.registered_name}</TableCell>
+                          <TableCell className="font-mono text-gray-900">{formatTin(t.tin)}</TableCell>
+                          <TableCell className="text-gray-900">{t.registered_name}</TableCell>
                           <TableCell>
                             <span
                               className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                t.type === "sales" ? "bg-green-100 text-green-800" : "bg-blue-100 text-blue-800"
+                                t.type === "sales"
+                                  ? "bg-green-100 text-green-900"
+                                  : "bg-blue-100 text-blue-900"
                               }`}
                             >
                               {t.type}
@@ -590,12 +601,12 @@ export default function AdminTinLibraryPage() {
                           </TableCell>
                           <TableCell>
                             <div className="max-w-xs">
-                              <div>{t.substreet_street_brgy || "—"}</div>
-                              <div className="text-xs text-gray-500">{t.district_city_zip || ""}</div>
+                              <div className="text-gray-900">{t.substreet_street_brgy || "—"}</div>
+                              <div className="text-xs text-gray-700">{t.district_city_zip || ""}</div>
                             </div>
                           </TableCell>
-                          <TableCell>{t.user_profiles?.assigned_area ?? "—"}</TableCell>
-                          <TableCell>{new Date(t.date_added).toLocaleDateString()}</TableCell>
+                          <TableCell className="text-gray-900">{t.user_profiles?.assigned_area ?? "—"}</TableCell>
+                          <TableCell className="text-gray-900">{new Date(t.date_added).toLocaleDateString()}</TableCell>
                           <TableCell>
                             <div className="flex gap-2">
                               {/* EDIT */}
@@ -620,24 +631,24 @@ export default function AdminTinLibraryPage() {
                               {/* DELETE */}
                               <AlertDialog>
                                 <AlertDialogTrigger asChild>
-                                  <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700">
+                              <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700">
                                     <Trash2 className="h-4 w-4" />
                                   </Button>
                                 </AlertDialogTrigger>
-                                <AlertDialogContent>
+                                <AlertDialogContent className="bg-white text-gray-900">
                                   <AlertDialogHeader>
                                     <AlertDialogTitle>Delete Taxpayer</AlertDialogTitle>
-                                    <AlertDialogDescription>
+                                    <AlertDialogDescription className="text-gray-700">
                                       Are you sure you want to delete taxpayer&nbsp;
-                                      <strong>{formatTin(t.tin)}</strong>? This action cannot be undone.
+                                      <strong className="text-gray-900">{formatTin(t.tin)}</strong>? This action cannot be undone.
                                     </AlertDialogDescription>
                                   </AlertDialogHeader>
                                   <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogCancel className="text-gray-900">Cancel</AlertDialogCancel>
                                     <AlertDialogAction
                                       onClick={() => handleDelete(t)}
                                       disabled={isDeleting}
-                                      className="bg-red-600 hover:bg-red-700"
+                                      className="bg-red-600 hover:bg-red-700 text-white"
                                     >
                                       {isDeleting ? "Deleting..." : "Delete"}
                                     </AlertDialogAction>
@@ -658,17 +669,17 @@ export default function AdminTinLibraryPage() {
 
         {/* EDIT MODAL */}
         <Dialog open={isEditOpen} onOpenChange={(o) => (setIsEditOpen(o), !o && resetForm())}>
-          <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto bg-white text-gray-900">
             <DialogHeader>
               <DialogTitle>Edit Taxpayer Listing</DialogTitle>
-              <DialogDescription>Update taxpayer information.</DialogDescription>
+              <DialogDescription className="text-gray-700">Update taxpayer information.</DialogDescription>
             </DialogHeader>
             {renderFormFields()}
             <div className="flex justify-end gap-3 pt-4 border-t">
-              <Button variant="outline" onClick={() => setIsEditOpen(false)} disabled={isUpdating}>
+              <Button variant="outline" onClick={() => setIsEditOpen(false)} disabled={isUpdating} className="text-gray-900 border-gray-300 bg-white hover:bg-gray-100">
                 Cancel
               </Button>
-              <Button onClick={handleUpdate} disabled={isUpdating}>
+              <Button onClick={handleUpdate} disabled={isUpdating} className="bg-emerald-600 hover:bg-emerald-700 text-white">
                 {isUpdating ? "Updating..." : "Update Taxpayer"}
               </Button>
             </div>

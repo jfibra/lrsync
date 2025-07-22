@@ -412,18 +412,18 @@ export default function AdminUserManagement() {
                 <div className="flex gap-2">
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-navy h-4 w-4" />
-                    <Input
-                      placeholder="Search users..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10 w-full sm:w-64 bg-white border-rose-200 text-navy focus:ring-rose-300"
-                    />
+                  <Input
+                    placeholder="Search users..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10 w-full sm:w-64 bg-white border-navy text-navy focus:border-navy focus:ring-navy placeholder-navy"
+                  />
                   </div>
                   <Button
                     onClick={fetchUsers}
                     variant="outline"
                     size="sm"
-                    className="border-navy text-navy hover:bg-navy/10 bg-transparent"
+                    className="border-navy text-navy bg-white hover:bg-navy/10 focus:border-navy focus:ring-navy"
                   >
                     <RefreshCw className="h-4 w-4" />
                   </Button>
@@ -609,12 +609,12 @@ export default function AdminUserManagement() {
                                 value={user.role}
                                 onValueChange={(value: UserRole) => handleQuickRoleUpdate(user.id, value)}
                               >
-                                <SelectTrigger className="w-32 bg-white border-orange-200 text-navy focus:ring-orange-300">
-                                  <SelectValue />
+                                <SelectTrigger className="w-32 bg-white border-navy text-navy focus:border-navy focus:ring-navy">
+                                  <SelectValue className="text-navy" />
                                 </SelectTrigger>
-                                <SelectContent className="bg-white border-orange-200 text-navy">
-                                  <SelectItem value="secretary">Secretary</SelectItem>
-                                  <SelectItem value="admin">Admin</SelectItem>
+                                <SelectContent className="bg-white border-navy text-navy">
+                                  <SelectItem value="secretary" className="text-navy">Secretary</SelectItem>
+                                  <SelectItem value="admin" className="text-navy">Admin</SelectItem>
                                 </SelectContent>
                               </Select>
                             </TableCell>
@@ -623,13 +623,13 @@ export default function AdminUserManagement() {
                                 value={user.status}
                                 onValueChange={(value: UserStatus) => handleQuickStatusUpdate(user.id, value)}
                               >
-                                <SelectTrigger className="w-28 bg-white border-orange-200 text-navy focus:ring-orange-300">
-                                  <SelectValue />
+                                <SelectTrigger className="w-28 bg-white border-navy text-navy focus:border-navy focus:ring-navy">
+                                  <SelectValue className="text-navy" />
                                 </SelectTrigger>
-                                <SelectContent className="bg-white border-orange-200 text-navy">
-                                  <SelectItem value="active">Active</SelectItem>
-                                  <SelectItem value="inactive">Inactive</SelectItem>
-                                  <SelectItem value="suspended">Suspended</SelectItem>
+                                <SelectContent className="bg-white border-navy text-navy">
+                                  <SelectItem value="active" className="text-navy">Active</SelectItem>
+                                  <SelectItem value="inactive" className="text-navy">Inactive</SelectItem>
+                                  <SelectItem value="suspended" className="text-navy">Suspended</SelectItem>
                                 </SelectContent>
                               </Select>
                             </TableCell>
