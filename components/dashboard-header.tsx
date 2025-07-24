@@ -51,6 +51,12 @@ export function DashboardHeader() {
         roles: ["super_admin", "admin"],
       },
       {
+        label: "Commission Generator",
+        href: (role: string) => `/dashboard/${role.replace("_", "-")}/commission`, // Re-added replace
+        icon: Users,
+        roles: ["super_admin", "admin", "secretary"],
+      },
+      {
         label: "My Profile",
         href: (role: string) => `/dashboard/${role.replace("_", "-")}/profile`, // Re-added replace
         icon: User,

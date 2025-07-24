@@ -427,7 +427,7 @@ export default function SecretarySalesPage() {
 
   return (
     <ProtectedRoute allowedRoles={["secretary"]}>
-      <div className="min-h-screen bg-gray-50">
+      <div style={{ background: '#fff' }} className="min-h-screen">
         <DashboardHeader />
 
         <div className="pt-20 px-4 sm:px-6 lg:px-8 py-8">
@@ -555,9 +555,10 @@ export default function SecretarySalesPage() {
                     setFilterTaxType("all")
                     setFilterMonth("all")
                   }}
-                  className="w-full border-0 bg-gradient-to-r from-red-500 to-pink-500 text-white font-semibold shadow-md hover:from-red-600 hover:to-pink-600 transition-all duration-150 flex items-center justify-center gap-2"
+                  style={{ background: '#fff', color: '#001f3f', border: '1px solid #001f3f' }}
+                  className="w-full font-semibold shadow-md hover:text-[#ee3433] transition-all duration-150 flex items-center justify-center gap-2"
                 >
-                  <Filter className="h-4 w-4 mr-1" />
+                  <Filter className="h-4 w-4 mr-1" style={{ color: '#001f3f' }} />
                   Clear Filters
                 </Button>
               </div>
@@ -565,15 +566,15 @@ export default function SecretarySalesPage() {
           </Card>
 
           {/* Sales Table */}
-          <Card className="shadow-lg border border-gray-200 bg-white">
-            <CardHeader className="bg-gray-50 border-b border-gray-200">
+          <Card style={{ background: '#f9f9f9', border: '1px solid #e0e0e0' }} className="shadow-lg">
+            <CardHeader style={{ background: '#fff', borderBottom: '1px solid #e0e0e0' }}>
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                    <BarChart3 className="h-6 w-6 text-indigo-600" />
+                  <CardTitle className="text-2xl font-bold flex items-center gap-2" style={{ color: '#001f3f' }}>
+                    <BarChart3 className="h-6 w-6" style={{ color: '#001f3f' }} />
                     Sales Records
                   </CardTitle>
-                  <CardDescription className="text-gray-600 mt-1">
+                  <CardDescription style={{ color: '#555' }} className="mt-1">
                     {loading
                       ? "Loading..."
                       : `${sales.length} records found in ${profile?.assigned_area || "your area"}`}
@@ -586,9 +587,10 @@ export default function SecretarySalesPage() {
                     variant="outline"
                     size="sm"
                     onClick={exportToExcel}
-                    className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white border-0 shadow-lg"
+                    style={{ background: '#001f3f', color: '#fff', border: 'none' }}
+                    className="shadow-lg hover:bg-[#ee3433]"
                   >
-                    <Download className="h-4 w-4 mr-2" />
+                    <Download className="h-4 w-4 mr-2" style={{ color: '#fff' }} />
                     Export (Invoice Only)
                   </Button>
                 </div>
@@ -598,39 +600,39 @@ export default function SecretarySalesPage() {
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
-                    <TableRow className="bg-gray-50 border-b border-gray-200">
+                    <TableRow style={{ background: '#fff', borderBottom: '1px solid #e0e0e0' }}>
                       {columnVisibility.find((col) => col.key === "tax_month")?.visible && (
-                        <TableHead className="min-w-[120px] font-semibold text-gray-900">Tax Month</TableHead>
+                        <TableHead className="min-w-[120px] font-semibold" style={{ color: '#001f3f' }}>Tax Month</TableHead>
                       )}
                       {columnVisibility.find((col) => col.key === "tin")?.visible && (
-                        <TableHead className="min-w-[120px] font-semibold text-gray-900">TIN</TableHead>
+                        <TableHead className="min-w-[120px] font-semibold" style={{ color: '#001f3f' }}>TIN</TableHead>
                       )}
                       {columnVisibility.find((col) => col.key === "name")?.visible && (
-                        <TableHead className="min-w-[180px] font-semibold text-gray-900">Name</TableHead>
+                        <TableHead className="min-w-[180px] font-semibold" style={{ color: '#001f3f' }}>Name</TableHead>
                       )}
                       {columnVisibility.find((col) => col.key === "tax_type")?.visible && (
-                        <TableHead className="min-w-[100px] font-semibold text-gray-900">Tax Type</TableHead>
+                        <TableHead className="min-w-[100px] font-semibold" style={{ color: '#001f3f' }}>Tax Type</TableHead>
                       )}
                       {columnVisibility.find((col) => col.key === "sale_type")?.visible && (
-                        <TableHead className="min-w-[100px] font-semibold text-gray-900">Sale Type</TableHead>
+                        <TableHead className="min-w-[100px] font-semibold" style={{ color: '#001f3f' }}>Sale Type</TableHead>
                       )}
                       {columnVisibility.find((col) => col.key === "gross_taxable")?.visible && (
-                        <TableHead className="min-w-[120px] font-semibold text-gray-900">Gross Taxable</TableHead>
+                        <TableHead className="min-w-[120px] font-semibold" style={{ color: '#001f3f' }}>Gross Taxable</TableHead>
                       )}
                       {columnVisibility.find((col) => col.key === "total_actual_amount")?.visible && (
-                        <TableHead className="min-w-[140px] font-semibold text-gray-900">Total Actual Amount</TableHead>
+                        <TableHead className="min-w-[140px] font-semibold" style={{ color: '#001f3f' }}>Total Actual Amount</TableHead>
                       )}
                       {columnVisibility.find((col) => col.key === "invoice_number")?.visible && (
-                        <TableHead className="min-w-[120px] font-semibold text-gray-900">Invoice #</TableHead>
+                        <TableHead className="min-w-[120px] font-semibold" style={{ color: '#001f3f' }}>Invoice #</TableHead>
                       )}
                       {columnVisibility.find((col) => col.key === "pickup_date")?.visible && (
-                        <TableHead className="min-w-[120px] font-semibold text-gray-900">Pickup Date</TableHead>
+                        <TableHead className="min-w-[120px] font-semibold" style={{ color: '#001f3f' }}>Pickup Date</TableHead>
                       )}
                       {columnVisibility.find((col) => col.key === "files")?.visible && (
-                        <TableHead className="min-w-[150px] font-semibold text-gray-900">Files</TableHead>
+                        <TableHead className="min-w-[150px] font-semibold" style={{ color: '#001f3f' }}>Files</TableHead>
                       )}
                       {columnVisibility.find((col) => col.key === "actions")?.visible && (
-                        <TableHead className="min-w-[120px] font-semibold text-gray-900">Actions</TableHead>
+                        <TableHead className="min-w-[120px] font-semibold" style={{ color: '#001f3f' }}>Actions</TableHead>
                       )}
                     </TableRow>
                   </TableHeader>
@@ -639,17 +641,17 @@ export default function SecretarySalesPage() {
                       <TableRow>
                         <TableCell colSpan={11} className="text-center py-12">
                           <div className="flex flex-col items-center justify-center">
-                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mb-4"></div>
-                            <span className="text-gray-600 font-medium">Loading sales records...</span>
+                            <div className="animate-spin rounded-full h-12 w-12" style={{ borderBottom: '2px solid #001f3f' }}></div>
+                            <span style={{ color: '#555' }} className="font-medium">Loading sales records...</span>
                           </div>
                         </TableCell>
                       </TableRow>
                     ) : sales.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={11} className="text-center py-12">
-                          <BarChart3 className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                          <h3 className="text-lg font-medium text-gray-900 mb-2">No sales records found</h3>
-                          <p className="text-gray-500">
+                          <BarChart3 className="h-16 w-16 mx-auto mb-4" style={{ color: '#e0e0e0' }} />
+                          <h3 className="text-lg font-medium mb-2" style={{ color: '#001f3f' }}>No sales records found</h3>
+                          <p style={{ color: '#555' }}>
                             {profile?.assigned_area
                               ? `No sales records found for ${profile.assigned_area}. Create your first sales record to get started!`
                               : "No assigned area found. Please contact your administrator."}
@@ -658,30 +660,30 @@ export default function SecretarySalesPage() {
                       </TableRow>
                     ) : (
                       sales.map((sale) => (
-                        <TableRow key={sale.id} className="hover:bg-gray-50 transition-colors border-b border-gray-100">
+                        <TableRow key={sale.id} style={{ background: '#fff' }} className="hover:bg-[#f9f9f9] transition-colors" >
                           {columnVisibility.find((col) => col.key === "tax_month")?.visible && (
-                            <TableCell className="text-gray-900 font-medium">
+                            <TableCell style={{ color: '#001f3f' }} className="font-medium">
                               <div className="flex items-center gap-2">
-                                <Calendar className="h-4 w-4 text-indigo-500" />
+                                <Calendar className="h-4 w-4" style={{ color: '#001f3f' }} />
                                 {format(new Date(sale.tax_month), "MMM yyyy")}
                               </div>
                             </TableCell>
                           )}
                           {columnVisibility.find((col) => col.key === "tin")?.visible && (
-                            <TableCell className="font-mono text-gray-900">
+                            <TableCell style={{ color: '#001f3f' }} className="font-mono">
                               <div className="flex items-center gap-2">
-                                <div className="w-2 h-2 bg-indigo-500 rounded-full"></div>
+                                <div className="w-2 h-2 rounded-full" style={{ background: '#001f3f' }}></div>
                                 {formatTin(sale.tin)}
                               </div>
                             </TableCell>
                           )}
                           {columnVisibility.find((col) => col.key === "name")?.visible && (
-                            <TableCell className="text-gray-900">
+                            <TableCell style={{ color: '#001f3f' }}>
                               <div>
                                 <div className="font-medium">{sale.name}</div>
                                 {sale.substreet_street_brgy && (
-                                  <div className="text-sm text-gray-500 flex items-center gap-1">
-                                    <MapPin className="h-3 w-3" />
+                                  <div className="text-sm flex items-center gap-1" style={{ color: '#555' }}>
+                                    <MapPin className="h-3 w-3" style={{ color: '#001f3f' }} />
                                     {sale.substreet_street_brgy}
                                   </div>
                                 )}
@@ -700,8 +702,8 @@ export default function SecretarySalesPage() {
                               <Badge
                                 className={
                                   sale.sale_type === "invoice"
-                                    ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
-                                    : "bg-orange-100 text-orange-800 border border-orange-200"
+                                    ? "bg-[#dee242] text-[#001f3f] border border-[#dee242]"
+                                    : "bg-[#fffbe6] text-[#001f3f] border border-[#e0e0e0]"
                                 }
                               >
                                 {sale.sale_type?.toUpperCase() || "INVOICE"}
@@ -709,20 +711,20 @@ export default function SecretarySalesPage() {
                             </TableCell>
                           )}
                           {columnVisibility.find((col) => col.key === "gross_taxable")?.visible && (
-                            <TableCell className="text-gray-900 font-semibold">
+                            <TableCell style={{ color: '#001f3f' }} className="font-semibold">
                               {formatCurrency(sale.gross_taxable || 0)}
                             </TableCell>
                           )}
                           {columnVisibility.find((col) => col.key === "total_actual_amount")?.visible && (
-                            <TableCell className="text-gray-900 font-semibold">
+                            <TableCell style={{ color: '#001f3f' }} className="font-semibold">
                               {formatCurrency(sale.total_actual_amount || 0)}
                             </TableCell>
                           )}
                           {columnVisibility.find((col) => col.key === "invoice_number")?.visible && (
-                            <TableCell className="text-gray-600">{sale.invoice_number || "-"}</TableCell>
+                            <TableCell style={{ color: '#555' }}>{sale.invoice_number || "-"}</TableCell>
                           )}
                           {columnVisibility.find((col) => col.key === "pickup_date")?.visible && (
-                            <TableCell className="text-gray-600">
+                            <TableCell style={{ color: '#555' }}>
                               {sale.pickup_date ? format(new Date(sale.pickup_date), "MMM dd, yyyy") : "-"}
                             </TableCell>
                           )}
@@ -732,25 +734,26 @@ export default function SecretarySalesPage() {
                                 {sale.cheque && sale.cheque.length > 0 && (
                                   <Badge
                                     variant="outline"
-                                    className="text-xs font-semibold bg-blue-50 text-blue-800 border border-blue-200 px-2 py-1 rounded-lg shadow-sm"
+                                    style={{ background: '#f9f9f9', color: '#001f3f', border: '1px solid #e0e0e0' }}
+                                    className="text-xs font-semibold px-2 py-1 rounded-lg shadow-sm"
                                   >
-                                    {" "}
-                                    Cheque ( {sale.cheque.length}){" "}
+                                    Cheque ( {sale.cheque.length})
                                   </Badge>
                                 )}
                                 {sale.voucher && sale.voucher.length > 0 && (
                                   <Badge
                                     variant="outline"
-                                    className="text-xs font-semibold bg-green-50 text-green-800 border border-green-200 px-2 py-1 rounded-lg shadow-sm"
+                                    style={{ background: '#f9f9f9', color: '#001f3f', border: '1px solid #e0e0e0' }}
+                                    className="text-xs font-semibold px-2 py-1 rounded-lg shadow-sm"
                                   >
-                                    {" "}
-                                    Voucher ({sale.voucher.length}){" "}
+                                    Voucher ({sale.voucher.length})
                                   </Badge>
                                 )}
                                 {sale.invoice && sale.invoice.length > 0 && (
                                   <Badge
                                     variant="outline"
-                                    className="text-xs font-semibold bg-green-50 text-green-800 border border-green-200 px-2 py-1 rounded-lg shadow-sm"
+                                    style={{ background: '#f9f9f9', color: '#001f3f', border: '1px solid #e0e0e0' }}
+                                    className="text-xs font-semibold px-2 py-1 rounded-lg shadow-sm"
                                   >
                                     Invoice ({sale.invoice.length})
                                   </Badge>
@@ -758,7 +761,8 @@ export default function SecretarySalesPage() {
                                 {sale.doc_2307 && sale.doc_2307.length > 0 && (
                                   <Badge
                                     variant="outline"
-                                    className="text-xs font-semibold bg-gray-50 text-gray-800 border border-gray-200 px-2 py-1 rounded-lg shadow-sm"
+                                    style={{ background: '#fffbe6', color: '#001f3f', border: '1px solid #e0e0e0' }}
+                                    className="text-xs font-semibold px-2 py-1 rounded-lg shadow-sm"
                                   >
                                     2307 ({sale.doc_2307.length})
                                   </Badge>
@@ -766,7 +770,8 @@ export default function SecretarySalesPage() {
                                 {sale.deposit_slip && sale.deposit_slip.length > 0 && (
                                   <Badge
                                     variant="outline"
-                                    className="text-xs font-semibold bg-green-50 text-green-800 border border-green-200 px-2 py-1 rounded-lg shadow-sm"
+                                    style={{ background: '#f9f9f9', color: '#001f3f', border: '1px solid #e0e0e0' }}
+                                    className="text-xs font-semibold px-2 py-1 rounded-lg shadow-sm"
                                   >
                                     Deposit ({sale.deposit_slip.length})
                                   </Badge>
@@ -781,25 +786,28 @@ export default function SecretarySalesPage() {
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => handleViewSale(sale)}
-                                  className="h-8 w-8 p-0 hover:bg-blue-100"
+                                  style={{ color: '#001f3f', background: '#fff' }}
+                                  className="h-8 w-8 p-0 hover:text-[#ee3433] hover:bg-[#f9f9f9]"
                                 >
-                                  <Eye className="h-4 w-4 text-blue-600" />
+                                  <Eye className="h-4 w-4" style={{ color: '#001f3f' }} />
                                 </Button>
                                 <Button
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => handleEditSale(sale)}
-                                  className="h-8 w-8 p-0 hover:bg-green-100"
+                                  style={{ color: '#001f3f', background: '#fff' }}
+                                  className="h-8 w-8 p-0 hover:text-[#ee3433] hover:bg-[#f9f9f9]"
                                 >
-                                  <Edit className="h-4 w-4 text-green-600" />
+                                  <Edit className="h-4 w-4" style={{ color: '#001f3f' }} />
                                 </Button>
                                 <Button
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => handleSoftDelete(sale)}
-                                  className="h-8 w-8 p-0 hover:bg-red-100"
+                                  style={{ color: '#ee3433', background: '#fff' }}
+                                  className="h-8 w-8 p-0 hover:text-[#ee3433] hover:bg-[#fffbe6]"
                                 >
-                                  <Trash2 className="h-4 w-4 text-red-600" />
+                                  <Trash2 className="h-4 w-4" style={{ color: '#ee3433' }} />
                                 </Button>
                               </div>
                             </TableCell>

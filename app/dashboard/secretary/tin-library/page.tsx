@@ -350,11 +350,11 @@ export default function SecretaryTinLibraryPage() {
   const renderFormFields = () => (
     <div className="space-y-6">
       {/* TIN and Type Section */}
-      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-lg border border-blue-200">
-        <h4 className="text-lg font-semibold text-gray-900 mb-4">Basic Information</h4>
+      <div style={{ background: '#f9f9f9', border: '1px solid #e0e0e0' }} className="p-6 rounded-lg">
+        <h4 style={{ color: '#001f3f' }} className="text-lg font-semibold mb-4">Basic Information</h4>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
           <div className="space-y-2">
-            <Label htmlFor="tin" className="text-sm font-medium text-gray-700">
+            <Label htmlFor="tin" style={{ color: '#001f3f' }} className="text-sm font-medium">
               TIN Number *
             </Label>
             <Input
@@ -368,12 +368,13 @@ export default function SecretaryTinLibraryPage() {
               }}
               disabled={isCreating || isUpdating}
               placeholder="000-000-000-000"
-              maxLength={19} // 15 digits + 4 dashes
-              className="border-gray-300 focus:border-emerald-500 focus:ring-emerald-500"
+              maxLength={19}
+              style={{ borderColor: '#e0e0e0', color: '#001f3f', background: '#fff' }}
+              className="focus:border-[#001f3f] focus:ring-[#001f3f]"
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="type" className="text-sm font-medium text-gray-700">
+            <Label htmlFor="type" style={{ color: '#001f3f' }} className="text-sm font-medium">
               Taxpayer Type *
             </Label>
             <Select
@@ -381,7 +382,7 @@ export default function SecretaryTinLibraryPage() {
               onValueChange={(value: TaxpayerType) => setFormData({ ...formData, type: value })}
               disabled={isCreating || isUpdating}
             >
-              <SelectTrigger className="border-gray-300 focus:border-emerald-500 focus:ring-emerald-500">
+              <SelectTrigger style={{ borderColor: '#e0e0e0', color: '#001f3f', background: '#fff' }} className="focus:border-[#001f3f] focus:ring-[#001f3f]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -394,11 +395,11 @@ export default function SecretaryTinLibraryPage() {
       </div>
 
       {/* Company Information Section */}
-      <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-6 rounded-lg border border-green-200">
-        <h4 className="text-lg font-semibold text-gray-900 mb-4">Company Information</h4>
+      <div style={{ background: '#f9f9f9', border: '1px solid #e0e0e0' }} className="p-6 rounded-lg">
+        <h4 style={{ color: '#001f3f' }} className="text-lg font-semibold mb-4">Company Information</h4>
         <div className="space-y-6">
           <div className="space-y-2">
-            <Label htmlFor="registered_name" className="text-sm font-medium text-gray-700">
+            <Label htmlFor="registered_name" style={{ color: '#001f3f' }} className="text-sm font-medium">
               Registered Name *
             </Label>
             <Input
@@ -408,12 +409,13 @@ export default function SecretaryTinLibraryPage() {
               disabled={isCreating || isUpdating}
               placeholder="Company or business name"
               maxLength={255}
-              className="border-gray-300 focus:border-emerald-500 focus:ring-emerald-500"
+              style={{ borderColor: '#e0e0e0', color: '#001f3f', background: '#fff' }}
+              className="focus:border-[#001f3f] focus:ring-[#001f3f]"
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="substreet_street_brgy" className="text-sm font-medium text-gray-700">
+            <Label htmlFor="substreet_street_brgy" style={{ color: '#001f3f' }} className="text-sm font-medium">
               Substreet/Street/Barangay
             </Label>
             <Textarea
@@ -423,12 +425,13 @@ export default function SecretaryTinLibraryPage() {
               disabled={isCreating || isUpdating}
               placeholder="Complete address line"
               rows={3}
-              className="border-gray-300 focus:border-emerald-500 focus:ring-emerald-500"
+              style={{ borderColor: '#e0e0e0', color: '#001f3f', background: '#fff' }}
+              className="focus:border-[#001f3f] focus:ring-[#001f3f]"
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="district_city_zip" className="text-sm font-medium text-gray-700">
+            <Label htmlFor="district_city_zip" style={{ color: '#001f3f' }} className="text-sm font-medium">
               District/City/ZIP
             </Label>
             <Input
@@ -437,7 +440,8 @@ export default function SecretaryTinLibraryPage() {
               onChange={(e) => setFormData({ ...formData, district_city_zip: e.target.value })}
               disabled={isCreating || isUpdating}
               placeholder="District, City, ZIP code"
-              className="border-gray-300 focus:border-emerald-500 focus:ring-emerald-500"
+              style={{ borderColor: '#e0e0e0', color: '#001f3f', background: '#fff' }}
+              className="focus:border-[#001f3f] focus:ring-[#001f3f]"
             />
           </div>
         </div>
@@ -452,21 +456,21 @@ export default function SecretaryTinLibraryPage() {
 
   return (
     <ProtectedRoute allowedRoles={["secretary"]}>
-      <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50">
+      <div style={{ background: '#fff' }} className="min-h-screen">
         <DashboardHeader />
 
         <div className="pt-20 px-4 sm:px-6 lg:px-8 py-8">
           {/* Header Section */}
           <div className="mb-8">
             <div className="flex items-center gap-3 mb-4">
-              <div className="p-3 bg-gradient-to-r from-emerald-500 to-teal-600 rounded-xl shadow-lg">
-                <FileText className="h-8 w-8 text-white" />
+              <div style={{ background: '#001f3f' }} className="p-3 rounded-xl shadow-lg">
+                <FileText className="h-8 w-8" style={{ color: '#fff' }} />
               </div>
               <div>
-                <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
+                <h1 className="text-4xl font-bold" style={{ color: '#001f3f' }}>
                   TIN Library
                 </h1>
-                <p className="text-gray-600 mt-1">
+                <p style={{ color: '#555' }} className="mt-1">
                   Taxpayer identification database for {profile?.assigned_area || "your assigned area"}
                 </p>
               </div>
@@ -475,41 +479,41 @@ export default function SecretaryTinLibraryPage() {
 
           {/* Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <Card className="bg-gradient-to-r from-emerald-500 to-emerald-600 border-0 shadow-xl">
+            <Card style={{ background: '#f9f9f9', border: '1px solid #e0e0e0' }} className="shadow-xl">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-emerald-100 text-sm font-medium">Total Taxpayers</p>
-                    <p className="text-3xl font-bold text-white">{totalTaxpayers}</p>
-                    <p className="text-emerald-100 text-xs">in {profile?.assigned_area || "your area"}</p>
+                    <p style={{ color: '#001f3f' }} className="text-sm font-medium">Total Taxpayers</p>
+                    <p style={{ color: '#001f3f' }} className="text-3xl font-bold">{totalTaxpayers}</p>
+                    <p style={{ color: '#555' }} className="text-xs">in {profile?.assigned_area || "your area"}</p>
                   </div>
-                  <Building2 className="h-12 w-12 text-emerald-200" />
+                  <Building2 className="h-12 w-12" style={{ color: '#001f3f' }} />
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="bg-gradient-to-r from-blue-500 to-blue-600 border-0 shadow-xl">
+            <Card style={{ background: '#f9f9f9', border: '1px solid #e0e0e0' }} className="shadow-xl">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-blue-100 text-sm font-medium">Sales Records</p>
-                    <p className="text-3xl font-bold text-white">{salesTaxpayers}</p>
-                    <p className="text-blue-100 text-xs">sales taxpayers</p>
+                    <p style={{ color: '#001f3f' }} className="text-sm font-medium">Sales Records</p>
+                    <p style={{ color: '#dee242' }} className="text-3xl font-bold">{salesTaxpayers}</p>
+                    <p style={{ color: '#555' }} className="text-xs">sales taxpayers</p>
                   </div>
-                  <Receipt className="h-12 w-12 text-blue-200" />
+                  <Receipt className="h-12 w-12" style={{ color: '#dee242' }} />
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="bg-gradient-to-r from-purple-500 to-purple-600 border-0 shadow-xl">
+            <Card style={{ background: '#f9f9f9', border: '1px solid #e0e0e0' }} className="shadow-xl">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-purple-100 text-sm font-medium">Purchase Records</p>
-                    <p className="text-3xl font-bold text-white">{purchasesTaxpayers}</p>
-                    <p className="text-purple-100 text-xs">purchase taxpayers</p>
+                    <p style={{ color: '#001f3f' }} className="text-sm font-medium">Purchase Records</p>
+                    <p style={{ color: '#dee242' }} className="text-3xl font-bold">{purchasesTaxpayers}</p>
+                    <p style={{ color: '#555' }} className="text-xs">purchase taxpayers</p>
                   </div>
-                  <FileText className="h-12 w-12 text-purple-200" />
+                  <FileText className="h-12 w-12" style={{ color: '#dee242' }} />
                 </div>
               </CardContent>
             </Card>
@@ -517,28 +521,28 @@ export default function SecretaryTinLibraryPage() {
 
           {/* Alerts */}
           {error && (
-            <Alert variant="destructive" className="mb-6 border-red-200 bg-red-50">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription className="text-red-800">{error}</AlertDescription>
+            <Alert variant="destructive" style={{ background: '#fffbe6', border: '1px solid #ee3433' }} className="mb-6">
+              <AlertCircle className="h-4 w-4" style={{ color: '#ee3433' }} />
+              <AlertDescription style={{ color: '#ee3433' }}>{error}</AlertDescription>
             </Alert>
           )}
           {success && (
-            <Alert className="mb-6 border-green-200 bg-green-50">
-              <CheckCircle className="h-4 w-4 text-green-600" />
-              <AlertDescription className="text-green-800">{success}</AlertDescription>
+            <Alert style={{ background: '#fffbe6', border: '1px solid #dee242' }} className="mb-6">
+              <CheckCircle className="h-4 w-4" style={{ color: '#dee242' }} />
+              <AlertDescription style={{ color: '#dee242' }}>{success}</AlertDescription>
             </Alert>
           )}
 
           {/* Main Content Card */}
-          <Card className="shadow-2xl border-0 bg-white/80 backdrop-blur-sm">
-            <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
+          <Card style={{ background: '#f9f9f9', border: '1px solid #e0e0e0' }} className="shadow-2xl">
+            <CardHeader style={{ borderBottom: '1px solid #e0e0e0' }} className="bg-white">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
-                  <CardTitle className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                    <FileText className="h-6 w-6 text-emerald-600" />
+                  <CardTitle className="text-2xl font-bold flex items-center gap-2" style={{ color: '#001f3f' }}>
+                    <FileText className="h-6 w-6" style={{ color: '#001f3f' }} />
                     Taxpayer Directory ({filteredTaxpayers.length})
                   </CardTitle>
-                  <CardDescription className="text-gray-600 mt-1">
+                  <CardDescription style={{ color: '#555' }} className="mt-1">
                     TIN database for {profile?.assigned_area || "your assigned area"}
                   </CardDescription>
                 </div>
@@ -546,17 +550,18 @@ export default function SecretaryTinLibraryPage() {
                 <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
                   {/* Search Input */}
                   <div className="relative w-full sm:w-64">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2" style={{ color: '#555' }} />
                     <Input
                       placeholder="Search TIN, name, address..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10 w-full border-gray-300 focus:border-emerald-500 focus:ring-emerald-500"
+                      style={{ borderColor: '#e0e0e0', color: '#001f3f', background: '#fff' }}
+                      className="pl-10 w-full focus:border-[#001f3f] focus:ring-[#001f3f]"
                     />
                   </div>
                   {/* Type Filter */}
                   <Select value={filterType} onValueChange={(value: TaxpayerType | "all") => setFilterType(value)}>
-                    <SelectTrigger className="w-full sm:w-32 border-gray-300 focus:border-emerald-500 focus:ring-emerald-500">
+                    <SelectTrigger style={{ borderColor: '#e0e0e0', color: '#001f3f', background: '#fff' }} className="w-full sm:w-32 focus:border-[#001f3f] focus:ring-[#001f3f]">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -569,31 +574,33 @@ export default function SecretaryTinLibraryPage() {
                     onClick={fetchTaxpayers}
                     variant="outline"
                     size="sm"
-                    className="w-full sm:w-auto border-gray-300 hover:bg-gray-50 bg-transparent"
+                    style={{ background: '#fff', color: '#001f3f', border: '1px solid #001f3f' }}
+                    className="w-full sm:w-auto hover:bg-[#f9f9f9]"
                   >
-                    <RefreshCw className="h-4 w-4" />
+                    <RefreshCw className="h-4 w-4" style={{ color: '#001f3f' }} />
                   </Button>
                   <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
                     <DialogTrigger asChild>
                       <Button
                         onClick={resetForm}
-                        className="w-full sm:w-auto bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 shadow-lg"
+                        style={{ background: '#001f3f', color: '#fff' }}
+                        className="w-full sm:w-auto shadow-lg hover:bg-[#ee3433]"
                       >
-                        <Plus className="h-4 w-4 mr-2" />
+                        <Plus className="h-4 w-4 mr-2" style={{ color: '#fff' }} />
                         Add Taxpayer
                       </Button>
                     </DialogTrigger>
-                    <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
-                      <DialogHeader className="pb-6 border-b border-gray-200">
-                        <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">
+                    <DialogContent style={{ background: '#fff', border: '1px solid #e0e0e0' }} className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+                      <DialogHeader style={{ borderBottom: '1px solid #e0e0e0' }} className="pb-6">
+                        <DialogTitle className="text-2xl font-bold" style={{ color: '#001f3f' }}>
                           Add New Taxpayer Listing
                         </DialogTitle>
-                        <DialogDescription className="text-gray-600 mt-2">
+                        <DialogDescription style={{ color: '#555' }} className="mt-2">
                           Create a new taxpayer entry for the TIN library database
                         </DialogDescription>
                       </DialogHeader>
                       <div className="max-h-[60vh] overflow-y-auto px-1">{renderFormFields()}</div>
-                      <div className="flex justify-end gap-3 pt-6 border-t border-gray-200">
+                      <div className="flex justify-end gap-3 pt-6" style={{ borderTop: '1px solid #e0e0e0' }}>
                         <Button
                           variant="outline"
                           onClick={() => {
@@ -601,14 +608,16 @@ export default function SecretaryTinLibraryPage() {
                             resetForm()
                           }}
                           disabled={isCreating}
-                          className="border-gray-300 hover:bg-gray-50 px-6"
+                          style={{ background: '#fff', color: '#001f3f', border: '1px solid #001f3f' }}
+                          className="px-6 hover:bg-[#f9f9f9]"
                         >
                           Cancel
                         </Button>
                         <Button
                           onClick={handleCreateTaxpayer}
                           disabled={isCreating}
-                          className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 px-8"
+                          style={{ background: '#001f3f', color: '#fff' }}
+                          className="px-8 hover:bg-[#ee3433]"
                         >
                           {isCreating ? (
                             <>
@@ -628,8 +637,8 @@ export default function SecretaryTinLibraryPage() {
             <CardContent className="p-0">
               {loading ? (
                 <div className="flex flex-col items-center justify-center py-12">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600 mb-4"></div>
-                  <p className="text-gray-600 font-medium">Loading taxpayer listings...</p>
+                  <div className="animate-spin rounded-full h-12 w-12" style={{ borderBottom: '2px solid #001f3f' }}></div>
+                  <p style={{ color: '#555' }} className="font-medium">Loading taxpayer listings...</p>
                 </div>
               ) : (
                 <>
@@ -637,28 +646,28 @@ export default function SecretaryTinLibraryPage() {
                     <div className="overflow-x-auto">
                       <Table>
                         <TableHeader>
-                          <TableRow className="bg-gray-50 border-b border-gray-200">
-                            <TableHead className="min-w-[120px] font-semibold text-gray-900">TIN</TableHead>
-                            <TableHead className="min-w-[180px] font-semibold text-gray-900">Registered Name</TableHead>
-                            <TableHead className="min-w-[80px] font-semibold text-gray-900">Type</TableHead>
-                            <TableHead className="min-w-[250px] font-semibold text-gray-900">Address</TableHead>
-                            <TableHead className="min-w-[120px] font-semibold text-gray-900">Date Added</TableHead>
-                            <TableHead className="min-w-[120px] font-semibold text-gray-900">Actions</TableHead>
+                          <TableRow style={{ background: '#fff', borderBottom: '1px solid #e0e0e0' }}>
+                            <TableHead className="min-w-[120px] font-semibold" style={{ color: '#001f3f' }}>TIN</TableHead>
+                            <TableHead className="min-w-[180px] font-semibold" style={{ color: '#001f3f' }}>Registered Name</TableHead>
+                            <TableHead className="min-w-[80px] font-semibold" style={{ color: '#001f3f' }}>Type</TableHead>
+                            <TableHead className="min-w-[250px] font-semibold" style={{ color: '#001f3f' }}>Address</TableHead>
+                            <TableHead className="min-w-[120px] font-semibold" style={{ color: '#001f3f' }}>Date Added</TableHead>
+                            <TableHead className="min-w-[120px] font-semibold" style={{ color: '#001f3f' }}>Actions</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {filteredTaxpayers.map((taxpayer) => (
-                            <TableRow key={taxpayer.id} className="hover:bg-gray-50 transition-colors">
-                              <TableCell className="font-mono font-medium text-gray-900">
+                            <TableRow key={taxpayer.id} style={{ background: '#fff' }} className="hover:bg-[#f9f9f9] transition-colors">
+                              <TableCell className="font-mono font-medium" style={{ color: '#001f3f' }}>
                                 <div className="flex items-center gap-2">
-                                  <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
+                                  <div className="w-2 h-2 rounded-full" style={{ background: '#001f3f' }}></div>
                                   {formatTin(taxpayer.tin)}
                                 </div>
                               </TableCell>
-                              <TableCell className="text-gray-900">
+                              <TableCell style={{ color: '#001f3f' }}>
                                 <div className="flex items-center gap-3">
-                                  <div className="w-8 h-8 bg-gradient-to-r from-emerald-500 to-teal-600 rounded-full flex items-center justify-center">
-                                    <Building2 className="h-4 w-4 text-white" />
+                                  <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: '#001f3f' }}>
+                                    <Building2 className="h-4 w-4" style={{ color: '#fff' }} />
                                   </div>
                                   <span className="font-medium">{taxpayer.registered_name || "N/A"}</span>
                                 </div>
@@ -667,23 +676,26 @@ export default function SecretaryTinLibraryPage() {
                                 <span
                                   className={`px-3 py-1 rounded-full text-xs font-medium ${
                                     taxpayer.type === "sales"
-                                      ? "bg-green-100 text-green-800 border border-green-200"
-                                      : "bg-blue-100 text-blue-800 border border-blue-200"
+                                      ? "" // success
+                                      : "" // secondary
                                   }`}
+                                  style={taxpayer.type === "sales"
+                                    ? { background: '#dee242', color: '#001f3f', border: '1px solid #dee242' }
+                                    : { background: '#fffbe6', color: '#001f3f', border: '1px solid #e0e0e0' }}
                                 >
                                   {taxpayer.type.toUpperCase()}
                                 </span>
                               </TableCell>
-                              <TableCell className="text-gray-600">
+                              <TableCell style={{ color: '#555' }}>
                                 <div className="max-w-xs">
                                   <div className="text-sm font-medium">{taxpayer.substreet_street_brgy || "N/A"}</div>
-                                  <div className="text-xs text-gray-500 flex items-center gap-1">
-                                    <MapPin className="h-3 w-3" />
+                                  <div className="text-xs flex items-center gap-1" style={{ color: '#555' }}>
+                                    <MapPin className="h-3 w-3" style={{ color: '#001f3f' }} />
                                     {taxpayer.district_city_zip || ""}
                                   </div>
                                 </div>
                               </TableCell>
-                              <TableCell className="text-gray-600">
+                              <TableCell style={{ color: '#555' }}>
                                 {new Date(taxpayer.created_at).toLocaleDateString()}
                               </TableCell>
                               <TableCell>
@@ -692,29 +704,30 @@ export default function SecretaryTinLibraryPage() {
                                     variant="ghost"
                                     size="sm"
                                     onClick={() => handleEditTaxpayer(taxpayer)}
-                                    className="hover:bg-emerald-50 hover:text-emerald-600"
+                                    style={{ color: '#001f3f', background: '#fff' }}
+                                    className="hover:bg-[#f9f9f9] hover:text-[#ee3433]"
                                   >
-                                    <Edit className="h-4 w-4" />
+                                    <Edit className="h-4 w-4" style={{ color: '#001f3f' }} />
                                   </Button>
                                   <AlertDialog>
                                     <AlertDialogTrigger asChild>
-                                      <Button variant="ghost" size="sm" className="hover:bg-red-50 hover:text-red-600">
-                                        <Trash2 className="h-4 w-4" />
+                                      <Button variant="ghost" size="sm" style={{ color: '#ee3433', background: '#fff' }} className="hover:bg-[#fffbe6] hover:text-[#ee3433]">
+                                        <Trash2 className="h-4 w-4" style={{ color: '#ee3433' }} />
                                       </Button>
                                     </AlertDialogTrigger>
-                                    <AlertDialogContent>
+                                    <AlertDialogContent style={{ background: '#fff', border: '1px solid #e0e0e0' }}>
                                       <AlertDialogHeader>
-                                        <AlertDialogTitle>Delete Taxpayer Listing</AlertDialogTitle>
-                                        <AlertDialogDescription>
+                                        <AlertDialogTitle style={{ color: '#ee3433' }}>Delete Taxpayer Listing</AlertDialogTitle>
+                                        <AlertDialogDescription style={{ color: '#ee3433' }}>
                                           Are you sure you want to delete the taxpayer listing for TIN{" "}
                                           <strong>{formatTin(taxpayer.tin)}</strong>? This action cannot be undone.
                                         </AlertDialogDescription>
                                       </AlertDialogHeader>
                                       <AlertDialogFooter>
-                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogCancel style={{ background: '#fff', color: '#001f3f', border: '1px solid #001f3f' }}>Cancel</AlertDialogCancel>
                                         <AlertDialogAction
                                           onClick={() => handleDeleteTaxpayer(taxpayer)}
-                                          className="bg-red-600 hover:bg-red-700"
+                                          style={{ background: '#ee3433', color: '#fff' }}
                                           disabled={isDeleting}
                                         >
                                           {isDeleting ? "Deleting..." : "Delete"}
@@ -731,9 +744,9 @@ export default function SecretaryTinLibraryPage() {
                     </div>
                   ) : (
                     <div className="text-center py-12">
-                      <FileText className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                      <h3 className="text-lg font-medium text-gray-900 mb-2">No taxpayer listings found</h3>
-                      <p className="text-gray-500">
+                      <FileText className="h-16 w-16 mx-auto mb-4" style={{ color: '#e0e0e0' }} />
+                      <h3 className="text-lg font-medium mb-2" style={{ color: '#001f3f' }}>No taxpayer listings found</h3>
+                      <p style={{ color: '#555' }}>
                         {searchTerm || filterType !== "all"
                           ? "No taxpayer listings found matching your criteria."
                           : profile?.assigned_area
@@ -749,17 +762,17 @@ export default function SecretaryTinLibraryPage() {
 
           {/* Edit Taxpayer Modal */}
           <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-            <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader className="pb-6 border-b border-gray-200">
-                <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">
+            <DialogContent style={{ background: '#fff', border: '1px solid #e0e0e0' }} className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader style={{ borderBottom: '1px solid #e0e0e0' }} className="pb-6">
+                <DialogTitle className="text-2xl font-bold" style={{ color: '#001f3f' }}>
                   Edit Taxpayer Listing
                 </DialogTitle>
-                <DialogDescription className="text-gray-600 mt-2">
+                <DialogDescription style={{ color: '#555' }} className="mt-2">
                   Update taxpayer information and details
                 </DialogDescription>
               </DialogHeader>
               <div className="max-h-[60vh] overflow-y-auto px-1">{renderFormFields()}</div>
-              <div className="flex justify-end gap-3 pt-6 border-t border-gray-200">
+              <div className="flex justify-end gap-3 pt-6" style={{ borderTop: '1px solid #e0e0e0' }}>
                 <Button
                   variant="outline"
                   onClick={() => {
@@ -767,14 +780,16 @@ export default function SecretaryTinLibraryPage() {
                     resetForm()
                   }}
                   disabled={isUpdating}
-                  className="border-gray-300 hover:bg-gray-50 px-6"
+                  style={{ background: '#fff', color: '#001f3f', border: '1px solid #001f3f' }}
+                  className="px-6 hover:bg-[#f9f9f9]"
                 >
                   Cancel
                 </Button>
                 <Button
                   onClick={handleUpdateTaxpayer}
                   disabled={isUpdating}
-                  className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 px-8"
+                  style={{ background: '#001f3f', color: '#fff' }}
+                  className="px-8 hover:bg-[#ee3433]"
                 >
                   {isUpdating ? (
                     <>

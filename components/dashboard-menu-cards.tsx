@@ -97,7 +97,7 @@ export function DashboardMenuCards({ userRole }: DashboardMenuCardsProps) {
           description: "View and analyze sales commission records with detailed reporting capabilities.",
           href: `/dashboard/${userRole.replace("_", "-")}/commission`,
           icon: <Users className="h-6 w-6" />,
-          color: "purple" as const,
+          color: "red" as const,
         },
         {
           title: "User Management",
@@ -132,7 +132,7 @@ export function DashboardMenuCards({ userRole }: DashboardMenuCardsProps) {
           description: "View sales commission records for your assigned area with detailed insights.",
           href: `/dashboard/${userRole.replace("_", "-")}/commission`,
           icon: <Users className="h-6 w-6" />,
-          color: "purple" as const,
+          color: "red" as const,
         },
         ...baseItems, // My Profile
       ]
