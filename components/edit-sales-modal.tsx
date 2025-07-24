@@ -224,21 +224,44 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
     return digits.replace(/(\d{3})(?=\d)/g, "$1-")
   }
 
-  // Format number with commas
-  const formatGrossTaxable = (value: string) => {
-    const numericValue = value.replace(/[^\d]/g, "")
-    if (!numericValue) return ""
-    return Number.parseInt(numericValue).toLocaleString()
+  // Format number with commas and preserve decimals
+  const formatNumberWithCommas = (value: string): string => {
+    if (!value) return ""
+
+    // Remove existing commas
+    const numericValue = value.replace(/,/g, "")
+
+    // Check if it's a valid number (including decimals)
+    if (isNaN(Number(numericValue))) return value
+
+    // Split into integer and decimal parts
+    const parts = numericValue.split(".")
+    const integerPart = parts[0]
+    const decimalPart = parts[1]
+
+    // Format integer part with commas
+    const formattedInteger = Number(integerPart).toLocaleString()
+
+    // Combine with decimal part if it exists
+    return decimalPart !== undefined ? `${formattedInteger}.${decimalPart}` : formattedInteger
   }
 
   const handleGrossTaxableChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const formatted = formatGrossTaxable(e.target.value)
-    setGrossTaxable(formatted)
+    const rawValue = e.target.value.replace(/,/g, "")
+    // Allow empty string, integers, and decimals (including trailing decimal point)
+    if (rawValue === "" || /^\d*\.?\d*$/.test(rawValue)) {
+      const formatted = formatNumberWithCommas(rawValue)
+      setGrossTaxable(formatted)
+    }
   }
 
   const handleTotalActualAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const formatted = formatGrossTaxable(e.target.value)
-    setTotalActualAmount(formatted)
+    const rawValue = e.target.value.replace(/,/g, "")
+    // Allow empty string, integers, and decimals (including trailing decimal point)
+    if (rawValue === "" || /^\d*\.?\d*$/.test(rawValue)) {
+      const formatted = formatNumberWithCommas(rawValue)
+      setTotalActualAmount(formatted)
+    }
   }
 
   // Validate file type

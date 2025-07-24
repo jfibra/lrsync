@@ -171,12 +171,26 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
     return digits.replace(/(\d{3})(?=\d)/g, "$1-")
   }
 
-  // Format number with commas
+  // Format number with commas and preserve decimals
   const formatNumberWithCommas = (value: string): string => {
     if (!value) return ""
+
+    // Remove existing commas
     const numericValue = value.replace(/,/g, "")
+
+    // Check if it's a valid number (including decimals)
     if (isNaN(Number(numericValue))) return value
-    return Number(numericValue).toLocaleString()
+
+    // Split into integer and decimal parts
+    const parts = numericValue.split(".")
+    const integerPart = parts[0]
+    const decimalPart = parts[1]
+
+    // Format integer part with commas
+    const formattedInteger = Number(integerPart).toLocaleString()
+
+    // Combine with decimal part if it exists
+    return decimalPart !== undefined ? `${formattedInteger}.${decimalPart}` : formattedInteger
   }
 
   // Remove commas from formatted number
@@ -468,25 +482,14 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
       <Label className="text-sm font-medium text-[#001f3f]">
         {upload.name} {upload.required && "*"}
       </Label>
-      <div className="border-2 border-dashed border-[#001f3f] rounded-lg p-4 text-center hover:border-blue-400 transition-colors">
-        <input
-          type="file"
-          multiple
-          accept="image/*"
-          onChange={(e) => handleFileUpload(field, e.target.files)}
-          className="hidden"
-          id={`file-${field}`}
-        />
-        <label htmlFor={`file-${field}`} className="cursor-pointer">
-          <Upload className="mx-auto h-8 w-8 text-[#001f3f] mb-2" />
-          <p className="text-sm text-[#001f3f]/60">Select tax month & TIN first</p>
-        </label>
-      </div>
-      {(formData[field] as string[]).length > 0 && (
-        <div className="space-y-1">
-          {(formData[field] as string[]).map((fileName, index) => (
-            <div key={index} className="flex items-center justify-between bg-gray-50 p-2 rounded">
-              <span className="text-sm text-[#001f3f] truncate">{fileName}</span>
+
+      {/* Uploaded Files */}
+      {upload.files.length > 0 && (
+        <div className="space-y-2">
+          <div className="text-xs text-[#001f3f]/60">Uploaded Files:</div>
+          {upload.files.map((file, index) => (
+            <div key={index} className="flex items-center justify-between bg-green-50 p-2 rounded text-xs">
+              <span className="truncate flex-1 text-[#001f3f]">{file.name}</span>
               <Button
                 type="button"
                 variant="ghost"
@@ -640,6 +643,7 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
                 value={formatNumberWithCommas(formData.gross_taxable)}
                 onChange={(e) => {
                   const rawValue = removeCommas(e.target.value)
+                  // Allow empty string, integers, and decimals (including trailing decimal point)
                   if (rawValue === "" || /^\d*\.?\d*$/.test(rawValue)) {
                     setFormData({ ...formData, gross_taxable: rawValue })
                   }
@@ -659,6 +663,7 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
                 value={formatNumberWithCommas(formData.total_actual_amount)}
                 onChange={(e) => {
                   const rawValue = removeCommas(e.target.value)
+                  // Allow empty string, integers, and decimals (including trailing decimal point)
                   if (rawValue === "" || /^\d*\.?\d*$/.test(rawValue)) {
                     setFormData({ ...formData, total_actual_amount: rawValue })
                   }
@@ -806,23 +811,17 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
               <h3 className="text-lg font-medium text-[#001f3f] mb-4">File Uploads (Images and PDF Accepted)</h3>
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
                 <p className="text-sm text-blue-800">
-                  <span className="font-medium">Required:</span> Voucher, Deposit Slip |{" "}
-                  <span className="font-medium">Optional:</span> Cheque, Invoice, Doc 2307
+                  <span className="font-medium">Required:</span> None | <span className="font-medium">Optional:</span>{" "}
+                  Voucher, Deposit Slip, Cheque, Invoice, Doc 2307
                 </p>
               </div>
             </div>
 
-            {/* First row of file uploads */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <FileUploadArea field="deposit_slip" label="Deposit Slip" required />
-              <FileUploadArea field="voucher" label="Voucher" required />
-            </div>
-
-            {/* Second row of file uploads */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <FileUploadArea field="cheque" label="Cheque" />
-              <FileUploadArea field="invoice" label="Invoice" />
-              <FileUploadArea field="doc_2307" label="Doc 2307" />
+            {/* File upload areas */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {fileUploads.map((upload) => (
+                <FileUploadArea key={upload.id} upload={upload} />
+              ))}
             </div>
           </div>
 
@@ -837,7 +836,7 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
             </Button>
             <Button
               type="submit"
-              disabled={loading || !areRequiredFilesUploaded()}
+              disabled={loading || fileUploads.some((f) => f.uploading)}
               className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white px-6"
             >
               {loading ? "Adding..." : "Add Sales Record"}
