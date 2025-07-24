@@ -39,8 +39,8 @@ interface FileUpload {
   existingUrls: string[]
 }
 
-// Laravel API Upload function with proper parameters
-const uploadToLaravelAPI = async (
+// S3 Upload function via API route
+const uploadToS3API = async (
   file: File,
   taxMonth: string,
   tin: string,
@@ -129,7 +129,15 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
 
   // File uploads
   const [fileUploads, setFileUploads] = useState<FileUpload[]>([
-    { id: "voucher", name: "Voucher", files: [], required: true, uploading: false, uploadedUrls: [], existingUrls: [] },
+    {
+      id: "voucher",
+      name: "Voucher",
+      files: [],
+      required: true,
+      uploading: false,
+      uploadedUrls: [],
+      existingUrls: [],
+    },
     { id: "cheque", name: "Cheque", files: [], required: false, uploading: false, uploadedUrls: [], existingUrls: [] },
     {
       id: "invoice",
@@ -234,18 +242,18 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
   }
 
   // Validate file type
-  const isValidImageFile = (file: File): boolean => {
-    const validTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"]
+  const isValidFile = (file: File): boolean => {
+    const validTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp", "application/pdf"]
     return validTypes.includes(file.type)
   }
 
-  // Handle file uploads
+  // Handle file uploads to S3
   const handleFileChange = async (uploadId: string, files: FileList | null) => {
     if (!files || !taxMonth || !tinSearch) return
 
     const validFiles = Array.from(files).filter((file) => {
-      if (!isValidImageFile(file)) {
-        alert(`${file.name} is not a valid image file. Only JPEG, PNG, GIF, and WebP files are allowed.`)
+      if (!isValidFile(file)) {
+        alert(`${file.name} is not a valid file type. Only JPEG, PNG, GIF, WebP, and PDF files are allowed.`)
         return false
       }
       return true
@@ -265,7 +273,7 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
       const existingFileCount = (currentUpload?.existingUrls.length || 0) + (currentUpload?.uploadedUrls.length || 0)
 
       const uploadPromises = validFiles.map(async (file, index) => {
-        return await uploadToLaravelAPI(file, taxMonth, tinSearch, uploadId, existingFileCount + index)
+        return await uploadToS3API(file, taxMonth, tinSearch, uploadId, existingFileCount + index)
       })
 
       const uploadedUrls = await Promise.all(uploadPromises)
@@ -321,10 +329,9 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
     )
   }
 
-  // Check if required files are available
+  // Check if required files are available (currently none are required)
   const areRequiredFilesAvailable = (): boolean => {
-    const requiredUploads = fileUploads.filter((upload) => upload.required)
-    return requiredUploads.every((upload) => upload.existingUrls.length > 0 || upload.uploadedUrls.length > 0)
+    return true
   }
 
   // Handle form submission
@@ -333,7 +340,7 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
     if (!profile || !sale) return
 
     if (!areRequiredFilesAvailable()) {
-      alert("Please ensure required files are available: Voucher and Deposit Slip")
+      alert("Please ensure required files are available")
       return
     }
 
@@ -592,7 +599,7 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
             <Label className="text-base font-semibold text-[#001f3f]">File Management</Label>
             <div className="text-sm text-[#001f3f]/80 mb-4">
               <AlertCircle className="inline h-4 w-4 mr-1" />
-              Required: Voucher, Deposit Slip | Optional: Cheque, Invoice, Doc 2307
+              Required: None | Optional: Voucher, Deposit Slip, Cheque, Invoice, Doc 2307
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -654,7 +661,7 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
                       id={upload.id}
                       type="file"
                       multiple
-                      accept="image/*"
+                      accept="image/*,application/pdf"
                       className="hidden"
                       onChange={(e) => handleFileChange(upload.id, e.target.files)}
                       disabled={upload.uploading || !taxMonth || !tinSearch}

@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useCallback } from "react"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
@@ -30,6 +30,81 @@ interface TaxpayerSuggestion {
   district_city_zip: string
 }
 
+interface FileUpload {
+  id: string
+  name: string
+  files: File[]
+  required: boolean
+  uploading: boolean
+  uploadedUrls: string[]
+}
+
+// S3 Upload function via API route
+const uploadToS3API = async (
+  file: File,
+  taxMonth: string,
+  tin: string,
+  fileType: string,
+  existingFileCount: number,
+): Promise<string> => {
+  const taxDate = new Date(taxMonth)
+  const taxYear = taxDate.getFullYear().toString()
+  const taxMonthNum = String(taxDate.getMonth() + 1).padStart(2, "0")
+  const taxDay = String(taxDate.getDate()).padStart(2, "0")
+
+  const formData = new FormData()
+  formData.append("file", file)
+  formData.append("tax_month", taxMonthNum)
+  formData.append("tax_year", taxYear)
+  formData.append("tax_date", taxDay)
+
+  // Generate filename with proper indexing
+  const cleanTin = tin.replace(/-/g, "")
+  const fileExtension = file.name.split(".").pop()
+  const baseFileName = `${cleanTin}-${fileType}-${format(new Date(), "MMddyyyy")}`
+  const fileName =
+    existingFileCount > 0
+      ? `${baseFileName}-${existingFileCount + 1}.${fileExtension}`
+      : `${baseFileName}.${fileExtension}`
+
+  formData.append("file_name", fileName)
+
+  const apiUrl = `${process.env.NEXT_PUBLIC_NEXT_API_ROUTE_LR}/upload-tax-file`
+
+  try {
+    const response = await fetch(apiUrl, {
+      method: "POST",
+      body: formData,
+      headers: {
+        Accept: "application/json",
+      },
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error("Upload error response:", errorText)
+      throw new Error(`Upload failed: ${response.status} ${response.statusText}`)
+    }
+
+    const responseText = await response.text()
+
+    if (!responseText.trim()) {
+      throw new Error("Empty response from server")
+    }
+
+    const result = JSON.parse(responseText)
+
+    if (result.success && result["0"] && result["0"].url) {
+      return result["0"].url
+    } else {
+      throw new Error("Invalid response structure: missing URL in response")
+    }
+  } catch (error) {
+    console.error("Network error:", error)
+    throw new Error(`Network error: ${error instanceof Error ? error.message : "Unknown error"}`)
+  }
+}
+
 export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
   const { user } = useAuth()
   const [open, setOpen] = useState(false)
@@ -49,12 +124,16 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
     gross_taxable: "",
     total_actual_amount: "",
     invoice_number: "",
-    cheque: [] as string[],
-    voucher: [] as string[],
-    invoice: [] as string[],
-    doc_2307: [] as string[],
-    deposit_slip: [] as string[],
   })
+
+  // File uploads state
+  const [fileUploads, setFileUploads] = useState<FileUpload[]>([
+    { id: "voucher", name: "Voucher", files: [], required: false, uploading: false, uploadedUrls: [] },
+    { id: "cheque", name: "Cheque", files: [], required: false, uploading: false, uploadedUrls: [] },
+    { id: "invoice", name: "Invoice", files: [], required: false, uploading: false, uploadedUrls: [] },
+    { id: "deposit_slip", name: "Deposit Slip", files: [], required: false, uploading: false, uploadedUrls: [] },
+    { id: "doc_2307", name: "Doc 2307", files: [], required: false, uploading: false, uploadedUrls: [] },
+  ])
 
   // Generate tax month options
   const generateTaxMonthOptions = (): TaxMonthOption[] => {
@@ -159,26 +238,83 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
     setShowSuggestions(false)
   }
 
-  const handleFileUpload = useCallback((field: keyof typeof formData, files: FileList | null) => {
-    if (!files) return
+  // Validate file type
+  const isValidFile = (file: File): boolean => {
+    const validTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp", "application/pdf"]
+    return validTypes.includes(file.type)
+  }
 
-    const fileNames = Array.from(files).map((file) => file.name)
-    setFormData((prev) => ({
-      ...prev,
-      [field]: [...(prev[field] as string[]), ...fileNames],
-    }))
-  }, [])
+  // Handle file uploads to S3
+  const handleFileUpload = async (uploadId: string, files: FileList | null) => {
+    if (!files || !taxMonth || !formData.tin) return
 
-  const removeFile = useCallback((field: keyof typeof formData, index: number) => {
-    setFormData((prev) => ({
-      ...prev,
-      [field]: (prev[field] as string[]).filter((_, i) => i !== index),
-    }))
-  }, [])
+    const validFiles = Array.from(files).filter((file) => {
+      if (!isValidFile(file)) {
+        alert(`${file.name} is not a valid file type. Only JPEG, PNG, GIF, WebP, and PDF files are allowed.`)
+        return false
+      }
+      return true
+    })
 
-  // Check if required files are uploaded
+    if (validFiles.length === 0) return
+
+    if (!process.env.NEXT_PUBLIC_NEXT_API_ROUTE_LR) {
+      alert("API endpoint not configured. Please check NEXT_PUBLIC_NEXT_API_ROUTE_LR environment variable.")
+      return
+    }
+
+    setFileUploads((prev) => prev.map((upload) => (upload.id === uploadId ? { ...upload, uploading: true } : upload)))
+
+    try {
+      const currentUpload = fileUploads.find((u) => u.id === uploadId)
+      const existingFileCount = currentUpload?.uploadedUrls.length || 0
+
+      const uploadPromises = validFiles.map(async (file, index) => {
+        return await uploadToS3API(file, taxMonth, formData.tin, uploadId, existingFileCount + index)
+      })
+
+      const uploadedUrls = await Promise.all(uploadPromises)
+
+      setFileUploads((prev) =>
+        prev.map((upload) =>
+          upload.id === uploadId
+            ? {
+                ...upload,
+                files: [...upload.files, ...validFiles],
+                uploadedUrls: [...upload.uploadedUrls, ...uploadedUrls],
+                uploading: false,
+              }
+            : upload,
+        ),
+      )
+    } catch (error) {
+      console.error("Error uploading files:", error)
+      alert(`Error uploading files: ${error instanceof Error ? error.message : "Unknown error"}. Please try again.`)
+
+      setFileUploads((prev) =>
+        prev.map((upload) => (upload.id === uploadId ? { ...upload, uploading: false } : upload)),
+      )
+    }
+  }
+
+  // Remove uploaded file
+  const removeFile = (uploadId: string, fileIndex: number) => {
+    setFileUploads((prev) =>
+      prev.map((upload) =>
+        upload.id === uploadId
+          ? {
+              ...upload,
+              files: upload.files.filter((_, index) => index !== fileIndex),
+              uploadedUrls: upload.uploadedUrls.filter((_, index) => index !== fileIndex),
+            }
+          : upload,
+      ),
+    )
+  }
+
+  // Check if required files are uploaded (currently none are required)
   const areRequiredFilesUploaded = (): boolean => {
-    return formData.voucher.length > 0 && formData.deposit_slip.length > 0
+    return true
   }
 
   // Function to handle taxpayer listing creation or retrieval
@@ -240,7 +376,7 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
     }
 
     if (!areRequiredFilesUploaded()) {
-      alert("Please upload required files: Voucher and Deposit Slip")
+      alert("Please upload required files")
       return
     }
 
@@ -254,9 +390,18 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
         district_city_zip: formData.district_city_zip,
       })
 
+      // Prepare file URLs from uploads
+      const fileArrays = {
+        cheque: fileUploads.find((f) => f.id === "cheque")?.uploadedUrls || [],
+        voucher: fileUploads.find((f) => f.id === "voucher")?.uploadedUrls || [],
+        invoice: fileUploads.find((f) => f.id === "invoice")?.uploadedUrls || [],
+        doc_2307: fileUploads.find((f) => f.id === "doc_2307")?.uploadedUrls || [],
+        deposit_slip: fileUploads.find((f) => f.id === "deposit_slip")?.uploadedUrls || [],
+      }
+
       const salesData = {
         user_uuid: user.id,
-        tin_id: taxpayerListingId, // Use tin_id instead of taxpayer_listing_id
+        tin_id: taxpayerListingId,
         tax_month: taxMonth,
         tin: formData.tin,
         name: formData.name,
@@ -270,11 +415,11 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
           : null,
         invoice_number: formData.invoice_number || null,
         pickup_date: pickupDate ? format(pickupDate, "yyyy-MM-dd") : null,
-        cheque: formData.cheque.length > 0 ? formData.cheque : null,
-        voucher: formData.voucher.length > 0 ? formData.voucher : null,
-        invoice: formData.invoice.length > 0 ? formData.invoice : null,
-        doc_2307: formData.doc_2307.length > 0 ? formData.doc_2307 : null,
-        deposit_slip: formData.deposit_slip.length > 0 ? formData.deposit_slip : null,
+        cheque: fileArrays.cheque.length > 0 ? fileArrays.cheque : null,
+        voucher: fileArrays.voucher.length > 0 ? fileArrays.voucher : null,
+        invoice: fileArrays.invoice.length > 0 ? fileArrays.invoice : null,
+        doc_2307: fileArrays.doc_2307.length > 0 ? fileArrays.doc_2307 : null,
+        deposit_slip: fileArrays.deposit_slip.length > 0 ? fileArrays.deposit_slip : null,
       }
 
       const { error } = await supabase.from("sales").insert([salesData])
@@ -292,16 +437,18 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
         gross_taxable: "",
         total_actual_amount: "",
         invoice_number: "",
-        cheque: [],
-        voucher: [],
-        invoice: [],
-        doc_2307: [],
-        deposit_slip: [],
       })
       setTaxMonth("")
       setPickupDate(undefined)
       setTaxpayerSuggestions([])
       setShowSuggestions(false)
+      setFileUploads((prev) =>
+        prev.map((upload) => ({
+          ...upload,
+          files: [],
+          uploadedUrls: [],
+        })),
+      )
       setOpen(false)
       onSalesAdded()
     } catch (error) {
@@ -313,33 +460,26 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
   }
 
   const FileUploadArea = ({
-    field,
-    label,
-    required = false,
+    upload,
   }: {
-    field: keyof typeof formData
-    label: string
-    required?: boolean
+    upload: FileUpload
   }) => (
     <div className="space-y-2">
       <Label className="text-sm font-medium text-[#001f3f]">
-        {label} {required && "*"}
+        {upload.name} {upload.required && "*"}
       </Label>
       <div className="border-2 border-dashed border-[#001f3f] rounded-lg p-4 text-center hover:border-blue-400 transition-colors">
         <input
           type="file"
           multiple
-          accept="image/*,application/pdf"
+          accept="image/*"
           onChange={(e) => handleFileUpload(field, e.target.files)}
           className="hidden"
           id={`file-${field}`}
         />
         <label htmlFor={`file-${field}`} className="cursor-pointer">
           <Upload className="mx-auto h-8 w-8 text-[#001f3f] mb-2" />
-          <p className="text-sm text-[#001f3f]/60">
-            Select tax month & TIN first<br />
-            <span className="block mt-1">Accepted: <span className="font-semibold">Image</span> or <span className="font-semibold">PDF</span> files</span>
-          </p>
+          <p className="text-sm text-[#001f3f]/60">Select tax month & TIN first</p>
         </label>
       </div>
       {(formData[field] as string[]).length > 0 && (
@@ -351,15 +491,52 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
                 type="button"
                 variant="ghost"
                 size="sm"
-                onClick={() => removeFile(field, index)}
-                className="h-6 w-6 p-0"
+                onClick={() => removeFile(upload.id, index)}
+                className="h-6 w-6 p-0 hover:bg-red-100"
+                disabled={upload.uploading}
               >
-                <X className="h-4 w-4" />
+                <X className="h-3 w-3 text-red-500" />
               </Button>
             </div>
           ))}
         </div>
       )}
+
+      {/* Upload Area */}
+      <div className="border-2 border-dashed border-[#001f3f] rounded-lg p-4 text-center hover:border-blue-400 transition-colors">
+        <input
+          type="file"
+          multiple
+          accept="image/*,application/pdf"
+          onChange={(e) => handleFileUpload(upload.id, e.target.files)}
+          className="hidden"
+          id={`file-${upload.id}`}
+          disabled={upload.uploading || !taxMonth || !formData.tin}
+        />
+        <label
+          htmlFor={`file-${upload.id}`}
+          className={`cursor-pointer ${upload.uploading || !taxMonth || !formData.tin ? "opacity-50 cursor-not-allowed" : ""}`}
+        >
+          {upload.uploading ? (
+            <>
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-2"></div>
+              <p className="text-sm text-blue-600">Uploading...</p>
+            </>
+          ) : (
+            <>
+              <Upload className="mx-auto h-8 w-8 text-[#001f3f] mb-2" />
+              <p className="text-sm text-[#001f3f]/60">
+                {!taxMonth || !formData.tin ? "Select tax month & TIN first" : "Click to upload files"}
+                <br />
+                <span className="block mt-1">
+                  Accepted: <span className="font-semibold">Image</span> or <span className="font-semibold">PDF</span>{" "}
+                  files
+                </span>
+              </p>
+            </>
+          )}
+        </label>
+      </div>
     </div>
   )
 
@@ -629,16 +806,16 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
               <h3 className="text-lg font-medium text-[#001f3f] mb-4">File Uploads (Images and PDF Accepted)</h3>
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
                 <p className="text-sm text-blue-800">
-                  <span className="font-medium">Required:</span> None | {" "}
-                  <span className="font-medium">Optional:</span> Voucher, Deposit Slip , Cheque, Invoice, Doc 2307
+                  <span className="font-medium">Required:</span> Voucher, Deposit Slip |{" "}
+                  <span className="font-medium">Optional:</span> Cheque, Invoice, Doc 2307
                 </p>
               </div>
             </div>
 
             {/* First row of file uploads */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <FileUploadArea field="deposit_slip" label="Deposit Slip"/>
-              <FileUploadArea field="voucher" label="Voucher"/>
+              <FileUploadArea field="deposit_slip" label="Deposit Slip" required />
+              <FileUploadArea field="voucher" label="Voucher" required />
             </div>
 
             {/* Second row of file uploads */}
@@ -660,7 +837,7 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
             </Button>
             <Button
               type="submit"
-              disabled={loading}
+              disabled={loading || !areRequiredFilesUploaded()}
               className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white px-6"
             >
               {loading ? "Adding..." : "Add Sales Record"}
