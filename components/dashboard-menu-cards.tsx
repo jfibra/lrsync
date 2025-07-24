@@ -103,6 +103,28 @@ export function DashboardMenuCards({ userRole }: DashboardMenuCardsProps) {
       ]
     }
 
+    
+    // Add Sales Management, TIN Library, and User Management for Super Admin and Admin only
+    if (userRole === "secretary") {
+      return [
+        {
+          title: "Sales Management",
+          description: "Track and manage monthly sales records with comprehensive reporting tools.",
+          href: `/dashboard/${userRole.replace("_", "-")}/sales`,
+          icon: <DollarSign className="h-6 w-6" />,
+          color: "green" as const,
+        },
+        {
+          title: "TIN Library",
+          description: "Manage comprehensive taxpayer listings for sales and purchases tracking.",
+          href: `/dashboard/${userRole.replace("_", "-")}/tin-library`,
+          icon: <FileText className="h-6 w-6" />,
+          color: "blue" as const,
+        },
+        ...baseItems, // My Profile
+      ]
+    }
+
     // Secretary only gets My Profile
     return baseItems
   }
