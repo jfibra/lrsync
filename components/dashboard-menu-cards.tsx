@@ -93,7 +93,7 @@ export function DashboardMenuCards({ userRole }: DashboardMenuCardsProps) {
           color: "blue" as const,
         },
         {
-          title: "Commission",
+          title: "Commission Generator",
           description: "View and analyze sales commission records with detailed reporting capabilities.",
           href: `/dashboard/${userRole.replace("_", "-")}/commission`,
           icon: <Users className="h-6 w-6" />,
@@ -128,7 +128,7 @@ export function DashboardMenuCards({ userRole }: DashboardMenuCardsProps) {
           color: "blue" as const,
         },
         {
-          title: "Commission",
+          title: "Commission Generator",
           description: "View sales commission records for your assigned area with detailed insights.",
           href: `/dashboard/${userRole.replace("_", "-")}/commission`,
           icon: <Users className="h-6 w-6" />,

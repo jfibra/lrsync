@@ -14,6 +14,7 @@ import { supabase } from "@/lib/supabase/client"
 import { ProtectedRoute } from "@/components/protected-route"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { ColumnVisibilityControl } from "@/components/column-visibility-control"
+import { CommissionGenerationModal } from "@/components/commission-generation-modal"
 import type { Sales } from "@/types/sales"
 
 export default function SuperAdminCommissionPage() {
@@ -26,6 +27,9 @@ export default function SuperAdminCommissionPage() {
   const [filterArea, setFilterArea] = useState("all")
   const [availableAreas, setAvailableAreas] = useState<string[]>([])
   const [selectedSales, setSelectedSales] = useState<string[]>([])
+  const [currentPage, setCurrentPage] = useState(1)
+  const [recordsPerPage, setRecordsPerPage] = useState(10)
+  const [showCommissionModal, setShowCommissionModal] = useState(false)
 
   // Column visibility state
   const [columnVisibility, setColumnVisibility] = useState([
@@ -229,6 +233,20 @@ export default function SuperAdminCommissionPage() {
   const totalAmount = sales.reduce((sum, sale) => sum + (sale.gross_taxable || 0), 0)
   const totalActualAmount = sales.reduce((sum, sale) => sum + (sale.total_actual_amount || 0), 0)
 
+  // Pagination logic
+  const totalPages = Math.ceil(sales.length / recordsPerPage)
+  const startIndex = (currentPage - 1) * recordsPerPage
+  const endIndex = startIndex + recordsPerPage
+  const currentSales = sales.slice(startIndex, endIndex)
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchTerm, filterTaxType, filterMonth, filterArea])
+
+  // Get selected sales data for commission modal
+  const selectedSalesData = sales.filter((sale) => selectedSales.includes(sale.id))
+
   return (
     <ProtectedRoute allowedRoles={["super_admin", "admin", "secretary"]}>
       <div className="min-h-screen bg-gray-50">
@@ -386,6 +404,19 @@ export default function SuperAdminCommissionPage() {
             </CardContent>
           </Card>
 
+          {/* Generate Commission Button */}
+          {selectedSales.length > 0 && (
+            <div className="mb-6">
+              <Button
+                onClick={() => setShowCommissionModal(true)}
+                className="bg-[#001f3f] text-white hover:bg-[#001f3f]/90 font-semibold shadow-lg"
+              >
+                <Users className="h-4 w-4 mr-2" />
+                Generate Commission For Highlighted Developers ({selectedSales.length})
+              </Button>
+            </div>
+          )}
+
           {/* Sales Table */}
           <Card className="shadow-lg border border-gray-200 bg-white">
             <CardHeader className="bg-gray-50 border-b border-gray-200">
@@ -464,7 +495,7 @@ export default function SuperAdminCommissionPage() {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      sales.map((sale) => (
+                      currentSales.map((sale) => (
                         <TableRow
                           key={sale.id}
                           className={`cursor-pointer transition-colors border-b border-gray-100 ${
@@ -602,9 +633,88 @@ export default function SuperAdminCommissionPage() {
                 </Table>
               </div>
             </CardContent>
+            <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 bg-gray-50">
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-700">Show</span>
+                  <Select value={recordsPerPage.toString()} onValueChange={(value) => setRecordsPerPage(Number(value))}>
+                    <SelectTrigger className="w-20 h-8">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="5">5</SelectItem>
+                      <SelectItem value="10">10</SelectItem>
+                      <SelectItem value="25">25</SelectItem>
+                      <SelectItem value="50">50</SelectItem>
+                      <SelectItem value="100">100</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <span className="text-sm text-gray-700">records per page</span>
+                </div>
+                <div className="text-sm text-gray-700">
+                  Showing {startIndex + 1} to {Math.min(endIndex, sales.length)} of {sales.length} records
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                  disabled={currentPage === 1}
+                  className="h-8 px-3"
+                >
+                  Previous
+                </Button>
+
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    let pageNum
+                    if (totalPages <= 5) {
+                      pageNum = i + 1
+                    } else if (currentPage <= 3) {
+                      pageNum = i + 1
+                    } else if (currentPage >= totalPages - 2) {
+                      pageNum = totalPages - 4 + i
+                    } else {
+                      pageNum = currentPage - 2 + i
+                    }
+
+                    return (
+                      <Button
+                        key={pageNum}
+                        variant={currentPage === pageNum ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setCurrentPage(pageNum)}
+                        className="h-8 w-8 p-0"
+                      >
+                        {pageNum}
+                      </Button>
+                    )
+                  })}
+                </div>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                  disabled={currentPage === totalPages}
+                  className="h-8 px-3"
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
           </Card>
         </div>
       </div>
+
+      {/* Commission Generation Modal */}
+      <CommissionGenerationModal
+        isOpen={showCommissionModal}
+        onClose={() => setShowCommissionModal(false)}
+        selectedSales={selectedSalesData}
+      />
     </ProtectedRoute>
   )
 }
