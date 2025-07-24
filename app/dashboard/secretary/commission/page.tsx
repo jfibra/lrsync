@@ -695,6 +695,7 @@ export default function SecretaryCommissionPage() {
         onClose={() => setShowCommissionModal(false)}
         selectedSales={selectedSalesData}
         userArea={profile?.assigned_area}
+        userFullName={profile?.full_name}
       />
     </ProtectedRoute>
   )

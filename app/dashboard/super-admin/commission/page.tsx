@@ -714,6 +714,7 @@ export default function SuperAdminCommissionPage() {
         isOpen={showCommissionModal}
         onClose={() => setShowCommissionModal(false)}
         selectedSales={selectedSalesData}
+        userFullName={profile?.full_name}
       />
     </ProtectedRoute>
   )
