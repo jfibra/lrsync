@@ -93,6 +93,13 @@ export function DashboardMenuCards({ userRole }: DashboardMenuCardsProps) {
           color: "blue" as const,
         },
         {
+          title: "Commission",
+          description: "View and analyze sales commission records with detailed reporting capabilities.",
+          href: `/dashboard/${userRole.replace("_", "-")}/commission`,
+          icon: <Users className="h-6 w-6" />,
+          color: "purple" as const,
+        },
+        {
           title: "User Management",
           description: "Create, edit, and manage system users and their permissions across the platform.",
           href: `/dashboard/${userRole.replace("_", "-")}/users`,
@@ -103,7 +110,6 @@ export function DashboardMenuCards({ userRole }: DashboardMenuCardsProps) {
       ]
     }
 
-    
     // Add Sales Management, TIN Library, and User Management for Super Admin and Admin only
     if (userRole === "secretary") {
       return [
@@ -120,6 +126,13 @@ export function DashboardMenuCards({ userRole }: DashboardMenuCardsProps) {
           href: `/dashboard/${userRole.replace("_", "-")}/tin-library`,
           icon: <FileText className="h-6 w-6" />,
           color: "blue" as const,
+        },
+        {
+          title: "Commission",
+          description: "View sales commission records for your assigned area with detailed insights.",
+          href: `/dashboard/${userRole.replace("_", "-")}/commission`,
+          icon: <Users className="h-6 w-6" />,
+          color: "purple" as const,
         },
         ...baseItems, // My Profile
       ]

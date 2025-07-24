@@ -27,12 +27,17 @@ export function DashboardSidebar({ userRole }: SidebarProps) {
       {
         name: "Sales",
         href: `/dashboard/${userRole.replace("_", "-")}/sales`,
-        icon: DollarSign, // Assuming DollarSign icon from lucide-react
+        icon: DollarSign,
       },
       {
         name: "TIN Library",
         href: `/dashboard/${userRole.replace("_", "-")}/tin-library`,
-        icon: BookText, // Assuming BookText icon from lucide-react
+        icon: BookText,
+      },
+      {
+        name: "Commission",
+        href: `/dashboard/${userRole.replace("_", "-")}/commission`,
+        icon: Users, // Using Users icon for commission
       },
     ]
 
