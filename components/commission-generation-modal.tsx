@@ -70,20 +70,22 @@ interface SearchResult {
   updated_at: string
 }
 
-interface CommissionRecord {
-  no: number
-  date: string
-  developer: string
-  agent: string
-  client: string
-  comm: number
-  netOfVat: number
-  status: string
-  agentsRate: string
-  agentVat: number
-  ewt: number
-  netComm: number
-}
+  interface CommissionRecord {
+    no: number
+    date: string
+    developer: string
+    agentName: string
+    client: string
+    calculationType: string
+    comm: string
+    netOfVat: string
+    status: string
+    agentsRate: string
+    agent: string
+    vat: string
+    ewt: string
+    netComm: string
+  }
 
 export function CommissionGenerationModal({
   isOpen,
@@ -92,10 +94,19 @@ export function CommissionGenerationModal({
   userArea,
   userFullName,
 }: CommissionGenerationModalProps) {
-  const [searchData, setSearchData] = useState({ agentName: "", clientName: "", year: "" })
+  const currentYear = new Date().getFullYear();
+  const [searchData, setSearchData] = useState({ agentName: "", developerName: "", year: currentYear.toString() })
+  const [activeTab, setActiveTab] = useState<string>("")
+  // Set initial activeTab after groupedByDeveloperAndInvoice is available
+  useEffect(() => {
+    const firstTab = Object.keys(groupedByDeveloperAndInvoice)[0] || ""
+    setActiveTab(firstTab)
+  }, [selectedSales])
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
   const [isSearching, setIsSearching] = useState(false)
   const [commissionRecords, setCommissionRecords] = useState<Record<string, CommissionRecord[]>>({})
+  // For debouncing COMM calculation
+  const [commInputTimers, setCommInputTimers] = useState<Record<string, NodeJS.Timeout>>({})
 
   // Generate year options (20 years back from current year)
   const generateYearOptions = () => {
@@ -153,15 +164,22 @@ export function CommissionGenerationModal({
     }))
   }
 
+  // Track active tab
+  const handleTabChange = (value: string) => {
+    setActiveTab(value)
+  }
+
   // Perform search
   const handleSearch = async () => {
+    if (!searchData.developerName) return;
     setIsSearching(true)
     try {
       const params = new URLSearchParams()
       if (searchData.agentName) params.append("name", searchData.agentName)
-      if (searchData.clientName) params.append("developer", searchData.clientName)
       if (searchData.year) params.append("year", searchData.year)
-
+      if (searchData.developerName) {
+        params.append("developer", searchData.developerName)
+      }
       const response = await fetch(`${process.env.NEXT_PUBLIC_NEXT_API_ROUTE_LR}/search-sales-report?${params}`)
       if (response.ok) {
         const results = await response.json()
@@ -184,21 +202,119 @@ export function CommissionGenerationModal({
       no: (commissionRecords[tabKey]?.length || 0) + 1,
       date: format(new Date(), "yyyy-MM-dd"),
       developer: searchResult.developer,
-      agent: searchResult.name,
+      agentName: searchResult.name,
       client: searchResult.clientfamilyname,
-      comm: searchResult.tcprice * 0.05, // 5% commission example
-      netOfVat: (searchResult.tcprice * 0.05) / 1.12, // Net of VAT
-      status: "Pending",
-      agentsRate: "5%",
-      agentVat: searchResult.tcprice * 0.05 * 0.12, // 12% VAT
-      ewt: searchResult.tcprice * 0.05 * 0.12, // 12% EWT example
-      netComm: (searchResult.tcprice * 0.05) / 1.12 - searchResult.tcprice * 0.05 * 0.12,
+      calculationType: "nonvat with invoice",
+      comm: "",
+      netOfVat: "",
+      status: "",
+      agentsRate: "4",
+      agent: "",
+      vat: "",
+      ewt: "",
+      netComm: "",
     }
-
     setCommissionRecords((prev) => ({
       ...prev,
       [tabKey]: [...(prev[tabKey] || []), newRecord],
     }))
+  }
+
+  // Remove agent from commission table
+  const removeAgentFromTab = (tabKey: string, index: number) => {
+    setCommissionRecords((prev) => {
+      const updated = { ...prev }
+      updated[tabKey] = [...(updated[tabKey] || [])]
+      updated[tabKey].splice(index, 1)
+      return updated
+    })
+  }
+
+  // Handle commission record field change
+  const handleCommissionRecordChange = (tabKey: string, index: number, field: keyof CommissionRecord, value: string) => {
+    // Debounce calculation for COMM field
+    if (field === "comm") {
+      setCommissionRecords((prev) => {
+        const updated = { ...prev }
+        const records = [...(updated[tabKey] || [])]
+        records[index] = { ...records[index], [field]: value }
+        updated[tabKey] = records
+        return updated
+      })
+      // Clear previous timer
+      if (commInputTimers[`${tabKey}-${index}`]) {
+        clearTimeout(commInputTimers[`${tabKey}-${index}`])
+      }
+      const timer = setTimeout(() => {
+        doCommissionCalculation(tabKey, index)
+      }, 700)
+      setCommInputTimers((prev) => ({ ...prev, [`${tabKey}-${index}`]: timer }))
+      return
+    }
+    setCommissionRecords((prev) => {
+      const updated = { ...prev }
+      const records = [...(updated[tabKey] || [])]
+      records[index] = { ...records[index], [field]: value }
+      // If agentsRate or calculationType changes, recalculate immediately
+      if (["agentsRate", "calculationType"].includes(field)) {
+        doCommissionCalculation(tabKey, index, records)
+      }
+      updated[tabKey] = records
+      return updated
+    })
+  }
+
+  // Actual calculation logic, can be called after debounce
+  const doCommissionCalculation = (tabKey: string, index: number, recordsOverride?: CommissionRecord[]) => {
+    setCommissionRecords((prev) => {
+      const updated = { ...prev }
+      const records = recordsOverride ? [...recordsOverride] : [...(updated[tabKey] || [])]
+      const record = { ...records[index] }
+      const calcType = record.calculationType
+      const comm = parseFloat(record.comm.replace(/,/g, "")) || 0
+      const agentsRate = parseFloat(record.agentsRate) || 0
+      let netOfVat = ""
+      let agent = ""
+      let vat = ""
+      let ewt = ""
+      let netComm = ""
+      if (calcType === "nonvat with invoice") {
+        netOfVat = comm ? (comm / 1.02).toFixed(2) : ""
+        agent = netOfVat && agentsRate ? (parseFloat(netOfVat) * agentsRate / 5).toFixed(2) : ""
+        ewt = agent ? (parseFloat(agent) * 0.05).toFixed(2) : ""
+        netComm = agent && ewt ? (parseFloat(agent) - parseFloat(ewt)).toFixed(2) : ""
+        vat = ""
+      } else if (calcType === "nonvat without invoice") {
+        netOfVat = ""
+        agent = ""
+        vat = ""
+        ewt = ""
+        netComm = comm && agentsRate ? (comm * agentsRate / 5).toFixed(2) : ""
+      } else if (calcType === "vat with invoice") {
+        netOfVat = comm ? (comm / 1.02).toFixed(2) : ""
+        agent = netOfVat && agentsRate ? (parseFloat(netOfVat) * agentsRate / 5).toFixed(2) : ""
+        vat = agent ? (parseFloat(agent) * 0.12).toFixed(2) : ""
+        ewt = agent ? (parseFloat(agent) * 0.1).toFixed(2) : ""
+        netComm = agent && vat && ewt ? (parseFloat(agent) + parseFloat(vat) - parseFloat(ewt)).toFixed(2) : ""
+      }
+      record.netOfVat = netOfVat
+      record.agent = agent
+      record.vat = vat
+      record.ewt = ewt
+      record.netComm = netComm
+      records[index] = record
+      updated[tabKey] = records
+      return updated
+    })
+  }
+
+  // Format number as currency with commas
+  const formatNumberWithCommas = (value: string) => {
+    const num = value.replace(/,/g, "")
+    if (!num) return ""
+    const parts = num.split(".")
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",")
+    return parts.join(".")
   }
 
   // Get tax type badge color
@@ -260,11 +376,11 @@ export function CommissionGenerationModal({
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-[#001f3f] mb-1">Client Name</label>
+                      <label className="block text-sm font-medium text-[#001f3f] mb-1">Developer Name</label>
                       <Input
-                        placeholder="Enter client name..."
-                        value={searchData.clientName}
-                        onChange={(e) => handleSearchChange("clientName", e.target.value)}
+                        placeholder="Enter developer name..."
+                        value={searchData.developerName || ""}
+                        onChange={(e) => handleSearchChange("developerName", e.target.value)}
                         className="border-gray-300 focus:border-[#001f3f] focus:ring-[#001f3f] text-[#001f3f] bg-white"
                       />
                     </div>
@@ -272,23 +388,23 @@ export function CommissionGenerationModal({
                       <label className="block text-sm font-medium text-[#001f3f] mb-1">Year</label>
                       <Select value={searchData.year} onValueChange={(value) => handleSearchChange("year", value)}>
                         <SelectTrigger className="border-gray-300 focus:border-[#001f3f] focus:ring-[#001f3f] text-[#001f3f] bg-white">
-                          <SelectValue placeholder="Select year..." />
+                          <SelectValue placeholder="Select year..." className="text-[#001f3f]" />
                         </SelectTrigger>
                         <SelectContent className="bg-white">
-                          <SelectItem value="all">All Years</SelectItem>
+                          <SelectItem value="all" className="text-[#001f3f]">All Years</SelectItem>
                           {yearOptions.map((year) => (
-                            <SelectItem key={year} value={year.toString()}>
+                            <SelectItem key={year} value={year.toString()} className="text-[#001f3f]">
                               {year}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="flex items-end">
+                    <div className="flex items-end gap-2">
                       <Button
                         className="bg-[#001f3f] text-white hover:bg-[#001f3f]/90 w-full"
                         onClick={handleSearch}
-                        disabled={isSearching}
+                        disabled={isSearching || !searchData.developerName}
                       >
                         {isSearching ? (
                           <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -297,7 +413,24 @@ export function CommissionGenerationModal({
                         )}
                         Search
                       </Button>
+                      <Button
+                        variant="outline"
+                        className="border-[#001f3f] text-white w-full"
+                        onClick={() => setSearchResults([])}
+                        disabled={searchResults.length === 0}
+                      >
+                        Clear Results
+                      </Button>
                     </div>
+                  </div>
+                  <div className="flex gap-2 mt-2">
+                    <Button
+                      variant="outline"
+                      className="border-[#001f3f] text-white"
+                      onClick={() => setSearchData({ agentName: "", developerName: "", year: currentYear.toString() })}
+                    >
+                      Clear Filters
+                    </Button>
                   </div>
 
                   {/* Search Results */}
@@ -315,7 +448,7 @@ export function CommissionGenerationModal({
                             <div className="flex-1">
                               <div className="flex items-center gap-2">
                                 <span className="font-medium text-[#001f3f]">{result.name}</span>
-                                <Badge variant="outline" className="text-xs">
+                                <Badge variant="outline" className="text-xs text-[#001f3f]">
                                   Agent
                                 </Badge>
                               </div>
@@ -364,7 +497,12 @@ export function CommissionGenerationModal({
               </Card>
 
               {/* Tabs for Developer/Invoice Combinations */}
-              <Tabs defaultValue={Object.keys(groupedByDeveloperAndInvoice)[0]} className="bg-white">
+              <Tabs
+                defaultValue={Object.keys(groupedByDeveloperAndInvoice)[0]}
+                className="bg-white"
+                value={activeTab}
+                onValueChange={handleTabChange}
+              >
                 <TabsList className="flex flex-row w-full overflow-x-auto bg-gray-50 border border-gray-200 mb-4">
                   {Object.entries(groupedByDeveloperAndInvoice).map(([key, group]) => (
                     <TabsTrigger
@@ -528,69 +666,149 @@ export function CommissionGenerationModal({
                             <Table>
                               <TableHeader>
                                 <TableRow className="bg-gray-50 border-b border-gray-200">
-                                  <TableHead className="font-semibold text-[#001f3f] text-center">NO.</TableHead>
-                                  <TableHead className="font-semibold text-[#001f3f]">DATE</TableHead>
-                                  <TableHead className="font-semibold text-[#001f3f]">DEVELOPER</TableHead>
-                                  <TableHead className="font-semibold text-[#001f3f]">AGENT</TableHead>
-                                  <TableHead className="font-semibold text-[#001f3f]">CLIENT</TableHead>
-                                  <TableHead className="font-semibold text-[#001f3f] text-right">COMM</TableHead>
-                                  <TableHead className="font-semibold text-[#001f3f] text-right">Net of VAT</TableHead>
-                                  <TableHead className="font-semibold text-[#001f3f] text-center">STATUS</TableHead>
-                                  <TableHead className="font-semibold text-[#001f3f] text-center">
-                                    AGENT'S RATE
-                                  </TableHead>
-                                  <TableHead className="font-semibold text-[#001f3f] text-right">AGENT VAT</TableHead>
-                                  <TableHead className="font-semibold text-[#001f3f] text-right">EWT</TableHead>
-                                  <TableHead className="font-semibold text-[#001f3f] text-right">NET COMM</TableHead>
+                              <TableHead className="font-semibold text-[#001f3f] text-center">NO.</TableHead>
+                              <TableHead className="font-semibold text-[#001f3f]">DATE</TableHead>
+                              <TableHead className="font-semibold text-[#001f3f]">DEVELOPER</TableHead>
+                              <TableHead className="font-semibold text-[#001f3f]">Agent Name</TableHead>
+                              <TableHead className="font-semibold text-[#001f3f]">CLIENT</TableHead>
+                              <TableHead className="font-semibold text-[#001f3f]">Calculation Type</TableHead>
+                              <TableHead className="font-semibold text-[#001f3f] text-right">COMM</TableHead>
+                              <TableHead className="font-semibold text-[#001f3f] text-right">Net of VAT</TableHead>
+                              <TableHead className="font-semibold text-[#001f3f] text-center">STATUS</TableHead>
+                              <TableHead className="font-semibold text-[#001f3f] text-center">AGENT'S RATE</TableHead>
+                              <TableHead className="font-semibold text-[#001f3f] text-right">AGENT</TableHead>
+                              <TableHead className="font-semibold text-[#001f3f] text-right">VAT</TableHead>
+                              <TableHead className="font-semibold text-[#001f3f] text-right">EWT</TableHead>
+                              <TableHead className="font-semibold text-[#001f3f] text-right">NET COMM</TableHead>
+                              <TableHead className="font-semibold text-[#ee3433] text-center">Remove</TableHead>
                                 </TableRow>
                               </TableHeader>
                               <TableBody className="bg-white">
                                 {tabCommissionRecords.length > 0 ? (
-                                  tabCommissionRecords.map((record, index) => (
-                                    <TableRow key={index} className="border-b border-gray-100 hover:bg-gray-50">
-                                      <TableCell className="text-center font-medium text-[#001f3f]">
-                                        {record.no}
+                                  <>
+                                    {tabCommissionRecords.map((record, index) => (
+                                      <TableRow key={index} className="border-b border-gray-100 hover:bg-gray-50">
+                                        <TableCell className="text-center font-medium text-[#001f3f]">
+                                          {record.no}
+                                        </TableCell>
+                                        <TableCell className="text-[#001f3f]">
+                                          {format(new Date(record.date), "MMM dd, yyyy")}
+                                        </TableCell>
+                                        <TableCell className="font-medium text-[#001f3f]">{record.developer}</TableCell>
+                                        <TableCell className="text-[#001f3f]">{record.agentName}</TableCell>
+                                        <TableCell className="text-[#001f3f]">{record.client}</TableCell>
+                                        {/* Calculation Type Dropdown */}
+                                        <TableCell>
+                                          <select
+                                            className="border border-gray-300 rounded px-2 py-1 text-[#001f3f] bg-white"
+                                            value={record.calculationType}
+                                            onChange={e => handleCommissionRecordChange(key, index, "calculationType", e.target.value)}
+                                          >
+                                            <option value="nonvat with invoice">nonvat with invoice</option>
+                                            <option value="nonvat without invoice">nonvat without invoice</option>
+                                            <option value="vat with invoice">vat with invoice</option>
+                                          </select>
+                                        </TableCell>
+                                        {/* COMM input */}
+                                        <TableCell className="text-right font-semibold text-[#001f3f]">
+                                          <input
+                                            type="text"
+                                            inputMode="decimal"
+                                            className="border border-gray-300 rounded px-2 py-1 w-24 text-right text-[#001f3f] bg-white"
+                                            value={record.comm}
+                                            onChange={e => {
+                                              // Only allow numbers and commas
+                                              let val = e.target.value.replace(/[^\d.,]/g, "")
+                                              // Format as currency
+                                              val = formatNumberWithCommas(val)
+                                              handleCommissionRecordChange(key, index, "comm", val)
+                                            }}
+                                            placeholder="0.00"
+                                          />
+                                        </TableCell>
+                                        {/* Net of VAT */}
+                                        <TableCell className="text-right font-semibold text-[#001f3f]">
+                                          {record.netOfVat ? formatCurrency(Number(record.netOfVat)) : ""}
+                                        </TableCell>
+                                        {/* Status input */}
+                                        <TableCell className="text-center">
+                                          <input
+                                            type="text"
+                                            className="border border-gray-300 rounded px-2 py-1 w-20 text-center text-[#001f3f] bg-white"
+                                            value={record.status}
+                                            onChange={e => handleCommissionRecordChange(key, index, "status", e.target.value)}
+                                            placeholder="Status"
+                                          />
+                                        </TableCell>
+                                        {/* Agent's Rate dropdown */}
+                                        <TableCell className="text-center font-medium text-[#dee242]">
+                                          <select
+                                            className="border border-gray-300 rounded px-2 py-1 text-[#001f3f] bg-white"
+                                            value={record.agentsRate}
+                                            onChange={e => handleCommissionRecordChange(key, index, "agentsRate", e.target.value)}
+                                          >
+                                            {Array.from({ length: 20 }, (_, i) => i + 1).map(rate => (
+                                              <option key={rate} value={rate}>{rate}%</option>
+                                            ))}
+                                          </select>
+                                        </TableCell>
+                                        {/* AGENT */}
+                                        <TableCell className="text-right font-semibold text-[#001f3f]">
+                                          {record.agent ? formatCurrency(Number(record.agent)) : ""}
+                                        </TableCell>
+                                        {/* VAT */}
+                                        <TableCell className="text-right font-semibold text-[#001f3f]">
+                                          {record.vat ? formatCurrency(Number(record.vat)) : ""}
+                                        </TableCell>
+                                        {/* EWT */}
+                                        <TableCell className="text-right font-semibold text-[#ee3433]">
+                                          {record.ewt ? formatCurrency(Number(record.ewt)) : ""}
+                                        </TableCell>
+                                        {/* Net Comm */}
+                                        <TableCell className="text-right font-bold text-[#dee242]">
+                                          {record.netComm ? formatCurrency(Number(record.netComm)) : ""}
+                                        </TableCell>
+                                        <TableCell className="text-center">
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            className="border-red-500 text-red-600 hover:bg-red-50"
+                                            onClick={() => removeAgentFromTab(key, index)}
+                                          >
+                                            Remove
+                                          </Button>
+                                        </TableCell>
+                                      </TableRow>
+                                    ))}
+                                    {/* Totals Row */}
+                                    <TableRow className="bg-gray-100 font-bold">
+                                      <TableCell colSpan={6} className="text-right text-[#001f3f]">Totals:</TableCell>
+                                      <TableCell className="text-right text-[#001f3f]">
+                                        {formatCurrency(tabCommissionRecords.reduce((sum, r) => sum + (parseFloat(r.comm.replace(/,/g, "")) || 0), 0))}
                                       </TableCell>
-                                      <TableCell className="text-[#001f3f]">
-                                        {format(new Date(record.date), "MMM dd, yyyy")}
+                                      <TableCell className="text-right text-[#001f3f]">
+                                        {formatCurrency(tabCommissionRecords.reduce((sum, r) => sum + (parseFloat(r.netOfVat) || 0), 0))}
                                       </TableCell>
-                                      <TableCell className="font-medium text-[#001f3f]">{record.developer}</TableCell>
-                                      <TableCell className="text-[#001f3f]">{record.agent}</TableCell>
-                                      <TableCell className="text-[#001f3f]">{record.client}</TableCell>
-                                      <TableCell className="text-right font-semibold text-[#001f3f]">
-                                        {formatCurrency(record.comm)}
+                                      <TableCell />
+                                      <TableCell />
+                                      <TableCell className="text-right text-[#001f3f]">
+                                        {formatCurrency(tabCommissionRecords.reduce((sum, r) => sum + (parseFloat(r.agent) || 0), 0))}
                                       </TableCell>
-                                      <TableCell className="text-right font-semibold text-[#001f3f]">
-                                        {formatCurrency(record.netOfVat)}
+                                      <TableCell className="text-right text-[#001f3f]">
+                                        {formatCurrency(tabCommissionRecords.reduce((sum, r) => sum + (parseFloat(r.vat) || 0), 0))}
                                       </TableCell>
-                                      <TableCell className="text-center">
-                                        <span
-                                          className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                            record.status === "Paid"
-                                              ? "bg-green-100 text-green-800"
-                                              : "bg-yellow-100 text-yellow-800"
-                                          }`}
-                                        >
-                                          {record.status}
-                                        </span>
+                                      <TableCell className="text-right text-[#001f3f]">
+                                        {formatCurrency(tabCommissionRecords.reduce((sum, r) => sum + (parseFloat(r.ewt) || 0), 0))}
                                       </TableCell>
-                                      <TableCell className="text-center font-medium text-[#dee242]">
-                                        {record.agentsRate}
+                                      <TableCell className="text-right text-[#001f3f]">
+                                        {formatCurrency(tabCommissionRecords.reduce((sum, r) => sum + (parseFloat(r.netComm) || 0), 0))}
                                       </TableCell>
-                                      <TableCell className="text-right font-semibold text-[#001f3f]">
-                                        {formatCurrency(record.agentVat)}
-                                      </TableCell>
-                                      <TableCell className="text-right font-semibold text-[#ee3433]">
-                                        {formatCurrency(record.ewt)}
-                                      </TableCell>
-                                      <TableCell className="text-right font-bold text-[#dee242]">
-                                        {formatCurrency(record.netComm)}
-                                      </TableCell>
+                                      <TableCell />
                                     </TableRow>
-                                  ))
+                                  </>
                                 ) : (
                                   <TableRow>
-                                    <TableCell colSpan={12} className="text-center text-gray-400 py-8">
+                                    <TableCell colSpan={14} className="text-center text-gray-400 py-8">
                                       No commission records added yet. Use the search above to add agents.
                                     </TableCell>
                                   </TableRow>

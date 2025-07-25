@@ -9,8 +9,8 @@ import DashboardHeader from "@/components/dashboard-header" // Corrected to name
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "BIRClone",
-  description: "A Vercel AI project",
+  title: "LR Accounting | BIR Software",
+  description: "A comprehensive BIR software for accountants and taxpayers",
     generator: 'v0.dev'
 }
 
