@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -8,7 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { Search, FileSpreadsheet, Calendar, MapPin } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Search, FileSpreadsheet, Calendar, MapPin, Plus, Loader2 } from "lucide-react"
 import { format } from "date-fns"
 import type { Sales } from "@/types/sales"
 
@@ -20,6 +21,70 @@ interface CommissionGenerationModalProps {
   userFullName?: string
 }
 
+interface SearchResult {
+  id: number
+  name: string
+  clientfamilyname: string
+  clientAge: number
+  clientAddress: string
+  clientGender: string
+  clientEmail: string
+  clientMobile: string
+  clientCountry: string
+  unitnum: string
+  developer: string
+  devid: number
+  dev_rental_id: number | null
+  projectname: string
+  projid: number
+  prop_type_id: number
+  qty: number
+  tcprice: number
+  compercent: string
+  reservationdate: string
+  termofpayment: string
+  dateadded: string
+  agentid: number
+  statement_of_account: string | null
+  bir_form_2307: string | null
+  status: string
+  requirements: string | null
+  client_requirements: string | null
+  partialclaimed: string
+  remarks: string
+  broker_com: string
+  deleted: number
+  dateupdated: string
+  files: string
+  userupdate: number
+  unconfirm: number
+  request_file: string | null
+  validSale: string
+  agentuploadpot: number
+  logs: string
+  prop_details: string
+  comm_requested: number
+  comm_requests_history: string | null
+  file_uploaded_to: string | null
+  created_at: string
+  updated_at: string
+}
+
+interface CommissionRecord {
+  no: number
+  date: string
+  developer: string
+  agent: string
+  client: string
+  comm: number
+  netOfVat: number
+  status: string
+  agentsRate: string
+  agentVat: number
+  ewt: number
+  netComm: number
+}
+
 export function CommissionGenerationModal({
   isOpen,
   onClose,
@@ -28,6 +93,21 @@ export function CommissionGenerationModal({
   userFullName,
 }: CommissionGenerationModalProps) {
   const [searchData, setSearchData] = useState({ agentName: "", clientName: "", year: "" })
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([])
+  const [isSearching, setIsSearching] = useState(false)
+  const [commissionRecords, setCommissionRecords] = useState<Record<string, CommissionRecord[]>>({})
+
+  // Generate year options (20 years back from current year)
+  const generateYearOptions = () => {
+    const currentYear = new Date().getFullYear()
+    const years = []
+    for (let i = 0; i < 20; i++) {
+      years.push(currentYear - i)
+    }
+    return years
+  }
+
+  const yearOptions = generateYearOptions()
 
   // Format currency
   const formatCurrency = (amount: number) => {
@@ -65,61 +145,59 @@ export function CommissionGenerationModal({
     {} as Record<string, { developerId: string; developerName: string; invoiceNumber: string; sales: Sales[] }>,
   )
 
-  // Generate mock commission data for each developer/invoice combination
-  const generateMockData = (developerId: string, invoiceNumber: string, salesRecords: Sales[]) => {
-    const mockData = [
-      {
-        no: 1,
-        date: "2025-01-15",
-        developer: `Developer ${developerId.slice(-4)}`,
-        agent: "Maria Santos",
-        client: "ABC Corporation",
-        comm: 15000,
-        netOfVat: 13392.86,
-        status: "Paid",
-        agentsRate: "5%",
-        agentVat: 1607.14,
-        ewt: 1800,
-        netComm: 11592.86,
-      },
-      {
-        no: 2,
-        date: "2025-01-18",
-        developer: `Developer ${developerId.slice(-4)}`,
-        agent: "Carlos Rodriguez",
-        client: "XYZ Industries",
-        comm: 22000,
-        netOfVat: 19642.86,
-        status: "Pending",
-        agentsRate: "5%",
-        agentVat: 2357.14,
-        ewt: 2640,
-        netComm: 17002.86,
-      },
-      {
-        no: 3,
-        date: "2025-01-20",
-        developer: `Developer ${developerId.slice(-4)}`,
-        agent: "Ana Reyes",
-        client: "Global Tech Solutions",
-        comm: 18500,
-        netOfVat: 16517.86,
-        status: "Paid",
-        agentsRate: "5%",
-        agentVat: 1982.14,
-        ewt: 2220,
-        netComm: 14297.86,
-      },
-    ]
-
-    return mockData
-  }
-
   // Handle search input changes
   const handleSearchChange = (field: string, value: string) => {
     setSearchData((prev) => ({
       ...prev,
       [field]: value,
+    }))
+  }
+
+  // Perform search
+  const handleSearch = async () => {
+    setIsSearching(true)
+    try {
+      const params = new URLSearchParams()
+      if (searchData.agentName) params.append("name", searchData.agentName)
+      if (searchData.clientName) params.append("developer", searchData.clientName)
+      if (searchData.year) params.append("year", searchData.year)
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_NEXT_API_ROUTE_LR}/search-sales-report?${params}`)
+      if (response.ok) {
+        const results = await response.json()
+        setSearchResults(results)
+      } else {
+        console.error("Search failed:", response.statusText)
+        setSearchResults([])
+      }
+    } catch (error) {
+      console.error("Search error:", error)
+      setSearchResults([])
+    } finally {
+      setIsSearching(false)
+    }
+  }
+
+  // Add agent to commission table for specific tab
+  const addAgentToTab = (tabKey: string, searchResult: SearchResult) => {
+    const newRecord: CommissionRecord = {
+      no: (commissionRecords[tabKey]?.length || 0) + 1,
+      date: format(new Date(), "yyyy-MM-dd"),
+      developer: searchResult.developer,
+      agent: searchResult.name,
+      client: searchResult.clientfamilyname,
+      comm: searchResult.tcprice * 0.05, // 5% commission example
+      netOfVat: (searchResult.tcprice * 0.05) / 1.12, // Net of VAT
+      status: "Pending",
+      agentsRate: "5%",
+      agentVat: searchResult.tcprice * 0.05 * 0.12, // 12% VAT
+      ewt: searchResult.tcprice * 0.05 * 0.12, // 12% EWT example
+      netComm: (searchResult.tcprice * 0.05) / 1.12 - searchResult.tcprice * 0.05 * 0.12,
+    }
+
+    setCommissionRecords((prev) => ({
+      ...prev,
+      [tabKey]: [...(prev[tabKey] || []), newRecord],
     }))
   }
 
@@ -134,6 +212,14 @@ export function CommissionGenerationModal({
         return "bg-gray-50 text-gray-800 border border-gray-200"
     }
   }
+
+  // Clear search results when modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      setSearchResults([])
+      setCommissionRecords({})
+    }
+  }, [isOpen])
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -184,26 +270,96 @@ export function CommissionGenerationModal({
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-[#001f3f] mb-1">Year</label>
-                      <Input
-                        placeholder="Enter year..."
-                        value={searchData.year}
-                        onChange={(e) => handleSearchChange("year", e.target.value)}
-                        className="border-gray-300 focus:border-[#001f3f] focus:ring-[#001f3f] text-[#001f3f] bg-white"
-                      />
+                      <Select value={searchData.year} onValueChange={(value) => handleSearchChange("year", value)}>
+                        <SelectTrigger className="border-gray-300 focus:border-[#001f3f] focus:ring-[#001f3f] text-[#001f3f] bg-white">
+                          <SelectValue placeholder="Select year..." />
+                        </SelectTrigger>
+                        <SelectContent className="bg-white">
+                          <SelectItem value="all">All Years</SelectItem>
+                          {yearOptions.map((year) => (
+                            <SelectItem key={year} value={year.toString()}>
+                              {year}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div className="flex items-end">
                       <Button
                         className="bg-[#001f3f] text-white hover:bg-[#001f3f]/90 w-full"
-                        onClick={() => {
-                          // Search functionality will be implemented later
-                          console.log("Search clicked:", searchData)
-                        }}
+                        onClick={handleSearch}
+                        disabled={isSearching}
                       >
-                        <Search className="h-4 w-4 mr-2" />
+                        {isSearching ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <Search className="h-4 w-4 mr-2" />
+                        )}
                         Search
                       </Button>
                     </div>
                   </div>
+
+                  {/* Search Results */}
+                  {searchResults.length > 0 && (
+                    <div className="mt-4 border-t border-gray-200 pt-4">
+                      <h4 className="text-sm font-medium text-[#001f3f] mb-3">
+                        Search Results ({searchResults.length})
+                      </h4>
+                      <div className="max-h-48 overflow-y-auto space-y-2">
+                        {searchResults.map((result) => (
+                          <div
+                            key={result.id}
+                            className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200"
+                          >
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium text-[#001f3f]">{result.name}</span>
+                                <Badge variant="outline" className="text-xs">
+                                  Agent
+                                </Badge>
+                              </div>
+                              <div className="text-sm text-[#001f3f] mt-1">
+                                Client: {result.clientfamilyname} | Developer: {result.developer}
+                              </div>
+                              <div className="text-xs text-gray-600 mt-1">
+                                Project: {result.projectname} | Unit: {result.unitnum} | TCP:{" "}
+                                {formatCurrency(result.tcprice)}
+                              </div>
+                            </div>
+                            <div className="flex gap-2">
+                              {Object.keys(groupedByDeveloperAndInvoice).map((tabKey) => (
+                                <Button
+                                  key={tabKey}
+                                  size="sm"
+                                  onClick={() => addAgentToTab(tabKey, result)}
+                                  className="bg-[#001f3f] text-white hover:bg-[#001f3f]/90"
+                                >
+                                  <Plus className="h-3 w-3 mr-1" />
+                                  Add to {groupedByDeveloperAndInvoice[tabKey].invoiceNumber}
+                                </Button>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {isSearching && (
+                    <div className="mt-4 text-center py-4">
+                      <Loader2 className="h-6 w-6 animate-spin mx-auto text-[#001f3f]" />
+                      <p className="text-sm text-[#001f3f] mt-2">Searching...</p>
+                    </div>
+                  )}
+
+                  {searchResults.length === 0 &&
+                    !isSearching &&
+                    (searchData.agentName || searchData.clientName || searchData.year) && (
+                      <div className="mt-4 text-center py-4">
+                        <p className="text-sm text-gray-500">No results found. Try adjusting your search criteria.</p>
+                      </div>
+                    )}
                 </CardContent>
               </Card>
 
@@ -222,7 +378,7 @@ export function CommissionGenerationModal({
                 </TabsList>
 
                 {Object.entries(groupedByDeveloperAndInvoice).map(([key, group]) => {
-                  const mockData = generateMockData(group.developerId, group.invoiceNumber, group.sales)
+                  const tabCommissionRecords = commissionRecords[key] || []
                   const firstSale = group.sales[0] // Use first sale for display details
 
                   return (
@@ -389,12 +545,56 @@ export function CommissionGenerationModal({
                                 </TableRow>
                               </TableHeader>
                               <TableBody className="bg-white">
-                                {/* Empty table body for now, keep all columns */}
-                                <TableRow>
-                                  <TableCell colSpan={12} className="text-center text-gray-400 py-8">
-                                    No commission records available.
-                                  </TableCell>
-                                </TableRow>
+                                {tabCommissionRecords.length > 0 ? (
+                                  tabCommissionRecords.map((record, index) => (
+                                    <TableRow key={index} className="border-b border-gray-100 hover:bg-gray-50">
+                                      <TableCell className="text-center font-medium text-[#001f3f]">
+                                        {record.no}
+                                      </TableCell>
+                                      <TableCell className="text-[#001f3f]">
+                                        {format(new Date(record.date), "MMM dd, yyyy")}
+                                      </TableCell>
+                                      <TableCell className="font-medium text-[#001f3f]">{record.developer}</TableCell>
+                                      <TableCell className="text-[#001f3f]">{record.agent}</TableCell>
+                                      <TableCell className="text-[#001f3f]">{record.client}</TableCell>
+                                      <TableCell className="text-right font-semibold text-[#001f3f]">
+                                        {formatCurrency(record.comm)}
+                                      </TableCell>
+                                      <TableCell className="text-right font-semibold text-[#001f3f]">
+                                        {formatCurrency(record.netOfVat)}
+                                      </TableCell>
+                                      <TableCell className="text-center">
+                                        <span
+                                          className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                            record.status === "Paid"
+                                              ? "bg-green-100 text-green-800"
+                                              : "bg-yellow-100 text-yellow-800"
+                                          }`}
+                                        >
+                                          {record.status}
+                                        </span>
+                                      </TableCell>
+                                      <TableCell className="text-center font-medium text-[#dee242]">
+                                        {record.agentsRate}
+                                      </TableCell>
+                                      <TableCell className="text-right font-semibold text-[#001f3f]">
+                                        {formatCurrency(record.agentVat)}
+                                      </TableCell>
+                                      <TableCell className="text-right font-semibold text-[#ee3433]">
+                                        {formatCurrency(record.ewt)}
+                                      </TableCell>
+                                      <TableCell className="text-right font-bold text-[#dee242]">
+                                        {formatCurrency(record.netComm)}
+                                      </TableCell>
+                                    </TableRow>
+                                  ))
+                                ) : (
+                                  <TableRow>
+                                    <TableCell colSpan={12} className="text-center text-gray-400 py-8">
+                                      No commission records added yet. Use the search above to add agents.
+                                    </TableCell>
+                                  </TableRow>
+                                )}
                               </TableBody>
                             </Table>
                           </div>
