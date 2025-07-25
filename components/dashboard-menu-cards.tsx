@@ -21,6 +21,7 @@ function MenuCard({ title, description, href, icon, color }: MenuCardProps) {
     red: "from-red-500 to-red-600 hover:from-red-600 hover:to-red-700",
     orange: "from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700",
     green: "from-green-500 to-green-600 hover:from-green-600 hover:to-green-700",
+    navy: "from-[#001f3f] to-[#001f3f] hover:from-[#001f3f] hover:to-[#001f3f]", // use theme navy, same as primary accent
   }
 
   const bgColorClasses = {
@@ -28,6 +29,7 @@ function MenuCard({ title, description, href, icon, color }: MenuCardProps) {
     red: "bg-red-50/80 hover:bg-red-100/80 border-red-200",
     orange: "bg-orange-50/80 hover:bg-orange-100/80 border-orange-200",
     green: "bg-green-50/80 hover:bg-green-100/80 border-green-200",
+    navy: "bg-[#f9f9f9] hover:bg-[#fff] border-[#001f3f]", // match card/section bg, border is theme navy
   }
 
   return (
@@ -97,7 +99,7 @@ export function DashboardMenuCards({ userRole }: DashboardMenuCardsProps) {
           description: "View and analyze sales commission records with detailed reporting capabilities.",
           href: `/dashboard/${userRole.replace("_", "-")}/commission`,
           icon: <Users className="h-6 w-6" />,
-          color: "red" as const,
+          color: "navy" as const,
         },
         {
           title: "User Management",

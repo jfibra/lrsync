@@ -47,12 +47,14 @@ export function CommissionGenerationModal({
   const groupedByDeveloperAndInvoice = selectedSales.reduce(
     (acc, sale) => {
       const developerId = sale.user_uuid
+      const developerName = sale.name || "Unknown Developer"
       const invoiceNumber = sale.invoice_number || "N/A"
       const key = `${developerId}-${invoiceNumber}`
 
       if (!acc[key]) {
         acc[key] = {
           developerId,
+          developerName,
           invoiceNumber,
           sales: [],
         }
@@ -60,7 +62,7 @@ export function CommissionGenerationModal({
       acc[key].sales.push(sale)
       return acc
     },
-    {} as Record<string, { developerId: string; invoiceNumber: string; sales: Sales[] }>,
+    {} as Record<string, { developerId: string; developerName: string; invoiceNumber: string; sales: Sales[] }>,
   )
 
   // Generate mock commission data for each developer/invoice combination
@@ -207,14 +209,14 @@ export function CommissionGenerationModal({
 
               {/* Tabs for Developer/Invoice Combinations */}
               <Tabs defaultValue={Object.keys(groupedByDeveloperAndInvoice)[0]} className="bg-white">
-                <TabsList className="grid w-full grid-cols-auto bg-gray-50 border border-gray-200 mb-4">
+                <TabsList className="flex flex-row w-full overflow-x-auto bg-gray-50 border border-gray-200 mb-4">
                   {Object.entries(groupedByDeveloperAndInvoice).map(([key, group]) => (
                     <TabsTrigger
                       key={key}
                       value={key}
-                      className="data-[state=active]:bg-[#001f3f] data-[state=active]:text-white text-[#001f3f] font-medium px-4 py-2 bg-white"
+                      className="data-[state=active]:bg-[#001f3f] data-[state=active]:text-white text-[#001f3f] font-medium px-4 py-2 bg-white whitespace-nowrap"
                     >
-                      Invoice # {group.invoiceNumber} - Developer {group.developerId.slice(-4)}
+                      Invoice # {group.invoiceNumber} - {group.developerName}
                     </TabsTrigger>
                   ))}
                 </TabsList>
@@ -387,48 +389,12 @@ export function CommissionGenerationModal({
                                 </TableRow>
                               </TableHeader>
                               <TableBody className="bg-white">
-                                {mockData.map((record, index) => (
-                                  <TableRow key={index} className="border-b border-gray-100 hover:bg-gray-50">
-                                    <TableCell className="text-center font-medium text-[#001f3f]">
-                                      {record.no}
-                                    </TableCell>
-                                    <TableCell className="text-[#001f3f]">
-                                      {format(new Date(record.date), "MMM dd, yyyy")}
-                                    </TableCell>
-                                    <TableCell className="font-medium text-[#001f3f]">{record.developer}</TableCell>
-                                    <TableCell className="text-[#001f3f]">{record.agent}</TableCell>
-                                    <TableCell className="text-[#001f3f]">{record.client}</TableCell>
-                                    <TableCell className="text-right font-semibold text-[#001f3f]">
-                                      {formatCurrency(record.comm)}
-                                    </TableCell>
-                                    <TableCell className="text-right font-semibold text-[#001f3f]">
-                                      {formatCurrency(record.netOfVat)}
-                                    </TableCell>
-                                    <TableCell className="text-center">
-                                      <span
-                                        className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                          record.status === "Paid"
-                                            ? "bg-green-100 text-green-800"
-                                            : "bg-yellow-100 text-yellow-800"
-                                        }`}
-                                      >
-                                        {record.status}
-                                      </span>
-                                    </TableCell>
-                                    <TableCell className="text-center font-medium text-[#dee242]">
-                                      {record.agentsRate}
-                                    </TableCell>
-                                    <TableCell className="text-right font-semibold text-[#001f3f]">
-                                      {formatCurrency(record.agentVat)}
-                                    </TableCell>
-                                    <TableCell className="text-right font-semibold text-[#ee3433]">
-                                      {formatCurrency(record.ewt)}
-                                    </TableCell>
-                                    <TableCell className="text-right font-bold text-[#dee242]">
-                                      {formatCurrency(record.netComm)}
-                                    </TableCell>
-                                  </TableRow>
-                                ))}
+                                {/* Empty table body for now, keep all columns */}
+                                <TableRow>
+                                  <TableCell colSpan={12} className="text-center text-gray-400 py-8">
+                                    No commission records available.
+                                  </TableCell>
+                                </TableRow>
                               </TableBody>
                             </Table>
                           </div>
