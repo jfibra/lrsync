@@ -86,6 +86,8 @@ interface CommissionRecord {
   vat: string
   ewt: string
   netComm: string
+  teamLeader: string
+  tlShare: string
 }
 
 export function CommissionGenerationModal({
@@ -422,6 +424,8 @@ export function CommissionGenerationModal({
           "VAT",
           "EWT",
           "NET COMM",
+          "TEAM LEADER",
+          "TL SHARE",
         ])
 
         // Add commission records
@@ -442,6 +446,8 @@ export function CommissionGenerationModal({
               record.vat,
               record.ewt,
               record.netComm,
+              record.teamLeader,
+              record.tlShare,
             ])
           })
 
@@ -493,6 +499,8 @@ export function CommissionGenerationModal({
         { wch: 15 }, // VAT
         { wch: 15 }, // EWT
         { wch: 15 }, // NET COMM
+        { wch: 20 }, // TEAM LEADER
+        { wch: 15 }, // TL SHARE
       ]
       worksheet["!cols"] = colWidths
 
@@ -598,7 +606,7 @@ export function CommissionGenerationModal({
                       </Button>
                       <Button
                         variant="outline"
-                        className="border-[#001f3f] text-white w-full bg-transparent"
+                        className="border-[#001f3f] text-white w-full bg-[#001f3f]"
                         onClick={() => setSearchResults([])}
                         disabled={searchResults.length === 0}
                       >
@@ -609,7 +617,7 @@ export function CommissionGenerationModal({
                   <div className="flex gap-2 mt-2">
                     <Button
                       variant="outline"
-                      className="border-[#001f3f] text-white bg-transparent"
+                      className="border-[#001f3f] text-white bg-[#001f3f]"
                       onClick={() => setSearchData({ agentName: "", developerName: "", year: currentYear.toString() })}
                     >
                       Clear Filters
@@ -865,6 +873,8 @@ export function CommissionGenerationModal({
                                   <TableHead className="font-semibold text-[#001f3f] text-right">VAT</TableHead>
                                   <TableHead className="font-semibold text-[#001f3f] text-right">EWT</TableHead>
                                   <TableHead className="font-semibold text-[#001f3f] text-right">NET COMM</TableHead>
+                                  <TableHead className="font-semibold text-[#001f3f] text-right">Team Leader</TableHead>
+                                  <TableHead className="font-semibold text-[#001f3f] text-right">TL Share</TableHead>
                                   <TableHead className="font-semibold text-[#ee3433] text-center">Remove</TableHead>
                                 </TableRow>
                               </TableHeader>
@@ -966,6 +976,35 @@ export function CommissionGenerationModal({
                                         <TableCell className="text-right font-bold text-[#dee242]">
                                           {record.netComm ? formatCurrency(Number(record.netComm)) : ""}
                                         </TableCell>
+   {/* Team Leader input */}
+   <TableCell className="text-center">
+     <input
+       type="text"
+       className="border border-gray-300 rounded px-2 py-1 w-24 text-center text-[#001f3f] bg-white"
+       value={record.teamLeader}
+       onChange={(e) =>
+         handleCommissionRecordChange(key, index, "teamLeader", e.target.value)
+       }
+       placeholder="Team Leader"
+     />
+   </TableCell>
+   {/* TL Share input */}
+   <TableCell className="text-center">
+     <input
+       type="text"
+       inputMode="decimal"
+       className="border border-gray-300 rounded px-2 py-1 w-20 text-center text-[#001f3f] bg-white"
+       value={record.tlShare}
+       onChange={(e) => {
+         // Only allow numbers and commas
+         let val = e.target.value.replace(/[^\d.,]/g, "");
+         // Format as currency with commas
+         val = formatNumberWithCommas(val);
+         handleCommissionRecordChange(key, index, "tlShare", val);
+       }}
+       placeholder="TL Share"
+     />
+   </TableCell>
                                         <TableCell className="text-center">
                                           <Button
                                             size="sm"
