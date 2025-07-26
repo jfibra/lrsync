@@ -4,7 +4,7 @@ import * as React from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { BookText, DollarSign, Menu, User, Users, LogOut } from "lucide-react"
+import { BookText, PhilippinePeso, Menu, User, Users, LogOut } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -35,7 +35,7 @@ export function DashboardHeader() {
       {
         label: "Sales",
         href: (role: string) => `/dashboard/${role.replace("_", "-")}/sales`, // Re-added replace
-        icon: DollarSign,
+        icon: PhilippinePeso,
         roles: ["super_admin", "admin", "secretary"],
       },
       {
