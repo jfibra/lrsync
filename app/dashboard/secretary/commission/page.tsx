@@ -250,7 +250,7 @@ export default function SecretaryCommissionPage() {
               </div>
               {selectedSales.length > 0 && (
                 <div className="mt-4 sm:mt-0">
-                  <Badge variant="outline" className="text-sm px-3 py-1">
+                  <Badge variant="outline" className="text-sm text-[#001f3f] px-3 py-1">
                     {selectedSales.length} record(s) selected
                   </Badge>
                 </div>
