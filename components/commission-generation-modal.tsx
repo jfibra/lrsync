@@ -132,6 +132,7 @@ interface CommissionRecord {
   tlNetComm: string;
 }
 
+// [GitHub Copilot] Minor change: Added this comment to trigger a new git commit and push.
 export function CommissionGenerationModal({
   isOpen,
   onClose,
