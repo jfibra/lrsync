@@ -369,31 +369,31 @@ export function CommissionGenerationModal({
 
       // Agent calculations
       if (calcType === "nonvat with invoice") {
-        netOfVat = comm ? (comm / 1.02).toFixed(2) : ""
+        netOfVat = comm ? String(comm / 1.02) : ""
         agent =
           netOfVat && agentsRate && developersRate
-            ? ((Number.parseFloat(netOfVat) * agentsRate) / developersRate).toFixed(2)
+            ? String((Number.parseFloat(netOfVat) * agentsRate) / developersRate)
             : ""
-        ewt = agent ? (Number.parseFloat(agent) * 0.05).toFixed(2) : ""
-        netComm = agent && ewt ? (Number.parseFloat(agent) - Number.parseFloat(ewt)).toFixed(2) : ""
+        ewt = agent ? String(Number.parseFloat(agent) * 0.05) : ""
+        netComm = agent && ewt ? String(Number.parseFloat(agent) - Number.parseFloat(ewt)) : ""
         vat = ""
       } else if (calcType === "nonvat without invoice") {
         netOfVat = ""
         agent = ""
         vat = ""
         ewt = ""
-        netComm = comm && agentsRate && developersRate ? ((comm * agentsRate) / developersRate).toFixed(2) : ""
+        netComm = comm && agentsRate && developersRate ? String((comm * agentsRate) / developersRate) : ""
       } else if (calcType === "vat with invoice") {
-        netOfVat = comm ? (comm / 1.02).toFixed(2) : ""
+        netOfVat = comm ? String(comm / 1.02) : ""
         agent =
           netOfVat && agentsRate && developersRate
-            ? ((Number.parseFloat(netOfVat) * agentsRate) / developersRate).toFixed(2)
+            ? String((Number.parseFloat(netOfVat) * agentsRate) / developersRate)
             : ""
-        vat = agent ? (Number.parseFloat(agent) * 0.12).toFixed(2) : ""
-        ewt = agent ? (Number.parseFloat(agent) * 0.1).toFixed(2) : ""
+        vat = agent ? String(Number.parseFloat(agent) * 0.12) : ""
+        ewt = agent ? String(Number.parseFloat(agent) * 0.1) : ""
         netComm =
           agent && vat && ewt
-            ? (Number.parseFloat(agent) + Number.parseFloat(vat) - Number.parseFloat(ewt)).toFixed(2)
+            ? String(Number.parseFloat(agent) + Number.parseFloat(vat) - Number.parseFloat(ewt))
             : ""
       }
 
@@ -405,96 +405,92 @@ export function CommissionGenerationModal({
 
       // UM calculation - ENHANCED
       if (record.umCalculationType && record.umRate && record.umDevelopersRate) {
-        const umCalcType = record.umCalculationType
-        const umRate = Number.parseFloat(record.umRate) || 0
-        const umDevelopersRate = Number.parseFloat(record.umDevelopersRate) || 5
+        const umCalcType = record.umCalculationType;
+        const umRate = Number.parseFloat(record.umRate) || 0;
+        const umDevelopersRate = Number.parseFloat(record.umDevelopersRate) || 5;
 
-        console.log(`UM Calculation - Rate: ${umRate}, Developer Rate: ${umDevelopersRate}, Calc Type: ${umCalcType}`)
+        console.log(`UM Calculation - Rate: ${umRate}, Developer Rate: ${umDevelopersRate}, Calc Type: ${umCalcType}`);
 
-        let umAmount = ""
-        let umVat = ""
-        let umEwt = ""
-        let umNetComm = ""
+        let umAmount = "";
+        let umVat = "";
+        let umEwt = "";
+        let umNetComm = "";
 
-        if (umCalcType === "nonvat with invoice") {
-          umAmount =
-            netOfVat && umRate && umDevelopersRate
-              ? ((Number.parseFloat(netOfVat) * umRate) / umDevelopersRate).toFixed(2)
-              : ""
-          umEwt = umAmount ? (Number.parseFloat(umAmount) * 0.05).toFixed(2) : ""
-          umNetComm = umAmount && umEwt ? (Number.parseFloat(umAmount) - Number.parseFloat(umEwt)).toFixed(2) : ""
-          umVat = ""
-        } else if (umCalcType === "nonvat without invoice") {
-          umAmount = comm && umRate && umDevelopersRate ? ((comm * umRate) / umDevelopersRate).toFixed(2) : ""
-          umVat = ""
-          umEwt = ""
-          umNetComm = umAmount || ""
-        } else if (umCalcType === "vat with invoice") {
-          umAmount =
-            netOfVat && umRate && umDevelopersRate
-              ? ((Number.parseFloat(netOfVat) * umRate) / umDevelopersRate).toFixed(2)
-              : ""
-          umVat = umAmount ? (Number.parseFloat(umAmount) * 0.12).toFixed(2) : ""
-          umEwt = umAmount ? (Number.parseFloat(umAmount) * 0.1).toFixed(2) : ""
-          umNetComm =
-            umAmount && umVat && umEwt
-              ? (Number.parseFloat(umAmount) + Number.parseFloat(umVat) - Number.parseFloat(umEwt)).toFixed(2)
-              : ""
+        if (calcType === "nonvat without invoice") {
+          umAmount = comm && umRate && umDevelopersRate ? String((comm * umRate) / umDevelopersRate) : "";
+        } else {
+          if (umCalcType === "nonvat with invoice" || umCalcType === "vat with invoice") {
+            umAmount = netOfVat && umRate && umDevelopersRate ? String((Number.parseFloat(netOfVat) * umRate) / umDevelopersRate) : "";
+          } else {
+            umAmount = comm && umRate && umDevelopersRate ? String((comm * umRate) / umDevelopersRate) : "";
+          }
         }
 
-        record.umAmount = umAmount
-        record.umVat = umVat
-        record.umEwt = umEwt
-        record.umNetComm = umNetComm
+        if (umCalcType === "nonvat with invoice") {
+          umEwt = umAmount ? String(Number.parseFloat(umAmount) * 0.05) : "";
+          umNetComm = umAmount && umEwt ? String(Number.parseFloat(umAmount) - Number.parseFloat(umEwt)) : "";
+          umVat = "";
+        } else if (umCalcType === "vat with invoice") {
+          umVat = umAmount ? String(Number.parseFloat(umAmount) * 0.12) : "";
+          umEwt = umAmount ? String(Number.parseFloat(umAmount) * 0.1) : "";
+          umNetComm = umAmount && umVat && umEwt ? String(Number.parseFloat(umAmount) + Number.parseFloat(umVat) - Number.parseFloat(umEwt)) : "";
+        } else {
+          umVat = "";
+          umEwt = "";
+          umNetComm = umAmount || "";
+        }
 
-        console.log(`UM Results - Amount: ${umAmount}, VAT: ${umVat}, EWT: ${umEwt}, Net: ${umNetComm}`)
+        record.umAmount = umAmount;
+        record.umVat = umVat;
+        record.umEwt = umEwt;
+        record.umNetComm = umNetComm;
+
+        console.log(`UM Results - Amount: ${umAmount}, VAT: ${umVat}, EWT: ${umEwt}, Net: ${umNetComm}`);
       }
 
       // TL calculation - ENHANCED
       if (record.tlCalculationType && record.tlRate && record.tlDevelopersRate) {
-        const tlCalcType = record.tlCalculationType
-        const tlRate = Number.parseFloat(record.tlRate) || 0
-        const tlDevelopersRate = Number.parseFloat(record.tlDevelopersRate) || 5
+        const tlCalcType = record.tlCalculationType;
+        const tlRate = Number.parseFloat(record.tlRate) || 0;
+        const tlDevelopersRate = Number.parseFloat(record.tlDevelopersRate) || 5;
 
-        console.log(`TL Calculation - Rate: ${tlRate}, Developer Rate: ${tlDevelopersRate}, Calc Type: ${tlCalcType}`)
+        console.log(`TL Calculation - Rate: ${tlRate}, Developer Rate: ${tlDevelopersRate}, Calc Type: ${tlCalcType}`);
 
-        let tlAmount = ""
-        let tlVat = ""
-        let tlEwt = ""
-        let tlNetComm = ""
+        let tlAmount = "";
+        let tlVat = "";
+        let tlEwt = "";
+        let tlNetComm = "";
 
-        if (tlCalcType === "nonvat with invoice") {
-          tlAmount =
-            netOfVat && tlRate && tlDevelopersRate
-              ? ((Number.parseFloat(netOfVat) * tlRate) / tlDevelopersRate).toFixed(2)
-              : ""
-          tlEwt = tlAmount ? (Number.parseFloat(tlAmount) * 0.05).toFixed(2) : ""
-          tlNetComm = tlAmount && tlEwt ? (Number.parseFloat(tlAmount) - Number.parseFloat(tlEwt)).toFixed(2) : ""
-          tlVat = ""
-        } else if (tlCalcType === "nonvat without invoice") {
-          tlAmount = comm && tlRate && tlDevelopersRate ? ((comm * tlRate) / tlDevelopersRate).toFixed(2) : ""
-          tlVat = ""
-          tlEwt = ""
-          tlNetComm = tlAmount || ""
-        } else if (tlCalcType === "vat with invoice") {
-          tlAmount =
-            netOfVat && tlRate && tlDevelopersRate
-              ? ((Number.parseFloat(netOfVat) * tlRate) / tlDevelopersRate).toFixed(2)
-              : ""
-          tlVat = tlAmount ? (Number.parseFloat(tlAmount) * 0.12).toFixed(2) : ""
-          tlEwt = tlAmount ? (Number.parseFloat(tlAmount) * 0.1).toFixed(2) : ""
-          tlNetComm =
-            tlAmount && tlVat && tlEwt
-              ? (Number.parseFloat(tlAmount) + Number.parseFloat(tlVat) - Number.parseFloat(tlEwt)).toFixed(2)
-              : ""
+        if (calcType === "nonvat without invoice") {
+          tlAmount = comm && tlRate && tlDevelopersRate ? String((comm * tlRate) / tlDevelopersRate) : "";
+        } else {
+          if (tlCalcType === "nonvat with invoice" || tlCalcType === "vat with invoice") {
+            tlAmount = netOfVat && tlRate && tlDevelopersRate ? String((Number.parseFloat(netOfVat) * tlRate) / tlDevelopersRate) : "";
+          } else {
+            tlAmount = comm && tlRate && tlDevelopersRate ? String((comm * tlRate) / tlDevelopersRate) : "";
+          }
         }
 
-        record.tlAmount = tlAmount
-        record.tlVat = tlVat
-        record.tlEwt = tlEwt
-        record.tlNetComm = tlNetComm
+        if (tlCalcType === "nonvat with invoice") {
+          tlEwt = tlAmount ? String(Number.parseFloat(tlAmount) * 0.05) : "";
+          tlNetComm = tlAmount && tlEwt ? String(Number.parseFloat(tlAmount) - Number.parseFloat(tlEwt)) : "";
+          tlVat = "";
+        } else if (tlCalcType === "vat with invoice") {
+          tlVat = tlAmount ? String(Number.parseFloat(tlAmount) * 0.12) : "";
+          tlEwt = tlAmount ? String(Number.parseFloat(tlAmount) * 0.1) : "";
+          tlNetComm = tlAmount && tlVat && tlEwt ? String(Number.parseFloat(tlAmount) + Number.parseFloat(tlVat) - Number.parseFloat(tlEwt)) : "";
+        } else {
+          tlVat = "";
+          tlEwt = "";
+          tlNetComm = tlAmount || "";
+        }
 
-        console.log(`TL Results - Amount: ${tlAmount}, VAT: ${tlVat}, EWT: ${tlEwt}, Net: ${tlNetComm}`)
+        record.tlAmount = tlAmount;
+        record.tlVat = tlVat;
+        record.tlEwt = tlEwt;
+        record.tlNetComm = tlNetComm;
+
+        console.log(`TL Results - Amount: ${tlAmount}, VAT: ${tlVat}, EWT: ${tlEwt}, Net: ${tlNetComm}`);
       }
 
       records[index] = record
