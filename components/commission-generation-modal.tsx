@@ -524,28 +524,26 @@ export function CommissionGenerationModal({
 
   // Generate Excel report
   const generateExcelReport = async () => {
-    setIsGeneratingExcel(true)
+    setIsGeneratingExcel(true);
     try {
       // Create a new workbook
-      const workbook = XLSX.utils.book_new()
+      const workbook = XLSX.utils.book_new();
 
       // Prepare data for the worksheet
-      const worksheetData: any[][] = []
+      const worksheetData: any[][] = [];
 
       // Add title
-      const title = `Generate Commission ${
-        userArea ? `(${userArea})` : ""
-      } - ${format(new Date(), "MMMM dd, yyyy")} - ${userFullName || "User"}`
-      worksheetData.push([title])
-      worksheetData.push([]) // Empty row
+      const title = `Commission Report${userArea ? `(${userArea})` : ""} - ${userFullName || "User"} - ${format(new Date(), "yyyy-MM-dd HH-mm")}`;
+      worksheetData.push([title]);
+      worksheetData.push([]); // Empty row
 
       // Process each tab (developer/invoice group)
       Object.entries(groupedByDeveloperAndInvoice).forEach(([key, group], groupIndex) => {
-        const firstSale = group.sales[0]
-        const tabCommissionRecords = commissionRecords[key] || []
+        const firstSale = group.sales[0];
+        const tabCommissionRecords = commissionRecords[key] || [];
 
         // Add section title
-        worksheetData.push([`Sale Record Details - Invoice # ${group.invoiceNumber}`])
+        worksheetData.push([`Sale Record Details - Invoice # ${group.invoiceNumber}`]);
 
         // Add sale record details
         worksheetData.push([
@@ -558,8 +556,8 @@ export function CommissionGenerationModal({
           "",
           "",
           "Total Actual Amount:",
-          firstSale.total_actual_amount || 0,
-        ])
+          formatCurrency(Number(firstSale.total_actual_amount) || 0),
+        ]);
 
         worksheetData.push([
           "TIN:",
@@ -572,7 +570,7 @@ export function CommissionGenerationModal({
           "",
           "Invoice #:",
           firstSale.invoice_number || "N/A",
-        ])
+        ]);
 
         worksheetData.push([
           "Name:",
@@ -580,18 +578,18 @@ export function CommissionGenerationModal({
           "",
           "",
           "Gross Taxable:",
-          firstSale.gross_taxable || 0,
+          formatCurrency(Number(firstSale.gross_taxable) || 0),
           "",
           "",
           "Pickup Date:",
           firstSale.pickup_date ? format(new Date(firstSale.pickup_date), "MMM dd, yyyy") : "N/A",
-        ])
+        ]);
 
-        worksheetData.push(["Area:", firstSale.user_assigned_area || "N/A"])
+        worksheetData.push(["Area:", firstSale.user_assigned_area || "N/A"]);
 
-        worksheetData.push([]) // Empty row
+        worksheetData.push([]); // Empty row
 
-        // Add Commission Records table header (excluding calculation type and developer's rate fields)
+        // Add Commission Records table header
         worksheetData.push([
           "NO.",
           "DATE",
@@ -618,7 +616,7 @@ export function CommissionGenerationModal({
           "TL VAT",
           "TL EWT",
           "TL NET COMM",
-        ])
+        ]);
 
         // Add commission records
         if (tabCommissionRecords.length > 0) {
@@ -629,28 +627,28 @@ export function CommissionGenerationModal({
               record.developer,
               record.agentName,
               record.client,
-              record.comm,
-              record.netOfVat,
+              formatCurrency(Number(record.comm.replace(/,/g, "")) || 0),
+              formatCurrency(Number(record.netOfVat) || 0),
               record.status,
               `${record.agentsRate}%`,
-              record.agent,
-              record.vat,
-              record.ewt,
-              record.netComm,
+              formatCurrency(Number(record.agent) || 0),
+              formatCurrency(Number(record.vat) || 0),
+              formatCurrency(Number(record.ewt) || 0),
+              formatCurrency(Number(record.netComm) || 0),
               record.umName,
-              record.umRate,
-              record.umAmount,
-              record.umVat,
-              record.umEwt,
-              record.umNetComm,
+              `${record.umRate}%`,
+              formatCurrency(Number(record.umAmount) || 0),
+              formatCurrency(Number(record.umVat) || 0),
+              formatCurrency(Number(record.umEwt) || 0),
+              formatCurrency(Number(record.umNetComm) || 0),
               record.tlName,
-              record.tlRate,
-              record.tlAmount,
-              record.tlVat,
-              record.tlEwt,
-              record.tlNetComm,
-            ])
-          })
+              `${record.tlRate}%`,
+              formatCurrency(Number(record.tlAmount) || 0),
+              formatCurrency(Number(record.tlVat) || 0),
+              formatCurrency(Number(record.tlEwt) || 0),
+              formatCurrency(Number(record.tlNetComm) || 0),
+            ]);
+          });
 
           // Add combined totals row for Agent, UM, TL
           worksheetData.push([
@@ -659,47 +657,43 @@ export function CommissionGenerationModal({
             "",
             "",
             "Totals:",
-            // Agent totals
-            tabCommissionRecords.reduce((sum, r) => sum + (Number.parseFloat(r.comm.replace(/,/g, "")) || 0), 0),
-            tabCommissionRecords.reduce((sum, r) => sum + (Number.parseFloat(r.netOfVat) || 0), 0),
+            formatCurrency(tabCommissionRecords.reduce((sum, r) => sum + (Number(r.comm.replace(/,/g, "")) || 0), 0)),
+            formatCurrency(tabCommissionRecords.reduce((sum, r) => sum + (Number(r.netOfVat) || 0), 0)),
             "",
             "",
-            tabCommissionRecords.reduce((sum, r) => sum + (Number.parseFloat(r.agent) || 0), 0),
-            tabCommissionRecords.reduce((sum, r) => sum + (Number.parseFloat(r.vat) || 0), 0),
-            tabCommissionRecords.reduce((sum, r) => sum + (Number.parseFloat(r.ewt) || 0), 0),
-            tabCommissionRecords.reduce((sum, r) => sum + (Number.parseFloat(r.netComm) || 0), 0),
-            // UM totals
+            formatCurrency(tabCommissionRecords.reduce((sum, r) => sum + (Number(r.agent) || 0), 0)),
+            formatCurrency(tabCommissionRecords.reduce((sum, r) => sum + (Number(r.vat) || 0), 0)),
+            formatCurrency(tabCommissionRecords.reduce((sum, r) => sum + (Number(r.ewt) || 0), 0)),
+            formatCurrency(tabCommissionRecords.reduce((sum, r) => sum + (Number(r.netComm) || 0), 0)),
             "",
-            tabCommissionRecords.reduce((sum, r) => sum + (Number.parseFloat(r.umRate) || 0), 0),
-            tabCommissionRecords.reduce((sum, r) => sum + (Number.parseFloat(r.umAmount) || 0), 0),
-            tabCommissionRecords.reduce((sum, r) => sum + (Number.parseFloat(r.umVat) || 0), 0),
-            tabCommissionRecords.reduce((sum, r) => sum + (Number.parseFloat(r.umEwt) || 0), 0),
-            tabCommissionRecords.reduce((sum, r) => sum + (Number.parseFloat(r.umNetComm) || 0), 0),
-            // TL totals
+            `${tabCommissionRecords.reduce((sum, r) => sum + (Number(r.umRate) || 0), 0)}%`,
+            formatCurrency(tabCommissionRecords.reduce((sum, r) => sum + (Number(r.umAmount) || 0), 0)),
+            formatCurrency(tabCommissionRecords.reduce((sum, r) => sum + (Number(r.umVat) || 0), 0)),
+            formatCurrency(tabCommissionRecords.reduce((sum, r) => sum + (Number(r.umEwt) || 0), 0)),
+            formatCurrency(tabCommissionRecords.reduce((sum, r) => sum + (Number(r.umNetComm) || 0), 0)),
             "",
-            tabCommissionRecords.reduce((sum, r) => sum + (Number.parseFloat(r.tlRate) || 0), 0),
-            tabCommissionRecords.reduce((sum, r) => sum + (Number.parseFloat(r.tlAmount) || 0), 0),
-            tabCommissionRecords.reduce((sum, r) => sum + (Number.parseFloat(r.tlVat) || 0), 0),
-            tabCommissionRecords.reduce((sum, r) => sum + (Number.parseFloat(r.tlEwt) || 0), 0),
-            tabCommissionRecords.reduce((sum, r) => sum + (Number.parseFloat(r.tlNetComm) || 0), 0),
-          ])
+            `${tabCommissionRecords.reduce((sum, r) => sum + (Number(r.tlRate) || 0), 0)}%`,
+            formatCurrency(tabCommissionRecords.reduce((sum, r) => sum + (Number(r.tlAmount) || 0), 0)),
+            formatCurrency(tabCommissionRecords.reduce((sum, r) => sum + (Number(r.tlVat) || 0), 0)),
+            formatCurrency(tabCommissionRecords.reduce((sum, r) => sum + (Number(r.tlEwt) || 0), 0)),
+            formatCurrency(tabCommissionRecords.reduce((sum, r) => sum + (Number(r.tlNetComm) || 0), 0)),
+          ]);
         } else {
-          // No records message
-          worksheetData.push(["No commission records added yet."])
+          worksheetData.push(["No commission records added yet."]);
         }
 
         // Add blank rows between tabs (except for the last one)
         if (groupIndex < Object.keys(groupedByDeveloperAndInvoice).length - 1) {
-          worksheetData.push([])
-          worksheetData.push([])
+          worksheetData.push([]);
+          worksheetData.push([]);
         }
-      })
+      });
 
       // Create worksheet from data
-      const worksheet = XLSX.utils.aoa_to_sheet(worksheetData)
+      const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
 
       // Set column widths
-      const colWidths = [
+      worksheet["!cols"] = [
         { wch: 8 }, // NO.
         { wch: 12 }, // DATE
         { wch: 15 }, // DEVELOPER
@@ -713,20 +707,55 @@ export function CommissionGenerationModal({
         { wch: 15 }, // VAT
         { wch: 15 }, // EWT
         { wch: 15 }, // NET COMM
-      ]
-      worksheet["!cols"] = colWidths
+        { wch: 15 }, // UM NAME
+        { wch: 12 }, // UM RATE
+        { wch: 15 }, // UM AMOUNT
+        { wch: 15 }, // UM VAT
+        { wch: 15 }, // UM EWT
+        { wch: 15 }, // UM NET COMM
+        { wch: 15 }, // TL NAME
+        { wch: 12 }, // TL RATE
+        { wch: 15 }, // TL AMOUNT
+        { wch: 15 }, // TL VAT
+        { wch: 15 }, // TL EWT
+        { wch: 15 }, // TL NET COMM
+      ];
+
+      // Add borders and colors for presentable sheet
+      const range = XLSX.utils.decode_range(worksheet['!ref']);
+      for (let R = range.s.r; R <= range.e.r; ++R) {
+        for (let C = range.s.c; C <= range.e.c; ++C) {
+          const cell_address = { c: C, r: R };
+          const cell_ref = XLSX.utils.encode_cell(cell_address);
+          if (!worksheet[cell_ref]) continue;
+          worksheet[cell_ref].s = worksheet[cell_ref].s || {};
+          worksheet[cell_ref].s.border = {
+            top: { style: "thin", color: { rgb: "001f3f" } },
+            bottom: { style: "thin", color: { rgb: "001f3f" } },
+            left: { style: "thin", color: { rgb: "001f3f" } },
+            right: { style: "thin", color: { rgb: "001f3f" } },
+          };
+          // Header row coloring
+          if (R === 6) {
+            worksheet[cell_ref].s.fill = {
+              fgColor: { rgb: "a0d9ef" },
+            };
+            worksheet[cell_ref].s.font = { bold: true };
+          }
+        }
+      }
 
       // Add worksheet to workbook
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Commission Report")
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Commission Report");
 
       // Generate Excel file and download
-      const fileName = `Commission_Report_${format(new Date(), "yyyy-MM-dd")}.xlsx`
-      XLSX.writeFile(workbook, fileName)
+      const fileName = `Commission Report${userArea ? `(${userArea})` : ""} - ${userFullName || "User"} - ${format(new Date(), "yyyy-MM-dd HH-mm")}.xlsx`;
+      XLSX.writeFile(workbook, fileName);
     } catch (error) {
-      console.error("Error generating Excel:", error)
-      alert("Failed to generate Excel report. Please try again.")
+      console.error("Error generating Excel:", error);
+      alert("Failed to generate Excel report. Please try again.");
     } finally {
-      setIsGeneratingExcel(false)
+      setIsGeneratingExcel(false);
     }
   }
 
