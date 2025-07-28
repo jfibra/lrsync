@@ -332,7 +332,7 @@ export function CommissionGenerationModal({
       const updated = { ...prev };
       const records = [...(updated[tabKey] || [])];
       records[index] = { ...records[index], [field]: value };
-      // If agentsRate, calculationType, UM fields, or TL fields change, recalculate immediately now
+      // If agentsRate, calculationType, UM fields, or TL fields change, recalculate immediately
       if ([
         "agentsRate",
         "calculationType",
