@@ -2298,6 +2298,7 @@ export function CommissionGenerationModal({
                                         {/* TL Totals */}
                                         <TableCell />
                                         <TableCell />
+                                        <TableCell />
                                         <TableCell className="text-right text-[#001f3f]">
                                           {formatCurrency(
                                             tabCommissionRecords.reduce(
