@@ -102,6 +102,7 @@ interface CommissionRecord {
   developer: string;
   agentName: string;
   client: string;
+  reservationDate: string;
   calculationType: string;
   comm: string;
   netOfVat: string;
@@ -745,6 +746,7 @@ export function CommissionGenerationModal({
             "DEVELOPER",
             "AGENT NAME",
             "CLIENT",
+            "RESERVATION DATE",
             "COMM",
             "NET OF VAT",
             "STATUS",
@@ -776,6 +778,7 @@ export function CommissionGenerationModal({
                 record.developer,
                 record.agentName,
                 record.client,
+                record.reservationDate,
                 formatCurrency(Number(record.comm.replace(/,/g, "")) || 0),
                 formatCurrency(Number(record.netOfVat) || 0),
                 record.status,
@@ -806,6 +809,7 @@ export function CommissionGenerationModal({
               "",
               "",
               "Totals:",
+              "",
               formatCurrency(
                 tabCommissionRecords.reduce(
                   (sum, r) => sum + (Number(r.comm.replace(/,/g, "")) || 0),
@@ -1164,7 +1168,7 @@ export function CommissionGenerationModal({
                                 {formatCurrency(result.tcprice)}
                               </div>
                               <div className="text-xs text-gray-600 mt-1">
-                                Reservation Date: {result.reservationdate}
+                                Reservation Date: {result.reservationDate}
                               </div>
                             </div>
                             <div className="flex gap-2">
@@ -1458,10 +1462,10 @@ export function CommissionGenerationModal({
                                       Agent Name
                                     </TableHead>
                                     <TableHead className="font-semibold text-[#001f3f]">
-                                      Reservation Date
+                                      CLIENT
                                     </TableHead>
                                     <TableHead className="font-semibold text-[#001f3f]">
-                                      CLIENT
+                                      Reservation Date
                                     </TableHead>
                                     <TableHead className="font-semibold text-[#001f3f] text-center">
                                       COMM
@@ -1621,10 +1625,10 @@ export function CommissionGenerationModal({
                                               {record.agentName}
                                             </TableCell>
                                             <TableCell className="text-[#001f3f]">
-                                              {record.reservationDate}
+                                              {record.client}
                                             </TableCell>
                                             <TableCell className="text-[#001f3f]">
-                                              {record.client}
+                                              {record.reservationDate}
                                             </TableCell>
                                             {/* COMM input */}
                                             <TableCell className="text-right font-semibold text-[#001f3f]">
@@ -2181,6 +2185,7 @@ export function CommissionGenerationModal({
                                             )
                                           )}
                                         </TableCell>
+                                        <TableCell />
                                         <TableCell className="text-right text-[#001f3f]">
                                           {formatCurrency(
                                             tabCommissionRecords.reduce(
