@@ -14,6 +14,30 @@ import { CheckCircle, AlertCircle, User, Settings, Shield, Clock, Mail } from "l
 
 export default function ProfilePage() {
   const { profile, refreshProfile } = useAuth()
+  // Log notification/audit entry for profile dashboard access (all roles)
+  useEffect(() => {
+    if (profile?.id) {
+      (async () => {
+        try {
+          await supabase.rpc("log_notification", {
+            action: "profile_dashboard_access",
+            description: `Profile dashboard accessed by ${profile.full_name || profile.first_name || profile.id}`,
+            user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+            meta: JSON.stringify({
+              user_id: profile.id,
+              role: profile.role || "unknown",
+              dashboard: "profile_management",
+            }),
+          })
+        } catch (logError) {
+          console.error("Error logging notification:", logError)
+          // Do not block user on logging failure
+        }
+      })()
+    }
+    // Only log once when profile is available
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile?.id])
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState("")
@@ -72,16 +96,56 @@ export default function ProfilePage() {
 
       if (updateError) {
         setError("Error updating profile: " + updateError.message)
+        // Log failed update
+        try {
+          await supabase.rpc("log_notification", {
+            p_action: "profile_updated",
+            p_description: `Failed profile update for user ${profile.full_name || profile.id}`,
+            p_ip_address: null,
+            p_location: null,
+            p_user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+            p_meta: JSON.stringify({ error: updateError.message, updateData }),
+          })
+        } catch (logError) {
+          console.error("Error logging notification (profile update failed):", logError)
+        }
         return
       }
 
       setSuccess("Profile updated successfully!")
       setIsEditing(false)
 
+      // Log successful update
+      try {
+        await supabase.rpc("log_notification", {
+          p_action: "profile_updated",
+          p_description: `Profile updated for user ${profile.full_name || profile.id}`,
+          p_ip_address: null,
+          p_location: null,
+          p_user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+          p_meta: JSON.stringify({ updateData }),
+        })
+      } catch (logError) {
+        console.error("Error logging notification (profile update success):", logError)
+      }
+
       // Refresh the profile data
       await refreshProfile()
     } catch (error) {
       setError("An unexpected error occurred")
+      // Log unexpected error
+      try {
+        await supabase.rpc("log_notification", {
+          p_action: "profile_updated",
+          p_description: `Unexpected error during profile update for user ${profile?.full_name || profile?.id}`,
+          p_ip_address: null,
+          p_location: null,
+          p_user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+          p_meta: JSON.stringify({ error }),
+        })
+      } catch (logError) {
+        console.error("Error logging notification (profile update error):", logError)
+      }
     } finally {
       setIsSaving(false)
     }
@@ -135,6 +199,19 @@ export default function ProfilePage() {
 
       if (signInError) {
         setPasswordError("Current password is incorrect")
+        // Log failed password change
+        try {
+          await supabase.rpc("log_notification", {
+            p_action: "password_changed",
+            p_description: `Failed password change for user ${profile?.full_name || profile?.id}`,
+            p_ip_address: null,
+            p_location: null,
+            p_user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+            p_meta: JSON.stringify({ error: signInError.message }),
+          })
+        } catch (logError) {
+          console.error("Error logging notification (password change failed):", logError)
+        }
         return
       }
 
@@ -145,6 +222,19 @@ export default function ProfilePage() {
 
       if (updateError) {
         setPasswordError("Error updating password: " + updateError.message)
+        // Log failed password update
+        try {
+          await supabase.rpc("log_notification", {
+            p_action: "password_changed",
+            p_description: `Error updating password for user ${profile?.full_name || profile?.id}`,
+            p_ip_address: null,
+            p_location: null,
+            p_user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+            p_meta: JSON.stringify({ error: updateError.message }),
+          })
+        } catch (logError) {
+          console.error("Error logging notification (password update failed):", logError)
+        }
         return
       }
 
@@ -154,8 +244,35 @@ export default function ProfilePage() {
         newPassword: "",
         confirmPassword: "",
       })
+
+      // Log successful password change
+      try {
+        await supabase.rpc("log_notification", {
+          p_action: "password_changed",
+          p_description: `Password changed for user ${profile?.full_name || profile?.id}`,
+          p_ip_address: null,
+          p_location: null,
+          p_user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+          p_meta: JSON.stringify({}),
+        })
+      } catch (logError) {
+        console.error("Error logging notification (password change success):", logError)
+      }
     } catch (error) {
       setPasswordError("An unexpected error occurred")
+      // Log unexpected error
+      try {
+        await supabase.rpc("log_notification", {
+          p_action: "password_changed",
+          p_description: `Unexpected error during password change for user ${profile?.full_name || profile?.id}`,
+          p_ip_address: null,
+          p_location: null,
+          p_user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+          p_meta: JSON.stringify({ error }),
+        })
+      } catch (logError) {
+        console.error("Error logging notification (password change error):", logError)
+      }
     } finally {
       setIsChangingPassword(false)
     }
@@ -179,54 +296,54 @@ export default function ProfilePage() {
 
   return (
     <ProtectedRoute allowedRoles={["super_admin"]}>
-      <div className="min-h-screen bg-gradient-to-br from-rose-50 via-orange-50 to-amber-50">
+      <div className="min-h-screen bg-[#ffffff]">
         <DashboardHeader />
 
         <div className="pt-20 px-4 sm:px-6 lg:px-8 py-8">
           {/* Header Section */}
           <div className="mb-8">
             <div className="flex items-center gap-3 mb-4">
-              <div className="p-3 bg-gradient-to-r from-rose-500 to-orange-600 rounded-xl shadow-lg">
-                <User className="h-8 w-8 text-white" />
+              <div className="p-3 bg-[#001f3f] rounded-xl shadow-lg">
+                <User className="h-8 w-8 text-[#ffffff]" />
               </div>
               <div>
-                <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
+                <h1 className="text-4xl font-bold text-[#001f3f]">
                   My Profile
                 </h1>
-                <p className="text-gray-600 mt-1">Manage your personal information and account settings</p>
+                <p className="text-[#555555] mt-1">Manage your personal information and account settings</p>
               </div>
             </div>
           </div>
 
           {/* Alerts */}
           {error && (
-            <Alert variant="destructive" className="mb-6 border-red-200 bg-red-50">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription className="text-red-800">{error}</AlertDescription>
+            <Alert variant="destructive" className="mb-6 border-[#ee3433] bg-[#fffbe6]">
+              <AlertCircle className="h-4 w-4 text-[#ee3433]" />
+              <AlertDescription className="text-[#ee3433]">{error}</AlertDescription>
             </Alert>
           )}
 
           {success && (
-            <Alert className="mb-6 border-green-200 bg-green-50">
-              <CheckCircle className="h-4 w-4 text-green-600" />
-              <AlertDescription className="text-green-800">{success}</AlertDescription>
+            <Alert className="mb-6 border-[#dee242] bg-[#fffbe6]">
+              <CheckCircle className="h-4 w-4 text-[#ee3433]" />
+              <AlertDescription className="text-[#001f3f]">{success}</AlertDescription>
             </Alert>
           )}
 
           <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-8">
             {/* Profile Information */}
-            <Card className="shadow-2xl border-0 bg-white/80 backdrop-blur-sm">
-              <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
-                <CardTitle className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                  <Settings className="h-6 w-6 text-rose-600" />
+            <Card className="shadow-2xl border-0 bg-[#f9f9f9] backdrop-blur-sm">
+              <CardHeader className="bg-[#f9f9f9] border-b border-[#e0e0e0]">
+                <CardTitle className="text-xl font-bold text-[#001f3f] flex items-center gap-2">
+                  <Settings className="h-6 w-6 text-[#ee3433]" />
                   Profile Information
                 </CardTitle>
-                <CardDescription className="text-gray-600">Update your personal details</CardDescription>
+                <CardDescription className="text-[#555555]">Update your personal details</CardDescription>
               </CardHeader>
               <CardContent className="p-6 space-y-6">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="first_name" className="text-sm font-medium text-gray-700">
+                    <Label htmlFor="first_name" className="text-sm font-medium text-[#001f3f]">
                       First Name *
                     </Label>
                     <Input
@@ -235,11 +352,11 @@ export default function ProfilePage() {
                       onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
                       disabled={!isEditing || isSaving}
                       placeholder="Enter first name"
-                      className="border-gray-300 focus:border-rose-500 focus:ring-rose-500"
+                      className="border-[#e0e0e0] focus:border-[#001f3f] focus:ring-[#001f3f] text-[#001f3f] placeholder:text-[#e0e0e0] bg-[#ffffff]"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="last_name" className="text-sm font-medium text-gray-700">
+                    <Label htmlFor="last_name" className="text-sm font-medium text-[#001f3f]">
                       Last Name *
                     </Label>
                     <Input
@@ -248,13 +365,13 @@ export default function ProfilePage() {
                       onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
                       disabled={!isEditing || isSaving}
                       placeholder="Enter last name"
-                      className="border-gray-300 focus:border-rose-500 focus:ring-rose-500"
+                      className="border-[#e0e0e0] focus:border-[#001f3f] focus:ring-[#001f3f] text-[#001f3f] placeholder:text-[#e0e0e0] bg-[#ffffff]"
                     />
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="assigned_area" className="text-sm font-medium text-gray-700">
+                  <Label htmlFor="assigned_area" className="text-sm font-medium text-[#001f3f]">
                     Assigned Area
                   </Label>
                   <Input
@@ -263,7 +380,7 @@ export default function ProfilePage() {
                     onChange={(e) => setFormData({ ...formData, assigned_area: e.target.value })}
                     disabled={!isEditing || isSaving}
                     placeholder="e.g., Metro Manila, Cebu City, Davao Region"
-                    className="border-gray-300 focus:border-rose-500 focus:ring-rose-500"
+                    className="border-[#e0e0e0] focus:border-[#001f3f] focus:ring-[#001f3f] text-[#001f3f] placeholder:text-[#e0e0e0] bg-[#ffffff]"
                   />
                 </div>
 
@@ -271,7 +388,7 @@ export default function ProfilePage() {
                   {!isEditing ? (
                     <Button
                       onClick={() => setIsEditing(true)}
-                      className="bg-gradient-to-r from-rose-600 to-orange-600 hover:from-rose-700 hover:to-orange-700 shadow-lg"
+                      className="bg-[#001f3f] text-[#ffffff] hover:bg-[#ee3433] border border-[#001f3f] shadow-lg"
                     >
                       Edit Profile
                     </Button>
@@ -280,11 +397,11 @@ export default function ProfilePage() {
                       <Button
                         onClick={handleSave}
                         disabled={isSaving}
-                        className="bg-gradient-to-r from-rose-600 to-orange-600 hover:from-rose-700 hover:to-orange-700 shadow-lg"
+                        className="bg-[#001f3f] text-[#ffffff] hover:bg-[#ee3433] border border-[#001f3f] shadow-lg"
                       >
                         {isSaving ? (
                           <>
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[#ffffff] mr-2"></div>
                             Saving...
                           </>
                         ) : (
@@ -295,7 +412,7 @@ export default function ProfilePage() {
                         variant="outline"
                         onClick={handleCancel}
                         disabled={isSaving}
-                        className="border-gray-300 hover:bg-gray-50 bg-transparent"
+                        className="bg-[#ffffff] text-[#001f3f] border border-[#001f3f] hover:bg-[#f9f9f9]"
                       >
                         Cancel
                       </Button>
@@ -306,52 +423,52 @@ export default function ProfilePage() {
             </Card>
 
             {/* Account Information (Read-only) */}
-            <Card className="shadow-2xl border-0 bg-white/80 backdrop-blur-sm">
-              <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
-                <CardTitle className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                  <Shield className="h-6 w-6 text-rose-600" />
+            <Card className="shadow-2xl border-0 bg-[#f9f9f9] backdrop-blur-sm">
+              <CardHeader className="bg-[#f9f9f9] border-b border-[#e0e0e0]">
+                <CardTitle className="text-xl font-bold text-[#001f3f] flex items-center gap-2">
+                  <Shield className="h-6 w-6 text-[#ee3433]" />
                   Account Information
                 </CardTitle>
-                <CardDescription className="text-gray-600">View your account details</CardDescription>
+                <CardDescription className="text-[#555555]">View your account details</CardDescription>
               </CardHeader>
               <CardContent className="p-6 space-y-6">
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-gray-700">Email Address</Label>
-                  <div className="flex items-center gap-3 px-3 py-2 bg-gray-50 rounded-md border border-gray-200">
-                    <Mail className="h-4 w-4 text-gray-500" />
-                    <span className="text-sm text-gray-900">{profile.email || "Not available"}</span>
+                  <Label className="text-sm font-medium text-[#001f3f]">Email Address</Label>
+                  <div className="flex items-center gap-3 px-3 py-2 bg-[#f9f9f9] rounded-md border border-[#e0e0e0]">
+                    <Mail className="h-4 w-4 text-[#001f3f]" />
+                    <span className="text-sm text-[#001f3f]">{profile.email || "Not available"}</span>
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-gray-700">Role</Label>
-                  <div className="flex items-center gap-3 px-3 py-2 bg-gray-50 rounded-md border border-gray-200">
-                    <Shield className="h-4 w-4 text-gray-500" />
-                    <span className="text-sm text-gray-900 capitalize">{profile.role.replace("_", " ")}</span>
+                  <Label className="text-sm font-medium text-[#001f3f]">Role</Label>
+                  <div className="flex items-center gap-3 px-3 py-2 bg-[#f9f9f9] rounded-md border border-[#e0e0e0]">
+                    <Shield className="h-4 w-4 text-[#001f3f]" />
+                    <span className="text-sm text-[#001f3f] capitalize">{profile.role.replace("_", " ")}</span>
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-gray-700">Status</Label>
-                  <div className="flex items-center gap-3 px-3 py-2 bg-gray-50 rounded-md border border-gray-200">
-                    <CheckCircle className="h-4 w-4 text-green-500" />
-                    <span className="text-sm text-gray-900 capitalize">{profile.status}</span>
+                  <Label className="text-sm font-medium text-[#001f3f]">Status</Label>
+                  <div className="flex items-center gap-3 px-3 py-2 bg-[#f9f9f9] rounded-md border border-[#e0e0e0]">
+                    <CheckCircle className="h-4 w-4 text-[#dee242]" />
+                    <span className="text-sm text-[#001f3f] capitalize">{profile.status}</span>
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-gray-700">Member Since</Label>
-                  <div className="flex items-center gap-3 px-3 py-2 bg-gray-50 rounded-md border border-gray-200">
-                    <Clock className="h-4 w-4 text-gray-500" />
-                    <span className="text-sm text-gray-900">{new Date(profile.created_at).toLocaleDateString()}</span>
+                  <Label className="text-sm font-medium text-[#001f3f]">Member Since</Label>
+                  <div className="flex items-center gap-3 px-3 py-2 bg-[#f9f9f9] rounded-md border border-[#e0e0e0]">
+                    <Clock className="h-4 w-4 text-[#001f3f]" />
+                    <span className="text-sm text-[#001f3f]">{new Date(profile.created_at).toLocaleDateString()}</span>
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-gray-700">Last Login</Label>
-                  <div className="flex items-center gap-3 px-3 py-2 bg-gray-50 rounded-md border border-gray-200">
-                    <Clock className="h-4 w-4 text-gray-500" />
-                    <span className="text-sm text-gray-900">
+                  <Label className="text-sm font-medium text-[#001f3f]">Last Login</Label>
+                  <div className="flex items-center gap-3 px-3 py-2 bg-[#f9f9f9] rounded-md border border-[#e0e0e0]">
+                    <Clock className="h-4 w-4 text-[#001f3f]" />
+                    <span className="text-sm text-[#001f3f]">
                       {profile.last_login_at ? new Date(profile.last_login_at).toLocaleDateString() : "Never"}
                     </span>
                   </div>
@@ -360,32 +477,32 @@ export default function ProfilePage() {
             </Card>
 
             {/* Change Password */}
-            <Card className="shadow-2xl border-0 bg-white/80 backdrop-blur-sm">
-              <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
-                <CardTitle className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                  <Settings className="h-6 w-6 text-rose-600" />
+            <Card className="shadow-2xl border-0 bg-[#f9f9f9] backdrop-blur-sm">
+              <CardHeader className="bg-[#f9f9f9] border-b border-[#e0e0e0]">
+                <CardTitle className="text-xl font-bold text-[#001f3f] flex items-center gap-2">
+                  <Settings className="h-6 w-6 text-[#ee3433]" />
                   Change Password
                 </CardTitle>
-                <CardDescription className="text-gray-600">Update your account password</CardDescription>
+                <CardDescription className="text-[#555555]">Update your account password</CardDescription>
               </CardHeader>
               <CardContent className="p-6 space-y-6">
                 {passwordError && (
-                  <Alert variant="destructive" className="border-red-200 bg-red-50">
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertDescription className="text-red-800">{passwordError}</AlertDescription>
+                  <Alert variant="destructive" className="border-[#ee3433] bg-[#fffbe6]">
+                    <AlertCircle className="h-4 w-4 text-[#ee3433]" />
+                    <AlertDescription className="text-[#ee3433]">{passwordError}</AlertDescription>
                   </Alert>
                 )}
 
                 {passwordSuccess && (
-                  <Alert className="border-green-200 bg-green-50">
-                    <CheckCircle className="h-4 w-4 text-green-600" />
-                    <AlertDescription className="text-green-800">{passwordSuccess}</AlertDescription>
+                  <Alert className="border-[#dee242] bg-[#fffbe6]">
+                    <CheckCircle className="h-4 w-4 text-[#dee242]" />
+                    <AlertDescription className="text-[#001f3f]">{passwordSuccess}</AlertDescription>
                   </Alert>
                 )}
 
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="currentPassword" className="text-sm font-medium text-gray-700">
+                    <Label htmlFor="currentPassword" className="text-sm font-medium text-[#001f3f]">
                       Current Password
                     </Label>
                     <Input
@@ -395,12 +512,12 @@ export default function ProfilePage() {
                       onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
                       disabled={isChangingPassword}
                       placeholder="Enter current password"
-                      className="border-gray-300 focus:border-rose-500 focus:ring-rose-500"
+                      className="border-[#e0e0e0] focus:border-[#001f3f] focus:ring-[#001f3f] text-[#001f3f] placeholder:text-[#e0e0e0] bg-[#ffffff]"
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="newPassword" className="text-sm font-medium text-gray-700">
+                    <Label htmlFor="newPassword" className="text-sm font-medium text-[#001f3f]">
                       New Password
                     </Label>
                     <Input
@@ -410,12 +527,12 @@ export default function ProfilePage() {
                       onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
                       disabled={isChangingPassword}
                       placeholder="Enter new password (min 6 characters)"
-                      className="border-gray-300 focus:border-rose-500 focus:ring-rose-500"
+                      className="border-[#e0e0e0] focus:border-[#001f3f] focus:ring-[#001f3f] text-[#001f3f] placeholder:text-[#e0e0e0] bg-[#ffffff]"
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="confirmPassword" className="text-sm font-medium text-gray-700">
+                    <Label htmlFor="confirmPassword" className="text-sm font-medium text-[#001f3f]">
                       Confirm New Password
                     </Label>
                     <Input
@@ -425,7 +542,7 @@ export default function ProfilePage() {
                       onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
                       disabled={isChangingPassword}
                       placeholder="Confirm new password"
-                      className="border-gray-300 focus:border-rose-500 focus:ring-rose-500"
+                      className="border-[#e0e0e0] focus:border-[#001f3f] focus:ring-[#001f3f] text-[#001f3f] placeholder:text-[#e0e0e0] bg-[#ffffff]"
                     />
                   </div>
                 </div>
@@ -433,11 +550,11 @@ export default function ProfilePage() {
                 <Button
                   onClick={handleChangePassword}
                   disabled={isChangingPassword}
-                  className="w-full bg-gradient-to-r from-rose-600 to-orange-600 hover:from-rose-700 hover:to-orange-700 shadow-lg"
+                  className="w-full bg-[#001f3f] text-[#ffffff] hover:bg-[#ee3433] border border-[#001f3f] shadow-lg"
                 >
                   {isChangingPassword ? (
                     <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[#ffffff] mr-2"></div>
                       Changing Password...
                     </>
                   ) : (

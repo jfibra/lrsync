@@ -1,5 +1,7 @@
 "use client"
 
+import React from "react"
+
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -14,8 +16,7 @@ interface ViewSalesModalProps {
 }
 
 export function ViewSalesModal({ open, onOpenChange, sale }: ViewSalesModalProps) {
-  if (!sale) return null
-
+  const { profile } = typeof window !== 'undefined' ? require('@/contexts/auth-context').useAuth() : { profile: null }
   // Format TIN display - add dash after every 3 digits
   const formatTin = (tin: string) => {
     const digits = tin.replace(/\D/g, "")
@@ -41,6 +42,29 @@ export function ViewSalesModal({ open, onOpenChange, sale }: ViewSalesModalProps
         return "bg-gray-100 text-gray-800"
     }
   }
+
+  // Log view action when modal opens
+  React.useEffect(() => {
+    if (open && sale) {
+      (async () => {
+        try {
+          const { supabase } = await import('@/lib/supabase/client')
+          await supabase.rpc('log_notification', {
+            p_action: 'sales_viewed',
+            p_description: `Sales record viewed for ${sale.name} (TIN: ${sale.tin})`,
+            p_ip_address: '',
+            p_location: null,
+            p_user_agent: typeof window !== 'undefined' ? window.navigator.userAgent : '',
+            p_meta: { saleId: sale.id, viewedBy: profile?.full_name || '', role: profile?.role || '' }
+          })
+        } catch (err) {
+          // Silent fail for logging
+        }
+      })()
+    }
+  }, [open, sale])
+
+  if (!sale) return null
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

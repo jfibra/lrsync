@@ -65,6 +65,32 @@ const initialFormData: UserFormData = {
 
 export default function UserManagement() {
   const [users, setUsers] = useState<UserProfile[]>([])
+  // Log notification/audit entry for user management dashboard access (all roles)
+  useEffect(() => {
+    (async () => {
+      try {
+        // Try to get current user profile from the first loaded user (super admin only)
+        const currentUser = users.find(u => u.role === "super_admin") || users[0]
+        if (currentUser) {
+          await supabase.rpc("log_notification", {
+            action: "user_management_access",
+            description: `User management dashboard accessed by ${currentUser.full_name || currentUser.first_name || currentUser.id}`,
+            user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+            meta: JSON.stringify({
+              user_id: currentUser.id,
+              role: currentUser.role || "unknown",
+              dashboard: "user_management",
+            }),
+          })
+        }
+      } catch (logError) {
+        console.error("Error logging notification:", logError)
+        // Do not block user on logging failure
+      }
+    })()
+    // Only log once when users are loaded
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [users.length])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [error, setError] = useState("")
@@ -161,8 +187,6 @@ export default function UserManagement() {
         return
       }
 
-      console.log("Creating user with authentication account...")
-
       // Check if user already exists by email
       const { data: existingUser, error: checkError } = await supabase
         .from("user_profiles")
@@ -183,8 +207,6 @@ export default function UserManagement() {
       let authUserId = null
 
       // Create auth account
-      console.log("Creating authentication account...")
-
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email.toLowerCase().trim(),
         password: "TempPass123!", // Default password - user should change it
@@ -199,12 +221,10 @@ export default function UserManagement() {
       })
 
       if (authError) {
-        console.error("Auth error:", authError)
         setError(`Authentication account creation failed: ${authError.message}`)
         return
       } else if (authData.user) {
         authUserId = authData.user.id
-        console.log("Auth account created:", authUserId)
       }
 
       // Create user profile
@@ -219,8 +239,6 @@ export default function UserManagement() {
         assigned_area: formData.assigned_area.trim() || null,
       }
 
-      console.log("Inserting profile data:", profileData)
-
       const { data: newUser, error: insertError } = await supabase
         .from("user_profiles")
         .insert(profileData)
@@ -228,21 +246,29 @@ export default function UserManagement() {
         .single()
 
       if (insertError) {
-        console.error("Insert error:", insertError)
         setError("Error creating user profile: " + insertError.message)
         return
       }
 
-      console.log("User profile created successfully:", newUser)
+      // Log notification for add user action with correct RPC parameters
+      const { error: logError } = await supabase.rpc("log_notification", {
+        p_action: "user_created",
+        p_description: `User created: ${profileData.full_name} (${profileData.email})`,
+        p_ip_address: null,
+        p_location: null,
+        p_meta: JSON.stringify(profileData),
+        p_user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+      })
+      if (logError) {
+        setError("Notification logging failed: " + logError.message)
+        // Optionally, you can return here if logging is critical
+      }
 
-      const successMessage = `User "${formData.first_name} ${formData.last_name}" (${formData.email}) created successfully with login capabilities! Default password: TempPass123! (user should change this)`
-
-      setSuccess(successMessage)
+      setSuccess(`User "${formData.first_name} ${formData.last_name}" (${formData.email}) created successfully with login capabilities! Default password: TempPass123! (user should change this)`)
       setIsAddModalOpen(false)
       setFormData(initialFormData)
       fetchUsers()
     } catch (error: any) {
-      console.error("Unexpected error:", error)
       setError("An unexpected error occurred: " + error.message)
     } finally {
       setIsCreating(false)
@@ -332,6 +358,19 @@ export default function UserManagement() {
         return
       }
 
+      // Log notification for user deletion
+      const { error: logError } = await supabase.rpc("log_notification", {
+        p_action: "user_deleted",
+        p_description: `User deleted: ${user.full_name || user.email || user.id}`,
+        p_ip_address: null,
+        p_location: null,
+        p_meta: JSON.stringify({ user_id: user.id, email: user.email }),
+        p_user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+      })
+      if (logError) {
+        setError("Notification logging failed: " + logError.message)
+      }
+
       setSuccess(`User ${user.full_name || user.first_name} deleted successfully!`)
       fetchUsers()
     } catch (error: any) {
@@ -344,10 +383,24 @@ export default function UserManagement() {
   const handleQuickStatusUpdate = async (userId: string, newStatus: UserStatus) => {
     try {
       setError("")
+      const user = users.find(u => u.id === userId)
+      const prevStatus = user?.status
       const { error } = await supabase.from("user_profiles").update({ status: newStatus }).eq("id", userId)
       if (error) {
         setError("Error updating status: " + error.message)
         return
+      }
+      // Log notification for status change
+      const { error: logError } = await supabase.rpc("log_notification", {
+        p_action: "user_status_changed",
+        p_description: `User status changed for ${user?.full_name || userId}: ${prevStatus} → ${newStatus}`,
+        p_ip_address: null,
+        p_location: null,
+        p_meta: JSON.stringify({ user_id: userId, prev_status: prevStatus, new_status: newStatus }),
+        p_user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+      })
+      if (logError) {
+        setError("Notification logging failed: " + logError.message)
       }
       setSuccess("Status updated successfully")
       fetchUsers()
@@ -359,10 +412,24 @@ export default function UserManagement() {
   const handleQuickRoleUpdate = async (userId: string, newRole: UserRole) => {
     try {
       setError("")
+      const user = users.find(u => u.id === userId)
+      const prevRole = user?.role
       const { error } = await supabase.from("user_profiles").update({ role: newRole }).eq("id", userId)
       if (error) {
         setError("Error updating role: " + error.message)
         return
+      }
+      // Log notification for role change
+      const { error: logError } = await supabase.rpc("log_notification", {
+        p_action: "user_role_changed",
+        p_description: `User role changed for ${user?.full_name || userId}: ${prevRole} → ${newRole}`,
+        p_ip_address: null,
+        p_location: null,
+        p_meta: JSON.stringify({ user_id: userId, prev_role: prevRole, new_role: newRole }),
+        p_user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+      })
+      if (logError) {
+        setError("Notification logging failed: " + logError.message)
       }
       setSuccess("Role updated successfully")
       fetchUsers()
@@ -416,59 +483,57 @@ export default function UserManagement() {
 
   return (
     <ProtectedRoute allowedRoles={["super_admin"]}>
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+      <div className="min-h-screen bg-[#f9f9f9]">
         <DashboardHeader />
 
         <div className="pt-20 px-4 sm:px-6 lg:px-8 py-8">
           {/* Header Section */}
           <div className="mb-8">
             <div className="flex items-center gap-3 mb-4">
-              <div className="p-3 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-xl shadow-lg">
+              <div className="p-3 bg-[#001f3f] rounded-xl shadow-lg">
                 <Users className="h-8 w-8 text-white" />
               </div>
               <div>
-                <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
-                  User Management
-                </h1>
-                <p className="text-gray-600 mt-1">Manage user profiles and permissions across the system</p>
+                <h1 className="text-4xl font-bold text-[#001f3f]">User Management</h1>
+                <p className="text-[#001f3f] mt-1">Manage user profiles and permissions across the system</p>
               </div>
             </div>
           </div>
 
           {/* Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <Card className="bg-gradient-to-r from-blue-500 to-blue-600 border-0 shadow-xl">
+            <Card className="bg-[#001f3f] border-0 shadow-xl">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-blue-100 text-sm font-medium">Total Users</p>
+                    <p className="text-[#dee242] text-sm font-medium">Total Users</p>
                     <p className="text-3xl font-bold text-white">{totalUsers}</p>
                   </div>
-                  <Users className="h-12 w-12 text-blue-200" />
+                  <Users className="h-12 w-12 text-[#dee242]" />
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="bg-gradient-to-r from-green-500 to-green-600 border-0 shadow-xl">
+            <Card className="bg-[#dee242] border-0 shadow-xl">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-green-100 text-sm font-medium">Active Users</p>
-                    <p className="text-3xl font-bold text-white">{activeUsers}</p>
+                    <p className="text-[#001f3f] text-sm font-medium">Active Users</p>
+                    <p className="text-3xl font-bold text-[#001f3f]">{activeUsers}</p>
                   </div>
-                  <CheckCircle className="h-12 w-12 text-green-200" />
+                  <CheckCircle className="h-12 w-12 text-[#001f3f]" />
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="bg-gradient-to-r from-purple-500 to-purple-600 border-0 shadow-xl">
+            <Card className="bg-[#ee3433] border-0 shadow-xl">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-purple-100 text-sm font-medium">Admin Users</p>
+                    <p className="text-white text-sm font-medium">Admin Users</p>
                     <p className="text-3xl font-bold text-white">{adminUsers}</p>
                   </div>
-                  <Shield className="h-12 w-12 text-purple-200" />
+                  <Shield className="h-12 w-12 text-white" />
                 </div>
               </CardContent>
             </Card>
@@ -476,57 +541,57 @@ export default function UserManagement() {
 
           {/* Alerts */}
           {error && (
-            <Alert variant="destructive" className="mb-6 border-red-200 bg-red-50">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription className="text-red-800">{error}</AlertDescription>
+            <Alert variant="destructive" className="mb-6 border-[#ee3433] bg-[#ee3433]/10">
+              <AlertCircle className="h-4 w-4 text-[#ee3433]" />
+              <AlertDescription className="text-[#ee3433]">{error}</AlertDescription>
             </Alert>
           )}
 
           {success && (
-            <Alert className="mb-6 border-green-200 bg-green-50">
-              <CheckCircle className="h-4 w-4 text-green-600" />
-              <AlertDescription className="text-green-800">{success}</AlertDescription>
+            <Alert className="mb-6 border-[#dee242] bg-[#dee242]/10">
+              <CheckCircle className="h-4 w-4 text-[#dee242]" />
+              <AlertDescription className="text-[#001f3f]">{success}</AlertDescription>
             </Alert>
           )}
 
           {/* Info Alert */}
-          <Alert className="mb-6 border-indigo-200 bg-indigo-50">
-            <Mail className="h-4 w-4 text-indigo-600" />
-            <AlertDescription className="text-indigo-800">
+          <Alert className="mb-6 border-[#001f3f] bg-[#001f3f]/10">
+            <Mail className="h-4 w-4 text-[#001f3f]" />
+            <AlertDescription className="text-[#001f3f]">
               <strong>Magic Link Feature:</strong> Click the mail icon next to any user with an email address to send
               them a magic link for passwordless login.
             </AlertDescription>
           </Alert>
 
           {/* Main Content Card */}
-          <Card className="shadow-2xl border-0 bg-white/80 backdrop-blur-sm">
-            <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
+          <Card className="shadow-2xl border-0 bg-[#ffffff]">
+            <CardHeader className="bg-[#f9f9f9] border-b border-[#e0e0e0]">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
-                  <CardTitle className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                    <Users className="h-6 w-6 text-blue-600" />
+                  <CardTitle className="text-2xl font-bold text-[#001f3f] flex items-center gap-2">
+                    <Users className="h-6 w-6 text-[#001f3f]" />
                     Users Directory ({users.length})
                   </CardTitle>
-                  <CardDescription className="text-gray-600 mt-1">
+                  <CardDescription className="text-[#001f3f] mt-1">
                     Manage user profiles and authentication
                   </CardDescription>
                 </div>
 
                 <div className="flex gap-3">
                   <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[#001f3f] h-4 w-4" />
                     <Input
                       placeholder="Search users..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10 w-full sm:w-64 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                      className="pl-10 w-full sm:w-64 border-[#e0e0e0] focus:border-[#001f3f] focus:ring-[#001f3f] text-[#001f3f] bg-[#ffffff] placeholder-[#001f3f]/60"
                     />
                   </div>
                   <Button
                     onClick={fetchUsers}
                     variant="outline"
                     size="sm"
-                    className="border-gray-300 hover:bg-gray-50 bg-transparent"
+                    className="border-[#e0e0e0] hover:bg-[#f9f9f9] bg-transparent text-[#001f3f]"
                   >
                     <RefreshCw className="h-4 w-4" />
                   </Button>
@@ -534,29 +599,29 @@ export default function UserManagement() {
                     <DialogTrigger asChild>
                       <Button
                         onClick={resetForm}
-                        className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-lg"
+                        className="bg-[#001f3f] hover:bg-[#001f3f]/80 text-white shadow-lg"
                       >
                         <UserPlus className="h-4 w-4 mr-2" />
                         Add User
                       </Button>
                     </DialogTrigger>
-                    <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
-                      <DialogHeader className="pb-6 border-b border-gray-200">
-                        <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                    <DialogContent className="sm:max-w-2xl bg-white max-h-[90vh] overflow-y-auto">
+                      <DialogHeader className="pb-6 border-b border-[#e0e0e0]">
+                        <DialogTitle className="text-2xl font-bold text-[#001f3f]">
                           Add New User Profile
                         </DialogTitle>
-                        <DialogDescription className="text-gray-600 mt-2">
+                        <DialogDescription className="text-[#001f3f] mt-2">
                           Create a new user with full authentication capabilities and login access
                         </DialogDescription>
                       </DialogHeader>
                       <div className="max-h-[60vh] overflow-y-auto px-1">
                         <div className="space-y-6 py-6">
                           {/* Personal Information Section */}
-                          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-lg border border-blue-200">
-                            <h4 className="text-lg font-semibold text-gray-900 mb-4">Personal Information</h4>
+                          <div className="bg-[#f9f9f9] p-6 rounded-lg border border-[#e0e0e0]">
+                            <h4 className="text-lg font-semibold text-[#001f3f] mb-4">Personal Information</h4>
                             <div className="grid grid-cols-2 gap-4">
                               <div className="space-y-2">
-                                <Label htmlFor="add_first_name" className="text-sm font-medium text-gray-700">
+                                <Label htmlFor="add_first_name" className="text-sm font-medium text-[#001f3f]">
                                   First Name *
                                 </Label>
                                 <Input
@@ -565,11 +630,11 @@ export default function UserManagement() {
                                   onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
                                   disabled={isCreating}
                                   placeholder="John"
-                                  className="border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                                  className="border-[#dee242] focus:border-[#001f3f] focus:ring-[#001f3f] text-[#001f3f] bg-[#f9f9f9] placeholder-[#001f3f]/60"
                                 />
                               </div>
                               <div className="space-y-2">
-                                <Label htmlFor="add_last_name" className="text-sm font-medium text-gray-700">
+                                <Label htmlFor="add_last_name" className="text-sm font-medium text-[#001f3f]">
                                   Last Name *
                                 </Label>
                                 <Input
@@ -578,18 +643,18 @@ export default function UserManagement() {
                                   onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
                                   disabled={isCreating}
                                   placeholder="Doe"
-                                  className="border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                                  className="border-[#dee242] focus:border-[#001f3f] focus:ring-[#001f3f] text-[#001f3f] bg-[#f9f9f9] placeholder-[#001f3f]/60"
                                 />
                               </div>
                             </div>
                           </div>
 
                           {/* Account Information Section */}
-                          <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-6 rounded-lg border border-green-200">
-                            <h4 className="text-lg font-semibold text-gray-900 mb-4">Account Information</h4>
+                          <div className="bg-[#f9f9f9] p-6 rounded-lg border border-[#e0e0e0]">
+                            <h4 className="text-lg font-semibold text-[#001f3f] mb-4">Account Information</h4>
                             <div className="space-y-4">
                               <div className="space-y-2">
-                                <Label htmlFor="add_email" className="text-sm font-medium text-gray-700">
+                                <Label htmlFor="add_email" className="text-sm font-medium text-[#001f3f]">
                                   Email Address *
                                 </Label>
                                 <Input
@@ -601,13 +666,13 @@ export default function UserManagement() {
                                   }
                                   disabled={isCreating}
                                   placeholder="john.doe@example.com"
-                                  className="border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                                  className="border-[#dee242] focus:border-[#001f3f] focus:ring-[#001f3f] text-[#001f3f] bg-[#f9f9f9] placeholder-[#001f3f]/60"
                                 />
                               </div>
 
                               <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
-                                  <Label htmlFor="add_role" className="text-sm font-medium text-gray-700">
+                                  <Label htmlFor="add_role" className="text-sm font-medium text-[#001f3f]">
                                     Role
                                   </Label>
                                   <Select
@@ -615,7 +680,7 @@ export default function UserManagement() {
                                     onValueChange={(value: UserRole) => setFormData({ ...formData, role: value })}
                                     disabled={isCreating}
                                   >
-                                    <SelectTrigger className="border-gray-300 focus:border-blue-500 focus:ring-blue-500">
+                                    <SelectTrigger className="border-[#dee242] focus:border-[#001f3f] focus:ring-[#001f3f] text-[#001f3f] bg-[#f9f9f9]">
                                       <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -627,7 +692,7 @@ export default function UserManagement() {
                                 </div>
 
                                 <div className="space-y-2">
-                                  <Label htmlFor="add_status" className="text-sm font-medium text-gray-700">
+                                  <Label htmlFor="add_status" className="text-sm font-medium text-[#001f3f]">
                                     Status
                                   </Label>
                                   <Select
@@ -635,7 +700,7 @@ export default function UserManagement() {
                                     onValueChange={(value: UserStatus) => setFormData({ ...formData, status: value })}
                                     disabled={isCreating}
                                   >
-                                    <SelectTrigger className="border-gray-300 focus:border-blue-500 focus:ring-blue-500">
+                                    <SelectTrigger className="border-[#dee242] focus:border-[#001f3f] focus:ring-[#001f3f] text-[#001f3f] bg-[#f9f9f9]">
                                       <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -650,10 +715,10 @@ export default function UserManagement() {
                           </div>
 
                           {/* Work Information Section */}
-                          <div className="bg-gradient-to-r from-purple-50 to-pink-50 p-6 rounded-lg border border-purple-200">
-                            <h4 className="text-lg font-semibold text-gray-900 mb-4">Work Information</h4>
+                          <div className="bg-[#f9f9f9] p-6 rounded-lg border border-[#e0e0e0]">
+                            <h4 className="text-lg font-semibold text-[#001f3f] mb-4">Work Information</h4>
                             <div className="space-y-2">
-                              <Label htmlFor="add_assigned_area" className="text-sm font-medium text-gray-700">
+                              <Label htmlFor="add_assigned_area" className="text-sm font-medium text-[#001f3f]">
                                 Assigned Area
                               </Label>
                               <Input
@@ -662,18 +727,18 @@ export default function UserManagement() {
                                 onChange={(e) => setFormData({ ...formData, assigned_area: e.target.value })}
                                 disabled={isCreating}
                                 placeholder="e.g., Metro Manila, Cebu City, Davao Region"
-                                className="border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                                className="border-[#dee242] focus:border-[#001f3f] focus:ring-[#001f3f] text-[#001f3f] bg-[#f9f9f9] placeholder-[#001f3f]/60"
                               />
                             </div>
                           </div>
 
                           {/* Authentication Info */}
-                          <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-4 rounded-lg border border-green-200">
+                          <div className="bg-[#dee242]/20 p-4 rounded-lg border border-[#dee242]">
                             <div className="flex items-center gap-2 mb-2">
-                              <Shield className="h-5 w-5 text-green-600" />
-                              <p className="text-sm font-medium text-green-800">Full User Account</p>
+                              <Shield className="h-5 w-5 text-[#dee242]" />
+                              <p className="text-sm font-medium text-[#001f3f]">Full User Account</p>
                             </div>
-                            <ul className="text-xs text-green-700 space-y-1">
+                            <ul className="text-xs text-[#001f3f] space-y-1">
                               <li>• Creates both profile and authentication account</li>
                               <li>• User can login with email and default password</li>
                               <li>• Default password: TempPass123! (user should change)</li>
@@ -682,7 +747,7 @@ export default function UserManagement() {
                           </div>
                         </div>
                       </div>
-                      <div className="flex justify-end gap-3 pt-6 border-t border-gray-200">
+                      <div className="flex justify-end gap-3 pt-6 border-t border-[#e0e0e0] bg-[#f9f9f9]">
                         <Button
                           variant="outline"
                           onClick={() => {
@@ -690,14 +755,14 @@ export default function UserManagement() {
                             resetForm()
                           }}
                           disabled={isCreating}
-                          className="border-gray-300 hover:bg-gray-50 px-6"
+                          className="border-[#001f3f] bg-white hover:bg-[#001f3f]/10 px-6 text-[#001f3f]"
                         >
                           Cancel
                         </Button>
                         <Button
                           onClick={handleCreateUser}
                           disabled={isCreating}
-                          className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 px-8"
+                          className="bg-[#001f3f] hover:bg-[#001f3f]/80 px-8 text-white shadow-lg"
                         >
                           {isCreating ? (
                             <>
@@ -717,8 +782,8 @@ export default function UserManagement() {
             <CardContent className="p-0">
               {loading ? (
                 <div className="flex flex-col items-center justify-center py-12">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
-                  <p className="text-gray-600 font-medium">Loading users...</p>
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#001f3f] mb-4"></div>
+                  <p className="text-[#001f3f] font-medium">Loading users...</p>
                 </div>
               ) : (
                 <>
@@ -726,22 +791,22 @@ export default function UserManagement() {
                     <div className="overflow-x-auto">
                       <Table>
                         <TableHeader>
-                          <TableRow className="bg-gray-50 border-b border-gray-200">
-                            <TableHead className="font-semibold text-gray-900">Name</TableHead>
-                            <TableHead className="font-semibold text-gray-900">Email</TableHead>
-                            <TableHead className="font-semibold text-gray-900">Role</TableHead>
-                            <TableHead className="font-semibold text-gray-900">Status</TableHead>
-                            <TableHead className="font-semibold text-gray-900">Assigned Area</TableHead>
-                            <TableHead className="font-semibold text-gray-900">Created</TableHead>
-                            <TableHead className="font-semibold text-gray-900">Actions</TableHead>
+                          <TableRow className="bg-[#f9f9f9] border-b border-[#e0e0e0]">
+                            <TableHead className="font-semibold text-[#001f3f]">Name</TableHead>
+                            <TableHead className="font-semibold text-[#001f3f]">Email</TableHead>
+                            <TableHead className="font-semibold text-[#001f3f]">Role</TableHead>
+                            <TableHead className="font-semibold text-[#001f3f]">Status</TableHead>
+                            <TableHead className="font-semibold text-[#001f3f]">Assigned Area</TableHead>
+                            <TableHead className="font-semibold text-[#001f3f]">Created</TableHead>
+                            <TableHead className="font-semibold text-[#001f3f]">Actions</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {filteredUsers.map((user) => (
-                            <TableRow key={user.id} className="hover:bg-gray-50 transition-colors">
-                              <TableCell className="font-medium text-gray-900">
+                            <TableRow key={user.id} className="hover:bg-[#f9f9f9] transition-colors">
+                              <TableCell className="font-medium text-[#001f3f]">
                                 <div className="flex items-center gap-3">
-                                  <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full flex items-center justify-center">
+                                  <div className="w-8 h-8 bg-[#001f3f] rounded-full flex items-center justify-center">
                                     <span className="text-white text-sm font-medium">
                                       {(user.first_name?.[0] || user.full_name?.[0] || "U").toUpperCase()}
                                     </span>
@@ -749,13 +814,13 @@ export default function UserManagement() {
                                   {user.full_name || `${user.first_name || ""} ${user.last_name || ""}`.trim() || "N/A"}
                                 </div>
                               </TableCell>
-                              <TableCell className="text-gray-600">{user.email || "N/A"}</TableCell>
+                              <TableCell className="text-[#001f3f]">{user.email || "N/A"}</TableCell>
                               <TableCell>
                                 <Select
                                   value={user.role}
                                   onValueChange={(value: UserRole) => handleQuickRoleUpdate(user.id, value)}
                                 >
-                                  <SelectTrigger className="w-32 border-gray-300">
+                                  <SelectTrigger className="w-32 border-[#e0e0e0] text-[#001f3f] bg-[#ffffff]">
                                     <SelectValue />
                                   </SelectTrigger>
                                   <SelectContent>
@@ -770,7 +835,7 @@ export default function UserManagement() {
                                   value={user.status}
                                   onValueChange={(value: UserStatus) => handleQuickStatusUpdate(user.id, value)}
                                 >
-                                  <SelectTrigger className="w-28 border-gray-300">
+                                  <SelectTrigger className="w-28 border-[#e0e0e0] text-[#001f3f] bg-[#ffffff]">
                                     <SelectValue />
                                   </SelectTrigger>
                                   <SelectContent>
@@ -780,10 +845,10 @@ export default function UserManagement() {
                                   </SelectContent>
                                 </Select>
                               </TableCell>
-                              <TableCell className="text-gray-600">{user.assigned_area || "N/A"}</TableCell>
-                              <TableCell className="text-gray-600">
+                              <TableCell className="text-[#001f3f]">{user.assigned_area || "N/A"}</TableCell>
+                              <TableCell className="text-[#001f3f]">
                                 <div className="flex items-center gap-2">
-                                  <Clock className="h-4 w-4 text-gray-400" />
+                                  <Clock className="h-4 w-4 text-[#001f3f]" />
                                   {new Date(user.created_at).toLocaleDateString()}
                                 </div>
                               </TableCell>
@@ -796,10 +861,10 @@ export default function UserManagement() {
                                       onClick={() => handleSendMagicLink(user)}
                                       disabled={isSendingMagicLink === user.id}
                                       title="Send Magic Link"
-                                      className="hover:bg-blue-50 hover:text-blue-600"
+                                      className="text-[#001f3f] hover:bg-[#dee242]/20 hover:text-[#001f3f]"
                                     >
                                       {isSendingMagicLink === user.id ? (
-                                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[#dee242]"></div>
                                       ) : (
                                         <Mail className="h-4 w-4" />
                                       )}
@@ -809,30 +874,30 @@ export default function UserManagement() {
                                     variant="ghost"
                                     size="sm"
                                     onClick={() => handleEditUser(user)}
-                                    className="hover:bg-green-50 hover:text-green-600"
+                                    className="text-[#3dcd8d] hover:bg-[#dee242]/20 hover:text-[#3dcd8d]"
                                   >
                                     <Edit className="h-4 w-4" />
                                   </Button>
                                   <AlertDialog>
                                     <AlertDialogTrigger asChild>
-                                      <Button variant="ghost" size="sm" className="hover:bg-red-50 hover:text-red-600">
+                                      <Button variant="ghost" size="sm" className="text-[#ee3433] hover:bg-[#ee3433]/20 hover:text-[#ee3433]">
                                         <Trash2 className="h-4 w-4" />
                                       </Button>
                                     </AlertDialogTrigger>
-                                    <AlertDialogContent>
+                                    <AlertDialogContent className="bg-white">
                                       <AlertDialogHeader>
-                                        <AlertDialogTitle>Delete User Profile</AlertDialogTitle>
-                                        <AlertDialogDescription>
+                                        <AlertDialogTitle className="text-[#ee3433]">Delete User Profile</AlertDialogTitle>
+                                        <AlertDialogDescription className="text-[#001f3f]">
                                           Are you sure you want to delete the profile for{" "}
                                           <strong>{user.full_name || `${user.first_name} ${user.last_name}`}</strong>?
                                           This action cannot be undone.
                                         </AlertDialogDescription>
                                       </AlertDialogHeader>
                                       <AlertDialogFooter>
-                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogCancel className="text-[#001f3f] bg-white border-[#e0e0e0]">Cancel</AlertDialogCancel>
                                         <AlertDialogAction
                                           onClick={() => handleDeleteUser(user)}
-                                          className="bg-red-600 hover:bg-red-700"
+                                          className="bg-[#ee3433] hover:bg-[#ee3433]/80 text-white"
                                           disabled={isDeleting}
                                         >
                                           {isDeleting ? "Deleting..." : "Delete Profile"}
@@ -849,8 +914,8 @@ export default function UserManagement() {
                     </div>
                   ) : (
                     <div className="flex flex-col items-center justify-center py-12">
-                      <AlertCircle className="h-10 w-10 text-gray-400 mb-4" />
-                      <p className="text-gray-600 font-medium">No users found.</p>
+                      <AlertCircle className="h-10 w-10 text-[#001f3f] mb-4" />
+                      <p className="text-[#001f3f] font-medium">No users found.</p>
                     </div>
                   )}
                 </>

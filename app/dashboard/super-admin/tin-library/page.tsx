@@ -64,6 +64,30 @@ const initialFormData: TaxpayerFormData = {
 
 export default function TinLibraryPage() {
   const { user, profile } = useAuth()
+  // Log notification/audit entry for TIN library dashboard access (all roles)
+  useEffect(() => {
+    if (user?.id) {
+      (async () => {
+        try {
+          await supabase.rpc("log_notification", {
+            action: "tin_library_access",
+            description: `TIN library dashboard accessed by ${profile?.full_name || profile?.first_name || user.id}`,
+            user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+            meta: JSON.stringify({
+              user_id: user.id,
+              role: profile?.role || "unknown",
+              dashboard: "tin_library",
+            }),
+          })
+        } catch (logError) {
+          console.error("Error logging notification:", logError)
+          // Do not block user on logging failure
+        }
+      })()
+    }
+    // Only log once when user is available
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id])
   const [taxpayers, setTaxpayers] = useState<TaxpayerListing[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")

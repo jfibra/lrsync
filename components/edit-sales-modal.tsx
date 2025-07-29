@@ -426,6 +426,29 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
         throw salesError
       }
 
+      // Gather all file attachment URLs for meta
+      const fileMeta: Record<string, string[]> = {}
+      fileUploads.forEach(upload => {
+        const allUrls = [...(upload.existingUrls || []), ...(upload.uploadedUrls || [])]
+        if (allUrls.length > 0) {
+          fileMeta[upload.id] = allUrls
+        }
+      })
+      // Log notification for all roles
+      await supabase.rpc('log_notification', {
+        p_action: 'sales_updated',
+        p_description: `Sales record updated for ${name} (TIN: ${tinSearch})`,
+        p_ip_address: '', // Optionally get from request headers
+        p_location: null, // Optionally provide location info
+        p_user_agent: typeof window !== 'undefined' ? window.navigator.userAgent : '',
+        p_meta: {
+          saleId: sale.id,
+          updatedBy: profile?.full_name || '',
+          role: profile?.role || '',
+          file_attachments: fileMeta
+        }
+      })
+
       // Success
       onOpenChange(false)
       onSalesUpdated?.()

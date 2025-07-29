@@ -77,6 +77,26 @@ export default function SuperAdminDashboard() {
 
   useEffect(() => {
     fetchStats()
+    // Log notification/audit entry for dashboard access (all roles)
+    if (profile?.id) {
+      (async () => {
+        try {
+          await supabase.rpc("log_notification", {
+            action: "dashboard_access",
+            description: `Super Admin dashboard accessed by ${profile.full_name || profile.first_name || profile.id}`,
+            user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+            meta: JSON.stringify({
+              user_id: profile.id,
+              role: profile.role || "unknown",
+              dashboard: "super_admin",
+            }),
+          })
+        } catch (logError) {
+          console.error("Error logging notification:", logError)
+          // Do not block user on logging failure
+        }
+      })()
+    }
   }, [])
 
   const StatCard = ({

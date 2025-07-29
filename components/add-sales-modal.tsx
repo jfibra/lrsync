@@ -395,6 +395,38 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
     }
 
     setLoading(true)
+    // Gather all file attachment URLs
+    const fileMeta: Record<string, string[]> = {}
+    fileUploads.forEach(upload => {
+      if (upload.uploadedUrls.length > 0) {
+        fileMeta[upload.id] = upload.uploadedUrls
+      }
+    })
+    // Log notification/audit entry for all roles after successful sales record creation
+    try {
+      await supabase.rpc("log_notification", {
+        p_action: "add_sales_record",
+        p_description: `Sales record added for TIN ${formData.tin} by ${user?.user_metadata?.role || "unknown role"}`,
+        p_ip_address: null,
+        p_location: null,
+        p_meta: JSON.stringify({
+          user_id: user.id,
+          role: user?.user_metadata?.role || "unknown",
+          tin: formData.tin,
+          name: formData.name,
+          tax_month: taxMonth,
+          invoice_number: formData.invoice_number,
+          sale_type: formData.sale_type,
+          gross_taxable: formData.gross_taxable,
+          total_actual_amount: formData.total_actual_amount,
+          file_attachments: fileMeta
+        }),
+        p_user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+      })
+    } catch (logError) {
+      console.error("Error logging notification:", logError)
+      // Do not block user on logging failure
+      }
     try {
       // Get or create taxpayer listing
       const taxpayerListingId = await getOrCreateTaxpayerListing({

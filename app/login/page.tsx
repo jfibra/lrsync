@@ -56,6 +56,23 @@ export default function LoginPage() {
             console.log("Magic link authentication successful")
             setSuccess("Successfully logged in via magic link!")
             // The auth context will handle the redirect
+          // Log notification/audit entry for all roles after successful magic link authentication
+          try {
+            await supabase.rpc("log_notification", {
+              action: "magic_link_login",
+              description: `Magic link login for user ${data.user.email || "unknown email"} (${data.user.id})`,
+              user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+              meta: JSON.stringify({
+                user_id: data.user.id,
+                email: data.user.email,
+                role: data.user.user_metadata?.role || "unknown",
+                method: "magic_link",
+              }),
+            })
+          } catch (logError) {
+            console.error("Error logging notification:", logError)
+            // Do not block user on logging failure
+          }
           }
         } catch (error) {
           console.error("Magic link auth error:", error)
@@ -105,8 +122,41 @@ export default function LoginPage() {
     if (result.error) {
       console.error("Login failed:", result.error)
       setError(result.error)
+      // Log notification for failed login attempt
+      try {
+        await supabase.rpc("log_notification", {
+          p_action: "user_login_failed",
+          p_description: `Failed login attempt for email ${email}`,
+          p_ip_address: null,
+          p_location: null,
+          p_user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+          p_meta: JSON.stringify({
+            email,
+            method: "password",
+            error: result.error,
+          }),
+        })
+      } catch (logError) {
+        console.error("Error logging notification (failed login):", logError)
+      }
     } else {
       console.log("Login successful")
+      // Log notification for successful login
+      try {
+        await supabase.rpc("log_notification", {
+          p_action: "user_login",
+          p_description: `Successful login for user ${email}`,
+          p_ip_address: null,
+          p_location: null,
+          p_user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+          p_meta: JSON.stringify({
+            email,
+            method: "password",
+          }),
+        })
+      } catch (logError) {
+        console.error("Error logging notification (login success):", logError)
+      }
     }
 
     setIsLoading(false)
@@ -147,10 +197,10 @@ export default function LoginPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#1a242f" }}>
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#ffffff" }}>
         <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-white mx-auto mb-4"></div>
-          <p className="text-white">Loading...</p>
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-[#001f3f] mx-auto mb-4"></div>
+          <p className="text-[#001f3f]">Loading...</p>
         </div>
       </div>
     )
@@ -159,17 +209,17 @@ export default function LoginPage() {
   return (
     <div
       className="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8"
-      style={{ backgroundColor: "#1a242f" }}
+      style={{ backgroundColor: "#ffffff" }}
     >
       <div className="w-full max-w-4xl">
         <div className="grid lg:grid-cols-2 gap-8 items-center">
           {/* Left side - Information Panel */}
-          <div className="hidden lg:block text-white space-y-8">
+          <div className="hidden lg:block space-y-8">
             <div className="text-center space-y-4">
               <div className="flex justify-center">
-                <div className="relative h-24 w-24 rounded-full bg-white/10 p-3 backdrop-blur-sm">
+                <div className="relative h-24 w-full">
                   <Image
-                    src="/images/bir-logo.png"
+                    src="/images/bir-logo-navy.png"
                     alt="BIR Logo"
                     width={72}
                     height={72}
@@ -178,18 +228,18 @@ export default function LoginPage() {
                 </div>
               </div>
               <div>
-                <h1 className="text-3xl font-bold">Bureau of Internal Revenue</h1>
-                <p className="text-xl text-gray-300">Leuterio Relief Management System</p>
+                <h1 className="text-3xl font-bold text-[#001f3f]">Bureau of Internal Revenue</h1>
+                <p className="text-xl text-[#555555]">Leuterio Relief Management System</p>
               </div>
             </div>
 
             <div className="space-y-6">
-              <div className="bg-white/5 backdrop-blur-sm rounded-lg p-6 border border-white/10">
+              <div className="bg-[#f9f9f9] rounded-lg p-6 border border-[#e0e0e0]">
                 <div className="flex items-start gap-3">
-                  <Shield className="h-6 w-6 text-blue-400 mt-1 flex-shrink-0" />
+                  <Shield className="h-6 w-6 text-[#001f3f] mt-1 flex-shrink-0" />
                   <div>
-                    <h3 className="font-semibold text-lg mb-2">Access Control</h3>
-                    <p className="text-gray-300 text-sm leading-relaxed">
+                    <h3 className="font-semibold text-lg mb-2 text-[#001f3f]">Access Control</h3>
+                    <p className="text-[#555555] text-sm leading-relaxed">
                       User accounts are created exclusively by system administrators. This ensures proper security and
                       access management for all BIR operations.
                     </p>
@@ -197,12 +247,12 @@ export default function LoginPage() {
                 </div>
               </div>
 
-              <div className="bg-white/5 backdrop-blur-sm rounded-lg p-6 border border-white/10">
+              <div className="bg-[#f9f9f9] rounded-lg p-6 border border-[#e0e0e0]">
                 <div className="flex items-start gap-3">
-                  <Users className="h-6 w-6 text-green-400 mt-1 flex-shrink-0" />
+                  <Users className="h-6 w-6 text-[#dee242] mt-1 flex-shrink-0" />
                   <div>
-                    <h3 className="font-semibold text-lg mb-2">New User Guide</h3>
-                    <p className="text-gray-300 text-sm leading-relaxed">
+                    <h3 className="font-semibold text-lg mb-2 text-[#001f3f]">New User Guide</h3>
+                    <p className="text-[#555555] text-sm leading-relaxed">
                       If you're a new user, log in using the temporary password provided to you. You can update your
                       password anytime through the "My Profile" section after logging in.
                     </p>
@@ -210,12 +260,12 @@ export default function LoginPage() {
                 </div>
               </div>
 
-              <div className="bg-white/5 backdrop-blur-sm rounded-lg p-6 border border-white/10">
+              <div className="bg-[#fffbe6] rounded-lg p-6 border border-[#dee242]">
                 <div className="flex items-start gap-3">
-                  <Phone className="h-6 w-6 text-yellow-400 mt-1 flex-shrink-0" />
+                  <Phone className="h-6 w-6 text-[#ee3433] mt-1 flex-shrink-0" />
                   <div>
-                    <h3 className="font-semibold text-lg mb-2">Need Access?</h3>
-                    <p className="text-gray-300 text-sm leading-relaxed">
+                    <h3 className="font-semibold text-lg mb-2 text-[#001f3f]">Need Access?</h3>
+                    <p className="text-[#555555] text-sm leading-relaxed">
                       For system access requests or account-related inquiries, please contact the Leuterio Realty
                       Accounting Department directly.
                     </p>
@@ -227,13 +277,13 @@ export default function LoginPage() {
 
           {/* Right side - Login Form */}
           <div className="w-full">
-            <Card className="bg-white/95 backdrop-blur-md border border-white/20 shadow-2xl">
+            <Card className="bg-[#f9f9f9] border border-[#e0e0e0] shadow-2xl">
               <CardHeader className="space-y-4 text-center">
                 {/* Mobile logo */}
                 <div className="lg:hidden flex justify-center">
-                  <div className="relative h-16 w-16 rounded-full bg-gray-100 p-2">
+                  <div className="relative h-16 w-16 rounded-full bg-[#f9f9f9] p-2 border border-[#e0e0e0]">
                     <Image
-                      src="/images/bir-logo.png"
+                      src="/images/bir-logo-navy.png"
                       alt="BIR Logo"
                       width={48}
                       height={48}
@@ -243,10 +293,10 @@ export default function LoginPage() {
                 </div>
 
                 <div>
-                  <CardTitle className="text-2xl font-bold text-gray-900">
+                  <CardTitle className="text-2xl font-bold text-[#001f3f]">
                     {showMagicLinkForm ? "Magic Link Login" : "System Login"}
                   </CardTitle>
-                  <CardDescription className="text-gray-600">
+                  <CardDescription className="text-[#555555]">
                     {showMagicLinkForm
                       ? "Enter your email to receive a secure login link"
                       : "Access the BIR Management System"}
@@ -256,16 +306,16 @@ export default function LoginPage() {
 
               <CardContent className="space-y-6">
                 {error && (
-                  <Alert variant="destructive" className="border-red-200 bg-red-50">
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertDescription>{error}</AlertDescription>
+                  <Alert variant="destructive" className="border-[#ee3433] bg-[#fffbe6]">
+                    <AlertCircle className="h-4 w-4 text-[#ee3433]" />
+                    <AlertDescription className="text-[#ee3433]">{error}</AlertDescription>
                   </Alert>
                 )}
 
                 {success && (
-                  <Alert className="border-green-200 bg-green-50">
-                    <CheckCircle className="h-4 w-4 text-green-600" />
-                    <AlertDescription className="text-green-800">{success}</AlertDescription>
+                  <Alert className="border-[#dee242] bg-[#fffbe6]">
+                    <CheckCircle className="h-4 w-4 text-[#dee242]" />
+                    <AlertDescription className="text-[#001f3f]">{success}</AlertDescription>
                   </Alert>
                 )}
 
@@ -273,7 +323,7 @@ export default function LoginPage() {
                   // Regular login form
                   <form onSubmit={handleSubmit} className="space-y-4">
                     <div className="space-y-2">
-                      <Label htmlFor="email" className="text-gray-700 font-medium">
+                      <Label htmlFor="email" className="text-[#001f3f] font-medium">
                         Email Address
                       </Label>
                       <Input
@@ -284,12 +334,12 @@ export default function LoginPage() {
                         onChange={(e) => setEmail(e.target.value)}
                         required
                         disabled={isLoading}
-                        className="h-11 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                        className="h-11 border-[#e0e0e0] bg-white focus:border-[#001f3f] focus:ring-[#001f3f] text-[#555555] placeholder:text-[#001f3f]"
                       />
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="password" className="text-gray-700 font-medium">
+                      <Label htmlFor="password" className="text-[#001f3f] font-medium">
                         Password
                       </Label>
                       <div className="relative">
@@ -301,20 +351,20 @@ export default function LoginPage() {
                           onChange={(e) => setPassword(e.target.value)}
                           required
                           disabled={isLoading}
-                          className="h-11 pr-10 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                          className="h-11 pr-10 bg-white border-[#e0e0e0] focus:border-[#001f3f] focus:ring-[#001f3f] text-[#555555] placeholder:text-[#001f3f]"
                         />
                         <Button
                           type="button"
                           variant="ghost"
                           size="sm"
-                          className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                          className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-[#f9f9f9]"
                           onClick={() => setShowPassword(!showPassword)}
                           disabled={isLoading}
                         >
                           {showPassword ? (
-                            <EyeOff className="h-4 w-4 text-gray-500" />
+                            <EyeOff className="h-4 w-4 text-[#001f3f]" />
                           ) : (
-                            <Eye className="h-4 w-4 text-gray-500" />
+                            <Eye className="h-4 w-4 text-[#001f3f]" />
                           )}
                         </Button>
                       </div>
@@ -322,13 +372,13 @@ export default function LoginPage() {
 
                     <Button
                       type="submit"
-                      className="w-full h-11 text-white font-medium"
-                      style={{ backgroundColor: "#1a242f" }}
+                      className="w-full h-11 text-[#ffffff] font-medium"
+                      style={{ backgroundColor: "#001f3f" }}
                       disabled={isLoading}
                     >
                       {isLoading ? (
                         <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[#ffffff] mr-2"></div>
                           Signing in...
                         </>
                       ) : (
@@ -341,10 +391,10 @@ export default function LoginPage() {
 
                     <div className="relative">
                       <div className="absolute inset-0 flex items-center">
-                        <Separator className="w-full" />
+                        <Separator className="w-full border-[#e0e0e0]" />
                       </div>
                       <div className="relative flex justify-center text-xs uppercase">
-                        <span className="bg-white px-2 text-gray-500">Or</span>
+                        <span className="bg-[#ffffff] px-2 text-[#001f3f]">Or</span>
                       </div>
                     </div>
 
@@ -352,7 +402,7 @@ export default function LoginPage() {
                       type="button"
                       variant="outline"
                       onClick={() => setShowMagicLinkForm(true)}
-                      className="w-full h-11 text-base font-medium border-gray-300 hover:bg-gray-50"
+                      className="w-full h-11 text-base font-medium border-[#001f3f] text-[#001f3f] bg-[#ffffff] hover:bg-[#f9f9f9]"
                     >
                       <Mail className="h-4 w-4 mr-2" />
                       Use Magic Link Instead
@@ -361,12 +411,12 @@ export default function LoginPage() {
                 ) : (
                   // Magic link form
                   <div className="space-y-4">
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <div className="bg-[#fffbe6] border border-[#dee242] rounded-lg p-4">
                       <div className="flex items-start gap-3">
-                        <Info className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                        <Info className="h-5 w-5 text-[#dee242] mt-0.5 flex-shrink-0" />
                         <div>
-                          <h4 className="font-medium text-blue-900 mb-1">Forgot Your Password?</h4>
-                          <p className="text-sm text-blue-800">
+                          <h4 className="font-medium text-[#001f3f] mb-1">Forgot Your Password?</h4>
+                          <p className="text-sm text-[#555555]">
                             No worries! Enter your email address and we'll send you a secure login link. Click the link
                             in your email to access your account instantly - no password required.
                           </p>
@@ -376,7 +426,7 @@ export default function LoginPage() {
 
                     <form onSubmit={handleSendMagicLink} className="space-y-4">
                       <div className="space-y-2">
-                        <Label htmlFor="magic_email" className="text-gray-700 font-medium">
+                        <Label htmlFor="magic_email" className="text-[#001f3f] font-medium">
                           Email Address
                         </Label>
                         <Input
@@ -387,19 +437,19 @@ export default function LoginPage() {
                           onChange={(e) => setMagicLinkEmail(e.target.value)}
                           required
                           disabled={isSendingMagicLink}
-                          className="h-11 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                          className="h-11 bg-white border-[#e0e0e0] focus:border-[#001f3f] focus:ring-[#001f3f] text-[#555555] placeholder:text-[#001f3f]"
                         />
                       </div>
 
                       <Button
                         type="submit"
-                        className="w-full h-11 text-base font-medium"
-                        style={{ backgroundColor: "#1a242f" }}
+                        className="w-full h-11 text-base font-medium text-[#ffffff]"
+                        style={{ backgroundColor: "#001f3f" }}
                         disabled={isSendingMagicLink}
                       >
                         {isSendingMagicLink ? (
                           <>
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[#ffffff] mr-2"></div>
                             Sending Magic Link...
                           </>
                         ) : (
@@ -414,7 +464,7 @@ export default function LoginPage() {
                         type="button"
                         variant="outline"
                         onClick={() => setShowMagicLinkForm(false)}
-                        className="w-full h-11 text-base font-medium border-gray-300 hover:bg-gray-50"
+                        className="w-full h-11 text-base font-medium border-[#001f3f] text-[#001f3f] bg-[#ffffff] hover:bg-[#f9f9f9]"
                       >
                         Back to Password Login
                       </Button>
@@ -423,27 +473,27 @@ export default function LoginPage() {
                 )}
 
                 {/* Mobile info cards */}
-                <div className="lg:hidden space-y-3 pt-4 border-t border-gray-200">
+                <div className="lg:hidden space-y-3 pt-4 border-t border-[#e0e0e0]">
                   <div className="text-center">
-                    <p className="text-sm text-gray-600 font-medium mb-3">Important Information</p>
+                    <p className="text-sm text-[#001f3f] font-medium mb-3">Important Information</p>
                   </div>
 
-                  <div className="bg-gray-50 rounded-lg p-3">
+                  <div className="bg-[#f9f9f9] rounded-lg p-3 border border-[#e0e0e0]">
                     <div className="flex items-start gap-2">
-                      <Shield className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                      <Shield className="h-4 w-4 text-[#001f3f] mt-0.5 flex-shrink-0" />
                       <div>
-                        <p className="text-xs text-gray-700">
+                        <p className="text-xs text-[#555555]">
                           <strong>Access Control:</strong> Only administrators can create user accounts.
                         </p>
                       </div>
                     </div>
                   </div>
 
-                  <div className="bg-gray-50 rounded-lg p-3">
+                  <div className="bg-[#fffbe6] rounded-lg p-3 border border-[#dee242]">
                     <div className="flex items-start gap-2">
-                      <Phone className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
+                      <Phone className="h-4 w-4 text-[#ee3433] mt-0.5 flex-shrink-0" />
                       <div>
-                        <p className="text-xs text-gray-700">
+                        <p className="text-xs text-[#555555]">
                           <strong>Need Access?</strong> Contact Leuterio Realty Accounting Department.
                         </p>
                       </div>
