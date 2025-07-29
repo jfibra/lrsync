@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { ProtectedRoute } from "@/components/protected-route"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { Button } from "@/components/ui/button"
@@ -42,6 +42,10 @@ import {
   Users,
   Shield,
   Clock,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
 } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
@@ -66,35 +70,14 @@ const initialFormData: UserFormData = {
 export default function UserManagement() {
   const [users, setUsers] = useState<UserProfile[]>([])
   // Log notification/audit entry for user management dashboard access (all roles)
-  useEffect(() => {
-    (async () => {
-      try {
-        // Try to get current user profile from the first loaded user (super admin only)
-        const currentUser = users.find(u => u.role === "super_admin") || users[0]
-        if (currentUser) {
-          await supabase.rpc("log_notification", {
-            action: "user_management_access",
-            description: `User management dashboard accessed by ${currentUser.full_name || currentUser.first_name || currentUser.id}`,
-            user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
-            meta: JSON.stringify({
-              user_id: currentUser.id,
-              role: currentUser.role || "unknown",
-              dashboard: "user_management",
-            }),
-          })
-        }
-      } catch (logError) {
-        console.error("Error logging notification:", logError)
-        // Do not block user on logging failure
-      }
-    })()
-    // Only log once when users are loaded
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [users.length])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
+
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
 
   // Modal states
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
@@ -161,6 +144,49 @@ export default function UserManagement() {
       user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.assigned_area?.toLowerCase().includes(searchTerm.toLowerCase()),
   )
+
+  // Pagination calculations
+  const totalRecords = filteredUsers.length
+  const totalPages = Math.ceil(totalRecords / pageSize)
+  const startIndex = (currentPage - 1) * pageSize
+  const endIndex = Math.min(startIndex + pageSize, totalRecords)
+  const currentPageUsers = filteredUsers.slice(startIndex, endIndex)
+
+  // Reset to first page when search term changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchTerm])
+
+  // Reset to first page when page size changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [pageSize])
+
+  // Generate page numbers for pagination
+  const getPageNumbers = useMemo(() => {
+    const pages = []
+    const maxVisiblePages = 5
+
+    if (totalPages <= maxVisiblePages) {
+      for (let i = 1; i <= totalPages; i++) {
+        pages.push(i)
+      }
+    } else {
+      const halfVisible = Math.floor(maxVisiblePages / 2)
+      let startPage = Math.max(1, currentPage - halfVisible)
+      const endPage = Math.min(totalPages, startPage + maxVisiblePages - 1)
+
+      if (endPage - startPage < maxVisiblePages - 1) {
+        startPage = Math.max(1, endPage - maxVisiblePages + 1)
+      }
+
+      for (let i = startPage; i <= endPage; i++) {
+        pages.push(i)
+      }
+    }
+
+    return pages
+  }, [currentPage, totalPages])
 
   const validateEmail = (email: string): boolean => {
     const emailRegex =
@@ -264,7 +290,9 @@ export default function UserManagement() {
         // Optionally, you can return here if logging is critical
       }
 
-      setSuccess(`User "${formData.first_name} ${formData.last_name}" (${formData.email}) created successfully with login capabilities! Default password: TempPass123! (user should change this)`)
+      setSuccess(
+        `User "${formData.first_name} ${formData.last_name}" (${formData.email}) created successfully with login capabilities! Default password: TempPass123! (user should change this)`,
+      )
       setIsAddModalOpen(false)
       setFormData(initialFormData)
       fetchUsers()
@@ -383,7 +411,7 @@ export default function UserManagement() {
   const handleQuickStatusUpdate = async (userId: string, newStatus: UserStatus) => {
     try {
       setError("")
-      const user = users.find(u => u.id === userId)
+      const user = users.find((u) => u.id === userId)
       const prevStatus = user?.status
       const { error } = await supabase.from("user_profiles").update({ status: newStatus }).eq("id", userId)
       if (error) {
@@ -412,7 +440,7 @@ export default function UserManagement() {
   const handleQuickRoleUpdate = async (userId: string, newRole: UserRole) => {
     try {
       setError("")
-      const user = users.find(u => u.id === userId)
+      const user = users.find((u) => u.id === userId)
       const prevRole = user?.role
       const { error } = await supabase.from("user_profiles").update({ role: newRole }).eq("id", userId)
       if (error) {
@@ -480,6 +508,32 @@ export default function UserManagement() {
   const totalUsers = users.length
   const activeUsers = users.filter((user) => user.status === "active").length
   const adminUsers = users.filter((user) => user.role === "admin" || user.role === "super_admin").length
+
+  useEffect(() => {
+    ;(async () => {
+      try {
+        // Try to get current user profile from the first loaded user (super admin only)
+        const currentUser = users.find((u) => u.role === "super_admin") || users[0]
+        if (currentUser) {
+          await supabase.rpc("log_notification", {
+            action: "user_management_access",
+            description: `User management dashboard accessed by ${currentUser.full_name || currentUser.first_name || currentUser.id}`,
+            user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+            meta: JSON.stringify({
+              user_id: currentUser.id,
+              role: currentUser.role || "unknown",
+              dashboard: "user_management",
+            }),
+          })
+        }
+      } catch (logError) {
+        console.error("Error logging notification:", logError)
+        // Do not block user on logging failure
+      }
+    })()
+    // Only log once when users are loaded
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [users])
 
   return (
     <ProtectedRoute allowedRoles={["super_admin"]}>
@@ -597,19 +651,14 @@ export default function UserManagement() {
                   </Button>
                   <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
                     <DialogTrigger asChild>
-                      <Button
-                        onClick={resetForm}
-                        className="bg-[#001f3f] hover:bg-[#001f3f]/80 text-white shadow-lg"
-                      >
+                      <Button onClick={resetForm} className="bg-[#001f3f] hover:bg-[#001f3f]/80 text-white shadow-lg">
                         <UserPlus className="h-4 w-4 mr-2" />
                         Add User
                       </Button>
                     </DialogTrigger>
                     <DialogContent className="sm:max-w-2xl bg-white max-h-[90vh] overflow-y-auto">
                       <DialogHeader className="pb-6 border-b border-[#e0e0e0]">
-                        <DialogTitle className="text-2xl font-bold text-[#001f3f]">
-                          Add New User Profile
-                        </DialogTitle>
+                        <DialogTitle className="text-2xl font-bold text-[#001f3f]">Add New User Profile</DialogTitle>
                         <DialogDescription className="text-[#001f3f] mt-2">
                           Create a new user with full authentication capabilities and login access
                         </DialogDescription>
@@ -787,131 +836,255 @@ export default function UserManagement() {
                 </div>
               ) : (
                 <>
+                  {/* Table Controls */}
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 p-6 border-b border-[#e0e0e0] bg-[#f9f9f9]">
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-2">
+                        <Label htmlFor="pageSize" className="text-sm font-medium text-[#001f3f] whitespace-nowrap">
+                          Show
+                        </Label>
+                        <Select value={pageSize.toString()} onValueChange={(value) => setPageSize(Number(value))}>
+                          <SelectTrigger id="pageSize" className="w-20 border-[#e0e0e0] text-[#001f3f] bg-[#ffffff]">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="10">10</SelectItem>
+                            <SelectItem value="25">25</SelectItem>
+                            <SelectItem value="50">50</SelectItem>
+                            <SelectItem value="100">100</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <span className="text-sm text-[#001f3f] whitespace-nowrap">entries</span>
+                      </div>
+                    </div>
+
+                    <div className="text-sm text-[#001f3f]">
+                      {totalRecords > 0 ? (
+                        <>
+                          Showing {startIndex + 1} to {endIndex} of {totalRecords} records
+                          {searchTerm && ` (filtered from ${users.length} total records)`}
+                        </>
+                      ) : (
+                        "No records found"
+                      )}
+                    </div>
+                  </div>
+
                   {filteredUsers.length > 0 ? (
-                    <div className="overflow-x-auto">
-                      <Table>
-                        <TableHeader>
-                          <TableRow className="bg-[#f9f9f9] border-b border-[#e0e0e0]">
-                            <TableHead className="font-semibold text-[#001f3f]">Name</TableHead>
-                            <TableHead className="font-semibold text-[#001f3f]">Email</TableHead>
-                            <TableHead className="font-semibold text-[#001f3f]">Role</TableHead>
-                            <TableHead className="font-semibold text-[#001f3f]">Status</TableHead>
-                            <TableHead className="font-semibold text-[#001f3f]">Assigned Area</TableHead>
-                            <TableHead className="font-semibold text-[#001f3f]">Created</TableHead>
-                            <TableHead className="font-semibold text-[#001f3f]">Actions</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {filteredUsers.map((user) => (
-                            <TableRow key={user.id} className="hover:bg-[#f9f9f9] transition-colors">
-                              <TableCell className="font-medium text-[#001f3f]">
-                                <div className="flex items-center gap-3">
-                                  <div className="w-8 h-8 bg-[#001f3f] rounded-full flex items-center justify-center">
-                                    <span className="text-white text-sm font-medium">
-                                      {(user.first_name?.[0] || user.full_name?.[0] || "U").toUpperCase()}
-                                    </span>
+                    <>
+                      <div className="overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow className="bg-[#f9f9f9] border-b border-[#e0e0e0]">
+                              <TableHead className="font-semibold text-[#001f3f]">Name</TableHead>
+                              <TableHead className="font-semibold text-[#001f3f]">Email</TableHead>
+                              <TableHead className="font-semibold text-[#001f3f]">Role</TableHead>
+                              <TableHead className="font-semibold text-[#001f3f]">Status</TableHead>
+                              <TableHead className="font-semibold text-[#001f3f]">Assigned Area</TableHead>
+                              <TableHead className="font-semibold text-[#001f3f]">Created</TableHead>
+                              <TableHead className="font-semibold text-[#001f3f]">Actions</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {currentPageUsers.map((user) => (
+                              <TableRow key={user.id} className="hover:bg-[#f9f9f9] transition-colors">
+                                <TableCell className="font-medium text-[#001f3f]">
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 bg-[#001f3f] rounded-full flex items-center justify-center">
+                                      <span className="text-white text-sm font-medium">
+                                        {(user.first_name?.[0] || user.full_name?.[0] || "U").toUpperCase()}
+                                      </span>
+                                    </div>
+                                    {user.full_name ||
+                                      `${user.first_name || ""} ${user.last_name || ""}`.trim() ||
+                                      "N/A"}
                                   </div>
-                                  {user.full_name || `${user.first_name || ""} ${user.last_name || ""}`.trim() || "N/A"}
-                                </div>
-                              </TableCell>
-                              <TableCell className="text-[#001f3f]">{user.email || "N/A"}</TableCell>
-                              <TableCell>
-                                <Select
-                                  value={user.role}
-                                  onValueChange={(value: UserRole) => handleQuickRoleUpdate(user.id, value)}
-                                >
-                                  <SelectTrigger className="w-32 border-[#e0e0e0] text-[#001f3f] bg-[#ffffff]">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="secretary">Secretary</SelectItem>
-                                    <SelectItem value="admin">Admin</SelectItem>
-                                    <SelectItem value="super_admin">Super Admin</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </TableCell>
-                              <TableCell>
-                                <Select
-                                  value={user.status}
-                                  onValueChange={(value: UserStatus) => handleQuickStatusUpdate(user.id, value)}
-                                >
-                                  <SelectTrigger className="w-28 border-[#e0e0e0] text-[#001f3f] bg-[#ffffff]">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="active">Active</SelectItem>
-                                    <SelectItem value="inactive">Inactive</SelectItem>
-                                    <SelectItem value="suspended">Suspended</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </TableCell>
-                              <TableCell className="text-[#001f3f]">{user.assigned_area || "N/A"}</TableCell>
-                              <TableCell className="text-[#001f3f]">
-                                <div className="flex items-center gap-2">
-                                  <Clock className="h-4 w-4 text-[#001f3f]" />
-                                  {new Date(user.created_at).toLocaleDateString()}
-                                </div>
-                              </TableCell>
-                              <TableCell>
-                                <div className="flex gap-2">
-                                  {user.email && (
+                                </TableCell>
+                                <TableCell className="text-[#001f3f]">{user.email || "N/A"}</TableCell>
+                                <TableCell>
+                                  <Select
+                                    value={user.role}
+                                    onValueChange={(value: UserRole) => handleQuickRoleUpdate(user.id, value)}
+                                  >
+                                    <SelectTrigger className="w-32 border-[#e0e0e0] text-[#001f3f] bg-[#ffffff]">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="secretary">Secretary</SelectItem>
+                                      <SelectItem value="admin">Admin</SelectItem>
+                                      <SelectItem value="super_admin">Super Admin</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </TableCell>
+                                <TableCell>
+                                  <Select
+                                    value={user.status}
+                                    onValueChange={(value: UserStatus) => handleQuickStatusUpdate(user.id, value)}
+                                  >
+                                    <SelectTrigger className="w-28 border-[#e0e0e0] text-[#001f3f] bg-[#ffffff]">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="active">Active</SelectItem>
+                                      <SelectItem value="inactive">Inactive</SelectItem>
+                                      <SelectItem value="suspended">Suspended</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </TableCell>
+                                <TableCell className="text-[#001f3f]">{user.assigned_area || "N/A"}</TableCell>
+                                <TableCell className="text-[#001f3f]">
+                                  <div className="flex items-center gap-2">
+                                    <Clock className="h-4 w-4 text-[#001f3f]" />
+                                    {new Date(user.created_at).toLocaleDateString()}
+                                  </div>
+                                </TableCell>
+                                <TableCell>
+                                  <div className="flex gap-2">
+                                    {user.email && (
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleSendMagicLink(user)}
+                                        disabled={isSendingMagicLink === user.id}
+                                        title="Send Magic Link"
+                                        className="text-[#001f3f] hover:bg-[#dee242]/20 hover:text-[#001f3f]"
+                                      >
+                                        {isSendingMagicLink === user.id ? (
+                                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[#dee242]"></div>
+                                        ) : (
+                                          <Mail className="h-4 w-4" />
+                                        )}
+                                      </Button>
+                                    )}
                                     <Button
                                       variant="ghost"
                                       size="sm"
-                                      onClick={() => handleSendMagicLink(user)}
-                                      disabled={isSendingMagicLink === user.id}
-                                      title="Send Magic Link"
-                                      className="text-[#001f3f] hover:bg-[#dee242]/20 hover:text-[#001f3f]"
+                                      onClick={() => handleEditUser(user)}
+                                      className="text-[#3dcd8d] hover:bg-[#dee242]/20 hover:text-[#3dcd8d]"
                                     >
-                                      {isSendingMagicLink === user.id ? (
-                                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[#dee242]"></div>
-                                      ) : (
-                                        <Mail className="h-4 w-4" />
-                                      )}
+                                      <Edit className="h-4 w-4" />
                                     </Button>
-                                  )}
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => handleEditUser(user)}
-                                    className="text-[#3dcd8d] hover:bg-[#dee242]/20 hover:text-[#3dcd8d]"
-                                  >
-                                    <Edit className="h-4 w-4" />
-                                  </Button>
-                                  <AlertDialog>
-                                    <AlertDialogTrigger asChild>
-                                      <Button variant="ghost" size="sm" className="text-[#ee3433] hover:bg-[#ee3433]/20 hover:text-[#ee3433]">
-                                        <Trash2 className="h-4 w-4" />
-                                      </Button>
-                                    </AlertDialogTrigger>
-                                    <AlertDialogContent className="bg-white">
-                                      <AlertDialogHeader>
-                                        <AlertDialogTitle className="text-[#ee3433]">Delete User Profile</AlertDialogTitle>
-                                        <AlertDialogDescription className="text-[#001f3f]">
-                                          Are you sure you want to delete the profile for{" "}
-                                          <strong>{user.full_name || `${user.first_name} ${user.last_name}`}</strong>?
-                                          This action cannot be undone.
-                                        </AlertDialogDescription>
-                                      </AlertDialogHeader>
-                                      <AlertDialogFooter>
-                                        <AlertDialogCancel className="text-[#001f3f] bg-white border-[#e0e0e0]">Cancel</AlertDialogCancel>
-                                        <AlertDialogAction
-                                          onClick={() => handleDeleteUser(user)}
-                                          className="bg-[#ee3433] hover:bg-[#ee3433]/80 text-white"
-                                          disabled={isDeleting}
+                                    <AlertDialog>
+                                      <AlertDialogTrigger asChild>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="text-[#ee3433] hover:bg-[#ee3433]/20 hover:text-[#ee3433]"
                                         >
-                                          {isDeleting ? "Deleting..." : "Delete Profile"}
-                                        </AlertDialogAction>
-                                      </AlertDialogFooter>
-                                    </AlertDialogContent>
-                                  </AlertDialog>
-                                </div>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
+                                          <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                      </AlertDialogTrigger>
+                                      <AlertDialogContent className="bg-white">
+                                        <AlertDialogHeader>
+                                          <AlertDialogTitle className="text-[#ee3433]">
+                                            Delete User Profile
+                                          </AlertDialogTitle>
+                                          <AlertDialogDescription className="text-[#001f3f]">
+                                            Are you sure you want to delete the profile for{" "}
+                                            <strong>{user.full_name || `${user.first_name} ${user.last_name}`}</strong>?
+                                            This action cannot be undone.
+                                          </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                          <AlertDialogCancel className="text-[#001f3f] bg-white border-[#e0e0e0]">
+                                            Cancel
+                                          </AlertDialogCancel>
+                                          <AlertDialogAction
+                                            onClick={() => handleDeleteUser(user)}
+                                            className="bg-[#ee3433] hover:bg-[#ee3433]/80 text-white"
+                                            disabled={isDeleting}
+                                          >
+                                            {isDeleting ? "Deleting..." : "Delete Profile"}
+                                          </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                      </AlertDialogContent>
+                                    </AlertDialog>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+
+                      {/* Pagination Controls */}
+                      {totalPages > 1 && (
+                        <div className="flex flex-col sm:flex-row justify-between items-center gap-4 p-6 border-t border-[#e0e0e0] bg-[#f9f9f9]">
+                          <div className="text-sm text-[#001f3f]">
+                            Page {currentPage} of {totalPages}
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            {/* First Page */}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setCurrentPage(1)}
+                              disabled={currentPage === 1}
+                              className="border-[#e0e0e0] text-[#001f3f] bg-white hover:bg-[#f9f9f9] disabled:opacity-50"
+                            >
+                              <ChevronsLeft className="h-4 w-4" />
+                              <span className="sr-only sm:not-sr-only sm:ml-1">First</span>
+                            </Button>
+
+                            {/* Previous Page */}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setCurrentPage(currentPage - 1)}
+                              disabled={currentPage === 1}
+                              className="border-[#e0e0e0] text-[#001f3f] bg-white hover:bg-[#f9f9f9] disabled:opacity-50"
+                            >
+                              <ChevronLeft className="h-4 w-4" />
+                              <span className="sr-only sm:not-sr-only sm:ml-1">Previous</span>
+                            </Button>
+
+                            {/* Page Numbers */}
+                            <div className="flex items-center gap-1">
+                              {getPageNumbers.map((pageNum) => (
+                                <Button
+                                  key={pageNum}
+                                  variant={currentPage === pageNum ? "default" : "outline"}
+                                  size="sm"
+                                  onClick={() => setCurrentPage(pageNum)}
+                                  className={
+                                    currentPage === pageNum
+                                      ? "bg-[#001f3f] text-white hover:bg-[#001f3f]/80"
+                                      : "border-[#e0e0e0] text-[#001f3f] bg-white hover:bg-[#f9f9f9]"
+                                  }
+                                >
+                                  {pageNum}
+                                </Button>
+                              ))}
+                            </div>
+
+                            {/* Next Page */}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setCurrentPage(currentPage + 1)}
+                              disabled={currentPage === totalPages}
+                              className="border-[#e0e0e0] text-[#001f3f] bg-white hover:bg-[#f9f9f9] disabled:opacity-50"
+                            >
+                              <span className="sr-only sm:not-sr-only sm:mr-1">Next</span>
+                              <ChevronRight className="h-4 w-4" />
+                            </Button>
+
+                            {/* Last Page */}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setCurrentPage(totalPages)}
+                              disabled={currentPage === totalPages}
+                              className="border-[#e0e0e0] text-[#001f3f] bg-white hover:bg-[#f9f9f9] disabled:opacity-50"
+                            >
+                              <span className="sr-only sm:not-sr-only sm:mr-1">Last</span>
+                              <ChevronsRight className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </>
                   ) : (
                     <div className="flex flex-col items-center justify-center py-12">
                       <AlertCircle className="h-10 w-10 text-[#001f3f] mb-4" />
