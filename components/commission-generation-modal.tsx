@@ -37,6 +37,8 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import type { Sales } from "@/types/sales";
+import { Toaster } from "@/components/ui/sonner";
+import { toast } from "sonner";
 import * as XLSX from "xlsx";
 
 interface CommissionGenerationModalProps {
@@ -1002,12 +1004,19 @@ export function CommissionGenerationModal({
   useEffect(() => {
     if (!isOpen) {
       setSearchResults([]);
-      setCommissionRecords({});
+      // setCommissionRecords({});
     }
   }, [isOpen]);
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) return; // Prevent closing on outside click
+        // Only allow opening, not closing via outside click
+      }}
+    >
+      <Toaster richColors position="top-right" />
       <DialogContent className="max-w-[95vw] max-h-[95vh] overflow-hidden bg-white">
         <DialogHeader className="border-b border-gray-200 pb-4">
           <DialogTitle className="text-2xl font-bold text-[#001f3f]">
@@ -1097,9 +1106,6 @@ export function CommissionGenerationModal({
                           />
                         </SelectTrigger>
                         <SelectContent className="bg-white">
-                          <SelectItem value="all" className="text-[#001f3f]">
-                            All Years
-                          </SelectItem>
                           {yearOptions.map((year) => (
                             <SelectItem
                               key={year}
@@ -1193,9 +1199,13 @@ export function CommissionGenerationModal({
                                   <Button
                                     key={tabKey}
                                     size="sm"
-                                    onClick={() =>
-                                      addAgentToTab(tabKey, result)
-                                    }
+                                    onClick={() => {
+                                      addAgentToTab(tabKey, result);
+                                      toast(
+                                        `Agent added to Invoice #${groupedByDeveloperAndInvoice[tabKey].invoiceNumber}`,
+                                        { duration: 3000 }
+                                      );
+                                    }}
                                     className="bg-[#001f3f] text-white hover:bg-[#001f3f]/90"
                                   >
                                     <Plus className="h-3 w-3 mr-1" />
