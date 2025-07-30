@@ -1153,6 +1153,14 @@ export function CommissionGenerationModal({
                       >
                         Clear Filters
                       </Button>
+                      <Button
+                        variant="outline"
+                        className="border-[#ee3433] text-[#ee3433] bg-white"
+                        onClick={() => setCommissionRecords({})}
+                        disabled={Object.keys(commissionRecords).length === 0}
+                      >
+                        Clear Table
+                      </Button>
                     </div>
                   </div>
 
