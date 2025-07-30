@@ -144,6 +144,7 @@ export function CommissionGenerationModal({
   const [searchData, setSearchData] = useState({
     agentName: "",
     developerName: "",
+    clientName: "",
     year: currentYear.toString(),
   });
   const [activeTab, setActiveTab] = useState<string>("");
@@ -234,6 +235,9 @@ export function CommissionGenerationModal({
       if (searchData.year) params.append("year", searchData.year);
       if (searchData.developerName) {
         params.append("developer", searchData.developerName);
+      }
+      if (searchData.clientName) {
+        params.append("clientfamilyname", searchData.clientName);
       }
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_NEXT_API_ROUTE_LR}/search-sales-report?${params}`
@@ -1065,6 +1069,19 @@ export function CommissionGenerationModal({
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-[#001f3f] mb-1">
+                        Client Name
+                      </label>
+                      <Input
+                        placeholder="Enter client name..."
+                        value={searchData.clientName}
+                        onChange={(e) =>
+                          handleSearchChange("clientName", e.target.value)
+                        }
+                        className="border-gray-300 focus:border-[#001f3f] focus:ring-[#001f3f] text-[#001f3f] bg-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-[#001f3f] mb-1">
                         Year
                       </label>
                       <Select
@@ -1116,22 +1133,21 @@ export function CommissionGenerationModal({
                       >
                         Clear Results
                       </Button>
+                      <Button
+                        variant="outline"
+                        className="border-[#001f3f] text-white bg-[#001f3f]"
+                        onClick={() =>
+                          setSearchData({
+                            agentName: "",
+                            developerName: "",
+                            clientName: "",
+                            year: currentYear.toString(),
+                          })
+                        }
+                      >
+                        Clear Filters
+                      </Button>
                     </div>
-                  </div>
-                  <div className="flex gap-2 mt-2">
-                    <Button
-                      variant="outline"
-                      className="border-[#001f3f] text-white bg-[#001f3f]"
-                      onClick={() =>
-                        setSearchData({
-                          agentName: "",
-                          developerName: "",
-                          year: currentYear.toString(),
-                        })
-                      }
-                    >
-                      Clear Filters
-                    </Button>
                   </div>
 
                   {/* Search Results */}
