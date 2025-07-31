@@ -8,6 +8,8 @@ export interface Sales {
   substreet_street_brgy: string | null
   district_city_zip: string | null
   gross_taxable: number
+  total_actual_amount: number
+  sale_type: string
   invoice_number: string | null
   tax_type: string
   pickup_date: string | null
@@ -34,7 +36,8 @@ export interface SalesRecord {
   tax_type: "VAT" | "Non-VAT"
   sales_month: string
   created_at: string
-  updated_at: string
+  remarks?: string | null;
+// ...existing code...
   created_by?: string
   is_deleted?: boolean
 }

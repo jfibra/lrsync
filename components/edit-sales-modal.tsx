@@ -120,6 +120,7 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
   const [totalActualAmount, setTotalActualAmount] = useState("")
   const [invoiceNumber, setInvoiceNumber] = useState("")
   const [taxType, setTaxType] = useState("")
+  const [saleType, setSaleType] = useState("")
   const [pickupDate, setPickupDate] = useState<Date>(new Date())
 
   // TIN search results
@@ -168,6 +169,10 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
     },
   ])
 
+  // Add state for remark input and remarks
+  const [remarkInput, setRemarkInput] = useState("")
+  const [remarks, setRemarks] = useState<any[]>([])
+
   // Initialize form with sale data
   useEffect(() => {
     if (sale && open) {
@@ -180,6 +185,7 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
       setTotalActualAmount(sale.total_actual_amount ? sale.total_actual_amount.toLocaleString() : "")
       setInvoiceNumber(sale.invoice_number || "")
       setTaxType(sale.tax_type)
+      setSaleType(sale.sale_type || "invoice")
       setPickupDate(sale.pickup_date ? new Date(sale.pickup_date) : new Date())
 
       // Initialize file uploads with existing files
@@ -191,6 +197,17 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
           uploadedUrls: [],
         })),
       )
+
+      setRemarkInput("")
+      let parsedRemarks: any[] = []
+      if (sale.remarks) {
+        try {
+          parsedRemarks = JSON.parse(sale.remarks)
+        } catch {
+          parsedRemarks = []
+        }
+      }
+      setRemarks(Array.isArray(parsedRemarks) ? parsedRemarks : [])
     }
   }, [sale, open])
 
@@ -357,6 +374,19 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
     return true
   }
 
+  // Add Remark handler
+  const handleAddRemark = () => {
+    if (!remarkInput.trim() || !profile) return
+    const newRemark = {
+      remark: remarkInput.trim(),
+      name: profile.full_name || "",
+      uuid: profile.id || "",
+      date: new Date().toISOString(),
+    }
+    setRemarks((prev) => [...prev, newRemark])
+    setRemarkInput("")
+  }
+
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -410,12 +440,14 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
         total_actual_amount: Number.parseFloat(totalActualAmount.replace(/,/g, "")) || 0,
         invoice_number: invoiceNumber || null,
         tax_type: taxType,
+        sale_type: saleType,
         pickup_date: formattedPickupDate,
         cheque: fileArrays.cheque,
         voucher: fileArrays.voucher,
         doc_2307: fileArrays.doc_2307,
         invoice: fileArrays.invoice,
         deposit_slip: fileArrays.deposit_slip,
+        remarks: remarks.length > 0 ? JSON.stringify(remarks) : null,
         updated_at: new Date().toISOString(),
       }
 
@@ -428,7 +460,7 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
 
       // Gather all file attachment URLs for meta
       const fileMeta: Record<string, string[]> = {}
-      fileUploads.forEach(upload => {
+      fileUploads.forEach((upload) => {
         const allUrls = [...(upload.existingUrls || []), ...(upload.uploadedUrls || [])]
         if (allUrls.length > 0) {
           fileMeta[upload.id] = allUrls
@@ -470,7 +502,8 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* First Row */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Tax Month - Read Only */}
             <div className="space-y-2">
               <Label htmlFor="tax-month" className="text-sm font-medium text-[#001f3f]">
@@ -483,6 +516,50 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
                 className="border-[#001f3f] bg-gray-200 text-[#001f3f] cursor-not-allowed"
               />
             </div>
+
+            {/* Tax Type */}
+            <div className="space-y-2">
+              <Label htmlFor="tax-type" className="text-sm font-medium text-[#001f3f]">
+                Tax Type *
+              </Label>
+              <Select value={taxType} onValueChange={setTaxType} required>
+                <SelectTrigger className="border-[#001f3f] focus:border-blue-500 focus:ring-blue-500 text-[#001f3f] bg-white">
+                  <SelectValue placeholder="Select tax type..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="vat" className="text-white">
+                    VAT
+                  </SelectItem>
+                  <SelectItem value="non-vat" className="text-white">
+                    Non-VAT
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Sale Type */}
+            <div className="space-y-2">
+              <Label htmlFor="sale-type" className="text-sm font-medium text-[#001f3f]">
+                Sale Type *
+              </Label>
+              <Select value={saleType} onValueChange={setSaleType} required>
+                <SelectTrigger className="border-[#001f3f] focus:border-blue-500 focus:ring-blue-500 text-[#001f3f] bg-white">
+                  <SelectValue placeholder="Select sale type..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="invoice" className="text-white">
+                    Invoice
+                  </SelectItem>
+                  <SelectItem value="non-invoice" className="text-white">
+                    No Invoice
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <hr/>
+          {/* Second Row */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
             {/* TIN Search - Read Only */}
             <div className="space-y-2 relative">
@@ -510,6 +587,35 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
               />
             </div>
 
+            {/* Address Fields - Read Only */}
+            <div className="space-y-2">
+              <Label htmlFor="substreet" className="text-sm font-medium text-[#001f3f]">
+                Substreet/Street/Barangay (Read Only)
+              </Label>
+              <Input
+                id="substreet"
+                value={substreetStreetBrgy}
+                readOnly
+                className="border-[#001f3f] bg-gray-200 text-[#001f3f] cursor-not-allowed"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="district" className="text-sm font-medium text-[#001f3f]">
+                District/City/ZIP (Read Only)
+              </Label>
+              <Input
+                id="district"
+                value={districtCityZip}
+                readOnly
+                className="border-[#001f3f] bg-gray-200 text-[#001f3f] cursor-not-allowed"
+              />
+            </div>
+          </div>
+          <hr/>
+          {/* Third Row */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            
             {/* Gross Taxable */}
             <div className="space-y-2">
               <Label htmlFor="gross-taxable" className="text-sm font-medium text-[#001f3f]">
@@ -540,31 +646,6 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
               />
             </div>
 
-            {/* Address Fields - Read Only */}
-            <div className="space-y-2">
-              <Label htmlFor="substreet" className="text-sm font-medium text-[#001f3f]">
-                Substreet/Street/Barangay (Read Only)
-              </Label>
-              <Input
-                id="substreet"
-                value={substreetStreetBrgy}
-                readOnly
-                className="border-[#001f3f] bg-gray-200 text-[#001f3f] cursor-not-allowed"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="district" className="text-sm font-medium text-[#001f3f]">
-                District/City/ZIP (Read Only)
-              </Label>
-              <Input
-                id="district"
-                value={districtCityZip}
-                readOnly
-                className="border-[#001f3f] bg-gray-200 text-[#001f3f] cursor-not-allowed"
-              />
-            </div>
-
             {/* Invoice Number */}
             <div className="space-y-2">
               <Label htmlFor="invoice-number" className="text-sm font-medium text-[#001f3f]">
@@ -579,65 +660,46 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
               />
             </div>
 
-            {/* Tax Type */}
-            <div className="space-y-2">
-              <Label htmlFor="tax-type" className="text-sm font-medium text-[#001f3f]">
-                Tax Type *
-              </Label>
-              <Select value={taxType} onValueChange={setTaxType} required>
-                <SelectTrigger className="border-[#001f3f] focus:border-blue-500 focus:ring-blue-500 text-[#001f3f] bg-white">
-                  <SelectValue placeholder="Select tax type..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="vat" className="text-[#001f3f]">
-                    VAT
-                  </SelectItem>
-                  <SelectItem value="non-vat" className="text-[#001f3f]">
-                    Non-VAT
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
             {/* Pickup Date */}
-            <div className="space-y-2 md:col-span-2">
+            <div className="space-y-2">
               <Label htmlFor="pickup-date" className="text-sm font-medium text-[#001f3f]">
                 Pickup Date
               </Label>
-              <div className="flex items-center space-x-2">
-                <Input
-                  type="date"
-                  value={format(pickupDate, "yyyy-MM-dd")}
-                  onChange={(e) => {
-                    const newDate = new Date(e.target.value)
-                    if (!isNaN(newDate.getTime())) {
-                      setPickupDate(newDate)
-                    }
-                  }}
-                  className="border-[#001f3f] focus:border-blue-500 focus:ring-blue-500 text-[#001f3f] bg-white flex-1"
-                />
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="border-[#001f3f] text-[#001f3f] hover:bg-[#001f3f]/10 bg-transparent"
-                    >
-                      <CalendarIcon className="h-4 w-4" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0 bg-white text-[#001f3f]" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={pickupDate}
-                      onSelect={setPickupDate}
-                      disabled={(date) => date > new Date() || date < new Date("1900-01-01")}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
+              <Input
+                type="date"
+                value={format(pickupDate, "yyyy-MM-dd")}
+                onChange={(e) => {
+                  const newDate = new Date(e.target.value)
+                  if (!isNaN(newDate.getTime())) {
+                    setPickupDate(newDate)
+                  }
+                }}
+                className="border-[#001f3f] focus:border-blue-500 focus:ring-blue-500 text-[#001f3f] bg-white"
+              />
             </div>
+          </div>
+
+          {/* Remark Input Row */}
+          <div className="flex flex-col md:flex-row items-start md:items-center gap-4 py-4">
+            <div className="flex-1 w-full">
+              <Label htmlFor="remark" className="text-sm font-medium text-[#001f3f]">Add Remark</Label>
+              <textarea
+                id="remark"
+                value={remarkInput}
+                onChange={(e) => setRemarkInput(e.target.value)}
+                rows={2}
+                className="w-full border-2 border-[#001f3f] focus:border-blue-500 focus:ring-blue-500 text-[#001f3f] bg-blue-50 rounded-lg p-3 shadow-sm"
+                placeholder="Enter your remark..."
+              />
+            </div>
+            <Button
+              type="button"
+              onClick={handleAddRemark}
+              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white mt-2 md:mt-0"
+              disabled={loading || !remarkInput.trim()}
+            >
+              Add Remark
+            </Button>
           </div>
 
           {/* File Uploads */}
