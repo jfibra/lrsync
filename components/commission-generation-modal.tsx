@@ -773,6 +773,8 @@ export function CommissionGenerationModal({
             "AGENT NAME",
             "CLIENT",
             "RESERVATION DATE",
+            "TYPE", 
+            "BDO ACCOUNT #",
             "COMM",
             "NET OF VAT",
             "STATUS",
@@ -805,6 +807,8 @@ export function CommissionGenerationModal({
                 record.agentName,
                 record.client,
                 record.reservationDate,
+                record.type || "",
+                record.bdoAccount || "",
                 formatCurrency(Number(record.comm.replace(/,/g, "")) || 0),
                 formatCurrency(Number(record.netOfVat) || 0),
                 record.status,
@@ -835,6 +839,8 @@ export function CommissionGenerationModal({
               "",
               "",
               "Totals:",
+              "",
+              "",
               "",
               formatCurrency(
                 tabCommissionRecords.reduce(
@@ -2351,6 +2357,7 @@ export function CommissionGenerationModal({
                                           )}
                                         </TableCell>
                                         <TableCell />
+                                        <TableCell />
                                         <TableCell className="text-right text-[#001f3f]">
                                           {formatCurrency(
                                             tabCommissionRecords.reduce(
@@ -2363,6 +2370,7 @@ export function CommissionGenerationModal({
                                             )
                                           )}
                                         </TableCell>
+                                        <TableCell />
                                         <TableCell />
                                         <TableCell />
                                         <TableCell />
@@ -2397,6 +2405,7 @@ export function CommissionGenerationModal({
                                             )
                                           )}
                                         </TableCell>
+                                        <TableCell />
                                         <TableCell className="text-right text-[#001f3f]">
                                           {formatCurrency(
                                             tabCommissionRecords.reduce(
@@ -2447,6 +2456,7 @@ export function CommissionGenerationModal({
                                             )
                                           )}
                                         </TableCell>
+                                        <TableCell />
                                         <TableCell className="text-right text-[#E34A27]">
                                           {formatCurrency(
                                             tabCommissionRecords.reduce(
@@ -2498,6 +2508,7 @@ export function CommissionGenerationModal({
                                             )
                                           )}
                                         </TableCell>
+                                        <TableCell />
                                         <TableCell className="text-right text-[#001f3f]">
                                           {formatCurrency(
                                             tabCommissionRecords.reduce(
