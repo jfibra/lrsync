@@ -376,19 +376,25 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
 
   // Add Remark handler
   const handleAddRemark = () => {
-    if (!remarkInput.trim() || !profile) return
+    console.log("Add remark clicked", { remarkInput, profile }) // Debug log
+    if (!remarkInput.trim() || !profile) {
+      console.log("Cannot add remark - missing input or profile") // Debug log
+      return
+    }
     const newRemark = {
       remark: remarkInput.trim(),
       name: profile.full_name || "",
-      uuid: profile.auth_user_id || "",
+      uuid: profile.id || "",
       date: new Date().toISOString(),
     }
+    console.log("Adding new remark:", newRemark) // Debug log
     setRemarks((prev) => [...prev, newRemark])
     setRemarkInput("")
   }
 
   // Delete Remark handler
   const handleDeleteRemark = (indexToDelete: number) => {
+    console.log("Delete remark clicked", indexToDelete) // Debug log
     setRemarks((prev) => prev.filter((_, index) => index !== indexToDelete))
   }
 
@@ -728,12 +734,14 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
                       <TableCell>{format(new Date(remark.date), "MMM dd, yyyy hh:mm a")}</TableCell>
                       <TableCell>
                         <Button
+                          type="button"
                           variant="ghost"
                           size="sm"
                           onClick={() => handleDeleteRemark(index)}
-                          className="h-8 w-8 p-0 hover:bg-red-100"
+                          className="h-8 w-8 p-0 hover:bg-red-100 text-red-600 hover:text-red-700"
+                          title="Delete remark"
                         >
-                          <Trash2 className="h-4 w-4 text-red-600" />
+                          <Trash2 className="h-4 w-4" />
                         </Button>
                       </TableCell>
                     </TableRow>
