@@ -1,6 +1,7 @@
 "use client"
 
 import type React from "react"
+import { Trash2 } from "lucide-react" // Import Trash2 icon
 
 import { useState, useEffect } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -8,14 +9,13 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Calendar } from "@/components/ui/calendar"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { CalendarIcon, Upload, X, AlertCircle } from "lucide-react"
+import { Upload, X, AlertCircle } from "lucide-react"
 import { format } from "date-fns"
 import { useAuth } from "@/contexts/auth-context"
 import { supabase } from "@/lib/supabase/client"
 import type { Sales } from "@/types/sales"
 import type { TaxpayerListing } from "@/types/taxpayer"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table" // Import Table components
 
 interface EditSalesModalProps {
   open: boolean
@@ -380,11 +380,16 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
     const newRemark = {
       remark: remarkInput.trim(),
       name: profile.full_name || "",
-      uuid: profile.id || "",
+      uuid: profile.auth_user_id || "",
       date: new Date().toISOString(),
     }
     setRemarks((prev) => [...prev, newRemark])
     setRemarkInput("")
+  }
+
+  // Delete Remark handler
+  const handleDeleteRemark = (indexToDelete: number) => {
+    setRemarks((prev) => prev.filter((_, index) => index !== indexToDelete))
   }
 
   // Handle form submission
@@ -467,18 +472,18 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
         }
       })
       // Log notification for all roles
-      await supabase.rpc('log_notification', {
-        p_action: 'sales_updated',
+      await supabase.rpc("log_notification", {
+        p_action: "sales_updated",
         p_description: `Sales record updated for ${name} (TIN: ${tinSearch})`,
-        p_ip_address: '', // Optionally get from request headers
+        p_ip_address: "", // Optionally get from request headers
         p_location: null, // Optionally provide location info
-        p_user_agent: typeof window !== 'undefined' ? window.navigator.userAgent : '',
+        p_user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "",
         p_meta: {
           saleId: sale.id,
-          updatedBy: profile?.full_name || '',
-          role: profile?.role || '',
-          file_attachments: fileMeta
-        }
+          updatedBy: profile?.full_name || "",
+          role: profile?.role || "",
+          file_attachments: fileMeta,
+        },
       })
 
       // Success
@@ -557,10 +562,9 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
               </Select>
             </div>
           </div>
-          <hr/>
+          <hr />
           {/* Second Row */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-
             {/* TIN Search - Read Only */}
             <div className="space-y-2 relative">
               <Label htmlFor="tin" className="text-sm font-medium text-[#001f3f]">
@@ -612,10 +616,9 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
               />
             </div>
           </div>
-          <hr/>
+          <hr />
           {/* Third Row */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            
             {/* Gross Taxable */}
             <div className="space-y-2">
               <Label htmlFor="gross-taxable" className="text-sm font-medium text-[#001f3f]">
@@ -682,7 +685,9 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
           {/* Remark Input Row */}
           <div className="flex flex-col md:flex-row items-start md:items-center gap-4 py-4">
             <div className="flex-1 w-full">
-              <Label htmlFor="remark" className="text-sm font-medium text-[#001f3f]">Add Remark</Label>
+              <Label htmlFor="remark" className="text-sm font-medium text-[#001f3f]">
+                Add Remark
+              </Label>
               <textarea
                 id="remark"
                 value={remarkInput}
@@ -701,6 +706,42 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
               Add Remark
             </Button>
           </div>
+
+          {/* Display Existing Remarks */}
+          {remarks.length > 0 && (
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-[#001f3f]">Existing Remarks</Label>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Remark</TableHead>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead className="w-[50px]"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {remarks.map((remark, index) => (
+                    <TableRow key={index}>
+                      <TableCell>{remark.remark}</TableCell>
+                      <TableCell>{remark.name}</TableCell>
+                      <TableCell>{format(new Date(remark.date), "MMM dd, yyyy hh:mm a")}</TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteRemark(index)}
+                          className="h-8 w-8 p-0 hover:bg-red-100"
+                        >
+                          <Trash2 className="h-4 w-4 text-red-600" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
 
           {/* File Uploads */}
           <div className="space-y-4">
@@ -783,7 +824,7 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
                       {upload.uploading ? (
                         <>
                           <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mb-2"></div>
-                          <span className="text-xs text-blue-600">Uploading...</span>
+                          <span className="text-xs text-[#001f3f]/60">Uploading...</span>
                         </>
                       ) : (
                         <>
