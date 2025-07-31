@@ -450,15 +450,7 @@ export function CommissionGenerationModal({
       updated[tabKey] = records;
 
       // Agent calculations
-      if (calcType === "vat deduction") {
-        // VAT DEDUCTION formula: commission = COMM * rate/100, netComm = agent/1.12, vat = netComm*0.12
-        agent = comm && agentsRate ? String(comm * (agentsRate / developersRate)) : "";
-        netComm = agent ? String(Number(agent) / 1.12) : "";
-        vat = netComm ? String(Number(netComm) * 0.12) : "";
-        // EWT is not part of VAT DEDUCTION for agent
-        ewt = "";
-        netOfVat = "";
-      } else if (calcType === "nonvat with invoice") {
+      if (calcType === "nonvat with invoice") {
         netOfVat = comm ? String(comm / 1.02) : "";
         agent =
           netOfVat && agentsRate && developersRate
@@ -521,18 +513,16 @@ export function CommissionGenerationModal({
         const umDevelopersRate =
           Number.parseFloat(record.umDevelopersRate) || 5;
 
+        console.log(
+          `UM Calculation - Rate: ${umRate}, Developer Rate: ${umDevelopersRate}, Calc Type: ${umCalcType}`
+        );
+
         let umAmount = "";
         let umVat = "";
         let umEwt = "";
         let umNetComm = "";
 
-        if (umCalcType === "vat deduction") {
-          // VAT DEDUCTION formula for UM: umAmount = COMM * rate/100, umNetComm = umAmount/1.12, umVat = umNetComm*0.12
-          umAmount = comm && umRate ? String(comm * (umRate / 100)) : "";
-          umNetComm = umAmount ? String(Number(umAmount) / 1.12) : "";
-          umVat = umNetComm ? String(Number(umNetComm) * 0.12) : "";
-          umEwt = "";
-        } else if (calcType === "nonvat without invoice") {
+        if (calcType === "nonvat without invoice") {
           umAmount =
             comm && umRate && umDevelopersRate
               ? String((comm * umRate) / umDevelopersRate)
@@ -576,7 +566,7 @@ export function CommissionGenerationModal({
                     Number.parseFloat(umEwt)
                 )
               : "";
-        } else if (umCalcType !== "vat deduction") {
+        } else {
           umVat = "";
           umEwt = "";
           umNetComm = umAmount || "";
@@ -586,6 +576,10 @@ export function CommissionGenerationModal({
         record.umVat = umVat;
         record.umEwt = umEwt;
         record.umNetComm = umNetComm;
+
+        console.log(
+          `UM Results - Amount: ${umAmount}, VAT: ${umVat}, EWT: ${umEwt}, Net: ${umNetComm}`
+        );
       }
 
       // TL calculation - ENHANCED
@@ -599,18 +593,16 @@ export function CommissionGenerationModal({
         const tlDevelopersRate =
           Number.parseFloat(record.tlDevelopersRate) || 5;
 
+        console.log(
+          `TL Calculation - Rate: ${tlRate}, Developer Rate: ${tlDevelopersRate}, Calc Type: ${tlCalcType}`
+        );
+
         let tlAmount = "";
         let tlVat = "";
         let tlEwt = "";
         let tlNetComm = "";
 
-        if (tlCalcType === "vat deduction") {
-          // VAT DEDUCTION formula for TL: tlAmount = COMM * rate/100, tlNetComm = tlAmount/1.12, tlVat = tlNetComm*0.12
-          tlAmount = comm && tlRate ? String(comm * (tlRate / 100)) : "";
-          tlNetComm = tlAmount ? String(Number(tlAmount) / 1.12) : "";
-          tlVat = tlNetComm ? String(Number(tlNetComm) * 0.12) : "";
-          tlEwt = "";
-        } else if (calcType === "nonvat without invoice") {
+        if (calcType === "nonvat without invoice") {
           tlAmount =
             comm && tlRate && tlDevelopersRate
               ? String((comm * tlRate) / tlDevelopersRate)
@@ -654,7 +646,7 @@ export function CommissionGenerationModal({
                     Number.parseFloat(tlEwt)
                 )
               : "";
-        } else if (tlCalcType !== "vat deduction") {
+        } else {
           tlVat = "";
           tlEwt = "";
           tlNetComm = tlAmount || "";
@@ -664,6 +656,10 @@ export function CommissionGenerationModal({
         record.tlVat = tlVat;
         record.tlEwt = tlEwt;
         record.tlNetComm = tlNetComm;
+
+        console.log(
+          `TL Results - Amount: ${tlAmount}, VAT: ${tlVat}, EWT: ${tlEwt}, Net: ${tlNetComm}`
+        );
       }
 
       records[index] = record;
