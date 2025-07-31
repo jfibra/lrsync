@@ -99,6 +99,10 @@ interface SearchResult {
 }
 
 interface CommissionRecord {
+  // EWT Rate fields
+  ewtRate?: string; // Agent EWT Rate
+  umEwtRate?: string; // UM EWT Rate
+  tlEwtRate?: string; // TL EWT Rate
   no: number;
   date: string;
   developer: string;
@@ -133,6 +137,12 @@ interface CommissionRecord {
   tlVat: string;
   tlEwt: string;
   tlNetComm: string;
+
+  // Agent BDO Account #
+  bdoAccount?: string;
+
+  // Commission type (COMM, INCENTIVES, COMM & INCENTIVES)
+  type?: "COMM" | "INCENTIVES" | "COMM & INCENTIVES";
 }
 
 export function CommissionGenerationModal({
@@ -363,7 +373,7 @@ export function CommissionGenerationModal({
       if (
         [
           "agentsRate",
-          "developersRate", // Added this field
+          "developersRate",
           "calculationType",
           "umCalculationType",
           "umRate",
@@ -371,6 +381,9 @@ export function CommissionGenerationModal({
           "tlCalculationType",
           "tlRate",
           "tlDevelopersRate",
+          "ewtRate",
+          "umEwtRate",
+          "tlEwtRate",
         ].includes(field)
       ) {
         console.log(`Triggering calculation for field: ${field}`);
@@ -445,7 +458,9 @@ export function CommissionGenerationModal({
                 (Number.parseFloat(netOfVat) * agentsRate) / developersRate
               )
             : "";
-        ewt = agent ? String(Number.parseFloat(agent) * 0.05) : "";
+        // Use selected EWT rate for Agent
+        const agentEwtRate = Number(record.ewtRate || "5") / 100;
+        ewt = agent ? String(Number.parseFloat(agent) * agentEwtRate) : "";
         netComm =
           agent && ewt
             ? String(Number.parseFloat(agent) - Number.parseFloat(ewt))
@@ -469,7 +484,8 @@ export function CommissionGenerationModal({
               )
             : "";
         vat = agent ? String(Number.parseFloat(agent) * 0.12) : "";
-        ewt = agent ? String(Number.parseFloat(agent) * 0.1) : "";
+        const agentEwtRate = Number(record.ewtRate || (record.ewtRate === "10" ? "10" : "5")) / 100;
+        ewt = agent ? String(Number.parseFloat(agent) * agentEwtRate) : "";
         netComm =
           agent && vat && ewt
             ? String(
@@ -531,7 +547,8 @@ export function CommissionGenerationModal({
         }
 
         if (umCalcType === "nonvat with invoice") {
-          umEwt = umAmount ? String(Number.parseFloat(umAmount) * 0.05) : "";
+          const umEwtRate = Number(record.umEwtRate || "5") / 100;
+          umEwt = umAmount ? String(Number.parseFloat(umAmount) * umEwtRate) : "";
           umNetComm =
             umAmount && umEwt
               ? String(Number.parseFloat(umAmount) - Number.parseFloat(umEwt))
@@ -539,7 +556,8 @@ export function CommissionGenerationModal({
           umVat = "";
         } else if (umCalcType === "vat with invoice") {
           umVat = umAmount ? String(Number.parseFloat(umAmount) * 0.12) : "";
-          umEwt = umAmount ? String(Number.parseFloat(umAmount) * 0.1) : "";
+          const umEwtRate = Number(record.umEwtRate || (record.umEwtRate === "10" ? "10" : "5")) / 100;
+          umEwt = umAmount ? String(Number.parseFloat(umAmount) * umEwtRate) : "";
           umNetComm =
             umAmount && umVat && umEwt
               ? String(
@@ -609,7 +627,8 @@ export function CommissionGenerationModal({
         }
 
         if (tlCalcType === "nonvat with invoice") {
-          tlEwt = tlAmount ? String(Number.parseFloat(tlAmount) * 0.05) : "";
+          const tlEwtRate = Number(record.tlEwtRate || "5") / 100;
+          tlEwt = tlAmount ? String(Number.parseFloat(tlAmount) * tlEwtRate) : "";
           tlNetComm =
             tlAmount && tlEwt
               ? String(Number.parseFloat(tlAmount) - Number.parseFloat(tlEwt))
@@ -617,7 +636,8 @@ export function CommissionGenerationModal({
           tlVat = "";
         } else if (tlCalcType === "vat with invoice") {
           tlVat = tlAmount ? String(Number.parseFloat(tlAmount) * 0.12) : "";
-          tlEwt = tlAmount ? String(Number.parseFloat(tlAmount) * 0.1) : "";
+          const tlEwtRate = Number(record.tlEwtRate || (record.tlEwtRate === "10" ? "10" : "5")) / 100;
+          tlEwt = tlAmount ? String(Number.parseFloat(tlAmount) * tlEwtRate) : "";
           tlNetComm =
             tlAmount && tlVat && tlEwt
               ? String(
@@ -1198,7 +1218,7 @@ export function CommissionGenerationModal({
                                 {formatCurrency(result.tcprice)}
                               </div>
                               <div className="text-xs text-gray-600 mt-1">
-                                Reservation Date: {result.reservationDate}
+                                Reservation Date: {result.reservationdate}
                               </div>
                             </div>
                             <div className="flex gap-2">
@@ -1504,14 +1524,20 @@ export function CommissionGenerationModal({
                                     <TableHead className="font-semibold text-[#001f3f] text-center">
                                       COMM
                                     </TableHead>
-                                    <TableHead className="font-semibold bg-[#001f3f] text-white text-center">
-                                      Calculation Type
+                                    <TableHead className="font-semibold text-[#001f3f] text-center">
+                                      Type
                                     </TableHead>
-                                    <TableHead className="font-semibold bg-[#001f3f] text-white text-center">
+                                    <TableHead className="font-semibold text-[#001f3f] text-center">
+                                      BDO Account #
+                                    </TableHead>
+                                    <TableHead className="font-semibold text-[#001f3f] text-center">
                                       Net of VAT
                                     </TableHead>
-                                    <TableHead className="font-semibold bg-[#001f3f] text-white text-center">
+                                    <TableHead className="font-semibold text-[#001f3f] text-center">
                                       STATUS
+                                    </TableHead>
+                                    <TableHead className="font-semibold bg-[#001f3f] text-white text-center">
+                                      Calculation Type
                                     </TableHead>
                                     <TableHead className="font-semibold bg-[#001f3f] text-white text-center">
                                       AGENT'S RATE
@@ -1527,6 +1553,9 @@ export function CommissionGenerationModal({
                                     </TableHead>
                                     <TableHead className="font-semibold bg-[#001f3f] text-white text-center">
                                       EWT
+                                    </TableHead>
+                                    <TableHead className="font-semibold bg-[#001f3f] text-white text-center">
+                                      EWT RATE
                                     </TableHead>
                                     <TableHead className="font-semibold bg-[#001f3f] text-white text-center">
                                       NET COMM
@@ -1578,6 +1607,12 @@ export function CommissionGenerationModal({
                                       className="font-semibold text-white text-center"
                                       style={{ background: "#E34A27" }}
                                     >
+                                      EWT RATE
+                                    </TableHead>
+                                    <TableHead
+                                      className="font-semibold text-white text-center"
+                                      style={{ background: "#E34A27" }}
+                                    >
                                       NET COMM
                                     </TableHead>
                                     {/* TL FIELDS */}
@@ -1622,6 +1657,12 @@ export function CommissionGenerationModal({
                                       style={{ background: "#FEEFC6" }}
                                     >
                                       EWT
+                                    </TableHead>
+                                    <TableHead
+                                      className="font-semibold text-[#001f3f] text-center"
+                                      style={{ background: "#FEEFC6" }}
+                                    >
+                                      EWT RATE
                                     </TableHead>
                                     <TableHead
                                       className="font-semibold text-[#001f3f] text-center"
@@ -1694,6 +1735,67 @@ export function CommissionGenerationModal({
                                                 placeholder="0.00"
                                               />
                                             </TableCell>
+                                            {/* Type Dropdown */}
+                                            <TableCell>
+                                              <select
+                                                className="border border-gray-300 rounded px-2 py-1 text-[#001f3f] bg-white"
+                                                value={record.type || "COMM"}
+                                                onChange={(e) => {
+                                                  handleCommissionRecordChange(
+                                                    key,
+                                                    index,
+                                                    "type",
+                                                    e.target.value
+                                                  );
+                                                }}
+                                              >
+                                                <option value="COMM">COMM</option>
+                                                <option value="INCENTIVES">INCENTIVES</option>
+                                                <option value="COMM & INCENTIVES">COMM & INCENTIVES</option>
+                                              </select>
+                                            </TableCell>
+                                            {/* BDO Account # Input */}
+                                            <TableCell>
+                                              <input
+                                                type="text"
+                                                className="border border-gray-300 rounded px-2 py-1 w-32 text-[#001f3f] bg-white"
+                                                value={record.bdoAccount || ""}
+                                                onChange={(e) => {
+                                                  handleCommissionRecordChange(
+                                                    key,
+                                                    index,
+                                                    "bdoAccount",
+                                                    e.target.value
+                                                  );
+                                                }}
+                                                placeholder="BDO Account #"
+                                              />
+                                            </TableCell>
+                                            {/* Net of VAT */}
+                                            <TableCell className="text-right font-semibold text-[#001f3f]">
+                                              {record.netOfVat
+                                                ? formatCurrency(
+                                                    Number(record.netOfVat)
+                                                  )
+                                                : ""}
+                                            </TableCell>
+                                            {/* Status input */}
+                                            <TableCell className="text-center">
+                                              <input
+                                                type="text"
+                                                className="border border-gray-300 rounded px-2 py-1 w-20 text-center text-[#001f3f] bg-white"
+                                                value={record.status}
+                                                onChange={(e) =>
+                                                  handleCommissionRecordChange(
+                                                    key,
+                                                    index,
+                                                    "status",
+                                                    e.target.value
+                                                  )
+                                                }
+                                                placeholder="Status"
+                                              />
+                                            </TableCell>
                                             {/* Calculation Type Dropdown */}
                                             <TableCell className="bg-[#a0d9ef]">
                                               <select
@@ -1722,31 +1824,6 @@ export function CommissionGenerationModal({
                                                 </option>
                                               </select>
                                             </TableCell>
-                                            {/* Net of VAT */}
-                                            <TableCell className="text-right font-semibold text-[#001f3f] bg-[#a0d9ef]">
-                                              {record.netOfVat
-                                                ? formatCurrency(
-                                                    Number(record.netOfVat)
-                                                  )
-                                                : ""}
-                                            </TableCell>
-                                            {/* Status input */}
-                                            <TableCell className="text-center bg-[#a0d9ef]">
-                                              <input
-                                                type="text"
-                                                className="border border-gray-300 rounded px-2 py-1 w-20 text-center text-[#001f3f] bg-white"
-                                                value={record.status}
-                                                onChange={(e) =>
-                                                  handleCommissionRecordChange(
-                                                    key,
-                                                    index,
-                                                    "status",
-                                                    e.target.value
-                                                  )
-                                                }
-                                                placeholder="Status"
-                                              />
-                                            </TableCell>
                                             {/* Agent's Rate dropdown */}
                                             <TableCell className="text-center font-medium text-[#dee242] bg-[#a0d9ef]">
                                               <select
@@ -1765,7 +1842,7 @@ export function CommissionGenerationModal({
                                                 }}
                                               >
                                                 <option value="0">0%</option>
-                                                {[...Array(14)].map((_, i) => {
+                                                {[...Array(24)].map((_, i) => {
                                                   const rate = (
                                                     0.5 +
                                                     i * 0.5
@@ -1798,7 +1875,7 @@ export function CommissionGenerationModal({
                                                   );
                                                 }}
                                               >
-                                                {[...Array(17)].map((_, i) => {
+                                                {[...Array(23)].map((_, i) => {
                                                   const rate = (
                                                     1 +
                                                     i * 0.5
@@ -1837,6 +1914,24 @@ export function CommissionGenerationModal({
                                                     Number(record.ewt)
                                                   )
                                                 : ""}
+                                            </TableCell>
+                                            {/* EWT Rate Dropdown - Agent */}
+                                            <TableCell className="text-center font-semibold bg-[#a0d9ef]">
+                                              <select
+                                                className="border border-gray-300 rounded px-2 py-1 text-[#001f3f] bg-white w-20"
+                                                value={record.ewtRate || "5"}
+                                                onChange={(e) => {
+                                                  handleCommissionRecordChange(
+                                                    key,
+                                                    index,
+                                                    "ewtRate",
+                                                    e.target.value
+                                                  );
+                                                }}
+                                              >
+                                                <option value="5">5%</option>
+                                                <option value="10">10%</option>
+                                              </select>
                                             </TableCell>
                                             {/* Net Comm */}
                                             <TableCell className="text-right font-bold text-white bg-[#a0d9ef]">
@@ -1916,7 +2011,7 @@ export function CommissionGenerationModal({
                                                 }}
                                               >
                                                 <option value="0">0%</option>
-                                                {[...Array(14)].map((_, i) => {
+                                                {[...Array(24)].map((_, i) => {
                                                   const rate = (
                                                     0.5 +
                                                     i * 0.5
@@ -1951,7 +2046,7 @@ export function CommissionGenerationModal({
                                                   );
                                                 }}
                                               >
-                                                {[...Array(17)].map((_, i) => {
+                                                {[...Array(23)].map((_, i) => {
                                                   const rate = (
                                                     1 +
                                                     i * 0.5
@@ -1996,6 +2091,24 @@ export function CommissionGenerationModal({
                                                     Number(record.umEwt)
                                                   )
                                                 : ""}
+                                            </TableCell>
+                                            {/* EWT Rate Dropdown - UM */}
+                                            <TableCell className="text-center font-semibold" style={{ background: "#E34A27" }}>
+                                              <select
+                                                className="border border-gray-300 rounded px-2 py-1 text-[#E34A27] bg-white font-bold w-20"
+                                                value={record.umEwtRate || "5"}
+                                                onChange={(e) => {
+                                                  handleCommissionRecordChange(
+                                                    key,
+                                                    index,
+                                                    "umEwtRate",
+                                                    e.target.value
+                                                  );
+                                                }}
+                                              >
+                                                <option value="5">5%</option>
+                                                <option value="10">10%</option>
+                                              </select>
                                             </TableCell>
                                             <TableCell
                                               className="text-right font-bold"
@@ -2080,7 +2193,7 @@ export function CommissionGenerationModal({
                                                 }}
                                               >
                                                 <option value="0">0%</option>
-                                                {[...Array(14)].map((_, i) => {
+                                                {[...Array(24)].map((_, i) => {
                                                   const rate = (
                                                     0.5 +
                                                     i * 0.5
@@ -2115,7 +2228,7 @@ export function CommissionGenerationModal({
                                                   );
                                                 }}
                                               >
-                                                {[...Array(17)].map((_, i) => {
+                                                {[...Array(23)].map((_, i) => {
                                                   const rate = (
                                                     1 +
                                                     i * 0.5
@@ -2169,6 +2282,24 @@ export function CommissionGenerationModal({
                                                     Number(record.tlEwt)
                                                   )
                                                 : ""}
+                                            </TableCell>
+                                            {/* EWT Rate Dropdown - UM */}
+                                            <TableCell className="text-center font-semibold" style={{ background: "#FEEFC6" }}>
+                                              <select
+                                                className="border border-gray-300 rounded px-2 py-1 text-[#001f3f] bg-white font-bold w-20"
+                                                value={record.tlEwtRate || "5"}
+                                                onChange={(e) => {
+                                                  handleCommissionRecordChange(
+                                                    key,
+                                                    index,
+                                                    "tlEwtRate",
+                                                    e.target.value
+                                                  );
+                                                }}
+                                              >
+                                                <option value="5">5%</option>
+                                                <option value="10">10%</option>
+                                              </select>
                                             </TableCell>
                                             <TableCell
                                               className="text-right font-bold"
