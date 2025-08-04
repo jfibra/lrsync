@@ -607,6 +607,7 @@ export function CommissionGenerationModal({
 
   // Generate Excel report
   const generateExcelReport = async () => {
+    await saveCommissionReport();
     setIsGeneratingExcel(true)
     try {
       // Create a new workbook
@@ -716,7 +717,7 @@ export function CommissionGenerationModal({
               record.agentName,
               record.client,
               record.reservationDate,
-              record.type || "",
+              record.type || "COMM",
               record.bdoAccount || "",
               formatCurrency(Number(record.comm.replace(/,/g, "")) || 0),
               formatCurrency(Number(record.netOfVat) || 0),
@@ -920,10 +921,10 @@ export function CommissionGenerationModal({
             client: record.client,
             reservation_date: record.reservationDate || null,
             comm: Number.parseFloat(record.comm.replace(/,/g, "")) || null,
-            comm_type: record.type || null,
+            comm_type: record.type || "COMM", // Default to "COMM" if not set
             bdo_account: record.bdoAccount || null,
             net_of_vat: Number.parseFloat(record.netOfVat) || null,
-            status: "new",
+            status: record.status || "new",   // Use record.status or default to "new"
             calculation_type: record.calculationType,
             agents_rate: Number.parseFloat(record.agentsRate) || null,
             developers_rate: Number.parseFloat(record.developersRate) || null,
@@ -2163,27 +2164,6 @@ export function CommissionGenerationModal({
             className="border-[#001f3f] text-[#001f3f] hover:bg-[#001f3f] hover:text-white bg-white"
           >
             Close
-          </Button>
-          <Button
-            className="bg-green-600 text-white hover:bg-green-700"
-            disabled={
-              Object.keys(groupedByDeveloperAndInvoice).length === 0 ||
-              isSavingReport ||
-              Object.values(commissionRecords).every((records) => records.length === 0)
-            }
-            onClick={saveCommissionReport}
-          >
-            {isSavingReport ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Saving Report...
-              </>
-            ) : (
-              <>
-                <Plus className="h-4 w-4 mr-2" />
-                Save Commission Report
-              </>
-            )}
           </Button>
           <Button
             className="bg-[#001f3f] text-white hover:bg-[#001f3f]/90"
