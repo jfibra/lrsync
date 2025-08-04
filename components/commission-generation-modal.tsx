@@ -450,7 +450,14 @@ export function CommissionGenerationModal({
       updated[tabKey] = records;
 
       // Agent calculations
-      if (calcType === "nonvat with invoice") {
+      if (calcType === "vat deduction") {
+        // vat deduction for Agent: netComm = agent / 1.12, vat = netComm * 0.12
+        agent = comm && agentsRate && developersRate ? String((comm * agentsRate) / developersRate) : "";
+        netComm = agent ? String(Number(agent) / 1.12) : "";
+        vat = netComm ? String(Number(netComm) * 0.12) : "";
+        ewt = "";
+        netOfVat = "";
+      } else if (calcType === "nonvat with invoice") {
         netOfVat = comm ? String(comm / 1.02) : "";
         agent =
           netOfVat && agentsRate && developersRate
@@ -522,28 +529,19 @@ export function CommissionGenerationModal({
         let umEwt = "";
         let umNetComm = "";
 
-        if (calcType === "nonvat without invoice") {
-          umAmount =
-            comm && umRate && umDevelopersRate
-              ? String((comm * umRate) / umDevelopersRate)
-              : "";
+        // If agent calculation is 'nonvat without invoice' or 'vat deduction', use COMM for UM/TL calculation
+        if (calcType === "nonvat without invoice" || calcType === "vat deduction") {
+          umAmount = comm && umRate && umDevelopersRate
+            ? String((comm * umRate) / umDevelopersRate)
+            : "";
+        } else if (umCalcType === "nonvat with invoice" || umCalcType === "vat with invoice") {
+          umAmount = netOfVat && umRate && umDevelopersRate
+            ? String((Number.parseFloat(netOfVat) * umRate) / umDevelopersRate)
+            : "";
         } else {
-          if (
-            umCalcType === "nonvat with invoice" ||
-            umCalcType === "vat with invoice"
-          ) {
-            umAmount =
-              netOfVat && umRate && umDevelopersRate
-                ? String(
-                    (Number.parseFloat(netOfVat) * umRate) / umDevelopersRate
-                  )
-                : "";
-          } else {
-            umAmount =
-              comm && umRate && umDevelopersRate
-                ? String((comm * umRate) / umDevelopersRate)
-                : "";
-          }
+          umAmount = comm && umRate && umDevelopersRate
+            ? String((comm * umRate) / umDevelopersRate)
+            : "";
         }
 
         if (umCalcType === "nonvat with invoice") {
@@ -566,6 +564,11 @@ export function CommissionGenerationModal({
                     Number.parseFloat(umEwt)
                 )
               : "";
+        } else if (umCalcType === "vat deduction") {
+          // vat deduction for UM: netComm = umAmount / 1.12, vat = netComm * 0.12
+          umNetComm = umAmount ? String(Number(umAmount) / 1.12) : "";
+          umVat = umNetComm ? String(Number(umNetComm) * 0.12) : "";
+          umEwt = "";
         } else {
           umVat = "";
           umEwt = "";
@@ -602,28 +605,19 @@ export function CommissionGenerationModal({
         let tlEwt = "";
         let tlNetComm = "";
 
-        if (calcType === "nonvat without invoice") {
-          tlAmount =
-            comm && tlRate && tlDevelopersRate
-              ? String((comm * tlRate) / tlDevelopersRate)
-              : "";
+        // If agent calculation is 'nonvat without invoice' or 'vat deduction', use COMM for UM/TL calculation
+        if (calcType === "nonvat without invoice" || calcType === "vat deduction") {
+          tlAmount = comm && tlRate && tlDevelopersRate
+            ? String((comm * tlRate) / tlDevelopersRate)
+            : "";
+        } else if (tlCalcType === "nonvat with invoice" || tlCalcType === "vat with invoice") {
+          tlAmount = netOfVat && tlRate && tlDevelopersRate
+            ? String((Number.parseFloat(netOfVat) * tlRate) / tlDevelopersRate)
+            : "";
         } else {
-          if (
-            tlCalcType === "nonvat with invoice" ||
-            tlCalcType === "vat with invoice"
-          ) {
-            tlAmount =
-              netOfVat && tlRate && tlDevelopersRate
-                ? String(
-                    (Number.parseFloat(netOfVat) * tlRate) / tlDevelopersRate
-                  )
-                : "";
-          } else {
-            tlAmount =
-              comm && tlRate && tlDevelopersRate
-                ? String((comm * tlRate) / tlDevelopersRate)
-                : "";
-          }
+          tlAmount = comm && tlRate && tlDevelopersRate
+            ? String((comm * tlRate) / tlDevelopersRate)
+            : "";
         }
 
         if (tlCalcType === "nonvat with invoice") {
@@ -646,6 +640,11 @@ export function CommissionGenerationModal({
                     Number.parseFloat(tlEwt)
                 )
               : "";
+        } else if (tlCalcType === "vat deduction") {
+          // vat deduction for TL: netComm = tlAmount / 1.12, vat = netComm * 0.12
+          tlNetComm = tlAmount ? String(Number(tlAmount) / 1.12) : "";
+          tlVat = tlNetComm ? String(Number(tlNetComm) * 0.12) : "";
+          tlEwt = "";
         } else {
           tlVat = "";
           tlEwt = "";
@@ -1700,7 +1699,19 @@ export function CommissionGenerationModal({
                                               )}
                                             </TableCell>
                                             <TableCell className="font-medium text-[#001f3f]">
-                                              {record.developer}
+                                              <textarea
+                                                className="border border-gray-300 rounded px-2 py-1 w-32 text-[#001f3f] bg-white font-medium resize-vertical min-h-[2.5rem] max-h-32"
+                                                value={record.developer}
+                                                onChange={(e) => {
+                                                  handleCommissionRecordChange(
+                                                    key,
+                                                    index,
+                                                    "developer",
+                                                    e.target.value
+                                                  );
+                                                }}
+                                                placeholder="Developer Name"
+                                              />
                                             </TableCell>
                                             <TableCell className="text-[#001f3f]">
                                               {record.agentName}
@@ -1828,7 +1839,7 @@ export function CommissionGenerationModal({
                                                 <option value="vat with invoice">
                                                   vat with invoice
                                                 </option>
-                                                <option value="vat deduction">VAT DEDUCTION</option>
+                                                <option value="vat deduction">vat deduction</option>
                                               </select>
                                             </TableCell>
                                             {/* Agent's Rate dropdown */}
@@ -1996,7 +2007,7 @@ export function CommissionGenerationModal({
                                                 <option value="vat with invoice">
                                                   vat with invoice
                                                 </option>
-                                                <option value="vat deduction">VAT DEDUCTION</option>
+                                                <option value="vat deduction">vat deduction</option>
                                               </select>
                                             </TableCell>
                                             <TableCell
@@ -2179,7 +2190,7 @@ export function CommissionGenerationModal({
                                                 <option value="vat with invoice">
                                                   vat with invoice
                                                 </option>
-                                                <option value="vat deduction">VAT DEDUCTION</option>
+                                                <option value="vat deduction">vat deduction</option>
                                               </select>
                                             </TableCell>
                                             <TableCell
