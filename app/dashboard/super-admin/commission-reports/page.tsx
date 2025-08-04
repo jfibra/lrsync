@@ -56,13 +56,8 @@ export default function CommissionReportsPage() {
     try {
       setLoading(true)
 
-      let query = supabase
-        .from("commission_reports")
-        .select(`
-          *,
-          user_profiles!commission_reports_created_by_fkey(full_name)
-        `)
-        .order("created_at", { ascending: false })
+      // Build the base query
+      let query = supabase.from("commission_reports").select("*").order("created_at", { ascending: false })
 
       // Apply status filter
       if (statusFilter !== "all") {
@@ -84,14 +79,32 @@ export default function CommissionReportsPage() {
       const to = from + recordsPerPage - 1
       query = query.range(from, to)
 
-      const { data, error } = await query
+      const { data: reportsData, error: reportsError } = await query
 
-      if (error) throw error
+      if (reportsError) throw reportsError
 
+      // Fetch user profiles separately
+      const userIds = reportsData?.map((report) => report.created_by).filter(Boolean) || []
+      const { data: userProfiles, error: usersError } = await supabase
+        .from("user_profiles")
+        .select("id, full_name")
+        .in("id", userIds)
+
+      if (usersError) {
+        console.error("Error fetching user profiles:", usersError)
+      }
+
+      // Create a map of user IDs to names
+      const userMap = new Map()
+      userProfiles?.forEach((user) => {
+        userMap.set(user.id, user.full_name)
+      })
+
+      // Combine the data
       const formattedReports =
-        data?.map((report: any) => ({
+        reportsData?.map((report: any) => ({
           ...report,
-          creator_name: report.user_profiles?.full_name || "Unknown User",
+          creator_name: userMap.get(report.created_by) || "Unknown User",
         })) || []
 
       setReports(formattedReports)

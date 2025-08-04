@@ -1,10 +1,10 @@
 "use client"
 
 import type React from "react"
-
-import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
-import { User, Users, FileText, ArrowRight, DollarSign, BarChart3 } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Users, TrendingUp, FileText, Library, User, DollarSign } from "lucide-react"
+import Link from "next/link"
 import type { UserRole } from "@/types/auth"
 
 interface MenuCardProps {
@@ -12,50 +12,26 @@ interface MenuCardProps {
   description: string
   href: string
   icon: React.ReactNode
-  color: "blue" | "red" | "orange" | "green" | "navy" | "purple"
+  color: string
+  badge: string
 }
 
-function MenuCard({ title, description, href, icon, color }: MenuCardProps) {
-  const colorClasses = {
-    blue: "from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700",
-    red: "from-red-500 to-red-600 hover:from-red-600 hover:to-red-700",
-    orange: "from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700",
-    green: "from-green-500 to-green-600 hover:from-green-600 hover:to-green-700",
-    navy: "from-[#001f3f] to-[#001f3f] hover:from-[#001f3f] hover:to-[#001f3f]",
-    purple: "from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700",
-  }
-
-  const bgColorClasses = {
-    blue: "bg-blue-50/80 hover:bg-blue-100/80 border-blue-200",
-    red: "bg-red-50/80 hover:bg-red-100/80 border-red-200",
-    orange: "bg-orange-50/80 hover:bg-orange-100/80 border-orange-200",
-    green: "bg-green-50/80 hover:bg-green-100/80 border-green-200",
-    navy: "bg-[#f9f9f9] hover:bg-[#fff] border-[#001f3f]",
-    purple: "bg-purple-50/80 hover:bg-purple-100/80 border-purple-200",
-  }
-
+function MenuCard({ title, description, href, icon, color, badge }: MenuCardProps) {
+  const IconComponent = icon
   return (
     <Link href={href} className="group">
-      <Card
-        className={`${bgColorClasses[color]} border-2 backdrop-blur-sm transition-all duration-300 hover:shadow-xl hover:scale-105 cursor-pointer h-full animate-in fade-in-50 slide-in-from-bottom-4`}
-      >
+      <Card className="group hover:shadow-lg transition-all duration-300 hover:-translate-y-1 cursor-pointer border-0 shadow-md">
         <CardContent className="p-6">
-          <div className="flex items-start gap-4">
-            <div
-              className={`bg-gradient-to-r ${colorClasses[color]} p-4 rounded-xl text-white shadow-lg group-hover:shadow-xl transition-all duration-300 group-hover:scale-110`}
-            >
-              {icon}
+          <div className="flex items-start justify-between mb-4">
+            <div className={`p-3 rounded-xl bg-gradient-to-r ${color} shadow-lg`}>
+              <IconComponent className="h-6 w-6 text-white" />
             </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="font-semibold text-lg text-gray-900 group-hover:text-gray-800 transition-colors">
-                  {title}
-                </h3>
-                <ArrowRight className="h-5 w-5 text-gray-400 group-hover:text-gray-600 group-hover:translate-x-1 transition-all duration-300" />
-              </div>
-              <p className="text-gray-600 text-sm leading-relaxed">{description}</p>
-            </div>
+            <Badge variant="secondary" className="text-xs">
+              {badge}
+            </Badge>
           </div>
+          <h3 className="font-semibold text-lg mb-2 group-hover:text-blue-600 transition-colors">{title}</h3>
+          <p className="text-gray-600 text-sm leading-relaxed">{description}</p>
         </CardContent>
       </Card>
     </Link>
@@ -68,113 +44,82 @@ interface DashboardMenuCardsProps {
 
 export function DashboardMenuCards({ userRole }: DashboardMenuCardsProps) {
   const getMenuItems = () => {
-    // Base items for all roles
     const baseItems = [
       {
-        title: "My Profile",
-        description: "View and manage your personal profile information and settings.",
-        href: `/dashboard/${userRole.replace("_", "-")}/profile`,
-        icon: <User className="h-6 w-6" />,
-        color: "orange" as const,
+        title: "Sales Management",
+        description: "Manage and track sales records",
+        icon: TrendingUp,
+        href: `/dashboard/${userRole}/sales`,
+        color: "from-blue-500 to-blue-600",
+        badge: "Core",
+      },
+      {
+        title: "Commission",
+        description: "Generate commission reports",
+        icon: DollarSign,
+        href: `/dashboard/${userRole}/commission`,
+        color: "from-green-500 to-green-600",
+        badge: "Finance",
+      },
+      {
+        title: "TIN Library",
+        description: "Taxpayer identification database",
+        icon: Library,
+        href: `/dashboard/${userRole}/tin-library`,
+        color: "from-purple-500 to-purple-600",
+        badge: "Reference",
+      },
+      {
+        title: "Profile",
+        description: "Manage your account settings",
+        icon: User,
+        href: `/dashboard/${userRole}/profile`,
+        color: "from-gray-500 to-gray-600",
+        badge: "Account",
       },
     ]
 
-    // Add Sales Management, TIN Library, and User Management for Super Admin and Admin only
+    // Add role-specific items
     if (userRole === "super_admin" || userRole === "admin") {
-      return [
-        {
-          title: "Sales Management",
-          description: "Track and manage monthly sales records with comprehensive reporting tools.",
-          href: `/dashboard/${userRole.replace("_", "-")}/sales`,
-          icon: <DollarSign className="h-6 w-6" />,
-          color: "green" as const,
-        },
-        {
-          title: "TIN Library",
-          description: "Manage comprehensive taxpayer listings for sales and purchases tracking.",
-          href: `/dashboard/${userRole.replace("_", "-")}/tin-library`,
-          icon: <FileText className="h-6 w-6" />,
-          color: "blue" as const,
-        },
-        {
-          title: "Commission Generator",
-          description: "View and analyze sales commission records with detailed reporting capabilities.",
-          href: `/dashboard/${userRole.replace("_", "-")}/commission`,
-          icon: <Users className="h-6 w-6" />,
-          color: "navy" as const,
-        },
-        ...(userRole === "super_admin"
-          ? [
-              {
-                title: "Commission Reports",
-                description: "View and manage all generated commission reports with detailed breakdowns.",
-                href: `/dashboard/${userRole.replace("_", "-")}/commission-reports`,
-                icon: <BarChart3 className="h-6 w-6" />,
-                color: "purple" as const,
-              },
-            ]
-          : []),
-        {
-          title: "User Management",
-          description: "Create, edit, and manage system users and their permissions across the platform.",
-          href: `/dashboard/${userRole.replace("_", "-")}/users`,
-          icon: <Users className="h-6 w-6" />,
-          color: "red" as const,
-        },
-        ...baseItems, // My Profile
-      ]
+      baseItems.splice(1, 0, {
+        title: "User Management",
+        description: "Manage system users and permissions",
+        icon: Users,
+        href: `/dashboard/${userRole}/users`,
+        color: "from-orange-500 to-orange-600",
+        badge: "Admin",
+      })
     }
 
-    // Add Sales Management, TIN Library, and Commission Generator for Secretary
-    if (userRole === "secretary") {
-      return [
-        {
-          title: "Sales Management",
-          description: "Track and manage monthly sales records with comprehensive reporting tools.",
-          href: `/dashboard/${userRole.replace("_", "-")}/sales`,
-          icon: <DollarSign className="h-6 w-6" />,
-          color: "green" as const,
-        },
-        {
-          title: "TIN Library",
-          description: "Manage comprehensive taxpayer listings for sales and purchases tracking.",
-          href: `/dashboard/${userRole.replace("_", "-")}/tin-library`,
-          icon: <FileText className="h-6 w-6" />,
-          color: "blue" as const,
-        },
-        {
-          title: "Commission Generator",
-          description: "View sales commission records for your assigned area with detailed insights.",
-          href: `/dashboard/${userRole.replace("_", "-")}/commission`,
-          icon: <Users className="h-6 w-6" />,
-          color: "red" as const,
-        },
-        ...baseItems, // My Profile
-      ]
+    // Add commission reports for super admin only
+    if (userRole === "super_admin") {
+      baseItems.splice(3, 0, {
+        title: "Commission Reports",
+        description: "View and manage commission reports",
+        icon: FileText,
+        href: `/dashboard/${userRole}/commission-reports`,
+        color: "from-indigo-500 to-indigo-600",
+        badge: "Reports",
+      })
     }
 
-    // Secretary only gets My Profile
     return baseItems
   }
 
   const menuItems = getMenuItems()
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-      {menuItems.map((item, index) => (
-        <div
-          key={index}
-          className="animate-in fade-in-50 slide-in-from-bottom-4"
-          style={{ animationDelay: `${index * 100}ms` }}
-        >
-          <MenuCard
-            title={item.title}
-            description={item.description}
-            href={item.href}
-            icon={item.icon}
-            color={item.color}
-          />
-        </div>
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {menuItems.map((item) => (
+        <MenuCard
+          key={item.href}
+          title={item.title}
+          description={item.description}
+          href={item.href}
+          icon={item.icon}
+          color={item.color}
+          badge={item.badge}
+        />
       ))}
     </div>
   )

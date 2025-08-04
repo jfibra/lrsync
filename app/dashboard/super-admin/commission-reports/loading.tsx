@@ -4,8 +4,8 @@ import { Skeleton } from "@/components/ui/skeleton"
 export default function CommissionReportsLoading() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+      {/* Header Skeleton */}
       <div className="pt-20 px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header Skeleton */}
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-2">
             <Skeleton className="h-10 w-10 rounded-lg" />
@@ -32,9 +32,11 @@ export default function CommissionReportsLoading() {
             <div className="flex justify-between items-center">
               <Skeleton className="h-6 w-48" />
               <div className="flex items-center gap-4">
-                <Skeleton className="h-4 w-12" />
-                <Skeleton className="h-10 w-20" />
-                <Skeleton className="h-4 w-16" />
+                <div className="flex items-center gap-2">
+                  <Skeleton className="h-4 w-12" />
+                  <Skeleton className="h-10 w-20" />
+                  <Skeleton className="h-4 w-16" />
+                </div>
               </div>
             </div>
           </CardHeader>
@@ -42,17 +44,25 @@ export default function CommissionReportsLoading() {
             <div className="space-y-4">
               {/* Table Header */}
               <div className="grid grid-cols-7 gap-4 pb-2 border-b">
-                {Array.from({ length: 7 }).map((_, i) => (
-                  <Skeleton key={i} className="h-4 w-full" />
-                ))}
+                <Skeleton className="h-4 w-20" />
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-4 w-28" />
+                <Skeleton className="h-4 w-16" />
+                <Skeleton className="h-4 w-20" />
+                <Skeleton className="h-4 w-16" />
+                <Skeleton className="h-4 w-16" />
               </div>
 
               {/* Table Rows */}
               {Array.from({ length: 10 }).map((_, i) => (
-                <div key={i} className="grid grid-cols-7 gap-4 py-2">
-                  {Array.from({ length: 7 }).map((_, j) => (
-                    <Skeleton key={j} className="h-4 w-full" />
-                  ))}
+                <div key={i} className="grid grid-cols-7 gap-4 py-3">
+                  <Skeleton className="h-4 w-12" />
+                  <Skeleton className="h-4 w-32" />
+                  <Skeleton className="h-4 w-28" />
+                  <Skeleton className="h-6 w-16 rounded-full" />
+                  <Skeleton className="h-6 w-20 rounded-full" />
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-8 w-16 ml-auto" />
                 </div>
               ))}
             </div>
@@ -61,9 +71,11 @@ export default function CommissionReportsLoading() {
             <div className="flex justify-between items-center mt-6">
               <Skeleton className="h-4 w-48" />
               <div className="flex gap-2">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <Skeleton key={i} className="h-8 w-8" />
-                ))}
+                <Skeleton className="h-8 w-20" />
+                <Skeleton className="h-8 w-8" />
+                <Skeleton className="h-8 w-8" />
+                <Skeleton className="h-8 w-8" />
+                <Skeleton className="h-8 w-20" />
               </div>
             </div>
           </CardContent>

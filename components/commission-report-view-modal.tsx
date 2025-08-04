@@ -5,10 +5,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { X, FileText, User, Calendar, Hash, DollarSign, Users, TrendingUp } from "lucide-react"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Separator } from "@/components/ui/separator"
+import { X, FileText, User, Calendar, Hash, DollarSign } from "lucide-react"
 import { supabase } from "@/lib/supabase/client"
 
 interface CommissionReport {
@@ -31,7 +31,7 @@ interface CommissionReport {
   creator_name?: string
 }
 
-interface CommissionBreakdown {
+interface CommissionDetail {
   uuid: string
   commission_report_uuid: string
   commission_report_number: number
@@ -83,387 +83,362 @@ interface CommissionReportViewModalProps {
 }
 
 export function CommissionReportViewModal({ isOpen, onClose, report }: CommissionReportViewModalProps) {
-  const [commissionBreakdowns, setCommissionBreakdowns] = useState<CommissionBreakdown[]>([])
+  const [commissionDetails, setCommissionDetails] = useState<CommissionDetail[]>([])
   const [loading, setLoading] = useState(false)
 
-  const fetchCommissionBreakdowns = async () => {
-    if (!report?.uuid) return
+  const fetchCommissionDetails = async () => {
+    if (!report.uuid) return
 
     try {
       setLoading(true)
       const { data, error } = await supabase
-        .from("commission_breakdowns")
+        .from("commission_details")
         .select("*")
         .eq("commission_report_uuid", report.uuid)
         .order("created_at", { ascending: true })
 
       if (error) throw error
-      setCommissionBreakdowns(data || [])
+
+      setCommissionDetails(data || [])
     } catch (error) {
-      console.error("Error fetching commission breakdowns:", error)
+      console.error("Error fetching commission details:", error)
     } finally {
       setLoading(false)
     }
   }
 
   useEffect(() => {
-    if (isOpen && report) {
-      fetchCommissionBreakdowns()
+    if (isOpen && report.uuid) {
+      fetchCommissionDetails()
     }
-  }, [isOpen, report])
+  }, [isOpen, report.uuid])
+
+  const formatCurrency = (value: string | number) => {
+    const num = typeof value === "string" ? Number.parseFloat(value) || 0 : value || 0
+    return new Intl.NumberFormat("en-PH", {
+      style: "currency",
+      currency: "PHP",
+    }).format(num)
+  }
 
   const getStatusBadge = (status: string) => {
     const statusConfig = {
-      new: { variant: "secondary" as const, label: "New", color: "bg-gray-100 text-gray-800" },
-      hold: { variant: "secondary" as const, label: "Hold", color: "bg-yellow-100 text-yellow-800" },
-      release: { variant: "default" as const, label: "Release", color: "bg-green-100 text-green-800" },
-      "not approved": { variant: "destructive" as const, label: "Not Approved", color: "bg-red-100 text-red-800" },
-      error: { variant: "destructive" as const, label: "Error", color: "bg-red-100 text-red-800" },
+      hold: { variant: "secondary" as const, label: "Hold" },
+      release: { variant: "default" as const, label: "Release" },
+      "not approved": { variant: "destructive" as const, label: "Not Approved" },
+      error: { variant: "destructive" as const, label: "Error" },
     }
 
-    const config = statusConfig[status as keyof typeof statusConfig] || {
-      variant: "secondary" as const,
-      label: status,
-      color: "bg-gray-100 text-gray-800",
-    }
+    const config = statusConfig[status as keyof typeof statusConfig] || { variant: "secondary" as const, label: status }
     return <Badge variant={config.variant}>{config.label}</Badge>
   }
 
-  const formatCurrency = (value: string | number) => {
-    if (!value || value === "") return "₱0.00"
-    const numValue = typeof value === "string" ? Number.parseFloat(value) : value
-    return `₱${numValue.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-  }
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    })
-  }
-
   // Calculate totals
-  const totalCommission = commissionBreakdowns.reduce(
-    (sum, item) => sum + (typeof item.comm === "number" ? item.comm : Number.parseFloat(item.comm.toString()) || 0),
-    0,
+  const agentTotals = commissionDetails.reduce(
+    (acc, detail) => ({
+      amount: acc.amount + (Number.parseFloat(detail.agent_amount?.toString() || "0") || 0),
+      vat: acc.vat + (Number.parseFloat(detail.agent_vat?.toString() || "0") || 0),
+      ewt: acc.ewt + (Number.parseFloat(detail.agent_ewt?.toString() || "0") || 0),
+      netComm: acc.netComm + (Number.parseFloat(detail.agent_net_comm?.toString() || "0") || 0),
+    }),
+    { amount: 0, vat: 0, ewt: 0, netComm: 0 },
   )
-  const totalAgentNet = commissionBreakdowns.reduce((sum, item) => {
-    const netComm =
-      typeof item.agent_net_comm === "number"
-        ? item.agent_net_comm
-        : Number.parseFloat(item.agent_net_comm.toString()) || 0
-    return sum + netComm
-  }, 0)
-  const totalUmNet = commissionBreakdowns.reduce((sum, item) => {
-    const netComm =
-      typeof item.um_net_comm === "number" ? item.um_net_comm : Number.parseFloat(item.um_net_comm.toString()) || 0
-    return sum + netComm
-  }, 0)
-  const totalTlNet = commissionBreakdowns.reduce((sum, item) => {
-    const netComm =
-      typeof item.tl_net_comm === "number" ? item.tl_net_comm : Number.parseFloat(item.tl_net_comm.toString()) || 0
-    return sum + netComm
-  }, 0)
+
+  const umTotals = commissionDetails.reduce(
+    (acc, detail) => ({
+      amount: acc.amount + (Number.parseFloat(detail.um_amount?.toString() || "0") || 0),
+      vat: acc.vat + (Number.parseFloat(detail.um_vat?.toString() || "0") || 0),
+      ewt: acc.ewt + (Number.parseFloat(detail.um_ewt?.toString() || "0") || 0),
+      netComm: acc.netComm + (Number.parseFloat(detail.um_net_comm?.toString() || "0") || 0),
+    }),
+    { amount: 0, vat: 0, ewt: 0, netComm: 0 },
+  )
+
+  const tlTotals = commissionDetails.reduce(
+    (acc, detail) => ({
+      amount: acc.amount + (Number.parseFloat(detail.tl_amount?.toString() || "0") || 0),
+      vat: acc.vat + (Number.parseFloat(detail.tl_vat?.toString() || "0") || 0),
+      ewt: acc.ewt + (Number.parseFloat(detail.tl_ewt?.toString() || "0") || 0),
+      netComm: acc.netComm + (Number.parseFloat(detail.tl_net_comm?.toString() || "0") || 0),
+    }),
+    { amount: 0, vat: 0, ewt: 0, netComm: 0 },
+  )
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-7xl max-h-[90vh] overflow-hidden">
-        <DialogHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-          <div className="flex items-center gap-3">
-            <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-2 rounded-lg">
-              <FileText className="h-5 w-5 text-white" />
+      <DialogContent className="max-w-7xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-2 rounded-lg">
+                <FileText className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <DialogTitle className="text-xl">Commission Report #{report.report_number}</DialogTitle>
+                <p className="text-sm text-gray-600">View commission breakdown details</p>
+              </div>
             </div>
-            <div>
-              <DialogTitle className="text-xl font-bold">Commission Report #{report.report_number}</DialogTitle>
-              <p className="text-sm text-gray-600">
-                Created on {formatDate(report.created_at)} by {report.creator_name}
-              </p>
-            </div>
+            <Button variant="ghost" size="sm" onClick={onClose}>
+              <X className="h-4 w-4" />
+            </Button>
           </div>
-          <Button variant="ghost" size="sm" onClick={onClose}>
-            <X className="h-4 w-4" />
-          </Button>
         </DialogHeader>
 
-        <ScrollArea className="max-h-[calc(90vh-120px)]">
-          <div className="space-y-6">
-            {/* Report Summary */}
+        {/* Report Summary */}
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle className="text-lg">Report Summary</CardTitle>
+          </CardHeader>
+          <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-2">
-                    <Hash className="h-4 w-4 text-blue-600" />
-                    <div>
-                      <p className="text-sm text-gray-600">Report Number</p>
-                      <p className="font-semibold">#{report.report_number}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-2">
-                    <Users className="h-4 w-4 text-green-600" />
-                    <div>
-                      <p className="text-sm text-gray-600">Total Sales</p>
-                      <p className="font-semibold">{commissionBreakdowns.length}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-2">
-                    <DollarSign className="h-4 w-4 text-orange-600" />
-                    <div>
-                      <p className="text-sm text-gray-600">Total Commission</p>
-                      <p className="font-semibold">{formatCurrency(totalCommission)}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-2">
-                    <TrendingUp className="h-4 w-4 text-purple-600" />
-                    <div>
-                      <p className="text-sm text-gray-600">Status</p>
-                      <div className="mt-1">{getStatusBadge(report.status)}</div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+              <div className="flex items-center gap-3">
+                <Hash className="h-5 w-5 text-gray-400" />
+                <div>
+                  <p className="text-sm text-gray-600">Report Number</p>
+                  <p className="font-semibold">#{report.report_number}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <User className="h-5 w-5 text-gray-400" />
+                <div>
+                  <p className="text-sm text-gray-600">Created By</p>
+                  <p className="font-semibold">{report.creator_name}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <Calendar className="h-5 w-5 text-gray-400" />
+                <div>
+                  <p className="text-sm text-gray-600">Created Date</p>
+                  <p className="font-semibold">
+                    {new Date(report.created_at).toLocaleDateString("en-US", {
+                      year: "numeric",
+                      month: "short",
+                      day: "numeric",
+                    })}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <DollarSign className="h-5 w-5 text-gray-400" />
+                <div>
+                  <p className="text-sm text-gray-600">Sales Count</p>
+                  <p className="font-semibold">{report.sales_uuids?.length || 0} sales</p>
+                </div>
+              </div>
             </div>
+            {report.remarks && (
+              <>
+                <Separator className="my-4" />
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Remarks</p>
+                  <p className="text-sm">{report.remarks}</p>
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
 
-            {/* Commission Breakdown Table */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="h-5 w-5" />
-                  Commission Breakdown
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {loading ? (
-                  <div className="flex justify-center items-center py-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                  </div>
-                ) : (
-                  <Tabs defaultValue="overview" className="w-full">
-                    <TabsList className="grid w-full grid-cols-4">
-                      <TabsTrigger value="overview">Overview</TabsTrigger>
-                      <TabsTrigger value="agent">Agent Details</TabsTrigger>
-                      <TabsTrigger value="um">UM Details</TabsTrigger>
-                      <TabsTrigger value="tl">TL Details</TabsTrigger>
-                    </TabsList>
+        {loading ? (
+          <div className="flex justify-center items-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          </div>
+        ) : (
+          <Tabs defaultValue="overview" className="w-full">
+            <TabsList className="grid w-full grid-cols-4">
+              <TabsTrigger value="overview">Overview</TabsTrigger>
+              <TabsTrigger value="agent">Agent Details</TabsTrigger>
+              <TabsTrigger value="um">UM Details</TabsTrigger>
+              <TabsTrigger value="tl">TL Details</TabsTrigger>
+            </TabsList>
 
-                    <TabsContent value="overview" className="mt-4">
-                      <div className="overflow-x-auto">
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>Agent</TableHead>
-                              <TableHead>Client</TableHead>
-                              <TableHead>Developer</TableHead>
-                              <TableHead>Reservation Date</TableHead>
-                              <TableHead>Commission</TableHead>
-                              <TableHead>Type</TableHead>
-                              <TableHead>Status</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {commissionBreakdowns.map((breakdown) => (
-                              <TableRow key={breakdown.uuid}>
-                                <TableCell className="font-medium">{breakdown.agent_name}</TableCell>
-                                <TableCell>{breakdown.client}</TableCell>
-                                <TableCell>{breakdown.developer}</TableCell>
-                                <TableCell>{formatDate(breakdown.reservation_date)}</TableCell>
-                                <TableCell>{formatCurrency(breakdown.comm)}</TableCell>
-                                <TableCell>
-                                  <Badge variant="outline">{breakdown.comm_type}</Badge>
-                                </TableCell>
-                                <TableCell>{getStatusBadge(breakdown.status)}</TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </div>
-                    </TabsContent>
-
-                    <TabsContent value="agent" className="mt-4">
-                      <div className="space-y-4">
-                        <div className="flex justify-between items-center">
-                          <h3 className="text-lg font-semibold">Agent Commission Details</h3>
-                          <div className="text-right">
-                            <p className="text-sm text-gray-600">Total Agent Net Commission</p>
-                            <p className="text-xl font-bold text-green-600">{formatCurrency(totalAgentNet)}</p>
-                          </div>
-                        </div>
-                        <div className="overflow-x-auto">
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead>Agent</TableHead>
-                                <TableHead>Calculation Type</TableHead>
-                                <TableHead>Rate</TableHead>
-                                <TableHead>Amount</TableHead>
-                                <TableHead>VAT</TableHead>
-                                <TableHead>EWT</TableHead>
-                                <TableHead>Net Commission</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {commissionBreakdowns.map((breakdown) => (
-                                <TableRow key={breakdown.uuid}>
-                                  <TableCell className="font-medium">{breakdown.agent_name}</TableCell>
-                                  <TableCell>
-                                    <Badge variant="outline">{breakdown.calculation_type}</Badge>
-                                  </TableCell>
-                                  <TableCell>{breakdown.agents_rate}%</TableCell>
-                                  <TableCell>{formatCurrency(breakdown.agent_amount)}</TableCell>
-                                  <TableCell>{formatCurrency(breakdown.agent_vat)}</TableCell>
-                                  <TableCell>{formatCurrency(breakdown.agent_ewt)}</TableCell>
-                                  <TableCell className="font-semibold text-green-600">
-                                    {formatCurrency(breakdown.agent_net_comm)}
-                                  </TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        </div>
-                      </div>
-                    </TabsContent>
-
-                    <TabsContent value="um" className="mt-4">
-                      <div className="space-y-4">
-                        <div className="flex justify-between items-center">
-                          <h3 className="text-lg font-semibold">Unit Manager Commission Details</h3>
-                          <div className="text-right">
-                            <p className="text-sm text-gray-600">Total UM Net Commission</p>
-                            <p className="text-xl font-bold text-blue-600">{formatCurrency(totalUmNet)}</p>
-                          </div>
-                        </div>
-                        <div className="overflow-x-auto">
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead>UM Name</TableHead>
-                                <TableHead>Calculation Type</TableHead>
-                                <TableHead>Rate</TableHead>
-                                <TableHead>Amount</TableHead>
-                                <TableHead>VAT</TableHead>
-                                <TableHead>EWT</TableHead>
-                                <TableHead>Net Commission</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {commissionBreakdowns.map((breakdown) => (
-                                <TableRow key={breakdown.uuid}>
-                                  <TableCell className="font-medium">{breakdown.um_name}</TableCell>
-                                  <TableCell>
-                                    <Badge variant="outline">{breakdown.um_calculation_type}</Badge>
-                                  </TableCell>
-                                  <TableCell>{breakdown.um_rate}%</TableCell>
-                                  <TableCell>{formatCurrency(breakdown.um_amount)}</TableCell>
-                                  <TableCell>{formatCurrency(breakdown.um_vat)}</TableCell>
-                                  <TableCell>{formatCurrency(breakdown.um_ewt)}</TableCell>
-                                  <TableCell className="font-semibold text-blue-600">
-                                    {formatCurrency(breakdown.um_net_comm)}
-                                  </TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        </div>
-                      </div>
-                    </TabsContent>
-
-                    <TabsContent value="tl" className="mt-4">
-                      <div className="space-y-4">
-                        <div className="flex justify-between items-center">
-                          <h3 className="text-lg font-semibold">Team Leader Commission Details</h3>
-                          <div className="text-right">
-                            <p className="text-sm text-gray-600">Total TL Net Commission</p>
-                            <p className="text-xl font-bold text-purple-600">{formatCurrency(totalTlNet)}</p>
-                          </div>
-                        </div>
-                        <div className="overflow-x-auto">
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead>TL Name</TableHead>
-                                <TableHead>Calculation Type</TableHead>
-                                <TableHead>Rate</TableHead>
-                                <TableHead>Amount</TableHead>
-                                <TableHead>VAT</TableHead>
-                                <TableHead>EWT</TableHead>
-                                <TableHead>Net Commission</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {commissionBreakdowns.map((breakdown) => (
-                                <TableRow key={breakdown.uuid}>
-                                  <TableCell className="font-medium">{breakdown.tl_name}</TableCell>
-                                  <TableCell>
-                                    <Badge variant="outline">{breakdown.tl_calculation_type}</Badge>
-                                  </TableCell>
-                                  <TableCell>{breakdown.tl_rate}%</TableCell>
-                                  <TableCell>{formatCurrency(breakdown.tl_amount)}</TableCell>
-                                  <TableCell>{formatCurrency(breakdown.tl_vat)}</TableCell>
-                                  <TableCell>{formatCurrency(breakdown.tl_ewt)}</TableCell>
-                                  <TableCell className="font-semibold text-purple-600">
-                                    {formatCurrency(breakdown.tl_net_comm)}
-                                  </TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        </div>
-                      </div>
-                    </TabsContent>
-                  </Tabs>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Report History */}
-            {report.history && report.history.length > 0 && (
+            <TabsContent value="overview" className="space-y-4">
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Calendar className="h-5 w-5" />
-                    Report History
-                  </CardTitle>
+                  <CardTitle>Sales Overview</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-3">
-                    {report.history.map((entry, index) => (
-                      <div key={index} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
-                        <div className="bg-blue-100 p-1 rounded-full">
-                          <User className="h-3 w-3 text-blue-600" />
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="font-medium text-sm">{entry.user_name}</span>
-                            <Badge variant="outline" className="text-xs">
-                              {entry.action}
-                            </Badge>
-                            <span className="text-xs text-gray-500">{new Date(entry.timestamp).toLocaleString()}</span>
-                          </div>
-                          <p className="text-sm text-gray-600">{entry.remarks}</p>
-                        </div>
-                      </div>
-                    ))}
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Agent</TableHead>
+                          <TableHead>Client</TableHead>
+                          <TableHead>Developer</TableHead>
+                          <TableHead>Reservation Date</TableHead>
+                          <TableHead>Commission</TableHead>
+                          <TableHead>Type</TableHead>
+                          <TableHead>Status</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {commissionDetails.map((detail) => (
+                          <TableRow key={detail.uuid}>
+                            <TableCell className="font-medium">{detail.agent_name}</TableCell>
+                            <TableCell>{detail.client}</TableCell>
+                            <TableCell>{detail.developer}</TableCell>
+                            <TableCell>
+                              {new Date(detail.reservation_date).toLocaleDateString("en-US", {
+                                year: "numeric",
+                                month: "short",
+                                day: "numeric",
+                              })}
+                            </TableCell>
+                            <TableCell>{formatCurrency(detail.comm)}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline">{detail.comm_type}</Badge>
+                            </TableCell>
+                            <TableCell>{getStatusBadge(detail.status)}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
                   </div>
                 </CardContent>
               </Card>
-            )}
-          </div>
-        </ScrollArea>
+            </TabsContent>
+
+            <TabsContent value="agent" className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Agent Commission Details</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Agent</TableHead>
+                          <TableHead>Client</TableHead>
+                          <TableHead>Calculation Type</TableHead>
+                          <TableHead>Amount</TableHead>
+                          <TableHead>VAT</TableHead>
+                          <TableHead>EWT</TableHead>
+                          <TableHead>Net Commission</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {commissionDetails.map((detail) => (
+                          <TableRow key={detail.uuid}>
+                            <TableCell className="font-medium">{detail.agent_name}</TableCell>
+                            <TableCell>{detail.client}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline">{detail.calculation_type}</Badge>
+                            </TableCell>
+                            <TableCell>{formatCurrency(detail.agent_amount)}</TableCell>
+                            <TableCell>{formatCurrency(detail.agent_vat)}</TableCell>
+                            <TableCell>{formatCurrency(detail.agent_ewt)}</TableCell>
+                            <TableCell className="font-semibold">{formatCurrency(detail.agent_net_comm)}</TableCell>
+                          </TableRow>
+                        ))}
+                        <TableRow className="bg-gray-50 font-semibold">
+                          <TableCell colSpan={3}>Total</TableCell>
+                          <TableCell>{formatCurrency(agentTotals.amount)}</TableCell>
+                          <TableCell>{formatCurrency(agentTotals.vat)}</TableCell>
+                          <TableCell>{formatCurrency(agentTotals.ewt)}</TableCell>
+                          <TableCell>{formatCurrency(agentTotals.netComm)}</TableCell>
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="um" className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Unit Manager Commission Details</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>UM Name</TableHead>
+                          <TableHead>Client</TableHead>
+                          <TableHead>Calculation Type</TableHead>
+                          <TableHead>Amount</TableHead>
+                          <TableHead>VAT</TableHead>
+                          <TableHead>EWT</TableHead>
+                          <TableHead>Net Commission</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {commissionDetails.map((detail) => (
+                          <TableRow key={detail.uuid}>
+                            <TableCell className="font-medium">{detail.um_name}</TableCell>
+                            <TableCell>{detail.client}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline">{detail.um_calculation_type}</Badge>
+                            </TableCell>
+                            <TableCell>{formatCurrency(detail.um_amount)}</TableCell>
+                            <TableCell>{formatCurrency(detail.um_vat)}</TableCell>
+                            <TableCell>{formatCurrency(detail.um_ewt)}</TableCell>
+                            <TableCell className="font-semibold">{formatCurrency(detail.um_net_comm)}</TableCell>
+                          </TableRow>
+                        ))}
+                        <TableRow className="bg-gray-50 font-semibold">
+                          <TableCell colSpan={3}>Total</TableCell>
+                          <TableCell>{formatCurrency(umTotals.amount)}</TableCell>
+                          <TableCell>{formatCurrency(umTotals.vat)}</TableCell>
+                          <TableCell>{formatCurrency(umTotals.ewt)}</TableCell>
+                          <TableCell>{formatCurrency(umTotals.netComm)}</TableCell>
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="tl" className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Team Leader Commission Details</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>TL Name</TableHead>
+                          <TableHead>Client</TableHead>
+                          <TableHead>Calculation Type</TableHead>
+                          <TableHead>Amount</TableHead>
+                          <TableHead>VAT</TableHead>
+                          <TableHead>EWT</TableHead>
+                          <TableHead>Net Commission</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {commissionDetails.map((detail) => (
+                          <TableRow key={detail.uuid}>
+                            <TableCell className="font-medium">{detail.tl_name}</TableCell>
+                            <TableCell>{detail.client}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline">{detail.tl_calculation_type}</Badge>
+                            </TableCell>
+                            <TableCell>{formatCurrency(detail.tl_amount)}</TableCell>
+                            <TableCell>{formatCurrency(detail.tl_vat)}</TableCell>
+                            <TableCell>{formatCurrency(detail.tl_ewt)}</TableCell>
+                            <TableCell className="font-semibold">{formatCurrency(detail.tl_net_comm)}</TableCell>
+                          </TableRow>
+                        ))}
+                        <TableRow className="bg-gray-50 font-semibold">
+                          <TableCell colSpan={3}>Total</TableCell>
+                          <TableCell>{formatCurrency(tlTotals.amount)}</TableCell>
+                          <TableCell>{formatCurrency(tlTotals.vat)}</TableCell>
+                          <TableCell>{formatCurrency(tlTotals.ewt)}</TableCell>
+                          <TableCell>{formatCurrency(tlTotals.netComm)}</TableCell>
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        )}
       </DialogContent>
     </Dialog>
   )
