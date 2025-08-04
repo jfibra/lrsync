@@ -4,7 +4,7 @@ import type React from "react"
 
 import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
-import { User, Users, FileText, ArrowRight, DollarSign } from "lucide-react"
+import { User, Users, FileText, ArrowRight, DollarSign, BarChart3 } from "lucide-react"
 import type { UserRole } from "@/types/auth"
 
 interface MenuCardProps {
@@ -12,7 +12,7 @@ interface MenuCardProps {
   description: string
   href: string
   icon: React.ReactNode
-  color: "blue" | "red" | "orange" | "green"
+  color: "blue" | "red" | "orange" | "green" | "navy" | "purple"
 }
 
 function MenuCard({ title, description, href, icon, color }: MenuCardProps) {
@@ -21,7 +21,8 @@ function MenuCard({ title, description, href, icon, color }: MenuCardProps) {
     red: "from-red-500 to-red-600 hover:from-red-600 hover:to-red-700",
     orange: "from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700",
     green: "from-green-500 to-green-600 hover:from-green-600 hover:to-green-700",
-    navy: "from-[#001f3f] to-[#001f3f] hover:from-[#001f3f] hover:to-[#001f3f]", // use theme navy, same as primary accent
+    navy: "from-[#001f3f] to-[#001f3f] hover:from-[#001f3f] hover:to-[#001f3f]",
+    purple: "from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700",
   }
 
   const bgColorClasses = {
@@ -29,7 +30,8 @@ function MenuCard({ title, description, href, icon, color }: MenuCardProps) {
     red: "bg-red-50/80 hover:bg-red-100/80 border-red-200",
     orange: "bg-orange-50/80 hover:bg-orange-100/80 border-orange-200",
     green: "bg-green-50/80 hover:bg-green-100/80 border-green-200",
-    navy: "bg-[#f9f9f9] hover:bg-[#fff] border-[#001f3f]", // match card/section bg, border is theme navy
+    navy: "bg-[#f9f9f9] hover:bg-[#fff] border-[#001f3f]",
+    purple: "bg-purple-50/80 hover:bg-purple-100/80 border-purple-200",
   }
 
   return (
@@ -101,6 +103,17 @@ export function DashboardMenuCards({ userRole }: DashboardMenuCardsProps) {
           icon: <Users className="h-6 w-6" />,
           color: "navy" as const,
         },
+        ...(userRole === "super_admin"
+          ? [
+              {
+                title: "Commission Reports",
+                description: "View and manage all generated commission reports with detailed breakdowns.",
+                href: `/dashboard/${userRole.replace("_", "-")}/commission-reports`,
+                icon: <BarChart3 className="h-6 w-6" />,
+                color: "purple" as const,
+              },
+            ]
+          : []),
         {
           title: "User Management",
           description: "Create, edit, and manage system users and their permissions across the platform.",
@@ -112,7 +125,7 @@ export function DashboardMenuCards({ userRole }: DashboardMenuCardsProps) {
       ]
     }
 
-    // Add Sales Management, TIN Library, and User Management for Super Admin and Admin only
+    // Add Sales Management, TIN Library, and Commission Generator for Secretary
     if (userRole === "secretary") {
       return [
         {
