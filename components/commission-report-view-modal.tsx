@@ -92,7 +92,7 @@ export function CommissionReportViewModal({ isOpen, onClose, report }: Commissio
     try {
       setLoading(true)
       const { data, error } = await supabase
-        .from("commission_details")
+        .from("commission_agent_breakdown")
         .select("*")
         .eq("commission_report_uuid", report.uuid)
         .order("created_at", { ascending: true })

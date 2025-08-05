@@ -167,11 +167,11 @@ export function CommissionGenerationModal({
 
   const yearOptions = generateYearOptions()
 
-  // Format currency
+  // Format currency as number with commas, no peso sign
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-PH", {
-      style: "currency",
-      currency: "PHP",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
     }).format(amount)
   }
 
@@ -677,12 +677,10 @@ export function CommissionGenerationModal({
 
         // Add Commission Records table header
         worksheetData.push([
-          "NO.",
-          "DATE",
+          "RESERVATION DATE",
           "DEVELOPER",
           "AGENT NAME",
           "CLIENT",
-          "RESERVATION DATE",
           "TYPE",
           "BDO ACCOUNT #",
           "COMM",
@@ -711,12 +709,10 @@ export function CommissionGenerationModal({
         if (tabCommissionRecords.length > 0) {
           tabCommissionRecords.forEach((record) => {
             worksheetData.push([
-              record.no,
-              format(new Date(record.date), "MMM dd, yyyy"),
+              format(new Date(record.reservationDate), "MMM dd, yyyy"),
               record.developer,
               record.agentName,
               record.client,
-              record.reservationDate,
               record.type || "COMM",
               record.bdoAccount || "",
               formatCurrency(Number(record.comm.replace(/,/g, "")) || 0),
@@ -747,9 +743,7 @@ export function CommissionGenerationModal({
             "",
             "",
             "",
-            "",
             "Totals:",
-            "",
             "",
             "",
             formatCurrency(tabCommissionRecords.reduce((sum, r) => sum + (Number(r.comm.replace(/,/g, "")) || 0), 0)),

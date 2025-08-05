@@ -133,9 +133,11 @@ export default function SuperAdminDashboard() {
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm font-medium text-gray-600 mb-1">{title}</p>
-            <p className="text-3xl font-bold text-gray-900 mb-1">
-              {loading ? <div className="h-8 w-16 bg-gray-200 rounded animate-pulse"></div> : value}
-            </p>
+            {loading ? (
+              <span className="inline-block h-8 w-16 bg-gray-200 rounded animate-pulse mb-1"></span>
+            ) : (
+              <span className="text-3xl font-bold text-gray-900 mb-1 block">{value}</span>
+            )}
             <p className="text-xs text-gray-500">{subtitle}</p>
           </div>
           <div className={`bg-gradient-to-r ${colorClasses[color]} p-3 rounded-xl text-white shadow-lg`}>{icon}</div>
