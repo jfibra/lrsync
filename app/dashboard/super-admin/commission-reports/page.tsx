@@ -60,9 +60,11 @@ export default function CommissionReportsPage() {
   useEffect(() => {
     const fetchReports = async () => {
       setLoading(true);
+
       let query = supabase
         .from("commission_report")
         .select("*, user_profiles:created_by(full_name)", { count: "exact" })
+        .is("deleted_at", null)
         .order("created_at", { ascending: false });
 
       // Filtering
@@ -80,15 +82,17 @@ export default function CommissionReportsPage() {
       let error = null;
 
       if (searchTerm) {
-        // Only filter by report_number or remarks
+        // Only filter by report_number or remarks, and deleted_at IS NULL
         const { data: reportsByNumber } = await supabase
           .from("commission_report")
           .select("*, user_profiles:created_by(full_name)")
-          .ilike("report_number", `%${searchTerm}%`);
+          .ilike("report_number", `%${searchTerm}%`)
+          .is("deleted_at", null);
         const { data: reportsByRemarks } = await supabase
           .from("commission_report")
           .select("*, user_profiles:created_by(full_name)")
-          .ilike("remarks", `%${searchTerm}%`);
+          .ilike("remarks", `%${searchTerm}%`)
+          .is("deleted_at", null);
         let merged = [...(reportsByNumber || []), ...(reportsByRemarks || [])];
         // Remove duplicates
         merged = merged.filter((v,i,a)=>a.findIndex(t=>(t.uuid === v.uuid))===i);
