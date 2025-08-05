@@ -871,6 +871,17 @@ export function CommissionGenerationModal({
       // Extract all sales UUIDs from selected sales
       const salesUuids = selectedSales.map((sale) => sale.id)
 
+      // Generate report_number as MMDDYYYYHHmmss
+      const now = new Date();
+      const pad = (n: number) => n.toString().padStart(2, '0');
+      const reportNumber =
+        pad(now.getMonth() + 1) +
+        pad(now.getDate()) +
+        now.getFullYear() +
+        pad(now.getHours()) +
+        pad(now.getMinutes()) +
+        pad(now.getSeconds());
+
       // Create the commission report
       const { data: reportData, error: reportError } = await supabase
         .from("commission_report")
@@ -878,6 +889,7 @@ export function CommissionGenerationModal({
           sales_uuids: salesUuids,
           created_by: profile.id,
           status: "new",
+          report_number: reportNumber,
           history: [
             {
               action: "created",
@@ -898,7 +910,7 @@ export function CommissionGenerationModal({
       }
 
       // Prepare commission agent breakdown records
-      const breakdownRecords = []
+      const breakdownRecords: any[] = []
 
       Object.entries(commissionRecords).forEach(([tabKey, records]) => {
         records.forEach((record) => {
@@ -918,14 +930,14 @@ export function CommissionGenerationModal({
             comm_type: record.type || "COMM", // Default to "COMM" if not set
             bdo_account: record.bdoAccount || null,
             net_of_vat: Number.parseFloat(record.netOfVat) || null,
-            status: record.status || "new",   // Use record.status or default to "new"
+            status: record.status,   // Use record.status or default to "new"
             calculation_type: record.calculationType,
             agents_rate: Number.parseFloat(record.agentsRate) || null,
             developers_rate: Number.parseFloat(record.developersRate) || null,
             agent_amount: Number.parseFloat(record.agent) || null,
             agent_vat: Number.parseFloat(record.vat) || null,
             agent_ewt: Number.parseFloat(record.ewt) || null,
-            agent_ewt_rate: Number.parseFloat(record.ewtRate) || null,
+            agent_ewt_rate: Number.parseFloat(record.ewtRate ?? "") || null,
             agent_net_comm: Number.parseFloat(record.netComm) || null,
             um_name: record.umName || null,
             um_calculation_type: record.umCalculationType || null,
@@ -934,7 +946,7 @@ export function CommissionGenerationModal({
             um_amount: Number.parseFloat(record.umAmount) || null,
             um_vat: Number.parseFloat(record.umVat) || null,
             um_ewt: Number.parseFloat(record.umEwt) || null,
-            um_ewt_rate: Number.parseFloat(record.umEwtRate) || null,
+            um_ewt_rate: Number.parseFloat(record.umEwtRate ?? "") || null,
             um_net_comm: Number.parseFloat(record.umNetComm) || null,
             tl_name: record.tlName || null,
             tl_calculation_type: record.tlCalculationType || null,
@@ -943,7 +955,7 @@ export function CommissionGenerationModal({
             tl_amount: Number.parseFloat(record.tlAmount) || null,
             tl_vat: Number.parseFloat(record.tlVat) || null,
             tl_ewt: Number.parseFloat(record.tlEwt) || null,
-            tl_ewt_rate: Number.parseFloat(record.tlEwtRate) || null,
+            tl_ewt_rate: Number.parseFloat(record.tlEwtRate ?? "") || null,
             tl_net_comm: Number.parseFloat(record.tlNetComm) || null,
           })
         })

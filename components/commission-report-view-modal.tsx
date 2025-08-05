@@ -2,6 +2,9 @@
 
 import { useState, useEffect } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { useRef } from "react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -27,6 +30,7 @@ interface CommissionReport {
     user_id: string
     timestamp: string
     user_name: string
+    status?: string // Added for status update actions
   }>
   creator_name?: string
 }
@@ -85,6 +89,7 @@ interface CommissionReportViewModalProps {
 export function CommissionReportViewModal({ isOpen, onClose, report }: CommissionReportViewModalProps) {
   const [commissionDetails, setCommissionDetails] = useState<CommissionDetail[]>([])
   const [loading, setLoading] = useState(false)
+  // Removed status update modal and related state
 
   const fetchCommissionDetails = async () => {
     if (!report.uuid) return
@@ -121,16 +126,19 @@ export function CommissionReportViewModal({ isOpen, onClose, report }: Commissio
     }).format(num)
   }
 
+  // Status badge color mapping
   const getStatusBadge = (status: string) => {
-    const statusConfig = {
-      hold: { variant: "secondary" as const, label: "Hold" },
-      release: { variant: "default" as const, label: "Release" },
-      "not approved": { variant: "destructive" as const, label: "Not Approved" },
-      error: { variant: "destructive" as const, label: "Error" },
+    const colorMap: Record<string, { color: string; bg: string; label: string }> = {
+      new: { color: '#fff', bg: '#6c757d', label: 'New' },
+      ongoing_verification: { color: '#fff', bg: '#0074d9', label: 'Ongoing Verification' },
+      for_approval: { color: '#fff', bg: '#ff851b', label: 'For Approval' },
+      approved: { color: '#fff', bg: '#2ecc40', label: 'Approved' },
+      cancelled: { color: '#fff', bg: '#ee3433', label: 'Cancelled' },
+      for_testing: { color: '#fff', bg: '#b10dc9', label: 'For Testing' },
     }
-
-    const config = statusConfig[status as keyof typeof statusConfig] || { variant: "secondary" as const, label: status }
-    return <Badge variant={config.variant}>{config.label}</Badge>
+    const key = (status || '').toLowerCase().replace(/ /g, '_')
+    const config = colorMap[key] || { color: '#fff', bg: '#6c757d', label: status }
+    return <span style={{ background: config.bg, color: config.color, borderRadius: 6, padding: '2px 10px', fontWeight: 500, fontSize: 13 }}>{config.label}</span>
   }
 
   // Calculate totals
@@ -166,50 +174,56 @@ export function CommissionReportViewModal({ isOpen, onClose, report }: Commissio
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-7xl max-h-[90vh] overflow-y-auto">
+      <DialogContent
+        className="max-w-7xl max-h-[90vh] overflow-y-auto bg-white"
+        style={{ background: '#fff', color: '#001f3f' }}
+      >
         <DialogHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between" style={{ color: '#001f3f' }}>
             <div className="flex items-center gap-3">
               <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-2 rounded-lg">
                 <FileText className="h-5 w-5 text-white" />
               </div>
               <div>
-                <DialogTitle className="text-xl">Commission Report #{report.report_number}</DialogTitle>
-                <p className="text-sm text-gray-600">View commission breakdown details</p>
+                <DialogTitle className="text-xl" style={{ color: '#001f3f' }}>Commission Report #{report.report_number}</DialogTitle>
+                <p className="text-sm" style={{ color: '#001f3f', opacity: 0.7 }}>View commission breakdown details</p>
               </div>
             </div>
-            <Button variant="ghost" size="sm" onClick={onClose}>
-              <X className="h-4 w-4" />
-            </Button>
           </div>
         </DialogHeader>
 
         {/* Report Summary */}
-        <Card className="mb-6">
+        <Card className="mb-6 bg-white" style={{ color: '#001f3f', backgroundColor: '#e0e0e0' }}>
           <CardHeader>
-            <CardTitle className="text-lg">Report Summary</CardTitle>
+            <CardTitle className="text-lg" style={{ color: '#001f3f' }}>Report Summary</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="flex items-center gap-3">
-                <Hash className="h-5 w-5 text-gray-400" />
+                <Hash className="h-5 w-5" style={{ color: '#001f3f', opacity: 0.5 }} />
                 <div>
-                  <p className="text-sm text-gray-600">Report Number</p>
-                  <p className="font-semibold">#{report.report_number}</p>
+                  <p className="text-sm" style={{ color: '#001f3f', opacity: 0.7 }}>Report Number</p>
+                  <p className="font-semibold" style={{ color: '#001f3f' }}>#{report.report_number}</p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <User className="h-5 w-5 text-gray-400" />
+                <span className="inline-flex items-center">
+                  {getStatusBadge(report.status)}
+                </span>
+              </div>
+      {/* Removed Update Status Modal */}
+              <div className="flex items-center gap-3">
+                <User className="h-5 w-5" style={{ color: '#001f3f', opacity: 0.5 }} />
                 <div>
-                  <p className="text-sm text-gray-600">Created By</p>
-                  <p className="font-semibold">{report.creator_name}</p>
+                  <p className="text-sm" style={{ color: '#001f3f', opacity: 0.7 }}>Created By</p>
+                  <p className="font-semibold" style={{ color: '#001f3f' }}>{report.creator_name}</p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <Calendar className="h-5 w-5 text-gray-400" />
+                <Calendar className="h-5 w-5" style={{ color: '#001f3f', opacity: 0.5 }} />
                 <div>
-                  <p className="text-sm text-gray-600">Created Date</p>
-                  <p className="font-semibold">
+                  <p className="text-sm" style={{ color: '#001f3f', opacity: 0.7 }}>Created Date</p>
+                  <p className="font-semibold" style={{ color: '#001f3f' }}>
                     {new Date(report.created_at).toLocaleDateString("en-US", {
                       year: "numeric",
                       month: "short",
@@ -219,10 +233,10 @@ export function CommissionReportViewModal({ isOpen, onClose, report }: Commissio
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <DollarSign className="h-5 w-5 text-gray-400" />
+                <DollarSign className="h-5 w-5" style={{ color: '#001f3f', opacity: 0.5 }} />
                 <div>
-                  <p className="text-sm text-gray-600">Sales Count</p>
-                  <p className="font-semibold">{report.sales_uuids?.length || 0} sales</p>
+                  <p className="text-sm" style={{ color: '#001f3f', opacity: 0.7 }}>Sales Count</p>
+                  <p className="font-semibold" style={{ color: '#001f3f' }}>{report.sales_uuids?.length || 0} sales</p>
                 </div>
               </div>
             </div>
@@ -230,8 +244,8 @@ export function CommissionReportViewModal({ isOpen, onClose, report }: Commissio
               <>
                 <Separator className="my-4" />
                 <div>
-                  <p className="text-sm text-gray-600 mb-1">Remarks</p>
-                  <p className="text-sm">{report.remarks}</p>
+                  <p className="text-sm mb-1" style={{ color: '#001f3f', opacity: 0.7 }}>Remarks</p>
+                  <p className="text-sm" style={{ color: '#001f3f' }}>{report.remarks}</p>
                 </div>
               </>
             )}
@@ -244,48 +258,92 @@ export function CommissionReportViewModal({ isOpen, onClose, report }: Commissio
           </div>
         ) : (
           <Tabs defaultValue="overview" className="w-full">
-            <TabsList className="grid w-full grid-cols-4">
-              <TabsTrigger value="overview">Overview</TabsTrigger>
-              <TabsTrigger value="agent">Agent Details</TabsTrigger>
-              <TabsTrigger value="um">UM Details</TabsTrigger>
-              <TabsTrigger value="tl">TL Details</TabsTrigger>
+            <TabsList
+              className="grid w-full grid-cols-4"
+              style={{ background: '#e0e0e0', color: '#001f3f' }}
+            >
+              <TabsTrigger
+                value="overview"
+                style={{
+                  color: '#001f3f',
+                  '--tw-bg-opacity': '1',
+                  background: 'var(--tab-active-overview, transparent)'
+                } as React.CSSProperties}
+                className="data-[state=active]:!bg-[#ee3433] data-[state=active]:!text-white"
+              >
+                Overview
+              </TabsTrigger>
+              <TabsTrigger
+                value="agent"
+                style={{
+                  color: '#001f3f',
+                  '--tw-bg-opacity': '1',
+                  background: 'var(--tab-active-agent, transparent)'
+                } as React.CSSProperties}
+                className="data-[state=active]:!bg-[#ee3433] data-[state=active]:!text-white"
+              >
+                Agent Details
+              </TabsTrigger>
+              <TabsTrigger
+                value="um"
+                style={{
+                  color: '#001f3f',
+                  '--tw-bg-opacity': '1',
+                  background: 'var(--tab-active-um, transparent)'
+                } as React.CSSProperties}
+                className="data-[state=active]:!bg-[#ee3433] data-[state=active]:!text-white"
+              >
+                UM Details
+              </TabsTrigger>
+              <TabsTrigger
+                value="tl"
+                style={{
+                  color: '#001f3f',
+                  '--tw-bg-opacity': '1',
+                  background: 'var(--tab-active-tl, transparent)'
+                } as React.CSSProperties}
+                className="data-[state=active]:!bg-[#ee3433] data-[state=active]:!text-white"
+              >
+                TL Details
+              </TabsTrigger>
             </TabsList>
 
+            {/* ...existing code... (TabsContent, Cards, Tables, etc.) */}
             <TabsContent value="overview" className="space-y-4">
-              <Card>
+              <Card className="bg-white" style={{ color: '#001f3f' }}>
                 <CardHeader>
-                  <CardTitle>Sales Overview</CardTitle>
+                  <CardTitle style={{ color: '#001f3f' }}>Sales Overview</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="overflow-x-auto">
                     <Table>
                       <TableHeader>
-                        <TableRow>
-                          <TableHead>Agent</TableHead>
-                          <TableHead>Client</TableHead>
-                          <TableHead>Developer</TableHead>
-                          <TableHead>Reservation Date</TableHead>
-                          <TableHead>Commission</TableHead>
-                          <TableHead>Type</TableHead>
-                          <TableHead>Status</TableHead>
+                        <TableRow style={{ backgroundColor: '#001f3f' }}>
+                          <TableHead style={{ color: 'white', textAlign:'center' }}>Agent</TableHead>
+                          <TableHead style={{ color: 'white', textAlign:'center' }}>Client</TableHead>
+                          <TableHead style={{ color: 'white', textAlign:'center' }}>Developer</TableHead>
+                          <TableHead style={{ color: 'white', textAlign:'center' }}>Reservation Date</TableHead>
+                          <TableHead style={{ color: 'white', textAlign:'center' }}>Commission</TableHead>
+                          <TableHead style={{ color: 'white', textAlign:'center' }}>Type</TableHead>
+                          <TableHead style={{ color: 'white', textAlign:'center' }}>Status</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {commissionDetails.map((detail) => (
                           <TableRow key={detail.uuid}>
-                            <TableCell className="font-medium">{detail.agent_name}</TableCell>
-                            <TableCell>{detail.client}</TableCell>
-                            <TableCell>{detail.developer}</TableCell>
-                            <TableCell>
+                            <TableCell className="font-medium" style={{ color: '#001f3f' }}>{detail.agent_name}</TableCell>
+                            <TableCell style={{ color: '#001f3f' }}>{detail.client}</TableCell>
+                            <TableCell style={{ color: '#001f3f' }}>{detail.developer}</TableCell>
+                            <TableCell style={{ color: '#001f3f' }}>
                               {new Date(detail.reservation_date).toLocaleDateString("en-US", {
                                 year: "numeric",
                                 month: "short",
                                 day: "numeric",
                               })}
                             </TableCell>
-                            <TableCell>{formatCurrency(detail.comm)}</TableCell>
+                            <TableCell style={{ color: '#001f3f' }}>{formatCurrency(detail.comm)}</TableCell>
                             <TableCell>
-                              <Badge variant="outline">{detail.comm_type}</Badge>
+                              <Badge variant="outline" style={{ color: '#001f3f' }}>{detail.comm_type}</Badge>
                             </TableCell>
                             <TableCell>{getStatusBadge(detail.status)}</TableCell>
                           </TableRow>
@@ -298,44 +356,44 @@ export function CommissionReportViewModal({ isOpen, onClose, report }: Commissio
             </TabsContent>
 
             <TabsContent value="agent" className="space-y-4">
-              <Card>
+              <Card className="bg-white" style={{ color: '#001f3f' }}>
                 <CardHeader>
-                  <CardTitle>Agent Commission Details</CardTitle>
+                  <CardTitle style={{ color: '#001f3f' }}>Agent Commission Details</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="overflow-x-auto">
                     <Table>
                       <TableHeader>
-                        <TableRow>
-                          <TableHead>Agent</TableHead>
-                          <TableHead>Client</TableHead>
-                          <TableHead>Calculation Type</TableHead>
-                          <TableHead>Amount</TableHead>
-                          <TableHead>VAT</TableHead>
-                          <TableHead>EWT</TableHead>
-                          <TableHead>Net Commission</TableHead>
+                        <TableRow style={{ backgroundColor: '#001f3f' }}>
+                          <TableHead style={{ color: 'white', textAlign:'center' }}>Agent</TableHead>
+                          <TableHead style={{ color: 'white', textAlign:'center' }}>Client</TableHead>
+                          <TableHead style={{ color: 'white', textAlign:'center' }}>Calculation Type</TableHead>
+                          <TableHead style={{ color: 'white', textAlign:'center' }}>Amount</TableHead>
+                          <TableHead style={{ color: 'white', textAlign:'center' }}>VAT</TableHead>
+                          <TableHead style={{ color: 'white', textAlign:'center' }}>EWT</TableHead>
+                          <TableHead style={{ color: 'white', textAlign:'center' }}>Net Commission</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {commissionDetails.map((detail) => (
                           <TableRow key={detail.uuid}>
-                            <TableCell className="font-medium">{detail.agent_name}</TableCell>
-                            <TableCell>{detail.client}</TableCell>
+                            <TableCell className="font-medium" style={{ color: '#001f3f' }}>{detail.agent_name}</TableCell>
+                            <TableCell style={{ color: '#001f3f' }}>{detail.client}</TableCell>
                             <TableCell>
-                              <Badge variant="outline">{detail.calculation_type}</Badge>
+                              <Badge variant="outline" style={{ color: '#001f3f' }}>{detail.calculation_type}</Badge>
                             </TableCell>
-                            <TableCell>{formatCurrency(detail.agent_amount)}</TableCell>
-                            <TableCell>{formatCurrency(detail.agent_vat)}</TableCell>
-                            <TableCell>{formatCurrency(detail.agent_ewt)}</TableCell>
-                            <TableCell className="font-semibold">{formatCurrency(detail.agent_net_comm)}</TableCell>
+                            <TableCell style={{ color: '#001f3f' }}>{formatCurrency(detail.agent_amount)}</TableCell>
+                            <TableCell style={{ color: '#001f3f' }}>{formatCurrency(detail.agent_vat)}</TableCell>
+                            <TableCell style={{ color: '#001f3f' }}>{formatCurrency(detail.agent_ewt)}</TableCell>
+                            <TableCell className="font-semibold" style={{ color: '#001f3f' }}>{formatCurrency(detail.agent_net_comm)}</TableCell>
                           </TableRow>
                         ))}
                         <TableRow className="bg-gray-50 font-semibold">
-                          <TableCell colSpan={3}>Total</TableCell>
-                          <TableCell>{formatCurrency(agentTotals.amount)}</TableCell>
-                          <TableCell>{formatCurrency(agentTotals.vat)}</TableCell>
-                          <TableCell>{formatCurrency(agentTotals.ewt)}</TableCell>
-                          <TableCell>{formatCurrency(agentTotals.netComm)}</TableCell>
+                          <TableCell colSpan={3} style={{ color: '#001f3f' }}>Total</TableCell>
+                          <TableCell style={{ color: '#001f3f' }}>{formatCurrency(agentTotals.amount)}</TableCell>
+                          <TableCell style={{ color: '#001f3f' }}>{formatCurrency(agentTotals.vat)}</TableCell>
+                          <TableCell style={{ color: '#001f3f' }}>{formatCurrency(agentTotals.ewt)}</TableCell>
+                          <TableCell style={{ color: '#001f3f' }}>{formatCurrency(agentTotals.netComm)}</TableCell>
                         </TableRow>
                       </TableBody>
                     </Table>
@@ -345,44 +403,44 @@ export function CommissionReportViewModal({ isOpen, onClose, report }: Commissio
             </TabsContent>
 
             <TabsContent value="um" className="space-y-4">
-              <Card>
+              <Card className="bg-white" style={{ color: '#001f3f' }}>
                 <CardHeader>
-                  <CardTitle>Unit Manager Commission Details</CardTitle>
+                  <CardTitle style={{ color: '#001f3f' }}>Unit Manager Commission Details</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="overflow-x-auto">
                     <Table>
                       <TableHeader>
-                        <TableRow>
-                          <TableHead>UM Name</TableHead>
-                          <TableHead>Client</TableHead>
-                          <TableHead>Calculation Type</TableHead>
-                          <TableHead>Amount</TableHead>
-                          <TableHead>VAT</TableHead>
-                          <TableHead>EWT</TableHead>
-                          <TableHead>Net Commission</TableHead>
+                        <TableRow style={{ backgroundColor: '#001f3f' }}>
+                          <TableHead style={{ color: 'white', textAlign:'center' }}>UM Name</TableHead>
+                          <TableHead style={{ color: 'white', textAlign:'center' }}>Client</TableHead>
+                          <TableHead style={{ color: 'white', textAlign:'center' }}>Calculation Type</TableHead>
+                          <TableHead style={{ color: 'white', textAlign:'center' }}>Amount</TableHead>
+                          <TableHead style={{ color: 'white', textAlign:'center' }}>VAT</TableHead>
+                          <TableHead style={{ color: 'white', textAlign:'center' }}>EWT</TableHead>
+                          <TableHead style={{ color: 'white', textAlign:'center' }}>Net Commission</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {commissionDetails.map((detail) => (
                           <TableRow key={detail.uuid}>
-                            <TableCell className="font-medium">{detail.um_name}</TableCell>
-                            <TableCell>{detail.client}</TableCell>
+                            <TableCell className="font-medium" style={{ color: '#001f3f' }}>{detail.um_name}</TableCell>
+                            <TableCell style={{ color: '#001f3f' }}>{detail.client}</TableCell>
                             <TableCell>
-                              <Badge variant="outline">{detail.um_calculation_type}</Badge>
+                              <Badge variant="outline" style={{ color: '#001f3f' }}>{detail.um_calculation_type}</Badge>
                             </TableCell>
-                            <TableCell>{formatCurrency(detail.um_amount)}</TableCell>
-                            <TableCell>{formatCurrency(detail.um_vat)}</TableCell>
-                            <TableCell>{formatCurrency(detail.um_ewt)}</TableCell>
-                            <TableCell className="font-semibold">{formatCurrency(detail.um_net_comm)}</TableCell>
+                            <TableCell style={{ color: '#001f3f' }}>{formatCurrency(detail.um_amount)}</TableCell>
+                            <TableCell style={{ color: '#001f3f' }}>{formatCurrency(detail.um_vat)}</TableCell>
+                            <TableCell style={{ color: '#001f3f' }}>{formatCurrency(detail.um_ewt)}</TableCell>
+                            <TableCell className="font-semibold" style={{ color: '#001f3f' }}>{formatCurrency(detail.um_net_comm)}</TableCell>
                           </TableRow>
                         ))}
                         <TableRow className="bg-gray-50 font-semibold">
-                          <TableCell colSpan={3}>Total</TableCell>
-                          <TableCell>{formatCurrency(umTotals.amount)}</TableCell>
-                          <TableCell>{formatCurrency(umTotals.vat)}</TableCell>
-                          <TableCell>{formatCurrency(umTotals.ewt)}</TableCell>
-                          <TableCell>{formatCurrency(umTotals.netComm)}</TableCell>
+                          <TableCell colSpan={3} style={{ color: '#001f3f' }}>Total</TableCell>
+                          <TableCell style={{ color: '#001f3f' }}>{formatCurrency(umTotals.amount)}</TableCell>
+                          <TableCell style={{ color: '#001f3f' }}>{formatCurrency(umTotals.vat)}</TableCell>
+                          <TableCell style={{ color: '#001f3f' }}>{formatCurrency(umTotals.ewt)}</TableCell>
+                          <TableCell style={{ color: '#001f3f' }}>{formatCurrency(umTotals.netComm)}</TableCell>
                         </TableRow>
                       </TableBody>
                     </Table>
@@ -392,44 +450,44 @@ export function CommissionReportViewModal({ isOpen, onClose, report }: Commissio
             </TabsContent>
 
             <TabsContent value="tl" className="space-y-4">
-              <Card>
+              <Card className="bg-white" style={{ color: '#001f3f' }}>
                 <CardHeader>
-                  <CardTitle>Team Leader Commission Details</CardTitle>
+                  <CardTitle style={{ color: '#001f3f' }}>Team Leader Commission Details</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="overflow-x-auto">
                     <Table>
                       <TableHeader>
-                        <TableRow>
-                          <TableHead>TL Name</TableHead>
-                          <TableHead>Client</TableHead>
-                          <TableHead>Calculation Type</TableHead>
-                          <TableHead>Amount</TableHead>
-                          <TableHead>VAT</TableHead>
-                          <TableHead>EWT</TableHead>
-                          <TableHead>Net Commission</TableHead>
+                        <TableRow style={{ backgroundColor: '#001f3f' }}>
+                          <TableHead style={{ color: 'white', textAlign:'center' }}>TL Name</TableHead>
+                          <TableHead style={{ color: 'white', textAlign:'center' }}>Client</TableHead>
+                          <TableHead style={{ color: 'white', textAlign:'center' }}>Calculation Type</TableHead>
+                          <TableHead style={{ color: 'white', textAlign:'center' }}>Amount</TableHead>
+                          <TableHead style={{ color: 'white', textAlign:'center' }}>VAT</TableHead>
+                          <TableHead style={{ color: 'white', textAlign:'center' }}>EWT</TableHead>
+                          <TableHead style={{ color: 'white', textAlign:'center' }}>Net Commission</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {commissionDetails.map((detail) => (
                           <TableRow key={detail.uuid}>
-                            <TableCell className="font-medium">{detail.tl_name}</TableCell>
-                            <TableCell>{detail.client}</TableCell>
+                            <TableCell className="font-medium" style={{ color: '#001f3f' }}>{detail.tl_name}</TableCell>
+                            <TableCell style={{ color: '#001f3f' }}>{detail.client}</TableCell>
                             <TableCell>
-                              <Badge variant="outline">{detail.tl_calculation_type}</Badge>
+                              <Badge variant="outline" style={{ color: '#001f3f' }}>{detail.tl_calculation_type}</Badge>
                             </TableCell>
-                            <TableCell>{formatCurrency(detail.tl_amount)}</TableCell>
-                            <TableCell>{formatCurrency(detail.tl_vat)}</TableCell>
-                            <TableCell>{formatCurrency(detail.tl_ewt)}</TableCell>
-                            <TableCell className="font-semibold">{formatCurrency(detail.tl_net_comm)}</TableCell>
+                            <TableCell style={{ color: '#001f3f' }}>{formatCurrency(detail.tl_amount)}</TableCell>
+                            <TableCell style={{ color: '#001f3f' }}>{formatCurrency(detail.tl_vat)}</TableCell>
+                            <TableCell style={{ color: '#001f3f' }}>{formatCurrency(detail.tl_ewt)}</TableCell>
+                            <TableCell className="font-semibold" style={{ color: '#001f3f' }}>{formatCurrency(detail.tl_net_comm)}</TableCell>
                           </TableRow>
                         ))}
                         <TableRow className="bg-gray-50 font-semibold">
-                          <TableCell colSpan={3}>Total</TableCell>
-                          <TableCell>{formatCurrency(tlTotals.amount)}</TableCell>
-                          <TableCell>{formatCurrency(tlTotals.vat)}</TableCell>
-                          <TableCell>{formatCurrency(tlTotals.ewt)}</TableCell>
-                          <TableCell>{formatCurrency(tlTotals.netComm)}</TableCell>
+                          <TableCell colSpan={3} style={{ color: '#001f3f' }}>Total</TableCell>
+                          <TableCell style={{ color: '#001f3f' }}>{formatCurrency(tlTotals.amount)}</TableCell>
+                          <TableCell style={{ color: '#001f3f' }}>{formatCurrency(tlTotals.vat)}</TableCell>
+                          <TableCell style={{ color: '#001f3f' }}>{formatCurrency(tlTotals.ewt)}</TableCell>
+                          <TableCell style={{ color: '#001f3f' }}>{formatCurrency(tlTotals.netComm)}</TableCell>
                         </TableRow>
                       </TableBody>
                     </Table>

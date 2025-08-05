@@ -1,16 +1,29 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import Swal from "sweetalert2"
-import { supabase } from "@/lib/supabase/client"
-import { ProtectedRoute } from "@/components/protected-route"
-import { DashboardHeader } from "@/components/dashboard-header"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useState, useEffect } from "react";
+import Swal from "sweetalert2";
+import { supabase } from "@/lib/supabase/client";
+import { ProtectedRoute } from "@/components/protected-route";
+import { DashboardHeader } from "@/components/dashboard-header";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Pagination,
   PaginationContent,
@@ -18,43 +31,130 @@ import {
   PaginationLink,
   PaginationNext,
   PaginationPrevious,
-} from "@/components/ui/pagination"
-import { Search, Eye, FileText, Calendar, User, Hash } from "lucide-react"
+} from "@/components/ui/pagination";
+import { Search, Eye, FileText, Calendar, User, Hash } from "lucide-react";
 // import { supabase } from "@/lib/supabase/client"
-import { CommissionReportViewModal } from "@/components/commission-report-view-modal"
+import { CommissionReportViewModal } from "@/components/commission-report-view-modal";
 
 interface CommissionReport {
-  uuid: string
-  report_number: number
-  sales_uuids: string[]
-  created_by: string
-  created_at: string
-  updated_at: string
-  deleted_at: string
-  remarks: string
-  status: string
+  uuid: string;
+  report_number: number;
+  sales_uuids: string[];
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string;
+  remarks: string;
+  status: string;
   history: Array<{
-    action: string
-    remarks: string
-    user_id: string
-    timestamp: string
-    user_name: string
-  }>
-  creator_name?: string
+    action: string;
+    remarks: string;
+    user_id: string;
+    timestamp: string;
+    user_name: string;
+  }>;
+  creator_name?: string;
 }
 
 export default function CommissionReportsPage() {
   // Demo/test: use static data
-  const [reports, setReports] = useState<CommissionReport[]>([])
-  const [loading, setLoading] = useState(false)
-  const [searchTerm, setSearchTerm] = useState("")
-  const [statusFilter, setStatusFilter] = useState("all")
-  const [currentPage, setCurrentPage] = useState(1)
-  const [recordsPerPage, setRecordsPerPage] = useState(10)
-  const [totalRecords, setTotalRecords] = useState(0)
-  const [selectedReport, setSelectedReport] = useState<CommissionReport | null>(null)
-  const [viewModalOpen, setViewModalOpen] = useState(false)
+  const [reports, setReports] = useState<CommissionReport[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [recordsPerPage, setRecordsPerPage] = useState(10);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [selectedReport, setSelectedReport] = useState<CommissionReport | null>(
+    null
+  );
+  const [viewModalOpen, setViewModalOpen] = useState(false);
 
+  // State for update status modal
+  const [statusModalOpen, setStatusModalOpen] = useState(false);
+  const [statusUpdateReport, setStatusUpdateReport] =
+    useState<CommissionReport | null>(null);
+  const [newStatus, setNewStatus] = useState("");
+  const [statusRemark, setStatusRemark] = useState("");
+  const [statusSaving, setStatusSaving] = useState(false);
+  const [statusError, setStatusError] = useState("");
+  const statusOptions = [
+    { value: "new", label: "New" },
+    { value: "ongoing_verification", label: "Ongoing Verification" },
+    { value: "for_approval", label: "For Approval" },
+    { value: "approved", label: "Approved" },
+    { value: "cancelled", label: "Cancelled" },
+    { value: "for_testing", label: "For Testing" },
+  ];
+
+  // Map frontend value to DB enum value (with spaces, lowercase)
+  const statusValueToEnum = (val: string) => {
+    switch (val) {
+      case "new": return "new";
+      case "ongoing_verification": return "ongoing verification";
+      case "for_approval": return "for approval";
+      case "approved": return "approved";
+      case "cancelled": return "cancelled";
+      case "for_testing": return "for testing";
+      default: return val;
+    }
+  };
+
+  const handleOpenStatusModal = (report: CommissionReport) => {
+    setStatusUpdateReport(report);
+    setNewStatus(report.status);
+    setStatusRemark("");
+    setStatusModalOpen(true);
+    setStatusError("");
+  };
+
+  const handleUpdateStatus = async () => {
+    if (!statusUpdateReport) return;
+    setStatusSaving(true);
+    setStatusError("");
+    try {
+      // Fetch user info (simulate, replace with actual user context if available)
+      const user_id =
+        (typeof window !== "undefined" && localStorage.getItem("user_id")) ||
+        "system";
+      const user_name =
+        (typeof window !== "undefined" && localStorage.getItem("user_name")) ||
+        "System";
+      // Prepare new history entry
+      const newHistory = Array.isArray(statusUpdateReport.history)
+        ? [...statusUpdateReport.history]
+        : [];
+      newHistory.push({
+        action: "status_update",
+        remarks: statusRemark,
+        user_id,
+        user_name,
+        timestamp: new Date().toISOString(),
+        status: newStatus,
+      });
+      // Map to DB enum value
+      const dbStatus = statusValueToEnum(newStatus);
+      // Update status, remarks, and history in DB
+      const { error } = await supabase
+        .from("commission_report")
+        .update({ status: dbStatus, remarks: statusRemark, history: newHistory })
+        .eq("uuid", statusUpdateReport.uuid);
+      if (error) throw error;
+      setStatusModalOpen(false);
+      // Update local state
+      setReports((prev) =>
+        prev.map((r) =>
+          r.uuid === statusUpdateReport.uuid
+            ? { ...r, status: dbStatus, remarks: statusRemark, history: newHistory }
+            : r
+        )
+      );
+    } catch (err: any) {
+      setStatusError("Failed to update status. Please try again.");
+    } finally {
+      setStatusSaving(false);
+    }
+  };
 
   // Fetch commission reports from Supabase
   useEffect(() => {
@@ -95,10 +195,12 @@ export default function CommissionReportsPage() {
           .is("deleted_at", null);
         let merged = [...(reportsByNumber || []), ...(reportsByRemarks || [])];
         // Remove duplicates
-        merged = merged.filter((v,i,a)=>a.findIndex(t=>(t.uuid === v.uuid))===i);
+        merged = merged.filter(
+          (v, i, a) => a.findIndex((t) => t.uuid === v.uuid) === i
+        );
         // Apply status filter if needed
         if (statusFilter !== "all") {
-          merged = merged.filter(r => r.status === statusFilter);
+          merged = merged.filter((r) => r.status === statusFilter);
         }
         count = merged.length;
         data = merged.slice(from, from + recordsPerPage);
@@ -116,44 +218,72 @@ export default function CommissionReportsPage() {
         return;
       }
       setTotalRecords(count);
-      setReports((data || []).map((r: any) => ({
-        ...r,
-        creator_name: r.user_profiles?.full_name || "",
-      })));
+      setReports(
+        (data || []).map((r: any) => ({
+          ...r,
+          creator_name: r.user_profiles?.full_name || "",
+        }))
+      );
       setLoading(false);
     };
     fetchReports();
   }, [currentPage, recordsPerPage, searchTerm, statusFilter]);
 
-  // Status badge helper
+  // Status badge helper (updated for new statuses)
   const getStatusBadge = (status: string) => {
-    const statusConfig = {
-      new: { variant: "secondary" as const, label: "New" },
-      processing: { variant: "default" as const, label: "Processing" },
-      completed: { variant: "default" as const, label: "Completed" },
-      cancelled: { variant: "destructive" as const, label: "Cancelled" },
-    }
-    const config = statusConfig[status as keyof typeof statusConfig] || { variant: "secondary" as const, label: status }
-    return <Badge variant={config.variant}>{config.label}</Badge>
-  }
-
+    const colorMap: Record<
+      string,
+      { color: string; bg: string; label: string }
+    > = {
+      new: { color: "#fff", bg: "#6c757d", label: "New" },
+      ongoing_verification: {
+        color: "#fff",
+        bg: "#0074d9",
+        label: "Ongoing Verification",
+      },
+      for_approval: { color: "#fff", bg: "#ff851b", label: "For Approval" },
+      approved: { color: "#fff", bg: "#2ecc40", label: "Approved" },
+      cancelled: { color: "#fff", bg: "#ee3433", label: "Cancelled" },
+      for_testing: { color: "#fff", bg: "#b10dc9", label: "For Testing" },
+    };
+    const key = (status || "").toLowerCase().replace(/ /g, "_");
+    const config = colorMap[key] || {
+      color: "#fff",
+      bg: "#6c757d",
+      label: status,
+    };
+    return (
+      <span
+        style={{
+          background: config.bg,
+          color: config.color,
+          borderRadius: 6,
+          padding: "2px 10px",
+          fontWeight: 500,
+          fontSize: 13,
+        }}
+      >
+        {config.label}
+      </span>
+    );
+  };
 
   const handleViewReport = (report: CommissionReport) => {
-    setSelectedReport(report)
-    setViewModalOpen(true)
-  }
+    setSelectedReport(report);
+    setViewModalOpen(true);
+  };
 
   // Soft delete: set deleted_at to now in the database and remove from visible list after confirmation
   const handleDeleteReport = async (uuid: string) => {
     const result = await Swal.fire({
-      title: 'Are you sure?',
-      text: 'This will mark the report as deleted. You can recover it from the database if needed.',
-      icon: 'warning',
+      title: "Are you sure?",
+      text: "This will mark the report as deleted. You can recover it from the database if needed.",
+      icon: "warning",
       showCancelButton: true,
-      confirmButtonColor: '#d33',
-      cancelButtonColor: '#3085d6',
-      confirmButtonText: 'Yes, delete it!',
-      cancelButtonText: 'Cancel',
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+      confirmButtonText: "Yes, delete it!",
+      cancelButtonText: "Cancel",
     });
     if (!result.isConfirmed) return;
 
@@ -163,18 +293,22 @@ export default function CommissionReportsPage() {
       .eq("uuid", uuid);
 
     if (error) {
-      Swal.fire('Error', 'Failed to delete the report. Please try again.', 'error');
+      Swal.fire(
+        "Error",
+        "Failed to delete the report. Please try again.",
+        "error"
+      );
       return;
     }
 
     setReports((prev) => prev.filter((r) => r.uuid !== uuid));
     setTotalRecords((prev) => prev - 1);
-    Swal.fire('Deleted!', 'The commission report has been deleted.', 'success');
-  }
+    Swal.fire("Deleted!", "The commission report has been deleted.", "success");
+  };
 
-  const totalPages = Math.ceil(totalRecords / recordsPerPage)
-  const startRecord = (currentPage - 1) * recordsPerPage + 1
-  const endRecord = Math.min(currentPage * recordsPerPage, totalRecords)
+  const totalPages = Math.ceil(totalRecords / recordsPerPage);
+  const startRecord = (currentPage - 1) * recordsPerPage + 1;
+  const endRecord = Math.min(currentPage * recordsPerPage, totalRecords);
 
   return (
     <ProtectedRoute allowedRoles={["super_admin"]}>
@@ -189,8 +323,12 @@ export default function CommissionReportsPage() {
                 <FileText className="h-6 w-6 text-white" />
               </div>
               <div>
-                <h1 className="text-3xl font-bold text-[#001f3f]">Commission Reports</h1>
-                <p className="text-gray-600">View and manage all commission reports</p>
+                <h1 className="text-3xl font-bold text-[#001f3f]">
+                  Commission Reports
+                </h1>
+                <p className="text-gray-600">
+                  View and manage all commission reports
+                </p>
               </div>
             </div>
           </div>
@@ -217,9 +355,13 @@ export default function CommissionReportsPage() {
                   <SelectContent className="bg-white border-blue-200 text-[#001f3f]">
                     <SelectItem value="all">All Status</SelectItem>
                     <SelectItem value="new">New</SelectItem>
-                    <SelectItem value="processing">Processing</SelectItem>
-                    <SelectItem value="completed">Completed</SelectItem>
+                    <SelectItem value="ongoing_verification">
+                      Ongoing Verification
+                    </SelectItem>
+                    <SelectItem value="for_approval">For Approval</SelectItem>
+                    <SelectItem value="approved">Approved</SelectItem>
                     <SelectItem value="cancelled">Cancelled</SelectItem>
+                    <SelectItem value="for_testing">For Testing</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -230,13 +372,17 @@ export default function CommissionReportsPage() {
           <Card className="bg-white border-2 border-blue-200">
             <CardHeader>
               <div className="flex justify-between items-center">
-                <CardTitle className="text-[#001f3f]">Commission Reports</CardTitle>
+                <CardTitle className="text-[#001f3f]">
+                  Commission Reports
+                </CardTitle>
                 <div className="flex items-center gap-4">
                   <div className="flex items-center gap-2">
                     <span className="text-sm text-gray-600">Show</span>
                     <Select
                       value={recordsPerPage.toString()}
-                      onValueChange={(value) => setRecordsPerPage(Number(value))}
+                      onValueChange={(value) =>
+                        setRecordsPerPage(Number(value))
+                      }
                     >
                       <SelectTrigger className="w-20 border-blue-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 bg-white text-[#001f3f]">
                         <SelectValue />
@@ -267,6 +413,12 @@ export default function CommissionReportsPage() {
                           <TableHead className="text-blue-700 font-semibold border-b border-blue-200">
                             <div className="flex items-center gap-2">
                               <User className="h-4 w-4" />
+                              Commission Report #
+                            </div>
+                          </TableHead>
+                          <TableHead className="text-blue-700 font-semibold border-b border-blue-200">
+                            <div className="flex items-center gap-2">
+                              <User className="h-4 w-4" />
                               Created By
                             </div>
                           </TableHead>
@@ -276,37 +428,143 @@ export default function CommissionReportsPage() {
                               Created Date
                             </div>
                           </TableHead>
-                          <TableHead className="text-blue-700 font-semibold border-b border-blue-200">Status</TableHead>
-                          <TableHead className="text-blue-700 font-semibold border-b border-blue-200">Sales Count</TableHead>
-                          <TableHead className="text-blue-700 font-semibold border-b border-blue-200">Remarks</TableHead>
-                          <TableHead className="text-right text-blue-700 font-semibold border-b border-blue-200">Actions</TableHead>
+                          <TableHead className="text-blue-700 font-semibold border-b border-blue-200">
+                            Status
+                          </TableHead>
+                          <TableHead className="text-blue-700 font-semibold border-b border-blue-200">
+                            Sales Count
+                          </TableHead>
+                          <TableHead className="text-blue-700 font-semibold border-b border-blue-200">
+                            Remarks
+                          </TableHead>
+                          <TableHead className="text-right text-blue-700 font-semibold border-b border-blue-200">
+                            Actions
+                          </TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {reports.length === 0 ? (
                           <TableRow>
-                            <TableCell colSpan={7} className="text-center py-8 text-gray-400">
+                            <TableCell
+                              colSpan={7}
+                              className="text-center py-8 text-gray-400"
+                            >
                               No commission reports found
                             </TableCell>
                           </TableRow>
                         ) : (
                           reports.map((report) => (
-                            <TableRow key={report.uuid} className="hover:bg-blue-50 border-b border-blue-200">
-                              <TableCell className="text-[#001f3f]">{report.creator_name}</TableCell>
+                            <TableRow
+                              key={report.uuid}
+                              className="hover:bg-blue-50 border-b border-blue-200"
+                            >
                               <TableCell className="text-[#001f3f]">
-                                {new Date(report.created_at).toLocaleDateString("en-US", {
-                                  year: "numeric",
-                                  month: "short",
-                                  day: "numeric",
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                })}
+                                Report #{report.report_number}
                               </TableCell>
-                              <TableCell>{getStatusBadge(report.status)}</TableCell>
+                              <TableCell className="text-[#001f3f]">
+                                {report.creator_name}
+                              </TableCell>
+                              <TableCell className="text-[#001f3f]">
+                                {new Date(report.created_at).toLocaleDateString(
+                                  "en-US",
+                                  {
+                                    year: "numeric",
+                                    month: "short",
+                                    day: "numeric",
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  }
+                                )}
+                              </TableCell>
                               <TableCell>
-                                <Badge className="text-[#001f3f]" variant="outline">{report.sales_uuids?.length || 0} sales</Badge>
+                                {getStatusBadge(report.status)}
                               </TableCell>
-                              <TableCell className="max-w-xs truncate text-[#001f3f]">{report.remarks || "No remarks"}</TableCell>
+                              {/* Update Status Modal */}
+                              {statusUpdateReport && (
+                                <div
+                                  className={`fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 ${
+                                    statusModalOpen ? "" : "hidden"
+                                  }`}
+                                >
+                                  <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-6">
+                                    <h2 className="text-lg font-semibold mb-4">
+                                      Update Status 2
+                                    </h2>
+                                    <div className="mb-4">
+                                      <label className="block text-sm text-[#001f3f] font-medium mb-1">
+                                        Status
+                                      </label>
+                                      <Select
+                                        value={newStatus}
+                                        onValueChange={setNewStatus}
+                                      >
+                                        <SelectTrigger className="w-full">
+                                          <SelectValue placeholder="Select status..." />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          {statusOptions.map((opt) => (
+                                            <SelectItem
+                                              key={opt.value}
+                                              value={opt.value}
+                                            >
+                                              {opt.label}
+                                            </SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                    <div className="mb-4">
+                                      <label className="block text-sm text-[#001f3f] font-medium mb-1">
+                                        Remarks
+                                      </label>
+                                      <textarea
+                                        className="w-full text-[#001f3f] border border-gray-300 rounded p-2"
+                                        rows={3}
+                                        value={statusRemark}
+                                        onChange={(e) =>
+                                          setStatusRemark(e.target.value)
+                                        }
+                                        placeholder="Enter remarks for this status update..."
+                                      />
+                                    </div>
+                                    {statusError && (
+                                      <div className="text-red-600 text-sm mb-2">
+                                        {statusError}
+                                      </div>
+                                    )}
+                                    <div className="flex justify-end gap-2">
+                                      <Button
+                                        variant="outline"
+                                        onClick={() =>
+                                          setStatusModalOpen(false)
+                                        }
+                                        disabled={statusSaving}
+                                      >
+                                        Cancel
+                                      </Button>
+                                      <Button
+                                        onClick={handleUpdateStatus}
+                                        disabled={statusSaving || !newStatus}
+                                      >
+                                        {statusSaving
+                                          ? "Saving..."
+                                          : "Update Status"}
+                                      </Button>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                              <TableCell>
+                                <Badge
+                                  className="text-[#001f3f]"
+                                  variant="outline"
+                                >
+                                  {report.sales_uuids?.length || 0} sales
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="max-w-xs truncate text-[#001f3f]">
+                                {report.remarks || "No remarks"}
+                              </TableCell>
                               <TableCell className="text-right flex gap-2 justify-end">
                                 <Button
                                   variant="outline"
@@ -320,7 +578,17 @@ export default function CommissionReportsPage() {
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  onClick={() => handleDeleteReport(report.uuid)}
+                                  className="gap-2 bg-white border-blue-500 text-blue-700 hover:bg-blue-100 hover:border-blue-600 hover:text-blue-900"
+                                  onClick={() => handleOpenStatusModal(report)}
+                                >
+                                  Update Status
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() =>
+                                    handleDeleteReport(report.uuid)
+                                  }
                                   className="gap-2 bg-white border-red-400 text-red-600 hover:bg-red-50 hover:border-red-600 hover:text-red-800"
                                 >
                                   Delete
@@ -336,7 +604,8 @@ export default function CommissionReportsPage() {
                   {/* Pagination and Record Info */}
                   <div className="flex flex-col sm:flex-row justify-between items-center mt-6 gap-4">
                     <div className="text-sm text-gray-600">
-                      Showing {startRecord} to {endRecord} of {totalRecords} records
+                      Showing {startRecord} to {endRecord} of {totalRecords}{" "}
+                      records
                     </div>
 
                     {totalPages > 1 && (
@@ -344,8 +613,14 @@ export default function CommissionReportsPage() {
                         <PaginationContent>
                           <PaginationItem>
                             <PaginationPrevious
-                              onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                              className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer text-blue-700 hover:text-blue-900"}
+                              onClick={() =>
+                                setCurrentPage(Math.max(1, currentPage - 1))
+                              }
+                              className={
+                                currentPage === 1
+                                  ? "pointer-events-none opacity-50"
+                                  : "cursor-pointer text-blue-700 hover:text-blue-900"
+                              }
                             />
                           </PaginationItem>
 
@@ -353,42 +628,59 @@ export default function CommissionReportsPage() {
                           {currentPage > 2 && (
                             <>
                               <PaginationItem>
-                                <PaginationLink onClick={() => setCurrentPage(1)} className="cursor-pointer text-blue-700 hover:text-blue-900">
+                                <PaginationLink
+                                  onClick={() => setCurrentPage(1)}
+                                  className="cursor-pointer text-blue-700 hover:text-blue-900"
+                                >
                                   1
                                 </PaginationLink>
                               </PaginationItem>
-                              {currentPage > 3 && <span className="px-2">...</span>}
+                              {currentPage > 3 && (
+                                <span className="px-2">...</span>
+                              )}
                             </>
                           )}
 
                           {/* Current page and neighbors */}
-                          {Array.from({ length: Math.min(3, totalPages) }, (_, i) => {
-                            const pageNum = Math.max(1, Math.min(totalPages - 2, currentPage - 1)) + i
-                            if (pageNum > totalPages) return null
+                          {Array.from(
+                            { length: Math.min(3, totalPages) },
+                            (_, i) => {
+                              const pageNum =
+                                Math.max(
+                                  1,
+                                  Math.min(totalPages - 2, currentPage - 1)
+                                ) + i;
+                              if (pageNum > totalPages) return null;
 
-                            return (
-                              <PaginationItem key={pageNum}>
-                                <PaginationLink
-                                  onClick={() => setCurrentPage(pageNum)}
-                                  isActive={pageNum === currentPage}
-                                  className={
-                                    pageNum === currentPage
-                                      ? "cursor-pointer text-blue-900 font-bold"
-                                      : "cursor-pointer text-blue-700 hover:text-blue-900"
-                                  }
-                                >
-                                  {pageNum}
-                                </PaginationLink>
-                              </PaginationItem>
-                            )
-                          })}
+                              return (
+                                <PaginationItem key={pageNum}>
+                                  <PaginationLink
+                                    onClick={() => setCurrentPage(pageNum)}
+                                    isActive={pageNum === currentPage}
+                                    className={
+                                      pageNum === currentPage
+                                        ? "cursor-pointer text-blue-900 font-bold"
+                                        : "cursor-pointer text-blue-700 hover:text-blue-900"
+                                    }
+                                  >
+                                    {pageNum}
+                                  </PaginationLink>
+                                </PaginationItem>
+                              );
+                            }
+                          )}
 
                           {/* Last page */}
                           {currentPage < totalPages - 1 && (
                             <>
-                              {currentPage < totalPages - 2 && <span className="px-2">...</span>}
+                              {currentPage < totalPages - 2 && (
+                                <span className="px-2">...</span>
+                              )}
                               <PaginationItem>
-                                <PaginationLink onClick={() => setCurrentPage(totalPages)} className="cursor-pointer text-blue-700 hover:text-blue-900">
+                                <PaginationLink
+                                  onClick={() => setCurrentPage(totalPages)}
+                                  className="cursor-pointer text-blue-700 hover:text-blue-900"
+                                >
                                   {totalPages}
                                 </PaginationLink>
                               </PaginationItem>
@@ -397,7 +689,11 @@ export default function CommissionReportsPage() {
 
                           <PaginationItem>
                             <PaginationNext
-                              onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                              onClick={() =>
+                                setCurrentPage(
+                                  Math.min(totalPages, currentPage + 1)
+                                )
+                              }
                               className={
                                 currentPage === totalPages
                                   ? "pointer-events-none opacity-50"
@@ -416,17 +712,82 @@ export default function CommissionReportsPage() {
         </div>
       </div>
 
+      {/* Update Status Modal */}
+      {statusUpdateReport && (
+        <div
+          className={`fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 ${
+            statusModalOpen ? "" : "hidden"
+          }`}
+        >
+          <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-6">
+            <h2 className="text-lg text-[#001f3f] font-semibold mb-4">Update Status</h2>
+            <div className="mb-4">
+              <label className="block text-sm text-[#001f3f] font-medium mb-1">Status</label>
+              <Select value={newStatus} onValueChange={setNewStatus}>
+                <SelectTrigger
+                  className="w-full border border-blue-500 focus:border-[#ee3433] focus:ring-2 focus:ring-[#ee3433] bg-white text-[#001f3f] font-semibold rounded shadow-sm"
+                  style={{ minHeight: 40 }}
+                >
+                  <SelectValue className="text-[#001f3f]" placeholder="Select status..." />
+                </SelectTrigger>
+                <SelectContent className="bg-white border border-blue-500 text-[#001f3f] rounded shadow-lg">
+                  {statusOptions.map((opt) => (
+                    <SelectItem
+                      key={opt.value}
+                      value={opt.value}
+                      className="data-[state=checked]:!bg-[#ee3433] data-[state=checked]:!text-white hover:bg-blue-100 hover:text-[#001f3f] px-3 py-2 cursor-pointer font-medium rounded"
+                      style={{ transition: 'background 0.2s, color 0.2s' }}
+                    >
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="mb-4">
+              <label className="block text-sm text-[#001f3f] font-medium mb-1">Remarks</label>
+              <textarea
+                className="w-full text-[#001f3f] border border-gray-300 bg-white rounded p-2"
+                rows={3}
+                value={statusRemark}
+                onChange={(e) => setStatusRemark(e.target.value)}
+                placeholder="Enter remarks for this status update..."
+              />
+            </div>
+            {statusError && (
+              <div className="text-red-600 text-sm mb-2">{statusError}</div>
+            )}
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setStatusModalOpen(false)}
+                disabled={statusSaving}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleUpdateStatus}
+                className="bg-[#4284f2] hover:bg-[#357ae8] text-white"
+                disabled={statusSaving || !newStatus}
+              >
+                {statusSaving ? "Saving..." : "Update Status"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* View Modal */}
       {selectedReport && (
         <CommissionReportViewModal
           isOpen={viewModalOpen}
           onClose={() => {
-            setViewModalOpen(false)
-            setSelectedReport(null)
+            setViewModalOpen(false);
+            setSelectedReport(null);
           }}
           report={selectedReport}
         />
       )}
     </ProtectedRoute>
-  )
+  );
 }
