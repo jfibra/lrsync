@@ -86,17 +86,68 @@ export default function CommissionReportsPage() {
     { value: "cancelled", label: "Cancelled" },
     { value: "for_testing", label: "For Testing" },
   ];
+  // For Upload Attachments modal
+  const [uploadModalOpen, setUploadModalOpen] = useState(false);
+  const [uploadReport, setUploadReport] = useState<CommissionReport | null>(
+    null
+  );
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  const handleOpenUploadModal = (report: CommissionReport) => {
+    setUploadReport(report);
+    setSelectedFiles([]);
+    setUploadError(null);
+    setUploadModalOpen(true);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const files = Array.from(e.dataTransfer.files);
+    handleFiles(files);
+  };
+
+  const handleFiles = (files: File[]) => {
+    const allowed = files.filter(
+      (file) =>
+        file.type.startsWith("image/") || file.type === "application/pdf"
+    );
+    if (allowed.length !== files.length) {
+      setUploadError("Only image and PDF files are allowed.");
+    } else {
+      setUploadError(null);
+    }
+    setSelectedFiles((prev) => [...prev, ...allowed]);
+  };
+
+  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      handleFiles(Array.from(e.target.files));
+    }
+  };
+
+  const handleRemoveFile = (idx: number) => {
+    setSelectedFiles((prev) => prev.filter((_, i) => i !== idx));
+  };
 
   // Map frontend value to DB enum value (with spaces, lowercase)
   const statusValueToEnum = (val: string) => {
     switch (val) {
-      case "new": return "new";
-      case "ongoing_verification": return "ongoing verification";
-      case "for_approval": return "for approval";
-      case "approved": return "approved";
-      case "cancelled": return "cancelled";
-      case "for_testing": return "for testing";
-      default: return val;
+      case "new":
+        return "new";
+      case "ongoing_verification":
+        return "ongoing verification";
+      case "for_approval":
+        return "for approval";
+      case "approved":
+        return "approved";
+      case "cancelled":
+        return "cancelled";
+      case "for_testing":
+        return "for testing";
+      default:
+        return val;
     }
   };
 
@@ -137,7 +188,11 @@ export default function CommissionReportsPage() {
       // Update status, remarks, and history in DB
       const { error } = await supabase
         .from("commission_report")
-        .update({ status: dbStatus, remarks: statusRemark, history: newHistory })
+        .update({
+          status: dbStatus,
+          remarks: statusRemark,
+          history: newHistory,
+        })
         .eq("uuid", statusUpdateReport.uuid);
       if (error) throw error;
       setStatusModalOpen(false);
@@ -145,7 +200,12 @@ export default function CommissionReportsPage() {
       setReports((prev) =>
         prev.map((r) =>
           r.uuid === statusUpdateReport.uuid
-            ? { ...r, status: dbStatus, remarks: statusRemark, history: newHistory }
+            ? {
+                ...r,
+                status: dbStatus,
+                remarks: statusRemark,
+                history: newHistory,
+              }
             : r
         )
       );
@@ -437,7 +497,7 @@ export default function CommissionReportsPage() {
                           <TableHead className="text-blue-700 font-semibold border-b border-blue-200">
                             Remarks
                           </TableHead>
-                          <TableHead className="text-right text-blue-700 font-semibold border-b border-blue-200">
+                          <TableHead className="text-center text-blue-700 font-semibold border-b border-blue-200">
                             Actions
                           </TableHead>
                         </TableRow>
@@ -586,6 +646,14 @@ export default function CommissionReportsPage() {
                                 <Button
                                   variant="outline"
                                   size="sm"
+                                  className="gap-2 bg-white border-green-500 text-green-700 hover:bg-green-100 hover:border-green-600 hover:text-green-900"
+                                  onClick={() => handleOpenUploadModal(report)}
+                                >
+                                  Upload Attachments
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
                                   onClick={() =>
                                     handleDeleteReport(report.uuid)
                                   }
@@ -720,15 +788,22 @@ export default function CommissionReportsPage() {
           }`}
         >
           <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-6">
-            <h2 className="text-lg text-[#001f3f] font-semibold mb-4">Update Status</h2>
+            <h2 className="text-lg text-[#001f3f] font-semibold mb-4">
+              Update Status
+            </h2>
             <div className="mb-4">
-              <label className="block text-sm text-[#001f3f] font-medium mb-1">Status</label>
+              <label className="block text-sm text-[#001f3f] font-medium mb-1">
+                Status
+              </label>
               <Select value={newStatus} onValueChange={setNewStatus}>
                 <SelectTrigger
                   className="w-full border border-blue-500 focus:border-[#ee3433] focus:ring-2 focus:ring-[#ee3433] bg-white text-[#001f3f] font-semibold rounded shadow-sm"
                   style={{ minHeight: 40 }}
                 >
-                  <SelectValue className="text-[#001f3f]" placeholder="Select status..." />
+                  <SelectValue
+                    className="text-[#001f3f]"
+                    placeholder="Select status..."
+                  />
                 </SelectTrigger>
                 <SelectContent className="bg-white border border-blue-500 text-[#001f3f] rounded shadow-lg">
                   {statusOptions.map((opt) => (
@@ -736,7 +811,7 @@ export default function CommissionReportsPage() {
                       key={opt.value}
                       value={opt.value}
                       className="data-[state=checked]:!bg-[#ee3433] data-[state=checked]:!text-white hover:bg-blue-100 hover:text-[#001f3f] px-3 py-2 cursor-pointer font-medium rounded"
-                      style={{ transition: 'background 0.2s, color 0.2s' }}
+                      style={{ transition: "background 0.2s, color 0.2s" }}
                     >
                       {opt.label}
                     </SelectItem>
@@ -745,7 +820,9 @@ export default function CommissionReportsPage() {
               </Select>
             </div>
             <div className="mb-4">
-              <label className="block text-sm text-[#001f3f] font-medium mb-1">Remarks</label>
+              <label className="block text-sm text-[#001f3f] font-medium mb-1">
+                Remarks
+              </label>
               <textarea
                 className="w-full text-[#001f3f] border border-gray-300 bg-white rounded p-2"
                 rows={3}
@@ -787,6 +864,124 @@ export default function CommissionReportsPage() {
           }}
           report={selectedReport}
         />
+      )}
+      {uploadModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+          <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-6 relative">
+            <button
+              className="absolute top-3 right-3 text-gray-400 hover:text-red-500"
+              onClick={() => setUploadModalOpen(false)}
+            >
+              <svg
+                className="h-5 w-5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+            <h2 className="text-lg text-[#001f3f] font-semibold mb-4">
+              Upload Attachments
+            </h2>
+            <div
+              className="flex flex-col items-center justify-center border-2 border-dashed border-blue-400 rounded-lg p-6 mb-4 bg-blue-50 cursor-pointer transition hover:bg-blue-100"
+              onDrop={handleDrop}
+              onDragOver={(e) => e.preventDefault()}
+              onClick={() =>
+                document.getElementById("file-upload-input")?.click()
+              }
+            >
+              <svg
+                className="h-10 w-10 text-blue-400 mb-2"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5-5m0 0l5 5m-5-5v12"
+                />
+              </svg>
+              <p className="text-[#001f3f] font-medium mb-1">
+                Click to select files or drag and drop here
+              </p>
+              <p className="text-xs text-gray-500">
+                Only image or PDF files are allowed.
+              </p>
+              <input
+                id="file-upload-input"
+                type="file"
+                accept="image/*,application/pdf"
+                multiple
+                className="hidden"
+                onChange={handleFileInput}
+              />
+            </div>
+            {uploadError && (
+              <div className="text-red-600 text-sm mb-2">{uploadError}</div>
+            )}
+            {selectedFiles.length > 0 && (
+              <div className="mb-4">
+                <p className="text-sm text-[#001f3f] font-medium mb-2">
+                  Selected Files:
+                </p>
+                <ul className="space-y-1">
+                  {selectedFiles.map((file, idx) => (
+                    <li
+                      key={idx}
+                      className="flex items-center justify-between bg-blue-100 rounded px-2 py-1"
+                    >
+                      <span className="truncate text-xs text-[#001f3f]">
+                        {file.name}
+                      </span>
+                      <button
+                        className="ml-2 text-red-500 hover:text-red-700"
+                        onClick={() => handleRemoveFile(idx)}
+                      >
+                        <svg
+                          className="h-4 w-4"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth={2}
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M6 18L18 6M6 6l12 12"
+                          />
+                        </svg>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setUploadModalOpen(false)}
+                className="border-[#001f3f] bg-white text-[#001f3f]"
+              >
+                Close
+              </Button>
+              <Button
+                disabled
+                className="bg-[#001f3f] text-white opacity-60 cursor-not-allowed"
+              >
+                Upload (coming soon)
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
     </ProtectedRoute>
   );
