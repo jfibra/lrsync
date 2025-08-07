@@ -469,13 +469,6 @@ export default function CommissionReportsPage() {
       if (statusFilter !== "all") {
         query = query.eq("status", statusFilter);
       }
-      // Assigned area filter
-      if (assignedAreaFilter !== "all") {
-        query = query
-          .eq("user_profiles.assigned_area", assignedAreaFilter)
-          .neq("user_profiles.assigned_area", null)
-          .neq("user_profiles.assigned_area", "");
-      }
 
       // Pagination
       const from = (currentPage - 1) * recordsPerPage;
@@ -507,11 +500,11 @@ export default function CommissionReportsPage() {
         if (statusFilter !== "all") {
           merged = merged.filter((r) => r.status === statusFilter);
         }
-        // Apply assigned area filter if needed
+        // Apply assigned area filter if needed - FIXED
         if (assignedAreaFilter !== "all") {
           merged = merged.filter(
             (r) =>
-              r.user_profiles && // must have a user profile
+              r.user_profiles && 
               r.user_profiles.assigned_area === assignedAreaFilter
           );
         }
@@ -519,9 +512,26 @@ export default function CommissionReportsPage() {
         data = merged.slice(from, from + recordsPerPage);
       } else {
         const result = await query;
-        data = result.data || [];
-        count = result.count || 0;
+        let fetchedData = result.data || [];
+        let fetchedCount = result.count || 0;
         error = result.error;
+
+        // Apply assigned area filter after fetching - FIXED
+        if (assignedAreaFilter !== "all") {
+          fetchedData = fetchedData.filter(
+            (r) =>
+              r.user_profiles && 
+              r.user_profiles.assigned_area === assignedAreaFilter
+          );
+          fetchedCount = fetchedData.length;
+          
+          // Re-apply pagination after filtering
+          data = fetchedData.slice(0, recordsPerPage);
+          count = fetchedCount;
+        } else {
+          data = fetchedData;
+          count = fetchedCount;
+        }
       }
 
       if (error) {
@@ -546,7 +556,8 @@ export default function CommissionReportsPage() {
       const { data, error } = await supabase
         .from("user_profiles")
         .select("assigned_area")
-        .neq("assigned_area", null);
+        .neq("assigned_area", null)
+        .neq("assigned_area", "");
 
       if (!error && data) {
         const allAreas = data
