@@ -90,6 +90,8 @@ export default function CommissionReportsPage() {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [assignedAreas, setAssignedAreas] = useState<string[]>([]);
+  const [assignedAreaFilter, setAssignedAreaFilter] = useState("all");
 
   const statusOptions = [
     { value: "new", label: "New" },
@@ -181,19 +183,19 @@ export default function CommissionReportsPage() {
         }));
 
         // Get existing accounting_pot data
-        const existingData = uploadReport.accounting_pot 
-          ? JSON.parse(uploadReport.accounting_pot) 
+        const existingData = uploadReport.accounting_pot
+          ? JSON.parse(uploadReport.accounting_pot)
           : [];
 
         // Merge with new files
-        const updatedData = Array.isArray(existingData) 
+        const updatedData = Array.isArray(existingData)
           ? [...existingData, ...fileData]
           : fileData;
 
         // Update the database
         const { error: dbError } = await supabase
           .from('commission_report')
-          .update({ 
+          .update({
             accounting_pot: JSON.stringify(updatedData),
             updated_at: new Date().toISOString()
           })
@@ -204,8 +206,8 @@ export default function CommissionReportsPage() {
         }
 
         // Update local state
-        setReports(prev => prev.map(report => 
-          report.uuid === uploadReport.uuid 
+        setReports(prev => prev.map(report =>
+          report.uuid === uploadReport.uuid
             ? { ...report, accounting_pot: JSON.stringify(updatedData) }
             : report
         ));
@@ -228,7 +230,7 @@ export default function CommissionReportsPage() {
     } catch (error) {
       console.error('Upload error:', error);
       setUploadError(error instanceof Error ? error.message : 'Upload failed');
-      
+
       await Swal.fire({
         title: 'Upload Failed',
         text: error instanceof Error ? error.message : 'An unknown error occurred',
@@ -310,11 +312,11 @@ export default function CommissionReportsPage() {
         prev.map((r) =>
           r.uuid === statusUpdateReport.uuid
             ? {
-                ...r,
-                status: dbStatus,
-                remarks: statusRemark,
-                history: newHistory,
-              }
+              ...r,
+              status: dbStatus,
+              remarks: statusRemark,
+              history: newHistory,
+            }
             : r
         )
       );
@@ -332,13 +334,20 @@ export default function CommissionReportsPage() {
 
       let query = supabase
         .from("commission_report")
-        .select("*, user_profiles:created_by(full_name)", { count: "exact" })
+        .select("*, user_profiles:created_by(full_name,assigned_area)", { count: "exact" })
         .is("deleted_at", null)
         .order("created_at", { ascending: false });
 
       // Filtering
       if (statusFilter !== "all") {
         query = query.eq("status", statusFilter);
+      }
+      // Assigned area filter
+      if (assignedAreaFilter !== "all") {
+        query = query
+          .eq("user_profiles.assigned_area", assignedAreaFilter)
+          .neq("user_profiles.assigned_area", null)
+          .neq("user_profiles.assigned_area", "");
       }
 
       // Pagination
@@ -354,12 +363,12 @@ export default function CommissionReportsPage() {
         // Only filter by report_number or remarks, and deleted_at IS NULL
         const { data: reportsByNumber } = await supabase
           .from("commission_report")
-          .select("*, user_profiles:created_by(full_name)")
+          .select("*, user_profiles:created_by(full_name,assigned_area)")
           .ilike("report_number", `%${searchTerm}%`)
           .is("deleted_at", null);
         const { data: reportsByRemarks } = await supabase
           .from("commission_report")
-          .select("*, user_profiles:created_by(full_name)")
+          .select("*, user_profiles:created_by(full_name,assigned_area)")
           .ilike("remarks", `%${searchTerm}%`)
           .is("deleted_at", null);
         let merged = [...(reportsByNumber || []), ...(reportsByRemarks || [])];
@@ -370,6 +379,14 @@ export default function CommissionReportsPage() {
         // Apply status filter if needed
         if (statusFilter !== "all") {
           merged = merged.filter((r) => r.status === statusFilter);
+        }
+        // Apply assigned area filter if needed
+        if (assignedAreaFilter !== "all") {
+          merged = merged.filter(
+            (r) =>
+              r.user_profiles && // must have a user profile
+              r.user_profiles.assigned_area === assignedAreaFilter
+          );
         }
         count = merged.length;
         data = merged.slice(from, from + recordsPerPage);
@@ -391,12 +408,31 @@ export default function CommissionReportsPage() {
         (data || []).map((r: any) => ({
           ...r,
           creator_name: r.user_profiles?.full_name || "",
+          assigned_area: r.user_profiles?.assigned_area || "",
         }))
       );
+
+
+
       setLoading(false);
     };
+
+    const fetchAllAreas = async () => {
+      const { data, error } = await supabase
+        .from("user_profiles")
+        .select("assigned_area")
+        .neq("assigned_area", null);
+
+      if (!error && data) {
+        const allAreas = data
+          .map((r: any) => r.assigned_area)
+          .filter((v: string | undefined) => v && v.trim() !== "");
+        setAssignedAreas(Array.from(new Set(allAreas)));
+      }
+    };
+    fetchAllAreas();
     fetchReports();
-  }, [currentPage, recordsPerPage, searchTerm, statusFilter]);
+  }, [currentPage, recordsPerPage, searchTerm, statusFilter, assignedAreaFilter]);
 
   // Status badge helper (updated for new statuses)
   const getStatusBadge = (status: string) => {
@@ -533,6 +569,19 @@ export default function CommissionReportsPage() {
                     <SelectItem value="for_testing">For Testing</SelectItem>
                   </SelectContent>
                 </Select>
+                <Select value={assignedAreaFilter} onValueChange={setAssignedAreaFilter}>
+                  <SelectTrigger className="w-full sm:w-48 border-blue-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 bg-white text-[#001f3f]">
+                    <SelectValue placeholder="Filter by area" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border-blue-200 text-[#001f3f]">
+                    <SelectItem value="all">All Areas</SelectItem>
+                    {assignedAreas.map((area) => (
+                      <SelectItem key={area} value={area}>
+                        {area}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </CardContent>
           </Card>
@@ -592,6 +641,9 @@ export default function CommissionReportsPage() {
                             </div>
                           </TableHead>
                           <TableHead className="text-blue-700 font-semibold border-b border-blue-200">
+                            Assigned Area
+                          </TableHead>
+                          <TableHead className="text-blue-700 font-semibold border-b border-blue-200">
                             <div className="flex items-center gap-2">
                               <Calendar className="h-4 w-4" />
                               Created Date
@@ -626,8 +678,8 @@ export default function CommissionReportsPage() {
                           </TableRow>
                         ) : (
                           reports.map((report) => {
-                            const attachments = report.accounting_pot 
-                              ? JSON.parse(report.accounting_pot) 
+                            const attachments = report.accounting_pot
+                              ? JSON.parse(report.accounting_pot)
                               : [];
                             const attachmentCount = Array.isArray(attachments) ? attachments.length : 0;
 
@@ -641,6 +693,9 @@ export default function CommissionReportsPage() {
                                 </TableCell>
                                 <TableCell className="text-[#001f3f]">
                                   {report.creator_name}
+                                </TableCell>
+                                <TableCell className="text-[#001f3f]">
+                                  {report.user_profiles?.assigned_area || <span className="text-gray-400">N/A</span>}
                                 </TableCell>
                                 <TableCell className="text-[#001f3f]">
                                   {new Date(report.created_at).toLocaleDateString(
@@ -843,9 +898,8 @@ export default function CommissionReportsPage() {
       {/* Update Status Modal */}
       {statusUpdateReport && (
         <div
-          className={`fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 ${
-            statusModalOpen ? "" : "hidden"
-          }`}
+          className={`fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 ${statusModalOpen ? "" : "hidden"
+            }`}
         >
           <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-6">
             <h2 className="text-lg text-[#001f3f] font-semibold mb-4">
@@ -937,11 +991,11 @@ export default function CommissionReportsPage() {
             >
               <X className="h-5 w-5" />
             </button>
-            
+
             <h2 className="text-lg text-[#001f3f] font-semibold mb-4">
               Upload Attachments to Google Drive
             </h2>
-            
+
             <div className="mb-4 p-3 bg-blue-50 rounded-lg">
               <p className="text-sm text-[#001f3f]">
                 <strong>Report #{uploadReport?.report_number}</strong>
@@ -952,11 +1006,10 @@ export default function CommissionReportsPage() {
             </div>
 
             <div
-              className={`flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-6 mb-4 transition cursor-pointer ${
-                uploading 
-                  ? 'border-gray-300 bg-gray-50 cursor-not-allowed' 
-                  : 'border-blue-400 bg-blue-50 hover:bg-blue-100'
-              }`}
+              className={`flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-6 mb-4 transition cursor-pointer ${uploading
+                ? 'border-gray-300 bg-gray-50 cursor-not-allowed'
+                : 'border-blue-400 bg-blue-50 hover:bg-blue-100'
+                }`}
               onDrop={uploading ? undefined : handleDrop}
               onDragOver={uploading ? undefined : (e) => e.preventDefault()}
               onClick={uploading ? undefined : () =>
