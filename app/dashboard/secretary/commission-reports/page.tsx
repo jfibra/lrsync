@@ -31,7 +31,7 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
-import { Search, Eye, FileText, Calendar, User, Hash, CheckCircle } from 'lucide-react';
+import { Search, Eye, FileText, Calendar, User, Hash, CheckCircle, X, Upload } from 'lucide-react';
 import { CommissionReportViewModal } from "@/components/commission-report-view-modal";
 import { useAuth } from "@/contexts/auth-context";
 
@@ -57,6 +57,7 @@ interface CommissionReport {
     full_name: string;
     assigned_area: string;
   };
+  _attachmentType?: "secretary" | "accounting"
 }
 
 export default function SecretaryCommissionReportsPage() {
@@ -70,6 +71,14 @@ export default function SecretaryCommissionReportsPage() {
   const [totalRecords, setTotalRecords] = useState(0);
   const [selectedReport, setSelectedReport] = useState<CommissionReport | null>(null);
   const [viewModalOpen, setViewModalOpen] = useState(false);
+  // Add here:
+  const [attachmentsModalOpen, setAttachmentsModalOpen] = useState(false);
+  const [selectedAttachmentsReport, setSelectedAttachmentsReport] = useState<CommissionReport | null>(null);
+  const [uploadModalOpen, setUploadModalOpen] = useState(false);
+  const [uploadReport, setUploadReport] = useState<CommissionReport | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   const statusOptions = [
     { value: "new", label: "New" },
@@ -92,64 +101,64 @@ export default function SecretaryCommissionReportsPage() {
 
       setLoading(true);
 
-    try {
-      // First, get all reports with user profiles
-      let query = supabase
-        .from("commission_report")
-        .select("*, user_profiles:created_by(full_name,assigned_area)", { count: "exact" })
-        .is("deleted_at", null)
-        .order("created_at", { ascending: false });
+      try {
+        // First, get all reports with user profiles
+        let query = supabase
+          .from("commission_report")
+          .select("*, user_profiles:created_by(full_name,assigned_area)", { count: "exact" })
+          .is("deleted_at", null)
+          .order("created_at", { ascending: false });
 
-      const { data: allReports, error, count } = await query;
+        const { data: allReports, error, count } = await query;
 
-      if (error) {
-        console.error("Error fetching reports:", error);
+        if (error) {
+          console.error("Error fetching reports:", error);
+          setReports([]);
+          setTotalRecords(0);
+          setLoading(false);
+          return;
+        }
+
+        // Filter reports by secretary's assigned area
+        let filteredReports = (allReports || []).filter(report =>
+          report.user_profiles?.assigned_area === profile.assigned_area
+        );
+
+        // Apply search filter if search term exists
+        if (searchTerm) {
+          filteredReports = filteredReports.filter(report =>
+            report.report_number?.toString().includes(searchTerm) ||
+            report.remarks?.toLowerCase().includes(searchTerm.toLowerCase())
+          );
+        }
+
+        // Apply status filter
+        if (statusFilter !== "all") {
+          filteredReports = filteredReports.filter(report => report.status === statusFilter);
+        }
+
+        // Apply pagination
+        const totalFilteredRecords = filteredReports.length;
+        const from = (currentPage - 1) * recordsPerPage;
+        const to = from + recordsPerPage;
+        const paginatedReports = filteredReports.slice(from, to);
+
+        setTotalRecords(totalFilteredRecords);
+        setReports(paginatedReports);
+
+      } catch (error) {
+        console.error("Error in fetchReports:", error);
         setReports([]);
         setTotalRecords(0);
+      } finally {
         setLoading(false);
-        return;
       }
+    };
 
-      // Filter reports by secretary's assigned area
-      let filteredReports = (allReports || []).filter(report => 
-        report.user_profiles?.assigned_area === profile.assigned_area
-      );
-
-      // Apply search filter if search term exists
-      if (searchTerm) {
-        filteredReports = filteredReports.filter(report => 
-          report.report_number?.toString().includes(searchTerm) ||
-          report.remarks?.toLowerCase().includes(searchTerm.toLowerCase())
-        );
-      }
-
-      // Apply status filter
-      if (statusFilter !== "all") {
-        filteredReports = filteredReports.filter(report => report.status === statusFilter);
-      }
-
-      // Apply pagination
-      const totalFilteredRecords = filteredReports.length;
-      const from = (currentPage - 1) * recordsPerPage;
-      const to = from + recordsPerPage;
-      const paginatedReports = filteredReports.slice(from, to);
-
-      setTotalRecords(totalFilteredRecords);
-      setReports(paginatedReports);
-
-    } catch (error) {
-      console.error("Error in fetchReports:", error);
-      setReports([]);
-      setTotalRecords(0);
-    } finally {
-      setLoading(false);
+    if (profile) {
+      fetchReports();
     }
-  };
-
-  if (profile) {
-    fetchReports();
-  }
-}, [currentPage, recordsPerPage, searchTerm, statusFilter, profile]);
+  }, [currentPage, recordsPerPage, searchTerm, statusFilter, profile]);
 
   // Status badge helper
   const getStatusBadge = (status: string) => {
@@ -188,6 +197,303 @@ export default function SecretaryCommissionReportsPage() {
         {config.label}
       </span>
     );
+  };
+
+  function AttachmentsModal({ report, onClose }) {
+    const [page, setPage] = useState(1);
+    const [perPage, setPerPage] = useState(5);
+
+    // Support both accounting and secretary attachments
+    const attachments = report._attachmentType === "secretary"
+      ? (report.secretary_pot ? JSON.parse(report.secretary_pot) : [])
+      : (report.accounting_pot ? JSON.parse(report.accounting_pot) : []);
+
+    const total = attachments.length;
+    const totalPages = Math.max(1, Math.ceil(total / perPage));
+    const paged = attachments.slice((page - 1) * perPage, page * perPage);
+
+    async function handleDeleteAttachment(globalIdx: number) {
+      if (!report || !report.uuid) return;
+      if (!window.confirm("Are you sure you want to delete this attachment?")) return;
+
+      const fileToDelete = attachments[globalIdx];
+      if (!fileToDelete?.url) {
+        alert("File URL missing.");
+        return;
+      }
+
+      // 1. Delete from S3 via your API route
+      try {
+        const res = await fetch('/api/delete-from-s3-secretary', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: fileToDelete.url }),
+        });
+        const result = await res.json();
+        if (!res.ok) {
+          throw new Error(result.error || "Failed to delete file from S3.");
+        }
+      } catch (err) {
+        alert("Failed to delete file from S3.");
+        return;
+      }
+
+      // 2. Remove from secretary_pot in the database
+      const updated = [...attachments];
+      updated.splice(globalIdx, 1);
+
+      const { error } = await supabase
+        .from("commission_report")
+        .update({
+          secretary_pot: JSON.stringify(updated),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("uuid", report.uuid);
+
+      if (error) {
+        alert("Failed to update database after S3 delete.");
+        return;
+      }
+
+      // Optionally, update the UI or close the modal
+      onClose();
+    }
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+        <div className="bg-white rounded-lg shadow-lg max-w-2xl w-full p-6 relative max-h-[90vh] overflow-y-auto border-2 border-purple-200">
+          <button
+            className="absolute top-3 right-3 text-gray-400 hover:text-red-500"
+            onClick={onClose}
+          >
+            <X className="h-5 w-5" />
+          </button>
+          <h2 className="text-lg text-[#001f3f] font-semibold mb-4">
+            Attachments for Report <span className="text-purple-700">#{report.report_number}</span>
+          </h2>
+          <div className="mb-4 flex justify-between items-center">
+            <span className="text-sm text-gray-700">
+              Showing <span className="font-semibold text-[#001f3f]">{Math.min((page - 1) * perPage + 1, total)}</span> to <span className="font-semibold text-[#001f3f]">{Math.min(page * perPage, total)}</span> of <span className="font-semibold text-[#001f3f]">{total}</span> files
+            </span>
+            <div>
+              <label className="mr-2 text-sm text-[#001f3f]">Show</label>
+              <select
+                value={perPage}
+                onChange={e => { setPerPage(Number(e.target.value)); setPage(1); }}
+                className="border border-purple-200 rounded px-2 py-1 text-sm text-[#001f3f] bg-white"
+              >
+                {[5, 10, 25, 50].map(n => (
+                  <option key={n} value={n}>{n}</option>
+                ))}
+              </select>
+              <span className="ml-2 text-sm text-[#001f3f]">per page</span>
+            </div>
+          </div>
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-purple-50 border-b border-purple-200">
+                <TableHead className="text-purple-700 font-semibold">#</TableHead>
+                <TableHead className="text-purple-700 font-semibold">File Name</TableHead>
+                <TableHead className="text-purple-700 font-semibold">Uploaded At</TableHead>
+                <TableHead className="text-purple-700 font-semibold text-center">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {paged.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center text-gray-400 py-6">
+                    No attachments found.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                paged.map((file, idx) => (
+                  <TableRow
+                    key={idx}
+                    className="hover:bg-purple-50 transition-colors"
+                  >
+                    <TableCell className="text-[#001f3f] font-medium">{(page - 1) * perPage + idx + 1}</TableCell>
+                    <TableCell className="truncate max-w-xs text-[#001f3f]">{file.name}</TableCell>
+                    <TableCell className="text-[#001f3f]">
+                      {file.uploadedAt
+                        ? new Date(file.uploadedAt).toLocaleString()
+                        : ""}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="mr-2 border-purple-400 bg-white text-purple-700 hover:bg-purple-100 hover:text-purple-900"
+                        onClick={() => window.open(file.url, "_blank")}
+                      >
+                        View
+                      </Button>
+                      {report._attachmentType === "secretary" && (
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          className="ml-2"
+                          onClick={() => handleDeleteAttachment((page - 1) * perPage + idx)}
+                        >
+                          Delete
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+          <div className="flex justify-between items-center mt-4">
+            <div className="text-[#001f3f]">
+              Page {page} of {totalPages}
+            </div>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-purple-400 text-purple-700"
+                disabled={page === 1}
+                onClick={() => setPage(page - 1)}
+              >
+                Prev
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-purple-400 text-purple-700"
+                disabled={page === totalPages || totalPages === 0}
+                onClick={() => setPage(page + 1)}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Handler for opening the modal
+  const handleOpenUploadModal = (report: CommissionReport) => {
+    setUploadReport(report);
+    setSelectedFiles([]);
+    setUploadError(null);
+    setUploadModalOpen(true);
+  };
+
+  // Dropzone handlers
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (uploading) return;
+    const files = Array.from(e.dataTransfer.files);
+    handleFiles(files);
+  };
+
+  const handleFiles = (files: File[]) => {
+    const allowed = files.filter(
+      (file) =>
+        file.type.startsWith("image/") || file.type === "application/pdf"
+    );
+    if (allowed.length !== files.length) {
+      setUploadError("Only image and PDF files are allowed.");
+    } else {
+      setUploadError(null);
+    }
+    setSelectedFiles((prev) => [...prev, ...allowed]);
+  };
+
+  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      handleFiles(Array.from(e.target.files));
+    }
+  };
+
+  const handleRemoveFile = (idx: number) => {
+    setSelectedFiles((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  // Upload handler
+  const handleUpload = async () => {
+    if (!uploadReport || selectedFiles.length === 0) return;
+
+    setUploading(true);
+    setUploadError(null);
+
+    try {
+      const formData = new FormData();
+      selectedFiles.forEach((file) => {
+        formData.append('files', file);
+      });
+      formData.append('reportId', uploadReport.uuid);
+      formData.append('assigned_area', uploadReport.user_profiles?.assigned_area || 'Unknown');
+      formData.append('created_date', uploadReport.created_at);
+      formData.append('report_number', uploadReport.report_number?.toString() || '');
+      const existingData = uploadReport.secretary_pot ? JSON.parse(uploadReport.secretary_pot) : [];
+      formData.append('existing_count', Array.isArray(existingData) ? existingData.length.toString() : '0');
+
+      const response = await fetch('/api/upload-to-s3-secretary', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Upload failed');
+      }
+
+      const successfulUploads = result.files.filter((file: any) => file.url);
+      const failedUploads = result.files.filter((file: any) => !file.url);
+
+      if (failedUploads.length > 0) {
+        setUploadError(`${failedUploads.length} file(s) failed to upload.`);
+      }
+
+      if (successfulUploads.length > 0) {
+        const fileData = successfulUploads.map((file: any) => ({
+          name: file.name,
+          url: file.url,
+          uploadedAt: new Date().toISOString(),
+        }));
+
+        const existingData = uploadReport.secretary_pot
+          ? JSON.parse(uploadReport.secretary_pot)
+          : [];
+
+        const updatedData = Array.isArray(existingData)
+          ? [...existingData, ...fileData]
+          : fileData;
+
+        const { error: dbError } = await supabase
+          .from('commission_report')
+          .update({
+            secretary_pot: JSON.stringify(updatedData),
+            updated_at: new Date().toISOString()
+          })
+          .eq('uuid', uploadReport.uuid);
+
+        if (dbError) {
+          throw new Error(`Database update failed: ${dbError.message}`);
+        }
+
+        setReports(prev => prev.map(report =>
+          report.uuid === uploadReport.uuid
+            ? { ...report, secretary_pot: JSON.stringify(updatedData) }
+            : report
+        ));
+
+        setUploadModalOpen(false);
+        setSelectedFiles([]);
+        setUploadReport(null);
+      } else {
+        throw new Error('All files failed to upload');
+      }
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : 'Upload failed');
+    } finally {
+      setUploading(false);
+    }
   };
 
   const handleViewReport = (report: CommissionReport) => {
@@ -332,6 +638,9 @@ export default function SecretaryCommissionReportsPage() {
                             Attachments (Accounting)
                           </TableHead>
                           <TableHead className="text-purple-700 font-semibold border-b border-purple-200">
+                            Attachments (Secretary)
+                          </TableHead>
+                          <TableHead className="text-purple-700 font-semibold border-b border-purple-200">
                             Remarks
                           </TableHead>
                           <TableHead className="text-center text-purple-700 font-semibold border-b border-purple-200">
@@ -351,10 +660,11 @@ export default function SecretaryCommissionReportsPage() {
                           </TableRow>
                         ) : (
                           reports.map((report) => {
-                            const attachments = report.accounting_pot
-                              ? JSON.parse(report.accounting_pot)
-                              : [];
+                            const attachments = report.accounting_pot ? JSON.parse(report.accounting_pot) : [];
                             const attachmentCount = Array.isArray(attachments) ? attachments.length : 0;
+
+                            const secretaryAttachments = report.secretary_pot ? JSON.parse(report.secretary_pot) : [];
+                            const secretaryAttachmentCount = Array.isArray(secretaryAttachments) ? secretaryAttachments.length : 0;
 
                             return (
                               <TableRow
@@ -391,7 +701,17 @@ export default function SecretaryCommissionReportsPage() {
                                   <div className="flex items-center gap-2">
                                     <Badge
                                       variant={attachmentCount > 0 ? "default" : "secondary"}
-                                      className={attachmentCount > 0 ? "bg-green-600" : ""}
+                                      className={attachmentCount > 0 ? "bg-green-600 cursor-pointer hover:bg-green-700" : ""}
+                                      onClick={() => {
+                                        if (attachmentCount > 0) {
+                                          setSelectedAttachmentsReport({
+                                            ...report,
+                                            _attachmentType: "accounting"
+                                          });
+                                          setAttachmentsModalOpen(true);
+                                        }
+                                      }}
+                                      style={{ pointerEvents: attachmentCount > 0 ? "auto" : "none" }}
                                     >
                                       {attachmentCount} files
                                     </Badge>
@@ -400,19 +720,56 @@ export default function SecretaryCommissionReportsPage() {
                                     )}
                                   </div>
                                 </TableCell>
+                                <TableCell>
+                                  <div className="flex items-center gap-2">
+                                    <Badge
+                                      variant={secretaryAttachmentCount > 0 ? "default" : "secondary"}
+                                      className={secretaryAttachmentCount > 0 ? "bg-blue-600 cursor-pointer hover:bg-blue-700" : ""}
+                                      onClick={() => {
+                                        if (secretaryAttachmentCount > 0) {
+                                          setSelectedAttachmentsReport({
+                                            ...report,
+                                            _attachmentType: "secretary"
+                                          });
+                                          setAttachmentsModalOpen(true);
+                                        }
+                                      }}
+                                      style={{ pointerEvents: secretaryAttachmentCount > 0 ? "auto" : "none" }}
+                                    >
+                                      {secretaryAttachmentCount} files
+                                    </Badge>
+                                    {secretaryAttachmentCount > 0 && (
+                                      <CheckCircle className="h-4 w-4 text-blue-600" />
+                                    )}
+                                  </div>
+                                </TableCell>
                                 <TableCell className="max-w-xs truncate text-[#001f3f]">
                                   {report.remarks || "No remarks"}
                                 </TableCell>
                                 <TableCell className="text-right">
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => handleViewReport(report)}
-                                    className="gap-1 bg-white border-purple-500 text-purple-700 hover:bg-purple-100 hover:border-purple-600 hover:text-purple-900 text-xs px-2 py-1"
-                                  >
-                                    <Eye className="h-3 w-3" />
-                                    View
-                                  </Button>
+                                  <div className="flex gap-1 justify-end flex-wrap">
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => handleViewReport(report)}
+                                      className="gap-1 bg-white border-purple-500 text-purple-700 hover:bg-purple-100 hover:border-purple-600 hover:text-purple-900 text-xs px-2 py-1"
+                                    >
+                                      <Eye className="h-3 w-3" />
+                                      View
+                                    </Button>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="gap-1 bg-white border-green-500 text-green-700 hover:bg-green-100 hover:border-green-600 hover:text-green-900 text-xs px-2 py-1"
+                                      onClick={() => {
+                                        setUploadReport(report);
+                                        setUploadModalOpen(true);
+                                      }}
+                                    >
+                                      <Upload className="h-3 w-3" />
+                                      Upload
+                                    </Button>
+                                  </div>
                                 </TableCell>
                               </TableRow>
                             );
@@ -543,6 +900,131 @@ export default function SecretaryCommissionReportsPage() {
           }}
           report={selectedReport}
         />
+      )}
+      {attachmentsModalOpen && selectedAttachmentsReport && (
+        <AttachmentsModal
+          report={selectedAttachmentsReport}
+          onClose={() => setAttachmentsModalOpen(false)}
+        />
+      )}
+      {uploadModalOpen && uploadReport && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+          <div className="bg-white rounded-lg shadow-lg max-w-lg w-full p-6 relative max-h-[90vh] overflow-y-auto">
+            <button
+              className="absolute top-3 right-3 text-gray-400 hover:text-red-500"
+              onClick={() => setUploadModalOpen(false)}
+              disabled={uploading}
+            >
+              <X className="h-5 w-5" />
+            </button>
+            <h2 className="text-lg text-[#001f3f] font-semibold mb-4">
+              Upload Attachments
+            </h2>
+            <div className="mb-4 p-3 bg-purple-50 rounded-lg">
+              <p className="text-sm text-[#001f3f]">
+                <strong>Report #{uploadReport?.report_number}</strong>
+              </p>
+              <p className="text-xs text-gray-600">
+                Files will be uploaded to our server and made publicly viewable
+              </p>
+            </div>
+            <div
+              className={`flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-6 mb-4 transition cursor-pointer ${uploading
+                ? 'border-gray-300 bg-gray-50 cursor-not-allowed'
+                : 'border-purple-400 bg-purple-50 hover:bg-purple-100'
+                }`}
+              onDrop={uploading ? undefined : handleDrop}
+              onDragOver={uploading ? undefined : (e) => e.preventDefault()}
+              onClick={uploading ? undefined : () =>
+                document.getElementById("file-upload-input")?.click()
+              }
+            >
+              <Upload className={`h-10 w-10 mb-2 ${uploading ? 'text-gray-400' : 'text-purple-400'}`} />
+              <p className={`font-medium mb-1 ${uploading ? 'text-gray-500' : 'text-[#001f3f]'}`}>
+                {uploading ? 'Uploading...' : 'Click to select files or drag and drop here'}
+              </p>
+              <p className="text-xs text-gray-500">
+                Only image or PDF files are allowed.
+              </p>
+              <input
+                id="file-upload-input"
+                type="file"
+                accept="image/*,application/pdf"
+                multiple
+                className="hidden"
+                onChange={handleFileInput}
+                disabled={uploading}
+              />
+            </div>
+            {uploadError && (
+              <div className="text-red-600 text-sm mb-4 p-3 bg-red-50 rounded-lg">
+                {uploadError}
+              </div>
+            )}
+            {selectedFiles.length > 0 && (
+              <div className="mb-4">
+                <p className="text-sm text-[#001f3f] font-medium mb-2">
+                  Selected Files ({selectedFiles.length}):
+                </p>
+                <div className="max-h-32 overflow-y-auto">
+                  <ul className="space-y-1">
+                    {selectedFiles.map((file, idx) => (
+                      <li
+                        key={idx}
+                        className="flex items-center justify-between bg-purple-100 rounded px-3 py-2"
+                      >
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          <FileText className="h-4 w-4 text-purple-600 flex-shrink-0" />
+                          <span className="truncate text-sm text-[#001f3f]">
+                            {file.name}
+                          </span>
+                          <span className="text-xs text-gray-500 flex-shrink-0">
+                            ({(file.size / 1024 / 1024).toFixed(2)} MB)
+                          </span>
+                        </div>
+                        {!uploading && (
+                          <button
+                            className="ml-2 text-red-500 hover:text-red-700 flex-shrink-0"
+                            onClick={() => handleRemoveFile(idx)}
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            )}
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setUploadModalOpen(false)}
+                className="border-[#001f3f] bg-white text-[#001f3f]"
+                disabled={uploading}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleUpload}
+                className="bg-[#a259f7] hover:bg-[#8e44ad] text-white"
+                disabled={uploading || selectedFiles.length === 0}
+              >
+                {uploading ? (
+                  <div className="flex items-center gap-2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    Uploading...
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <Upload className="h-4 w-4" />
+                    Upload Attachments
+                  </div>
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
     </ProtectedRoute>
   );

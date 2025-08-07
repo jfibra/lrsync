@@ -261,10 +261,12 @@ export default function CommissionReportsPage() {
   function AttachmentsModal({ report, onClose, onDeleteAttachment }) {
     const [page, setPage] = useState(1);
     const [perPage, setPerPage] = useState(5);
+    const secretaryAttachments = report.secretary_pot ? JSON.parse(report.secretary_pot) : [];
+    const secretaryAttachmentCount = Array.isArray(secretaryAttachments) ? secretaryAttachments.length : 0;
 
-    const attachments = report.accounting_pot
-      ? JSON.parse(report.accounting_pot)
-      : [];
+    const attachments = report._attachmentType === "secretary"
+      ? (report.secretary_pot ? JSON.parse(report.secretary_pot) : [])
+      : (report.accounting_pot ? JSON.parse(report.accounting_pot) : []);
     const total = attachments.length;
     const totalPages = Math.max(1, Math.ceil(total / perPage));
     const paged = attachments.slice((page - 1) * perPage, page * perPage);
@@ -279,7 +281,7 @@ export default function CommissionReportsPage() {
             <X className="h-5 w-5" />
           </button>
           <h2 className="text-lg text-[#001f3f] font-semibold mb-4">
-            Attachments By Accounting Department for Report <span className="text-blue-700">#{report.report_number}</span>
+            Attachments for Report <span className="text-blue-700">#{report.report_number}</span>
           </h2>
           <div className="mb-4 flex justify-between items-center">
             <span className="text-sm text-gray-700">
@@ -504,7 +506,7 @@ export default function CommissionReportsPage() {
         if (assignedAreaFilter !== "all") {
           merged = merged.filter(
             (r) =>
-              r.user_profiles && 
+              r.user_profiles &&
               r.user_profiles.assigned_area === assignedAreaFilter
           );
         }
@@ -520,11 +522,11 @@ export default function CommissionReportsPage() {
         if (assignedAreaFilter !== "all") {
           fetchedData = fetchedData.filter(
             (r) =>
-              r.user_profiles && 
+              r.user_profiles &&
               r.user_profiles.assigned_area === assignedAreaFilter
           );
           fetchedCount = fetchedData.length;
-          
+
           // Re-apply pagination after filtering
           data = fetchedData.slice(0, recordsPerPage);
           count = fetchedCount;
@@ -795,6 +797,9 @@ export default function CommissionReportsPage() {
                             Attachments (Accounting)
                           </TableHead>
                           <TableHead className="text-blue-700 font-semibold border-b border-blue-200">
+                            Attachments (Secretary)
+                          </TableHead>
+                          <TableHead className="text-blue-700 font-semibold border-b border-blue-200">
                             Remarks
                           </TableHead>
                           <TableHead className="text-center text-blue-700 font-semibold border-b border-blue-200">
@@ -818,6 +823,10 @@ export default function CommissionReportsPage() {
                               ? JSON.parse(report.accounting_pot)
                               : [];
                             const attachmentCount = Array.isArray(attachments) ? attachments.length : 0;
+
+                            // Add these lines:
+                            const secretaryAttachments = report.secretary_pot ? JSON.parse(report.secretary_pot) : [];
+                            const secretaryAttachmentCount = Array.isArray(secretaryAttachments) ? secretaryAttachments.length : 0;
 
                             return (
                               <TableRow
@@ -873,6 +882,29 @@ export default function CommissionReportsPage() {
                                     </Badge>
                                     {attachmentCount > 0 && (
                                       <CheckCircle className="h-4 w-4 text-green-600" />
+                                    )}
+                                  </div>
+                                </TableCell>
+                                <TableCell>
+                                  <div className="flex items-center gap-2">
+                                    <Badge
+                                      variant={secretaryAttachmentCount > 0 ? "default" : "secondary"}
+                                      className={secretaryAttachmentCount > 0 ? "bg-purple-600 cursor-pointer hover:bg-purple-700" : ""}
+                                      onClick={() => {
+                                        if (secretaryAttachmentCount > 0) {
+                                          setSelectedAttachmentsReport({
+                                            ...report,
+                                            _attachmentType: "secretary"
+                                          });
+                                          setAttachmentsModalOpen(true);
+                                        }
+                                      }}
+                                      style={{ pointerEvents: secretaryAttachmentCount > 0 ? "auto" : "none" }}
+                                    >
+                                      {secretaryAttachmentCount} files
+                                    </Badge>
+                                    {secretaryAttachmentCount > 0 && (
+                                      <CheckCircle className="h-4 w-4 text-purple-600" />
                                     )}
                                   </div>
                                 </TableCell>
@@ -1254,40 +1286,40 @@ export default function CommissionReportsPage() {
           report={selectedAttachmentsReport}
           onClose={() => setAttachmentsModalOpen(false)}
           onDeleteAttachment={async (fileIdx) => {
-            const attachments = selectedAttachmentsReport.accounting_pot
-              ? JSON.parse(selectedAttachmentsReport.accounting_pot)
-              : [];
+            // Use secretary_pot if _attachmentType is secretary, else accounting_pot
+            const isSecretary = selectedAttachmentsReport._attachmentType === "secretary";
+            const attachments = isSecretary
+              ? (selectedAttachmentsReport.secretary_pot ? JSON.parse(selectedAttachmentsReport.secretary_pot) : [])
+              : (selectedAttachmentsReport.accounting_pot ? JSON.parse(selectedAttachmentsReport.accounting_pot) : []);
             const fileToDelete = attachments[fileIdx];
-
-            // Extract S3 key from the file URL
             const s3Url = fileToDelete.url;
-            const s3Key = s3Url.split(".amazonaws.com/")[1]; // everything after the bucket domain
-
-            // Call API to delete from S3
-            await fetch("/api/delete-from-s3", {
+            // For secretary, use your secretary delete API; for accounting, use accounting API
+            await fetch(isSecretary ? "/api/delete-from-s3-secretary" : "/api/delete-from-s3", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ key: s3Key }),
+              body: isSecretary
+                ? JSON.stringify({ url: s3Url })
+                : JSON.stringify({ key: s3Url.split(".amazonaws.com/")[1] }),
             });
 
-            // Remove from DB
             const updated = attachments.filter((_, idx) => idx !== fileIdx);
+            const updateField = isSecretary ? { secretary_pot: JSON.stringify(updated) } : { accounting_pot: JSON.stringify(updated) };
             const { error } = await supabase
               .from("commission_report")
-              .update({ accounting_pot: JSON.stringify(updated) })
+              .update(updateField)
               .eq("uuid", selectedAttachmentsReport.uuid);
 
             if (!error) {
               setReports((prev) =>
                 prev.map((r) =>
                   r.uuid === selectedAttachmentsReport.uuid
-                    ? { ...r, accounting_pot: JSON.stringify(updated) }
+                    ? { ...r, ...(isSecretary ? { secretary_pot: JSON.stringify(updated) } : { accounting_pot: JSON.stringify(updated) }) }
                     : r
                 )
               );
               setSelectedAttachmentsReport((prev) =>
                 prev
-                  ? { ...prev, accounting_pot: JSON.stringify(updated) }
+                  ? { ...prev, ...(isSecretary ? { secretary_pot: JSON.stringify(updated) } : { accounting_pot: JSON.stringify(updated) }) }
                   : prev
               );
             }
