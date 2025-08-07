@@ -37,8 +37,8 @@ export function DashboardMenuCards({ userRole }: DashboardMenuCardsProps) {
             badgeColor: "bg-green-100 text-green-800"
           },
           {
-            title: "Commission Management",
-            description: "Track and calculate commissions",
+            title: "Commission Generator",
+            description: "Track sales and calculate commissions",
             icon: Calculator,
             href: "/dashboard/super-admin/commission",
             color: "from-purple-500 to-purple-600",
@@ -91,8 +91,8 @@ export function DashboardMenuCards({ userRole }: DashboardMenuCardsProps) {
             badgeColor: "bg-green-100 text-green-800"
           },
           {
-            title: "Commission Management",
-            description: "Track and calculate commissions",
+            title: "Commission Generator",
+            description: "Track sales and calculate commissions",
             icon: Calculator,
             href: "/dashboard/admin/commission",
             color: "from-purple-500 to-purple-600",
@@ -125,8 +125,8 @@ export function DashboardMenuCards({ userRole }: DashboardMenuCardsProps) {
             badgeColor: "bg-green-100 text-green-800"
           },
           {
-            title: "Commission Management",
-            description: "Track and calculate commissions",
+            title: "Commission Generator",
+            description: "Track sales and calculate commissions",
             icon: Calculator,
             href: "/dashboard/secretary/commission",
             color: "from-purple-500 to-purple-600",
