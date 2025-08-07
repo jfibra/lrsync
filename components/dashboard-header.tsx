@@ -45,16 +45,16 @@ export function DashboardHeader() {
         roles: ["super_admin", "admin", "secretary"],
       },
       {
-        label: "Users",
-        href: (role: string) => `/dashboard/${role.replace("_", "-")}/users`, // Re-added replace
-        icon: Users,
-        roles: ["super_admin", "admin"],
-      },
-      {
         label: "Commission Generator",
         href: (role: string) => `/dashboard/${role.replace("_", "-")}/commission`, // Re-added replace
         icon: Users,
         roles: ["super_admin", "admin", "secretary"],
+      },
+      {
+        label: "Users",
+        href: (role: string) => `/dashboard/${role.replace("_", "-")}/users`, // Re-added replace
+        icon: Users,
+        roles: ["super_admin", "admin"],
       },
       {
         label: "My Profile",

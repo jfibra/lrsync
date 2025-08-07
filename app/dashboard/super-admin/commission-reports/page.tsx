@@ -92,6 +92,8 @@ export default function CommissionReportsPage() {
   const [uploading, setUploading] = useState(false);
   const [assignedAreas, setAssignedAreas] = useState<string[]>([]);
   const [assignedAreaFilter, setAssignedAreaFilter] = useState("all");
+  const [attachmentsModalOpen, setAttachmentsModalOpen] = useState(false);
+  const [selectedAttachmentsReport, setSelectedAttachmentsReport] = useState<CommissionReport | null>(null);
 
   const statusOptions = [
     { value: "new", label: "New" },
@@ -146,15 +148,18 @@ export default function CommissionReportsPage() {
     setUploadError(null);
 
     try {
-      // Create FormData for the API call
       const formData = new FormData();
       selectedFiles.forEach((file) => {
         formData.append('files', file);
       });
       formData.append('reportId', uploadReport.uuid);
+      formData.append('assigned_area', uploadReport.user_profiles?.assigned_area || 'Unknown');
+      formData.append('created_date', uploadReport.created_at);
+      formData.append('report_number', uploadReport.report_number?.toString() || '');
+      const existingData = uploadReport.accounting_pot ? JSON.parse(uploadReport.accounting_pot) : [];
+      formData.append('existing_count', Array.isArray(existingData) ? existingData.length.toString() : '0');
 
-      // Call the API route
-      const response = await fetch('/api/upload-to-drive', {
+      const response = await fetch('/api/upload-to-s3', {
         method: 'POST',
         body: formData,
       });
@@ -165,34 +170,28 @@ export default function CommissionReportsPage() {
         throw new Error(result.error || 'Upload failed');
       }
 
-      // Filter out files with errors
-      const successfulUploads = result.files.filter((file: UploadedFile) => !file.error);
-      const failedUploads = result.files.filter((file: UploadedFile) => file.error);
+      const successfulUploads = result.files.filter((file: any) => file.url);
+      const failedUploads = result.files.filter((file: any) => !file.url);
 
       if (failedUploads.length > 0) {
         console.warn('Some files failed to upload:', failedUploads);
       }
 
       if (successfulUploads.length > 0) {
-        // Prepare the file data to save to database
-        const fileData = successfulUploads.map((file: UploadedFile) => ({
-          name: file.originalName,
-          webViewLink: file.webViewLink,
-          webContentLink: file.webContentLink,
+        const fileData = successfulUploads.map((file: any) => ({
+          name: file.name,
+          url: file.url,
           uploadedAt: new Date().toISOString(),
         }));
 
-        // Get existing accounting_pot data
         const existingData = uploadReport.accounting_pot
           ? JSON.parse(uploadReport.accounting_pot)
           : [];
 
-        // Merge with new files
         const updatedData = Array.isArray(existingData)
           ? [...existingData, ...fileData]
           : fileData;
 
-        // Update the database
         const { error: dbError } = await supabase
           .from('commission_report')
           .update({
@@ -205,14 +204,12 @@ export default function CommissionReportsPage() {
           throw new Error(`Database update failed: ${dbError.message}`);
         }
 
-        // Update local state
         setReports(prev => prev.map(report =>
           report.uuid === uploadReport.uuid
             ? { ...report, accounting_pot: JSON.stringify(updatedData) }
             : report
         ));
 
-        // Show success message
         await Swal.fire({
           title: 'Success!',
           text: `${successfulUploads.length} file(s) uploaded successfully${failedUploads.length > 0 ? `. ${failedUploads.length} file(s) failed.` : '.'}`,
@@ -220,7 +217,6 @@ export default function CommissionReportsPage() {
           confirmButtonColor: '#4284f2',
         });
 
-        // Close modal and reset
         setUploadModalOpen(false);
         setSelectedFiles([]);
         setUploadReport(null);
@@ -261,6 +257,137 @@ export default function CommissionReportsPage() {
         return val;
     }
   };
+
+  function AttachmentsModal({ report, onClose, onDeleteAttachment }) {
+    const [page, setPage] = useState(1);
+    const [perPage, setPerPage] = useState(5);
+
+    const attachments = report.accounting_pot
+      ? JSON.parse(report.accounting_pot)
+      : [];
+    const total = attachments.length;
+    const totalPages = Math.max(1, Math.ceil(total / perPage));
+    const paged = attachments.slice((page - 1) * perPage, page * perPage);
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+        <div className="bg-white rounded-lg shadow-lg max-w-2xl w-full p-6 relative max-h-[90vh] overflow-y-auto border-2 border-blue-200">
+          <button
+            className="absolute top-3 right-3 text-gray-400 hover:text-red-500"
+            onClick={onClose}
+          >
+            <X className="h-5 w-5" />
+          </button>
+          <h2 className="text-lg text-[#001f3f] font-semibold mb-4">
+            Attachments By Accounting Department for Report <span className="text-blue-700">#{report.report_number}</span>
+          </h2>
+          <div className="mb-4 flex justify-between items-center">
+            <span className="text-sm text-gray-700">
+              Showing <span className="font-semibold text-[#001f3f]">{Math.min((page - 1) * perPage + 1, total)}</span> to <span className="font-semibold text-[#001f3f]">{Math.min(page * perPage, total)}</span> of <span className="font-semibold text-[#001f3f]">{total}</span> files
+            </span>
+            <div>
+              <label className="mr-2 text-sm text-[#001f3f]">Show</label>
+              <select
+                value={perPage}
+                onChange={e => { setPerPage(Number(e.target.value)); setPage(1); }}
+                className="border border-blue-200 rounded px-2 py-1 text-sm text-[#001f3f] bg-white"
+              >
+                {[5, 10, 25, 50].map(n => (
+                  <option key={n} value={n}>{n}</option>
+                ))}
+              </select>
+              <span className="ml-2 text-sm text-[#001f3f]">per page</span>
+            </div>
+          </div>
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-blue-50 border-b border-blue-200">
+                <TableHead className="text-blue-700 font-semibold">#</TableHead>
+                <TableHead className="text-blue-700 font-semibold">File Name</TableHead>
+                <TableHead className="text-blue-700 font-semibold">Uploaded At</TableHead>
+                <TableHead className="text-blue-700 font-semibold text-center">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {paged.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center text-gray-400 py-6">
+                    No attachments found.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                paged.map((file, idx) => (
+                  <TableRow
+                    key={idx}
+                    className="hover:bg-blue-50 transition-colors"
+                  >
+                    <TableCell className="text-[#001f3f] font-medium">{(page - 1) * perPage + idx + 1}</TableCell>
+                    <TableCell className="truncate max-w-xs text-[#001f3f]">{file.name}</TableCell>
+                    <TableCell className="text-[#001f3f]">
+                      {file.uploadedAt
+                        ? new Date(file.uploadedAt).toLocaleString()
+                        : ""}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="mr-2 border-blue-400 bg-white text-blue-700 hover:bg-blue-100 hover:text-blue-900"
+                        onClick={() => window.open(file.url, "_blank")}
+                      >
+                        View
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        className="border-red-400 text-white hover:bg-red-100 hover:text-red-900"
+                        onClick={() => {
+                          if (
+                            window.confirm(
+                              "Are you sure you want to delete this attachment?"
+                            )
+                          ) {
+                            onDeleteAttachment((page - 1) * perPage + idx);
+                          }
+                        }}
+                      >
+                        Delete
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+          <div className="flex justify-between items-center mt-4">
+            <div className="text-[#001f3f]">
+              Page {page} of {totalPages}
+            </div>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-blue-400 text-blue-700"
+                disabled={page === 1}
+                onClick={() => setPage(page - 1)}
+              >
+                Prev
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-blue-400 text-blue-700"
+                disabled={page === totalPages || totalPages === 0}
+                onClick={() => setPage(page + 1)}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const handleOpenStatusModal = (report: CommissionReport) => {
     setStatusUpdateReport(report);
@@ -411,8 +538,6 @@ export default function CommissionReportsPage() {
           assigned_area: r.user_profiles?.assigned_area || "",
         }))
       );
-
-
 
       setLoading(false);
     };
@@ -656,7 +781,7 @@ export default function CommissionReportsPage() {
                             Sales Count
                           </TableHead>
                           <TableHead className="text-blue-700 font-semibold border-b border-blue-200">
-                            Attachments
+                            Attachments (Accounting)
                           </TableHead>
                           <TableHead className="text-blue-700 font-semibold border-b border-blue-200">
                             Remarks
@@ -724,7 +849,14 @@ export default function CommissionReportsPage() {
                                   <div className="flex items-center gap-2">
                                     <Badge
                                       variant={attachmentCount > 0 ? "default" : "secondary"}
-                                      className={attachmentCount > 0 ? "bg-green-600" : ""}
+                                      className={attachmentCount > 0 ? "bg-green-600 cursor-pointer hover:bg-green-700" : ""}
+                                      onClick={() => {
+                                        if (attachmentCount > 0) {
+                                          setSelectedAttachmentsReport(report);
+                                          setAttachmentsModalOpen(true);
+                                        }
+                                      }}
+                                      style={{ pointerEvents: attachmentCount > 0 ? "auto" : "none" }}
                                     >
                                       {attachmentCount} files
                                     </Badge>
@@ -993,7 +1125,7 @@ export default function CommissionReportsPage() {
             </button>
 
             <h2 className="text-lg text-[#001f3f] font-semibold mb-4">
-              Upload Attachments to Google Drive
+              Upload Attachments
             </h2>
 
             <div className="mb-4 p-3 bg-blue-50 rounded-lg">
@@ -1001,7 +1133,7 @@ export default function CommissionReportsPage() {
                 <strong>Report #{uploadReport?.report_number}</strong>
               </p>
               <p className="text-xs text-gray-600">
-                Files will be uploaded to Google Drive and made publicly viewable
+                Files will be uploaded to our server and made publicly viewable
               </p>
             </div>
 
@@ -1098,13 +1230,58 @@ export default function CommissionReportsPage() {
                 ) : (
                   <div className="flex items-center gap-2">
                     <Upload className="h-4 w-4" />
-                    Upload to Drive
+                    Upload Attachments
                   </div>
                 )}
               </Button>
             </div>
           </div>
         </div>
+      )}
+      {attachmentsModalOpen && selectedAttachmentsReport && (
+        <AttachmentsModal
+          report={selectedAttachmentsReport}
+          onClose={() => setAttachmentsModalOpen(false)}
+          onDeleteAttachment={async (fileIdx) => {
+            const attachments = selectedAttachmentsReport.accounting_pot
+              ? JSON.parse(selectedAttachmentsReport.accounting_pot)
+              : [];
+            const fileToDelete = attachments[fileIdx];
+
+            // Extract S3 key from the file URL
+            const s3Url = fileToDelete.url;
+            const s3Key = s3Url.split(".amazonaws.com/")[1]; // everything after the bucket domain
+
+            // Call API to delete from S3
+            await fetch("/api/delete-from-s3", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ key: s3Key }),
+            });
+
+            // Remove from DB
+            const updated = attachments.filter((_, idx) => idx !== fileIdx);
+            const { error } = await supabase
+              .from("commission_report")
+              .update({ accounting_pot: JSON.stringify(updated) })
+              .eq("uuid", selectedAttachmentsReport.uuid);
+
+            if (!error) {
+              setReports((prev) =>
+                prev.map((r) =>
+                  r.uuid === selectedAttachmentsReport.uuid
+                    ? { ...r, accounting_pot: JSON.stringify(updated) }
+                    : r
+                )
+              );
+              setSelectedAttachmentsReport((prev) =>
+                prev
+                  ? { ...prev, accounting_pot: JSON.stringify(updated) }
+                  : prev
+              );
+            }
+          }}
+        />
       )}
     </ProtectedRoute>
   );
