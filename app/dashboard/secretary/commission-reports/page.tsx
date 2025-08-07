@@ -53,7 +53,6 @@ interface CommissionReport {
     timestamp: string;
     user_name: string;
   }>;
-  creator_name?: string;
   user_profiles?: {
     full_name: string;
     assigned_area: string;
@@ -97,10 +96,9 @@ export default function SecretaryCommissionReportsPage() {
         .from("commission_report")
         .select("*, user_profiles:created_by(full_name,assigned_area)", { count: "exact" })
         .is("deleted_at", null)
-        .eq("user_profiles.assigned_area", profile.assigned_area) // Filter by secretary's assigned area
+        .eq("user_profiles.assigned_area", profile.assigned_area) // Only fetch reports for secretary's area
         .order("created_at", { ascending: false });
 
-      // Status filtering
       if (statusFilter !== "all") {
         query = query.eq("status", statusFilter);
       }
@@ -122,25 +120,25 @@ export default function SecretaryCommissionReportsPage() {
           .ilike("report_number", `%${searchTerm}%`)
           .is("deleted_at", null)
           .eq("user_profiles.assigned_area", profile.assigned_area);
-        
+
         const { data: reportsByRemarks } = await supabase
           .from("commission_report")
           .select("*, user_profiles:created_by(full_name,assigned_area)")
           .ilike("remarks", `%${searchTerm}%`)
           .is("deleted_at", null)
           .eq("user_profiles.assigned_area", profile.assigned_area);
-        
+
         let merged = [...(reportsByNumber || []), ...(reportsByRemarks || [])];
         // Remove duplicates
         merged = merged.filter(
           (v, i, a) => a.findIndex((t) => t.uuid === v.uuid) === i
         );
-        
+
         // Apply status filter if needed
         if (statusFilter !== "all") {
           merged = merged.filter((r) => r.status === statusFilter);
         }
-        
+
         count = merged.length;
         data = merged.slice(from, from + recordsPerPage);
       } else {
@@ -156,7 +154,7 @@ export default function SecretaryCommissionReportsPage() {
         setLoading(false);
         return;
       }
-      
+
       setTotalRecords(count);
       setReports(
         (data || []).map((r: any) => ({
@@ -387,7 +385,7 @@ export default function SecretaryCommissionReportsPage() {
                                   #{report.report_number}
                                 </TableCell>
                                 <TableCell className="text-[#001f3f]">
-                                  {report.creator_name}
+                                  {report.user_profiles?.full_name || <span className="text-gray-400">N/A</span>}
                                 </TableCell>
                                 <TableCell className="text-[#001f3f]">
                                   {new Date(report.created_at).toLocaleDateString(

@@ -17,16 +17,6 @@ export function DashboardMenuCards({ userRole }: DashboardMenuCardsProps) {
       case "super_admin":
         return [
           {
-            title: "User Management",
-            description: "Manage system users and permissions",
-            icon: Users,
-            href: "/dashboard/super-admin/users",
-            color: "from-blue-500 to-blue-600",
-            bgColor: "bg-blue-50/80 border-blue-200",
-            badge: "Admin Only",
-            badgeColor: "bg-blue-100 text-blue-800"
-          },
-          {
             title: "Sales Records",
             description: "View and manage all sales data",
             icon: TrendingUp,
@@ -35,6 +25,16 @@ export function DashboardMenuCards({ userRole }: DashboardMenuCardsProps) {
             bgColor: "bg-green-50/80 border-green-200",
             badge: "All Areas",
             badgeColor: "bg-green-100 text-green-800"
+          },
+          {
+            title: "TIN Library",
+            description: "Manage taxpayer identification numbers",
+            icon: Building2,
+            href: "/dashboard/super-admin/tin-library",
+            color: "from-orange-500 to-orange-600",
+            bgColor: "bg-orange-50/80 border-orange-200",
+            badge: "Database",
+            badgeColor: "bg-orange-100 text-orange-800"
           },
           {
             title: "Commission Generator",
@@ -57,14 +57,24 @@ export function DashboardMenuCards({ userRole }: DashboardMenuCardsProps) {
             badgeColor: "bg-indigo-100 text-indigo-800"
           },
           {
-            title: "TIN Library",
-            description: "Manage taxpayer identification numbers",
+            title: "User Management",
+            description: "Manage system users and permissions",
+            icon: Users,
+            href: "/dashboard/super-admin/users",
+            color: "from-blue-500 to-blue-600",
+            bgColor: "bg-blue-50/80 border-blue-200",
+            badge: "Admin Only",
+            badgeColor: "bg-blue-100 text-blue-800"
+          },
+          {
+            title: "My Profile",
+            description: "Manage your profile information",
             icon: Building2,
-            href: "/dashboard/super-admin/tin-library",
-            color: "from-orange-500 to-orange-600",
-            bgColor: "bg-orange-50/80 border-orange-200",
-            badge: "Database",
-            badgeColor: "bg-orange-100 text-orange-800"
+            href: "/dashboard/super-admin/my-profile",
+            color: "from-green-500 to-green-600",
+            bgColor: "bg-green-50/80 border-green-200",
+            badge: "Your Area",
+            badgeColor: "bg-green-100 text-green-800"
           }
         ]
 
