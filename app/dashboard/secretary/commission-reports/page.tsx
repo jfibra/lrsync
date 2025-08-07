@@ -92,84 +92,64 @@ export default function SecretaryCommissionReportsPage() {
 
       setLoading(true);
 
+    try {
+      // First, get all reports with user profiles
       let query = supabase
         .from("commission_report")
         .select("*, user_profiles:created_by(full_name,assigned_area)", { count: "exact" })
         .is("deleted_at", null)
-        .eq("user_profiles.assigned_area", profile.assigned_area) // Only fetch reports for secretary's area
         .order("created_at", { ascending: false });
 
-      if (statusFilter !== "all") {
-        query = query.eq("status", statusFilter);
-      }
-
-      // Pagination
-      const from = (currentPage - 1) * recordsPerPage;
-      const to = from + recordsPerPage - 1;
-      query = query.range(from, to);
-
-      let data: any[] = [];
-      let count = 0;
-      let error = null;
-
-      if (searchTerm) {
-        // Search by report_number or remarks, filtered by assigned area
-        const { data: reportsByNumber } = await supabase
-          .from("commission_report")
-          .select("*, user_profiles:created_by(full_name,assigned_area)")
-          .ilike("report_number", `%${searchTerm}%`)
-          .is("deleted_at", null)
-          .eq("user_profiles.assigned_area", profile.assigned_area);
-
-        const { data: reportsByRemarks } = await supabase
-          .from("commission_report")
-          .select("*, user_profiles:created_by(full_name,assigned_area)")
-          .ilike("remarks", `%${searchTerm}%`)
-          .is("deleted_at", null)
-          .eq("user_profiles.assigned_area", profile.assigned_area);
-
-        let merged = [...(reportsByNumber || []), ...(reportsByRemarks || [])];
-        // Remove duplicates
-        merged = merged.filter(
-          (v, i, a) => a.findIndex((t) => t.uuid === v.uuid) === i
-        );
-
-        // Apply status filter if needed
-        if (statusFilter !== "all") {
-          merged = merged.filter((r) => r.status === statusFilter);
-        }
-
-        count = merged.length;
-        data = merged.slice(from, from + recordsPerPage);
-      } else {
-        const result = await query;
-        data = result.data || [];
-        count = result.count || 0;
-        error = result.error;
-      }
+      const { data: allReports, error, count } = await query;
 
       if (error) {
+        console.error("Error fetching reports:", error);
         setReports([]);
         setTotalRecords(0);
         setLoading(false);
         return;
       }
 
-      setTotalRecords(count);
-      setReports(
-        (data || []).map((r: any) => ({
-          ...r,
-          creator_name: r.user_profiles?.full_name || "",
-        }))
+      // Filter reports by secretary's assigned area
+      let filteredReports = (allReports || []).filter(report => 
+        report.user_profiles?.assigned_area === profile.assigned_area
       );
 
-      setLoading(false);
-    };
+      // Apply search filter if search term exists
+      if (searchTerm) {
+        filteredReports = filteredReports.filter(report => 
+          report.report_number?.toString().includes(searchTerm) ||
+          report.remarks?.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+      }
 
-    if (profile) {
-      fetchReports();
+      // Apply status filter
+      if (statusFilter !== "all") {
+        filteredReports = filteredReports.filter(report => report.status === statusFilter);
+      }
+
+      // Apply pagination
+      const totalFilteredRecords = filteredReports.length;
+      const from = (currentPage - 1) * recordsPerPage;
+      const to = from + recordsPerPage;
+      const paginatedReports = filteredReports.slice(from, to);
+
+      setTotalRecords(totalFilteredRecords);
+      setReports(paginatedReports);
+
+    } catch (error) {
+      console.error("Error in fetchReports:", error);
+      setReports([]);
+      setTotalRecords(0);
+    } finally {
+      setLoading(false);
     }
-  }, [currentPage, recordsPerPage, searchTerm, statusFilter, profile]);
+  };
+
+  if (profile) {
+    fetchReports();
+  }
+}, [currentPage, recordsPerPage, searchTerm, statusFilter, profile]);
 
   // Status badge helper
   const getStatusBadge = (status: string) => {
@@ -385,7 +365,7 @@ export default function SecretaryCommissionReportsPage() {
                                   #{report.report_number}
                                 </TableCell>
                                 <TableCell className="text-[#001f3f]">
-                                  {report.user_profiles?.full_name || <span className="text-gray-400">N/A</span>}
+                                  {report.user_profiles?.full_name || <span className="text-gray-400">Unknown User</span>}
                                 </TableCell>
                                 <TableCell className="text-[#001f3f]">
                                   {new Date(report.created_at).toLocaleDateString(
