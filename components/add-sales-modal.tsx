@@ -125,8 +125,7 @@ const uploadToS3API = async (
   } catch (error) {
     console.error("Network error:", error);
     throw new Error(
-      `Network error: ${
-        error instanceof Error ? error.message : "Unknown error"
+      `Network error: ${error instanceof Error ? error.message : "Unknown error"
       }`
     );
   }
@@ -422,19 +421,18 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
         prev.map((upload) =>
           upload.id === uploadId
             ? {
-                ...upload,
-                files: [...upload.files, ...validFiles],
-                uploadedUrls: [...upload.uploadedUrls, ...uploadedUrls],
-                uploading: false,
-              }
+              ...upload,
+              files: [...upload.files, ...validFiles],
+              uploadedUrls: [...upload.uploadedUrls, ...uploadedUrls],
+              uploading: false,
+            }
             : upload
         )
       );
     } catch (error) {
       console.error("Error uploading files:", error);
       alert(
-        `Error uploading files: ${
-          error instanceof Error ? error.message : "Unknown error"
+        `Error uploading files: ${error instanceof Error ? error.message : "Unknown error"
         }. Please try again.`
       );
 
@@ -452,12 +450,12 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
       prev.map((upload) =>
         upload.id === uploadId
           ? {
-              ...upload,
-              files: upload.files.filter((_, index) => index !== fileIndex),
-              uploadedUrls: upload.uploadedUrls.filter(
-                (_, index) => index !== fileIndex
-              ),
-            }
+            ...upload,
+            files: upload.files.filter((_, index) => index !== fileIndex),
+            uploadedUrls: upload.uploadedUrls.filter(
+              (_, index) => index !== fileIndex
+            ),
+          }
           : upload
       )
     );
@@ -541,11 +539,13 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
     });
     // Log notification/audit entry for all roles after successful sales record creation
     try {
-      await logNotification(supabase, { 
+      await logNotification(supabase, {
         p_action: "add_sales_record",
-        p_description: `Sales record added for TIN ${formData.tin} by ${
-          user?.user_metadata?.role || "unknown role"
-        }`,
+        user_uuid: profile.id,            // <-- add this
+        user_name: profile.full_name || profile.first_name || profile.id,          // <-- add this
+        user_email: profile.email,
+        p_description: `Sales record added for TIN ${formData.tin} by ${user?.user_metadata?.role || "unknown role"
+          }`,
         p_ip_address: null,
         p_location: null,
         p_meta: JSON.stringify({
@@ -698,11 +698,10 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
         />
         <label
           htmlFor={`file-${upload.id}`}
-          className={`cursor-pointer ${
-            upload.uploading || !taxMonth || !formData.tin
+          className={`cursor-pointer ${upload.uploading || !taxMonth || !formData.tin
               ? "opacity-50 cursor-not-allowed"
               : ""
-          }`}
+            }`}
         >
           {upload.uploading ? (
             <>
@@ -1031,7 +1030,7 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
                 autoComplete="new-password"
               />
             </div>
-            
+
             <div className="space-y-2">
               <Label
                 htmlFor="invoice_number"

@@ -72,6 +72,9 @@ export default function TinLibraryPage() {
         try {
           await logNotification(supabase, { 
             action: "tin_library_access",
+            user_uuid: profile.id,            // <-- add this
+            user_name: profile.full_name || profile.first_name || profile.id,          // <-- add this
+            user_email: profile.email,
             description: `TIN library dashboard accessed by ${profile?.full_name || profile?.first_name || user.id}`,
             user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
             meta: JSON.stringify({

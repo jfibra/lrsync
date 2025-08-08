@@ -323,11 +323,11 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
         prev.map((upload) =>
           upload.id === uploadId
             ? {
-                ...upload,
-                files: [...upload.files, ...validFiles],
-                uploadedUrls: [...upload.uploadedUrls, ...uploadedUrls],
-                uploading: false,
-              }
+              ...upload,
+              files: [...upload.files, ...validFiles],
+              uploadedUrls: [...upload.uploadedUrls, ...uploadedUrls],
+              uploading: false,
+            }
             : upload,
         ),
       )
@@ -347,9 +347,9 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
       prev.map((upload) =>
         upload.id === uploadId
           ? {
-              ...upload,
-              existingUrls: upload.existingUrls.filter((_, index) => index !== fileIndex),
-            }
+            ...upload,
+            existingUrls: upload.existingUrls.filter((_, index) => index !== fileIndex),
+          }
           : upload,
       ),
     )
@@ -361,10 +361,10 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
       prev.map((upload) =>
         upload.id === uploadId
           ? {
-              ...upload,
-              files: upload.files.filter((_, index) => index !== fileIndex),
-              uploadedUrls: upload.uploadedUrls.filter((_, index) => index !== fileIndex),
-            }
+            ...upload,
+            files: upload.files.filter((_, index) => index !== fileIndex),
+            uploadedUrls: upload.uploadedUrls.filter((_, index) => index !== fileIndex),
+          }
           : upload,
       ),
     )
@@ -479,8 +479,11 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
         }
       })
       // Log notification for all roles
-      await logNotification(supabase, { 
+      await logNotification(supabase, {
         p_action: "sales_updated",
+        user_uuid: profile.id,            // <-- add this
+        user_name: profile.full_name || profile.first_name || profile.id,          // <-- add this
+        user_email: profile.email,
         p_description: `Sales record updated for ${name} (TIN: ${tinSearch})`,
         p_ip_address: "", // Optionally get from request headers
         p_location: null, // Optionally provide location info
@@ -826,9 +829,8 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
                     />
                     <label
                       htmlFor={upload.id}
-                      className={`flex flex-col items-center justify-center cursor-pointer ${
-                        upload.uploading || !taxMonth || !tinSearch ? "opacity-50 cursor-not-allowed" : ""
-                      }`}
+                      className={`flex flex-col items-center justify-center cursor-pointer ${upload.uploading || !taxMonth || !tinSearch ? "opacity-50 cursor-not-allowed" : ""
+                        }`}
                     >
                       {upload.uploading ? (
                         <>

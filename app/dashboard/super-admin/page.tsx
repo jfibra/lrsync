@@ -84,6 +84,9 @@ export default function SuperAdminDashboard() {
         try {
           await logNotification(supabase, {
             action: "dashboard_access",
+            user_uuid: profile.id,            // <-- add this
+            user_name: profile.full_name || profile.first_name || profile.id,          // <-- add this
+            user_email: profile.email,
             description: `Super Admin dashboard accessed by ${profile.full_name || profile.first_name || profile.id}`,
             user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
             meta: JSON.stringify({

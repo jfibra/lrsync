@@ -1,19 +1,14 @@
-import type { NextApiRequest, NextApiResponse } from "next";
-
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse
-) {
+export async function GET(request: Request) {
   const ip =
-    req.headers["x-forwarded-for"]?.split(",")[0] ||
-    req.socket?.remoteAddress ||
+    request.headers.get("x-forwarded-for")?.split(",")[0] ||
+    (request as any).ip ||
     null;
 
   // Use a public IP geolocation API
   const geoRes = await fetch(`https://ipapi.co/${ip}/json/`);
   const geo = await geoRes.json();
 
-  res.status(200).json({
+  return Response.json({
     ip_address: ip,
     location:
       geo.city && geo.country_name

@@ -22,6 +22,9 @@ export default function ProfilePage() {
         try {
           await logNotification(supabase, { 
             action: "profile_dashboard_access",
+            user_uuid: profile.id,            // <-- add this
+            user_name: profile.full_name || profile.first_name || profile.id,          // <-- add this
+            user_email: profile.email,
             description: `Profile dashboard accessed by ${profile.full_name || profile.first_name || profile.id}`,
             user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
             meta: JSON.stringify({
@@ -101,6 +104,9 @@ export default function ProfilePage() {
         try {
           await logNotification(supabase, { 
             p_action: "profile_updated",
+            user_uuid: profile.id,            // <-- add this
+            user_name: profile.full_name || profile.first_name || profile.id,          // <-- add this
+            user_email: profile.email,
             p_description: `Failed profile update for user ${profile.full_name || profile.id}`,
             p_ip_address: null,
             p_location: null,
@@ -120,6 +126,9 @@ export default function ProfilePage() {
       try {
         await logNotification(supabase, { 
           p_action: "profile_updated",
+            user_uuid: profile.id,            // <-- add this
+            user_name: profile.full_name || profile.first_name || profile.id,          // <-- add this
+            user_email: profile.email,
           p_description: `Profile updated for user ${profile.full_name || profile.id}`,
           p_ip_address: null,
           p_location: null,
@@ -138,6 +147,9 @@ export default function ProfilePage() {
       try {
         await logNotification(supabase, { 
           p_action: "profile_updated",
+            user_uuid: profile.id,            // <-- add this
+            user_name: profile.full_name || profile.first_name || profile.id,          // <-- add this
+            user_email: profile.email,
           p_description: `Unexpected error during profile update for user ${profile?.full_name || profile?.id}`,
           p_ip_address: null,
           p_location: null,
@@ -204,6 +216,9 @@ export default function ProfilePage() {
         try {
           await logNotification(supabase, { 
             p_action: "password_changed",
+            user_uuid: profile.id,            // <-- add this
+            user_name: profile.full_name || profile.first_name || profile.id,          // <-- add this
+            user_email: profile.email,
             p_description: `Failed password change for user ${profile?.full_name || profile?.id}`,
             p_ip_address: null,
             p_location: null,
@@ -227,6 +242,9 @@ export default function ProfilePage() {
         try {
           await logNotification(supabase, { 
             p_action: "password_changed",
+            user_uuid: profile.id,            // <-- add this
+            user_name: profile.full_name || profile.first_name || profile.id,          // <-- add this
+            user_email: profile.email,
             p_description: `Error updating password for user ${profile?.full_name || profile?.id}`,
             p_ip_address: null,
             p_location: null,
@@ -250,6 +268,9 @@ export default function ProfilePage() {
       try {
         await logNotification(supabase, { 
           p_action: "password_changed",
+            user_uuid: profile.id,            // <-- add this
+            user_name: profile.full_name || profile.first_name || profile.id,          // <-- add this
+            user_email: profile.email,
           p_description: `Password changed for user ${profile?.full_name || profile?.id}`,
           p_ip_address: null,
           p_location: null,
@@ -265,6 +286,9 @@ export default function ProfilePage() {
       try {
         await logNotification(supabase, { 
           p_action: "password_changed",
+            user_uuid: profile.id,            // <-- add this
+            user_name: profile.full_name || profile.first_name || profile.id,          // <-- add this
+            user_email: profile.email,
           p_description: `Unexpected error during password change for user ${profile?.full_name || profile?.id}`,
           p_ip_address: null,
           p_location: null,

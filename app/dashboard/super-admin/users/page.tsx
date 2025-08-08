@@ -309,8 +309,11 @@ export default function UserManagement() {
       }
 
       // Log notification for add user action with correct RPC parameters
-      const { error: logError } = await logNotification(supabase, { 
+      const { error: logError } = await logNotification(supabase, {
         p_action: "user_created",
+        user_uuid: profile.id,            // <-- add this
+        user_name: profile.full_name || profile.first_name || profile.id,          // <-- add this
+        user_email: profile.email,
         p_description: `User created: ${profileData.full_name} (${profileData.email})`,
         p_ip_address: null,
         p_location: null,
@@ -401,7 +404,7 @@ export default function UserManagement() {
       // If email changed, update auth.users
       if (
         editFormData.email.toLowerCase().trim() !==
-          (editUser.email || "").toLowerCase() &&
+        (editUser.email || "").toLowerCase() &&
         editUser.auth_user_id
       ) {
         const { error: updateAuthError } =
@@ -504,11 +507,13 @@ export default function UserManagement() {
       }
 
       // Log notification for user deletion
-      const { error: logError } = await logNotification(supabase, { 
+      const { error: logError } = await logNotification(supabase, {
         p_action: "user_deleted",
-        p_description: `User deleted: ${
-          user.full_name || user.email || user.id
-        }`,
+        user_uuid: profile.id,            // <-- add this
+        user_name: profile.full_name || profile.first_name || profile.id,          // <-- add this
+        user_email: profile.email,
+        p_description: `User deleted: ${user.full_name || user.email || user.id
+          }`,
         p_ip_address: null,
         p_location: null,
         p_meta: JSON.stringify({ user_id: user.id, email: user.email }),
@@ -547,11 +552,13 @@ export default function UserManagement() {
         return;
       }
       // Log notification for status change
-      const { error: logError } = await logNotification(supabase, { 
+      const { error: logError } = await logNotification(supabase, {
         p_action: "user_status_changed",
-        p_description: `User status changed for ${
-          user?.full_name || userId
-        }: ${prevStatus} → ${newStatus}`,
+        user_uuid: profile.id,            // <-- add this
+        user_name: profile.full_name || profile.first_name || profile.id,          // <-- add this
+        user_email: profile.email,
+        p_description: `User status changed for ${user?.full_name || userId
+          }: ${prevStatus} → ${newStatus}`,
         p_ip_address: null,
         p_location: null,
         p_meta: JSON.stringify({
@@ -586,11 +593,13 @@ export default function UserManagement() {
         return;
       }
       // Log notification for role change
-      const { error: logError } = await logNotification(supabase, { 
+      const { error: logError } = await logNotification(supabase, {
         p_action: "user_role_changed",
-        p_description: `User role changed for ${
-          user?.full_name || userId
-        }: ${prevRole} → ${newRole}`,
+        user_uuid: profile.id,            // <-- add this
+        user_name: profile.full_name || profile.first_name || profile.id,          // <-- add this
+        user_email: profile.email,
+        p_description: `User role changed for ${user?.full_name || userId
+          }: ${prevRole} → ${newRole}`,
         p_ip_address: null,
         p_location: null,
         p_meta: JSON.stringify({
@@ -663,11 +672,13 @@ export default function UserManagement() {
         const currentUser =
           users.find((u) => u.role === "super_admin") || users[0];
         if (currentUser) {
-          await logNotification(supabase, { 
+          await logNotification(supabase, {
             action: "user_management_access",
-            description: `User management dashboard accessed by ${
-              currentUser.full_name || currentUser.first_name || currentUser.id
-            }`,
+            user_uuid: profile.id,            // <-- add this
+            user_name: profile.full_name || profile.first_name || profile.id,          // <-- add this
+            user_email: profile.email,
+            description: `User management dashboard accessed by ${currentUser.full_name || currentUser.first_name || currentUser.id
+              }`,
             user_agent:
               typeof window !== "undefined"
                 ? window.navigator.userAgent
@@ -1423,9 +1434,8 @@ export default function UserManagement() {
                                       </span>
                                     </div>
                                     {user.full_name ||
-                                      `${user.first_name || ""} ${
-                                        user.last_name || ""
-                                      }`.trim() ||
+                                      `${user.first_name || ""} ${user.last_name || ""
+                                        }`.trim() ||
                                       "N/A"}
                                   </div>
                                 </TableCell>

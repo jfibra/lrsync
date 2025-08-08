@@ -4,7 +4,7 @@ export async function logNotification(supabase, params) {
     const res = await fetch("/api/get-ip-location");
     const { ip_address, location } = await res.json();
 
-    await logNotification(supabase, { 
+    await supabase.rpc("log_notification", {
       ...params,
       ip_address,
       location,

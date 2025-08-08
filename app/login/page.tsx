@@ -57,23 +57,26 @@ export default function LoginPage() {
             console.log("Magic link authentication successful")
             setSuccess("Successfully logged in via magic link!")
             // The auth context will handle the redirect
-          // Log notification/audit entry for all roles after successful magic link authentication
-          try {
-            await logNotification(supabase, { 
-              action: "magic_link_login",
-              description: `Magic link login for user ${data.user.email || "unknown email"} (${data.user.id})`,
-              user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
-              meta: JSON.stringify({
-                user_id: data.user.id,
-                email: data.user.email,
-                role: data.user.user_metadata?.role || "unknown",
-                method: "magic_link",
-              }),
-            })
-          } catch (logError) {
-            console.error("Error logging notification:", logError)
-            // Do not block user on logging failure
-          }
+            // Log notification/audit entry for all roles after successful magic link authentication
+            try {
+              await logNotification(supabase, {
+                action: "magic_link_login",
+                user_uuid: profile.id,            // <-- add this
+                user_name: profile.full_name || profile.first_name || profile.id,          // <-- add this
+                user_email: profile.email,
+                description: `Magic link login for user ${data.user.email || "unknown email"} (${data.user.id})`,
+                user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+                meta: JSON.stringify({
+                  user_id: data.user.id,
+                  email: data.user.email,
+                  role: data.user.user_metadata?.role || "unknown",
+                  method: "magic_link",
+                }),
+              })
+            } catch (logError) {
+              console.error("Error logging notification:", logError)
+              // Do not block user on logging failure
+            }
           }
         } catch (error) {
           console.error("Magic link auth error:", error)
@@ -125,8 +128,11 @@ export default function LoginPage() {
       setError(result.error)
       // Log notification for failed login attempt
       try {
-        await logNotification(supabase, { 
+        await logNotification(supabase, {
           p_action: "user_login_failed",
+          user_uuid: profile.id,            // <-- add this
+          user_name: profile.full_name || profile.first_name || profile.id,          // <-- add this
+          user_email: profile.email,
           p_description: `Failed login attempt for email ${email}`,
           p_ip_address: null,
           p_location: null,
@@ -144,8 +150,11 @@ export default function LoginPage() {
       console.log("Login successful")
       // Log notification for successful login
       try {
-        await logNotification(supabase, { 
+        await logNotification(supabase, {
           p_action: "user_login",
+          user_uuid: profile.id,            // <-- add this
+          user_name: profile.full_name || profile.first_name || profile.id,          // <-- add this
+          user_email: profile.email,
           p_description: `Successful login for user ${email}`,
           p_ip_address: null,
           p_location: null,
