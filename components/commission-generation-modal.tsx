@@ -114,9 +114,14 @@ interface CommissionRecord {
   tlVat: string
   tlEwt: string
   tlNetComm: string
+  lrsalesId?: number; // <-- Add this line
+  memberid?: number,
 
   // Agent BDO Account #
   bdoAccount?: string
+  umBdoAccount?: string
+  tlBdoAccount?: string
+  remarks?: string
 
   // Commission type (COMM, INCENTIVES, COMM & INCENTIVES)
   type?: "COMM" | "INCENTIVES" | "COMM & INCENTIVES"
@@ -248,6 +253,8 @@ export function CommissionGenerationModal({
 
   // Add agent to commission table for specific tab
   const addAgentToTab = (tabKey: string, searchResult: SearchResult) => {
+    console.log("addAgentToTab searchResult:", searchResult);
+
     const newRecord: CommissionRecord = {
       no: (commissionRecords[tabKey]?.length || 0) + 1,
       date: format(new Date(), "yyyy-MM-dd"),
@@ -255,6 +262,8 @@ export function CommissionGenerationModal({
       agentName: searchResult.name,
       reservationDate: searchResult.reservationdate || "",
       client: searchResult.clientfamilyname,
+      lrsalesId: searchResult.id,
+      memberid: searchResult.agentid,
       calculationType: "nonvat with invoice",
       comm: "",
       netOfVat: "",
@@ -617,9 +626,8 @@ export function CommissionGenerationModal({
       const worksheetData: any[][] = []
 
       // Add title
-      const title = `Commission Report${userArea ? `(${userArea})` : ""} - ${
-        userFullName || "User"
-      } - ${format(new Date(), "yyyy-MM-dd HH-mm")}`
+      const title = `Commission Report${userArea ? `(${userArea})` : ""} - ${userFullName || "User"
+        } - ${format(new Date(), "yyyy-MM-dd HH-mm")}`
       worksheetData.push([title])
       worksheetData.push([]) // Empty row
 
@@ -692,17 +700,20 @@ export function CommissionGenerationModal({
           "EWT",
           "NET COMM",
           "UM NAME",
+          "UM BDO ACCOUNT #",
           "UM RATE",
           "UM AMOUNT",
           "UM VAT",
           "UM EWT",
           "UM NET COMM",
           "TL NAME",
+          "TL BDO ACCOUNT #",
           "TL RATE",
           "TL AMOUNT",
           "TL VAT",
           "TL EWT",
           "TL NET COMM",
+          "REMARKS",
         ])
 
         // Add commission records
@@ -724,17 +735,20 @@ export function CommissionGenerationModal({
               formatCurrency(Number(record.ewt) || 0),
               formatCurrency(Number(record.netComm) || 0),
               record.umName,
+              record.umBdoAccount || "",
               `${record.umRate}%`,
               formatCurrency(Number(record.umAmount) || 0),
               formatCurrency(Number(record.umVat) || 0),
               formatCurrency(Number(record.umEwt) || 0),
               formatCurrency(Number(record.umNetComm) || 0),
               record.tlName,
+              record.tlBdoAccount || "",
               `${record.tlRate}%`,
               formatCurrency(Number(record.tlAmount) || 0),
               formatCurrency(Number(record.tlVat) || 0),
               formatCurrency(Number(record.tlEwt) || 0),
               formatCurrency(Number(record.tlNetComm) || 0),
+              record.remarks || "",
             ])
           })
 
@@ -755,11 +769,13 @@ export function CommissionGenerationModal({
             formatCurrency(tabCommissionRecords.reduce((sum, r) => sum + (Number(r.ewt) || 0), 0)),
             formatCurrency(tabCommissionRecords.reduce((sum, r) => sum + (Number(r.netComm) || 0), 0)),
             "",
+            "",
             `${tabCommissionRecords.reduce((sum, r) => sum + (Number(r.umRate) || 0), 0)}%`,
             formatCurrency(tabCommissionRecords.reduce((sum, r) => sum + (Number(r.umAmount) || 0), 0)),
             formatCurrency(tabCommissionRecords.reduce((sum, r) => sum + (Number(r.umVat) || 0), 0)),
             formatCurrency(tabCommissionRecords.reduce((sum, r) => sum + (Number(r.umEwt) || 0), 0)),
             formatCurrency(tabCommissionRecords.reduce((sum, r) => sum + (Number(r.umNetComm) || 0), 0)),
+            "",
             "",
             `${tabCommissionRecords.reduce((sum, r) => sum + (Number(r.tlRate) || 0), 0)}%`,
             formatCurrency(tabCommissionRecords.reduce((sum, r) => sum + (Number(r.tlAmount) || 0), 0)),
@@ -838,9 +854,8 @@ export function CommissionGenerationModal({
       XLSX.utils.book_append_sheet(workbook, worksheet, "Commission Report")
 
       // Generate Excel file and download
-      const fileName = `Commission Report${userArea ? `(${userArea})` : ""} - ${
-        userFullName || "User"
-      } - ${format(new Date(), "yyyy-MM-dd HH-mm")}.xlsx`
+      const fileName = `Commission Report${userArea ? `(${userArea})` : ""} - ${userFullName || "User"
+        } - ${format(new Date(), "yyyy-MM-dd HH-mm")}.xlsx`
       XLSX.writeFile(workbook, fileName)
     } catch (error) {
       console.error("Error generating Excel:", error)
@@ -957,6 +972,12 @@ export function CommissionGenerationModal({
             tl_ewt: Number.parseFloat(record.tlEwt) || null,
             tl_ewt_rate: Number.parseFloat(record.tlEwtRate ?? "") || null,
             tl_net_comm: Number.parseFloat(record.tlNetComm) || null,
+            lrsalesid: record.lrsalesId?.toString() ?? null,
+            memberid: record.memberid?.toString() ?? null,
+            um_bdo_account: record.umBdoAccount || null,
+            tl_bdo_account: record.tlBdoAccount || null,
+            secretary_remarks: record.remarks || null, // or record.secretaryRemarks if you have it
+            accounting_remarks: null, // or record.accountingRemarks if you have it
           })
         })
       })
@@ -1403,6 +1424,12 @@ export function CommissionGenerationModal({
                                     className="font-semibold text-white text-center"
                                     style={{ background: "#E34A27" }}
                                   >
+                                    UM BDO Account #
+                                  </TableHead>
+                                  <TableHead
+                                    className="font-semibold text-white text-center"
+                                    style={{ background: "#E34A27" }}
+                                  >
                                     Calculation Type
                                   </TableHead>
                                   <TableHead
@@ -1458,6 +1485,12 @@ export function CommissionGenerationModal({
                                     className="font-semibold text-[#001f3f] text-center"
                                     style={{ background: "#FEEFC6" }}
                                   >
+                                    TL BDO Account #
+                                  </TableHead>
+                                  <TableHead
+                                    className="font-semibold text-[#001f3f] text-center"
+                                    style={{ background: "#FEEFC6" }}
+                                  >
                                     Calculation Type
                                   </TableHead>
                                   <TableHead
@@ -1502,6 +1535,7 @@ export function CommissionGenerationModal({
                                   >
                                     NET COMM
                                   </TableHead>
+                                  <TableHead className="font-semibold text-[#ee3433] text-center">Remarks</TableHead>
                                   <TableHead className="font-semibold text-[#ee3433] text-center">Actions</TableHead>
                                 </TableRow>
                               </TableHeader>
@@ -1695,6 +1729,21 @@ export function CommissionGenerationModal({
                                             placeholder="UM Name"
                                           />
                                         </TableCell>
+                                        {/* BDO Account # Input */}
+                                        <TableCell
+                                          className="text-[#fff] font-semibold"
+                                          style={{ background: "#E34A27" }}
+                                        >
+                                          <input
+                                            type="text"
+                                            className="border border-gray-300 rounded px-2 py-1 w-32 text-[#001f3f] bg-white"
+                                            value={record.umBdoAccount || ""}
+                                            onChange={(e) => {
+                                              handleCommissionRecordChange(key, index, "umBdoAccount", e.target.value)
+                                            }}
+                                            placeholder="UM BDO Account #"
+                                          />
+                                        </TableCell>
                                         <TableCell
                                           className="text-center font-semibold"
                                           style={{ background: "#E34A27" }}
@@ -1826,6 +1875,21 @@ export function CommissionGenerationModal({
                                             placeholder="TL Name"
                                           />
                                         </TableCell>
+                                        {/* BDO Account # Input */}
+                                        <TableCell
+                                          className="text-[#fff] font-semibold"
+                                          style={{ background: "#FEEFC6" }}
+                                        >
+                                          <input
+                                            type="text"
+                                            className="border border-gray-300 rounded px-2 py-1 w-32 text-[#001f3f] bg-white"
+                                            value={record.tlBdoAccount || ""}
+                                            onChange={(e) => {
+                                              handleCommissionRecordChange(key, index, "tlBdoAccount", e.target.value)
+                                            }}
+                                            placeholder="TL BDO Account #"
+                                          />
+                                        </TableCell>
                                         <TableCell
                                           className="text-center font-semibold"
                                           style={{ background: "#FEEFC6" }}
@@ -1952,6 +2016,14 @@ export function CommissionGenerationModal({
                                           {record.tlNetComm ? formatCurrency(Number(record.tlNetComm)) : ""}
                                         </TableCell>
                                         <TableCell className="text-center">
+                                          <textarea
+                                            className="border border-gray-300 rounded px-2 py-1 w-32 text-[#ee3433] bg-white font-medium resize-vertical min-h-[2.5rem] max-h-32"
+                                            value={record.remarks || ""}
+                                            onChange={(e) => handleCommissionRecordChange(key, index, "remarks", e.target.value)}
+                                            placeholder="Remarks"
+                                          />
+                                        </TableCell>
+                                        <TableCell className="text-center">
                                           <Button
                                             size="sm"
                                             variant="outline"
@@ -1961,6 +2033,9 @@ export function CommissionGenerationModal({
                                             Remove
                                           </Button>
                                         </TableCell>
+                                        {/* Hidden fields */}
+                                        <input type="hidden" name={`commissionRecords[${key}][${index}][lrsalesId]`} value={record.lrsalesId ?? ""} />
+                                        <input type="hidden" name={`commissionRecords[${key}][${index}][memberid]`} value={record.memberid ?? ""} />
                                       </TableRow>
                                     ))}
                                     {/* Combined Totals Row */}
@@ -2029,6 +2104,7 @@ export function CommissionGenerationModal({
                                       <TableCell />
                                       <TableCell />
                                       <TableCell />
+                                      <TableCell />
                                       <TableCell className="text-right text-[#E34A27]">
                                         {formatCurrency(
                                           tabCommissionRecords.reduce(
@@ -2067,6 +2143,7 @@ export function CommissionGenerationModal({
                                       <TableCell />
                                       <TableCell />
                                       <TableCell />
+                                      <TableCell />
                                       <TableCell className="text-right text-[#001f3f]">
                                         {formatCurrency(
                                           tabCommissionRecords.reduce(
@@ -2100,6 +2177,7 @@ export function CommissionGenerationModal({
                                           ),
                                         )}
                                       </TableCell>
+                                      <TableCell />
                                       <TableCell />
                                     </TableRow>
                                   </>
