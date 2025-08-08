@@ -37,6 +37,7 @@ import { CustomExportModal } from "@/components/custom-export-modal"
 import { ColumnVisibilityControl } from "@/components/column-visibility-control"
 import type { Sales } from "@/types/sales"
 import * as XLSX from "xlsx"
+import { logNotification } from "@/utils/logNotification";
 
 export default function SuperAdminSalesPage() {
   const { profile } = useAuth()
@@ -45,7 +46,7 @@ export default function SuperAdminSalesPage() {
     if (profile?.id) {
       ;(async () => {
         try {
-          await supabase.rpc("log_notification", {
+          await logNotification(supabase, { 
             action: "sales_dashboard_access",
             description: `Sales dashboard accessed by ${profile.full_name || profile.first_name || profile.id}`,
             user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",

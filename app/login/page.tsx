@@ -14,6 +14,7 @@ import { Separator } from "@/components/ui/separator"
 import { Eye, EyeOff, LogIn, AlertCircle, CheckCircle, Mail, Info, Shield, Users, Phone } from "lucide-react"
 import { supabase } from "@/lib/supabase/client"
 import Image from "next/image"
+import { logNotification } from "@/utils/logNotification";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
@@ -58,7 +59,7 @@ export default function LoginPage() {
             // The auth context will handle the redirect
           // Log notification/audit entry for all roles after successful magic link authentication
           try {
-            await supabase.rpc("log_notification", {
+            await logNotification(supabase, { 
               action: "magic_link_login",
               description: `Magic link login for user ${data.user.email || "unknown email"} (${data.user.id})`,
               user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
@@ -124,7 +125,7 @@ export default function LoginPage() {
       setError(result.error)
       // Log notification for failed login attempt
       try {
-        await supabase.rpc("log_notification", {
+        await logNotification(supabase, { 
           p_action: "user_login_failed",
           p_description: `Failed login attempt for email ${email}`,
           p_ip_address: null,
@@ -143,7 +144,7 @@ export default function LoginPage() {
       console.log("Login successful")
       // Log notification for successful login
       try {
-        await supabase.rpc("log_notification", {
+        await logNotification(supabase, { 
           p_action: "user_login",
           p_description: `Successful login for user ${email}`,
           p_ip_address: null,

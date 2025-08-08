@@ -67,6 +67,7 @@ import {
   ChevronsRight,
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { logNotification } from "@/utils/logNotification";
 
 interface UserFormData {
   email: string;
@@ -308,7 +309,7 @@ export default function UserManagement() {
       }
 
       // Log notification for add user action with correct RPC parameters
-      const { error: logError } = await supabase.rpc("log_notification", {
+      const { error: logError } = await logNotification(supabase, { 
         p_action: "user_created",
         p_description: `User created: ${profileData.full_name} (${profileData.email})`,
         p_ip_address: null,
@@ -503,7 +504,7 @@ export default function UserManagement() {
       }
 
       // Log notification for user deletion
-      const { error: logError } = await supabase.rpc("log_notification", {
+      const { error: logError } = await logNotification(supabase, { 
         p_action: "user_deleted",
         p_description: `User deleted: ${
           user.full_name || user.email || user.id
@@ -546,7 +547,7 @@ export default function UserManagement() {
         return;
       }
       // Log notification for status change
-      const { error: logError } = await supabase.rpc("log_notification", {
+      const { error: logError } = await logNotification(supabase, { 
         p_action: "user_status_changed",
         p_description: `User status changed for ${
           user?.full_name || userId
@@ -585,7 +586,7 @@ export default function UserManagement() {
         return;
       }
       // Log notification for role change
-      const { error: logError } = await supabase.rpc("log_notification", {
+      const { error: logError } = await logNotification(supabase, { 
         p_action: "user_role_changed",
         p_description: `User role changed for ${
           user?.full_name || userId
@@ -662,7 +663,7 @@ export default function UserManagement() {
         const currentUser =
           users.find((u) => u.role === "super_admin") || users[0];
         if (currentUser) {
-          await supabase.rpc("log_notification", {
+          await logNotification(supabase, { 
             action: "user_management_access",
             description: `User management dashboard accessed by ${
               currentUser.full_name || currentUser.first_name || currentUser.id

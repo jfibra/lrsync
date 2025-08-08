@@ -9,6 +9,7 @@ import { DashboardMenuCards } from "@/components/dashboard-menu-cards"
 import { useAuth } from "@/contexts/auth-context"
 import { supabase } from "@/lib/supabase/client"
 import { Users, UserCheck, Building2, TrendingUp, FileText } from "lucide-react"
+import { logNotification } from "@/utils/logNotification";
 
 interface DashboardStats {
   totalUsers: number
@@ -81,7 +82,7 @@ export default function SuperAdminDashboard() {
     if (profile?.id) {
       (async () => {
         try {
-          await supabase.rpc("log_notification", {
+          await logNotification(supabase, {
             action: "dashboard_access",
             description: `Super Admin dashboard accessed by ${profile.full_name || profile.first_name || profile.id}`,
             user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",

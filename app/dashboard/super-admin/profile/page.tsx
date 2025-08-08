@@ -11,6 +11,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useAuth } from "@/contexts/auth-context"
 import { supabase } from "@/lib/supabase/client"
 import { CheckCircle, AlertCircle, User, Settings, Shield, Clock, Mail } from "lucide-react"
+import { logNotification } from "@/utils/logNotification";
 
 export default function ProfilePage() {
   const { profile, refreshProfile } = useAuth()
@@ -19,7 +20,7 @@ export default function ProfilePage() {
     if (profile?.id) {
       (async () => {
         try {
-          await supabase.rpc("log_notification", {
+          await logNotification(supabase, { 
             action: "profile_dashboard_access",
             description: `Profile dashboard accessed by ${profile.full_name || profile.first_name || profile.id}`,
             user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
@@ -98,7 +99,7 @@ export default function ProfilePage() {
         setError("Error updating profile: " + updateError.message)
         // Log failed update
         try {
-          await supabase.rpc("log_notification", {
+          await logNotification(supabase, { 
             p_action: "profile_updated",
             p_description: `Failed profile update for user ${profile.full_name || profile.id}`,
             p_ip_address: null,
@@ -117,7 +118,7 @@ export default function ProfilePage() {
 
       // Log successful update
       try {
-        await supabase.rpc("log_notification", {
+        await logNotification(supabase, { 
           p_action: "profile_updated",
           p_description: `Profile updated for user ${profile.full_name || profile.id}`,
           p_ip_address: null,
@@ -135,7 +136,7 @@ export default function ProfilePage() {
       setError("An unexpected error occurred")
       // Log unexpected error
       try {
-        await supabase.rpc("log_notification", {
+        await logNotification(supabase, { 
           p_action: "profile_updated",
           p_description: `Unexpected error during profile update for user ${profile?.full_name || profile?.id}`,
           p_ip_address: null,
@@ -201,7 +202,7 @@ export default function ProfilePage() {
         setPasswordError("Current password is incorrect")
         // Log failed password change
         try {
-          await supabase.rpc("log_notification", {
+          await logNotification(supabase, { 
             p_action: "password_changed",
             p_description: `Failed password change for user ${profile?.full_name || profile?.id}`,
             p_ip_address: null,
@@ -224,7 +225,7 @@ export default function ProfilePage() {
         setPasswordError("Error updating password: " + updateError.message)
         // Log failed password update
         try {
-          await supabase.rpc("log_notification", {
+          await logNotification(supabase, { 
             p_action: "password_changed",
             p_description: `Error updating password for user ${profile?.full_name || profile?.id}`,
             p_ip_address: null,
@@ -247,7 +248,7 @@ export default function ProfilePage() {
 
       // Log successful password change
       try {
-        await supabase.rpc("log_notification", {
+        await logNotification(supabase, { 
           p_action: "password_changed",
           p_description: `Password changed for user ${profile?.full_name || profile?.id}`,
           p_ip_address: null,
@@ -262,7 +263,7 @@ export default function ProfilePage() {
       setPasswordError("An unexpected error occurred")
       // Log unexpected error
       try {
-        await supabase.rpc("log_notification", {
+        await logNotification(supabase, { 
           p_action: "password_changed",
           p_description: `Unexpected error during password change for user ${profile?.full_name || profile?.id}`,
           p_ip_address: null,

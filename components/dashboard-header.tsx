@@ -4,7 +4,7 @@ import * as React from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { BookText, PhilippinePeso, Menu, User, Users, LogOut } from "lucide-react"
+import { BookText, PhilippinePeso, Menu, User, Users, LogOut, FileText, UserCog, BarChart3 } from "lucide-react";
 
 import { Button } from "@/components/ui/button"
 import {
@@ -34,37 +34,43 @@ export function DashboardHeader() {
     () => [
       {
         label: "Sales",
-        href: (role: string) => `/dashboard/${role.replace("_", "-")}/sales`, // Re-added replace
-        icon: PhilippinePeso,
+        href: (role: string) => `/dashboard/${role.replace("_", "-")}/sales`,
+        icon: PhilippinePeso, // Example: PhilippinePeso icon for Sales
         roles: ["super_admin", "admin", "secretary"],
       },
       {
         label: "TIN Library",
-        href: (role: string) => `/dashboard/${role.replace("_", "-")}/tin-library`, // Re-added replace
-        icon: BookText,
+        href: (role: string) => `/dashboard/${role.replace("_", "-")}/tin-library`,
+        icon: BookText, // Example: BookText icon for TIN Library
         roles: ["super_admin", "admin", "secretary"],
       },
       {
         label: "Commission Generator",
-        href: (role: string) => `/dashboard/${role.replace("_", "-")}/commission`, // Re-added replace
-        icon: Users,
-        roles: ["super_admin", "admin", "secretary"],
+        href: (role: string) => `/dashboard/${role.replace("_", "-")}/commission`,
+        icon: BarChart3, // <-- Updated icon for Commission Generator
+        roles: ["super_admin", "secretary"],
+      },
+      {
+        label: "Commission Reports",
+        href: (role: string) => `/dashboard/${role.replace("_", "-")}/commission-reports`,
+        icon: FileText, // <-- Updated icon for Commission Reports
+        roles: ["super_admin", "secretary"],
       },
       {
         label: "Users",
-        href: (role: string) => `/dashboard/${role.replace("_", "-")}/users`, // Re-added replace
-        icon: Users,
+        href: (role: string) => `/dashboard/${role.replace("_", "-")}/users`,
+        icon: UserCog, // <-- Updated icon for Users
         roles: ["super_admin", "admin"],
       },
       {
         label: "My Profile",
-        href: (role: string) => `/dashboard/${role.replace("_", "-")}/profile`, // Re-added replace
+        href: (role: string) => `/dashboard/${role.replace("_", "-")}/profile`,
         icon: User,
         roles: ["super_admin", "admin", "secretary"],
       },
     ],
     [],
-  )
+  );
 
   const filteredNavItems = React.useMemo(() => {
     if (!profile?.role) return []
@@ -102,7 +108,7 @@ export function DashboardHeader() {
               href={item.href(profile?.role || "secretary")} // Default to secretary if role is not yet loaded
               className={cn(
                 "flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-white/10 hover:text-white",
-                pathname.startsWith(item.href(profile?.role || "")) ? "bg-white/10 text-white" : "text-white/80",
+                pathname === item.href(profile?.role || "") ? "bg-white/10 text-white" : "text-white/80",
               )}
             >
               <item.icon className="h-4 w-4" />
@@ -184,7 +190,7 @@ export function DashboardHeader() {
                       href={item.href(profile?.role || "secretary")}
                       className={cn(
                         "flex items-center gap-3 rounded-md px-3 py-2 text-lg font-medium transition-colors hover:bg-white/10 hover:text-white",
-                        pathname.startsWith(item.href(profile?.role || ""))
+                        pathname === item.href(profile?.role || "")
                           ? "bg-white/10 text-white"
                           : "text-white/80",
                       )}

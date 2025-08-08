@@ -46,6 +46,7 @@ import {
   MapPin,
 } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { logNotification } from "@/utils/logNotification";
 
 const formatTin = (tin: string): string => {
   if (!tin) return ""
@@ -69,7 +70,7 @@ export default function TinLibraryPage() {
     if (user?.id) {
       (async () => {
         try {
-          await supabase.rpc("log_notification", {
+          await logNotification(supabase, { 
             action: "tin_library_access",
             description: `TIN library dashboard accessed by ${profile?.full_name || profile?.first_name || user.id}`,
             user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",

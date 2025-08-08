@@ -16,6 +16,7 @@ import { DashboardHeader } from "@/components/dashboard-header"
 import { ColumnVisibilityControl } from "@/components/column-visibility-control"
 import { CommissionGenerationModal } from "@/components/commission-generation-modal"
 import type { Sales } from "@/types/sales"
+import { logNotification } from "@/utils/logNotification";
 
 export default function SuperAdminCommissionPage() {
   const { profile } = useAuth()
@@ -24,7 +25,7 @@ export default function SuperAdminCommissionPage() {
     if (profile?.id) {
       (async () => {
         try {
-          await supabase.rpc("log_notification", {
+          await logNotification(supabase, { 
             action: "commission_dashboard_access",
             description: `Commission dashboard accessed by ${profile.full_name || profile.first_name || profile.id}`,
             user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",

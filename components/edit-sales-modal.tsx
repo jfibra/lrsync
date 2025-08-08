@@ -16,6 +16,7 @@ import { supabase } from "@/lib/supabase/client"
 import type { Sales } from "@/types/sales"
 import type { TaxpayerListing } from "@/types/taxpayer"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table" // Import Table components
+import { logNotification } from "@/utils/logNotification";
 
 interface EditSalesModalProps {
   open: boolean
@@ -478,7 +479,7 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
         }
       })
       // Log notification for all roles
-      await supabase.rpc("log_notification", {
+      await logNotification(supabase, { 
         p_action: "sales_updated",
         p_description: `Sales record updated for ${name} (TIN: ${tinSearch})`,
         p_ip_address: "", // Optionally get from request headers

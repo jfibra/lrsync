@@ -30,6 +30,7 @@ import { CalendarIcon, Plus, Upload, X } from "lucide-react";
 import { format } from "date-fns";
 import { supabase } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
+import { logNotification } from "@/utils/logNotification";
 
 interface AddSalesModalProps {
   onSalesAdded: () => void;
@@ -540,7 +541,7 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
     });
     // Log notification/audit entry for all roles after successful sales record creation
     try {
-      await supabase.rpc("log_notification", {
+      await logNotification(supabase, { 
         p_action: "add_sales_record",
         p_description: `Sales record added for TIN ${formData.tin} by ${
           user?.user_metadata?.role || "unknown role"
