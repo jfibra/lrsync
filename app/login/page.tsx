@@ -61,17 +61,19 @@ export default function LoginPage() {
             try {
               await logNotification(supabase, {
                 action: "magic_link_login",
-                user_uuid: profile.id,            // <-- add this
-                user_name: profile.full_name || profile.first_name || profile.id,          // <-- add this
-                user_email: profile.email,
                 description: `Magic link login for user ${data.user.email || "unknown email"} (${data.user.id})`,
-                user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+                ip_address: null,
+                location: null,
                 meta: JSON.stringify({
                   user_id: data.user.id,
                   email: data.user.email,
                   role: data.user.user_metadata?.role || "unknown",
                   method: "magic_link",
                 }),
+                user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+                user_email: profile.email,
+                user_name: profile.full_name || profile.first_name || profile.id,
+                user_uuid: profile.id,
               })
             } catch (logError) {
               console.error("Error logging notification:", logError)
@@ -129,19 +131,19 @@ export default function LoginPage() {
       // Log notification for failed login attempt
       try {
         await logNotification(supabase, {
-          p_action: "user_login_failed",
-          user_uuid: profile.id,            // <-- add this
-          user_name: profile.full_name || profile.first_name || profile.id,          // <-- add this
-          user_email: profile.email,
-          p_description: `Failed login attempt for email ${email}`,
-          p_ip_address: null,
-          p_location: null,
-          p_user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
-          p_meta: JSON.stringify({
+          action: "user_login_failed",
+          description: `Failed login attempt for email ${email}`,
+          ip_address: null,
+          location: null,
+          meta: JSON.stringify({
             email,
             method: "password",
             error: result.error,
           }),
+          user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+          user_email: profile.email,
+          user_name: profile.full_name || profile.first_name || profile.id,
+          user_uuid: profile.id,
         })
       } catch (logError) {
         console.error("Error logging notification (failed login):", logError)
@@ -151,18 +153,18 @@ export default function LoginPage() {
       // Log notification for successful login
       try {
         await logNotification(supabase, {
-          p_action: "user_login",
-          user_uuid: profile.id,            // <-- add this
-          user_name: profile.full_name || profile.first_name || profile.id,          // <-- add this
-          user_email: profile.email,
-          p_description: `Successful login for user ${email}`,
-          p_ip_address: null,
-          p_location: null,
-          p_user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
-          p_meta: JSON.stringify({
+          action: "user_login",
+          description: `Successful login for user ${email}`,
+          ip_address: null,
+          location: null,
+          meta: JSON.stringify({
             email,
             method: "password",
           }),
+          user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+          user_email: profile.email,
+          user_name: profile.full_name || profile.first_name || profile.id,
+          user_uuid: profile.id,
         })
       } catch (logError) {
         console.error("Error logging notification (login success):", logError)
