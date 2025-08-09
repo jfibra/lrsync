@@ -480,21 +480,21 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
       })
       // Log notification for all roles
       await logNotification(supabase, {
-        p_action: "sales_updated",
-        user_uuid: profile.id,            // <-- add this
-        user_name: profile.full_name || profile.first_name || profile.id,          // <-- add this
+        action: "sales_updated",
+        user_uuid: profile.id,
+        user_name: profile.full_name || profile.first_name || profile.id,
         user_email: profile.email,
-        p_description: `Sales record updated for ${name} (TIN: ${tinSearch})`,
-        p_ip_address: "", // Optionally get from request headers
-        p_location: null, // Optionally provide location info
-        p_user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "",
-        p_meta: {
+        description: `Sales record updated for ${name} (TIN: ${tinSearch})`,
+        ip_address: "", // Optionally get from request headers
+        location: null, // Optionally provide location info
+        user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "",
+        meta: JSON.stringify({
           saleId: sale.id,
           updatedBy: profile?.full_name || "",
           role: profile?.role || "",
           file_attachments: fileMeta,
-        },
-      })
+        }),
+      });
 
       // Success
       onOpenChange(false)

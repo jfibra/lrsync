@@ -17,6 +17,9 @@ import { Download, Settings } from "lucide-react"
 import { format } from "date-fns"
 import type { Sales } from "@/types/sales"
 import * as XLSX from "xlsx"
+import { useAuth } from "@/contexts/auth-context";
+import { supabase } from "@/lib/supabase/client";
+import { logNotification } from "@/utils/logNotification";
 
 interface CustomExportModalProps {
   sales: Sales[]
@@ -32,6 +35,7 @@ interface ExportField {
 export function CustomExportModal({ sales, userArea }: CustomExportModalProps) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
+  const { profile } = useAuth();
 
   const [exportFields, setExportFields] = useState<ExportField[]>([
     { key: "tax_month", label: "Tax Month", selected: true },
@@ -218,6 +222,26 @@ export function CustomExportModal({ sales, userArea }: CustomExportModalProps) {
       XLSX.writeFile(wb, filename)
 
       setOpen(false)
+
+      await logNotification(supabase, {
+        action: "export_custom_sales",
+        description: `Exported custom sales to Excel (${sales.length} records)`,
+        ip_address: null,
+        location: null,
+        meta: JSON.stringify({
+          user_id: profile?.id,
+          role: profile?.role || "unknown",
+          dashboard: "secretary_sales",
+          export_type: "custom",
+          record_count: sales.length,
+          area: userArea,
+          selected_fields: exportFields.filter(f => f.selected).map(f => f.key),
+        }),
+        user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+        user_email: profile?.email,
+        user_name: profile?.full_name || profile?.first_name || profile?.id,
+        user_uuid: profile?.id,
+      });
     } catch (error) {
       console.error("Export error:", error)
       alert("Error exporting data. Please try again.")

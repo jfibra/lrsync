@@ -46,6 +46,7 @@ import {
   MapPin,
 } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { logNotification } from "@/utils/logNotification";
 
 const formatTin = (tin: string): string => {
   if (!tin) return ""
@@ -125,8 +126,8 @@ export default function SecretaryTinLibraryPage() {
           ...taxpayer,
           user_profiles: taxpayer.user_uuid
             ? {
-                assigned_area: userAreaMap.get(taxpayer.user_uuid) || null,
-              }
+              assigned_area: userAreaMap.get(taxpayer.user_uuid) || null,
+            }
             : null,
         })) || []
 
@@ -235,6 +236,25 @@ export default function SecretaryTinLibraryPage() {
         return
       }
 
+      if (profile?.id) {
+        await logNotification(supabase, {
+          action: "taxpayer_created",
+          description: `Created taxpayer: ${formData.tin} (${formData.registered_name})`,
+          ip_address: null,
+          location: null,
+          meta: JSON.stringify({
+            user_id: profile.id,
+            role: profile.role || "unknown",
+            dashboard: "secretary_tin_library",
+            taxpayer: formData,
+          }),
+          user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+          user_email: profile.email,
+          user_name: profile.full_name || profile.first_name || profile.id,
+          user_uuid: profile.id,
+        });
+      }
+
       console.log("Taxpayer created successfully:", newTaxpayer)
       setSuccess(`Taxpayer listing for TIN "${formData.tin}" created successfully!`)
       setIsAddModalOpen(false)
@@ -307,6 +327,26 @@ export default function SecretaryTinLibraryPage() {
         return
       }
 
+      if (profile?.id && editingTaxpayer) {
+        await logNotification(supabase, {
+          action: "taxpayer_updated",
+          description: `Updated taxpayer: ${formData.tin} (${formData.registered_name})`,
+          ip_address: null,
+          location: null,
+          meta: JSON.stringify({
+            user_id: profile.id,
+            role: profile.role || "unknown",
+            dashboard: "secretary_tin_library",
+            taxpayer: formData,
+            taxpayer_id: editingTaxpayer.id,
+          }),
+          user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+          user_email: profile.email,
+          user_name: profile.full_name || profile.first_name || profile.id,
+          user_uuid: profile.id,
+        });
+      }
+
       setSuccess("Taxpayer listing updated successfully!")
       setIsEditModalOpen(false)
       setEditingTaxpayer(null)
@@ -329,6 +369,27 @@ export default function SecretaryTinLibraryPage() {
       if (deleteError) {
         setError("Error deleting taxpayer listing: " + deleteError.message)
         return
+      }
+
+      if (profile?.id) {
+        await logNotification(supabase, {
+          action: "taxpayer_deleted",
+          description: `Deleted taxpayer: ${taxpayer.tin} (${taxpayer.registered_name})`,
+          ip_address: null,
+          location: null,
+          meta: JSON.stringify({
+            user_id: profile.id,
+            role: profile.role || "unknown",
+            dashboard: "secretary_tin_library",
+            taxpayer_id: taxpayer.id,
+            taxpayer_tin: taxpayer.tin,
+            taxpayer_name: taxpayer.registered_name,
+          }),
+          user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+          user_email: profile.email,
+          user_name: profile.full_name || profile.first_name || profile.id,
+          user_uuid: profile.id,
+        });
       }
 
       setSuccess(`Taxpayer listing for TIN "${taxpayer.tin}" deleted successfully!`)
@@ -674,11 +735,10 @@ export default function SecretaryTinLibraryPage() {
                               </TableCell>
                               <TableCell>
                                 <span
-                                  className={`px-3 py-1 rounded-full text-xs font-medium ${
-                                    taxpayer.type === "sales"
-                                      ? "" // success
-                                      : "" // secondary
-                                  }`}
+                                  className={`px-3 py-1 rounded-full text-xs font-medium ${taxpayer.type === "sales"
+                                    ? "" // success
+                                    : "" // secondary
+                                    }`}
                                   style={taxpayer.type === "sales"
                                     ? { background: '#dee242', color: '#001f3f', border: '1px solid #dee242' }
                                     : { background: '#fffbe6', color: '#001f3f', border: '1px solid #e0e0e0' }}

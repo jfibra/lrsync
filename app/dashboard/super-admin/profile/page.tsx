@@ -15,33 +15,6 @@ import { logNotification } from "@/utils/logNotification";
 
 export default function ProfilePage() {
   const { profile, refreshProfile } = useAuth()
-  // Log notification/audit entry for profile dashboard access (all roles)
-  useEffect(() => {
-    if (profile?.id) {
-      (async () => {
-        try {
-          await logNotification(supabase, { 
-            action: "profile_dashboard_access",
-            user_uuid: profile.id,            // <-- add this
-            user_name: profile.full_name || profile.first_name || profile.id,          // <-- add this
-            user_email: profile.email,
-            description: `Profile dashboard accessed by ${profile.full_name || profile.first_name || profile.id}`,
-            user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
-            meta: JSON.stringify({
-              user_id: profile.id,
-              role: profile.role || "unknown",
-              dashboard: "profile_management",
-            }),
-          })
-        } catch (logError) {
-          console.error("Error logging notification:", logError)
-          // Do not block user on logging failure
-        }
-      })()
-    }
-    // Only log once when profile is available
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile?.id])
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState("")
@@ -102,16 +75,16 @@ export default function ProfilePage() {
         setError("Error updating profile: " + updateError.message)
         // Log failed update
         try {
-          await logNotification(supabase, { 
-            p_action: "profile_updated",
-            user_uuid: profile.id,            // <-- add this
-            user_name: profile.full_name || profile.first_name || profile.id,          // <-- add this
+          await logNotification(supabase, {
+            action: "profile_updated",
+            description: `Failed profile update for user ${profile.full_name || profile.id}`,
+            ip_address: null,
+            location: null,
+            meta: JSON.stringify({ error: updateError.message, updateData }),
+            user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
             user_email: profile.email,
-            p_description: `Failed profile update for user ${profile.full_name || profile.id}`,
-            p_ip_address: null,
-            p_location: null,
-            p_user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
-            p_meta: JSON.stringify({ error: updateError.message, updateData }),
+            user_name: profile.full_name || profile.first_name || profile.id,
+            user_uuid: profile.id,
           })
         } catch (logError) {
           console.error("Error logging notification (profile update failed):", logError)
@@ -124,16 +97,16 @@ export default function ProfilePage() {
 
       // Log successful update
       try {
-        await logNotification(supabase, { 
-          p_action: "profile_updated",
-            user_uuid: profile.id,            // <-- add this
-            user_name: profile.full_name || profile.first_name || profile.id,          // <-- add this
-            user_email: profile.email,
-          p_description: `Profile updated for user ${profile.full_name || profile.id}`,
-          p_ip_address: null,
-          p_location: null,
-          p_user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
-          p_meta: JSON.stringify({ updateData }),
+        await logNotification(supabase, {
+          action: "profile_updated",
+          description: `Profile updated for user ${profile.full_name || profile.id}`,
+          ip_address: null,
+          location: null,
+          meta: JSON.stringify({ updateData }),
+          user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+          user_email: profile.email,
+          user_name: profile.full_name || profile.first_name || profile.id,
+          user_uuid: profile.id,
         })
       } catch (logError) {
         console.error("Error logging notification (profile update success):", logError)
@@ -145,16 +118,16 @@ export default function ProfilePage() {
       setError("An unexpected error occurred")
       // Log unexpected error
       try {
-        await logNotification(supabase, { 
-          p_action: "profile_updated",
-            user_uuid: profile.id,            // <-- add this
-            user_name: profile.full_name || profile.first_name || profile.id,          // <-- add this
-            user_email: profile.email,
-          p_description: `Unexpected error during profile update for user ${profile?.full_name || profile?.id}`,
-          p_ip_address: null,
-          p_location: null,
-          p_user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
-          p_meta: JSON.stringify({ error }),
+        await logNotification(supabase, {
+          action: "profile_updated",
+          description: `Unexpected error during profile update for user ${profile?.full_name || profile?.id}`,
+          ip_address: null,
+          location: null,
+          meta: JSON.stringify({ error }),
+          user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+          user_email: profile.email,
+          user_name: profile.full_name || profile.first_name || profile.id,
+          user_uuid: profile.id,
         })
       } catch (logError) {
         console.error("Error logging notification (profile update error):", logError)
@@ -214,16 +187,16 @@ export default function ProfilePage() {
         setPasswordError("Current password is incorrect")
         // Log failed password change
         try {
-          await logNotification(supabase, { 
-            p_action: "password_changed",
-            user_uuid: profile.id,            // <-- add this
-            user_name: profile.full_name || profile.first_name || profile.id,          // <-- add this
+          await logNotification(supabase, {
+            action: "password_changed",
+            description: `Failed password change for user ${profile?.full_name || profile?.id}`,
+            ip_address: null,
+            location: null,
+            meta: JSON.stringify({ error: signInError.message }),
+            user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
             user_email: profile.email,
-            p_description: `Failed password change for user ${profile?.full_name || profile?.id}`,
-            p_ip_address: null,
-            p_location: null,
-            p_user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
-            p_meta: JSON.stringify({ error: signInError.message }),
+            user_name: profile.full_name || profile.first_name || profile.id,
+            user_uuid: profile.id,
           })
         } catch (logError) {
           console.error("Error logging notification (password change failed):", logError)
@@ -240,16 +213,16 @@ export default function ProfilePage() {
         setPasswordError("Error updating password: " + updateError.message)
         // Log failed password update
         try {
-          await logNotification(supabase, { 
-            p_action: "password_changed",
-            user_uuid: profile.id,            // <-- add this
-            user_name: profile.full_name || profile.first_name || profile.id,          // <-- add this
+          await logNotification(supabase, {
+            action: "password_changed",
+            description: `Error updating password for user ${profile?.full_name || profile?.id}`,
+            ip_address: null,
+            location: null,
+            meta: JSON.stringify({ error: updateError.message }),
+            user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
             user_email: profile.email,
-            p_description: `Error updating password for user ${profile?.full_name || profile?.id}`,
-            p_ip_address: null,
-            p_location: null,
-            p_user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
-            p_meta: JSON.stringify({ error: updateError.message }),
+            user_name: profile.full_name || profile.first_name || profile.id,
+            user_uuid: profile.id,
           })
         } catch (logError) {
           console.error("Error logging notification (password update failed):", logError)
@@ -266,16 +239,16 @@ export default function ProfilePage() {
 
       // Log successful password change
       try {
-        await logNotification(supabase, { 
-          p_action: "password_changed",
-            user_uuid: profile.id,            // <-- add this
-            user_name: profile.full_name || profile.first_name || profile.id,          // <-- add this
-            user_email: profile.email,
-          p_description: `Password changed for user ${profile?.full_name || profile?.id}`,
-          p_ip_address: null,
-          p_location: null,
-          p_user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
-          p_meta: JSON.stringify({}),
+        await logNotification(supabase, {
+          action: "password_changed",
+          description: `Password changed for user ${profile?.full_name || profile?.id}`,
+          ip_address: null,
+          location: null,
+          meta: JSON.stringify({}),
+          user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+          user_email: profile.email,
+          user_name: profile.full_name || profile.first_name || profile.id,
+          user_uuid: profile.id,
         })
       } catch (logError) {
         console.error("Error logging notification (password change success):", logError)
@@ -284,16 +257,16 @@ export default function ProfilePage() {
       setPasswordError("An unexpected error occurred")
       // Log unexpected error
       try {
-        await logNotification(supabase, { 
-          p_action: "password_changed",
-            user_uuid: profile.id,            // <-- add this
-            user_name: profile.full_name || profile.first_name || profile.id,          // <-- add this
-            user_email: profile.email,
-          p_description: `Unexpected error during password change for user ${profile?.full_name || profile?.id}`,
-          p_ip_address: null,
-          p_location: null,
-          p_user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
-          p_meta: JSON.stringify({ error }),
+        await logNotification(supabase, {
+          action: "password_changed",
+          description: `Unexpected error during password change for user ${profile?.full_name || profile?.id}`,
+          ip_address: null,
+          location: null,
+          meta: JSON.stringify({ error }),
+          user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+          user_email: profile.email,
+          user_name: profile.full_name || profile.first_name || profile.id,
+          user_uuid: profile.id,
         })
       } catch (logError) {
         console.error("Error logging notification (password change error):", logError)

@@ -52,6 +52,7 @@ import { CustomExportModal } from "@/components/custom-export-modal";
 import { ColumnVisibilityControl } from "@/components/column-visibility-control";
 import type { Sales } from "@/types/sales";
 import * as XLSX from "xlsx";
+import { logNotification } from "@/utils/logNotification";
 
 export default function AdminSalesPage() {
   const { profile } = useAuth();
@@ -246,6 +247,25 @@ export default function AdminSalesPage() {
 
       if (error) throw error;
 
+      // Log delete action
+      if (profile?.id) {
+        logNotification(supabase, {
+          action: "delete_sale",
+          user_uuid: profile.id,
+          user_name: profile.full_name || profile.first_name || profile.id,
+          user_email: profile.email,
+          description: `Deleted sales record for ${sale.name} (ID: ${sale.id})`,
+          user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+          meta: JSON.stringify({
+            user_id: profile.id,
+            role: profile.role || "unknown",
+            dashboard: "admin_sales",
+            sale_id: sale.id,
+            sale_name: sale.name,
+          }),
+        });
+      }
+
       // Refresh the data
       fetchSales();
     } catch (error) {
@@ -280,8 +300,7 @@ export default function AdminSalesPage() {
     // Create summary data
     const summaryData = [
       [
-        `SALES MANAGEMENT REPORT - ${
-          profile?.assigned_area || "Unknown Area"
+        `SALES MANAGEMENT REPORT - ${profile?.assigned_area || "Unknown Area"
         } (Invoice Sales Only)`,
       ],
       [
@@ -441,6 +460,25 @@ export default function AdminSalesPage() {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+
+    // Log export action
+    if (profile?.id) {
+      logNotification(supabase, {
+        action: "export_invoice_sales",
+        user_uuid: profile.id,
+        user_name: profile.full_name || profile.first_name || profile.id,
+        user_email: profile.email,
+        description: `Exported invoice sales to Excel (${invoiceSales.length} records)`,
+        user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+        meta: JSON.stringify({
+          user_id: profile.id,
+          role: profile.role || "unknown",
+          dashboard: "admin_sales",
+          export_type: "invoice_only",
+          record_count: invoiceSales.length,
+        }),
+      });
+    }
   };
 
   // Calculate stats
@@ -651,6 +689,25 @@ export default function AdminSalesPage() {
                   <CustomExportModal
                     sales={sales}
                     userArea={profile?.assigned_area}
+                    onExport={(exportedCount) => {
+                      if (profile?.id) {
+                        logNotification(supabase, {
+                          action: "export_custom_sales",
+                          user_uuid: profile.id,
+                          user_name: profile.full_name || profile.first_name || profile.id,
+                          user_email: profile.email,
+                          description: `Exported custom sales to Excel (${exportedCount} records)`,
+                          user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+                          meta: JSON.stringify({
+                            user_id: profile.id,
+                            role: profile.role || "unknown",
+                            dashboard: "admin_sales",
+                            export_type: "custom",
+                            record_count: exportedCount,
+                          }),
+                        });
+                      }
+                    }}
                   />
                   <Button
                     variant="outline"
@@ -671,73 +728,73 @@ export default function AdminSalesPage() {
                     <TableRow className="bg-gray-50 border-b border-gray-200">
                       {columnVisibility.find((col) => col.key === "tax_month")
                         ?.visible && (
-                        <TableHead className="min-w-[120px] font-semibold text-gray-900">
-                          Tax Month
-                        </TableHead>
-                      )}
+                          <TableHead className="min-w-[120px] font-semibold text-gray-900">
+                            Tax Month
+                          </TableHead>
+                        )}
                       {columnVisibility.find((col) => col.key === "tin")
                         ?.visible && (
-                        <TableHead className="min-w-[120px] font-semibold text-gray-900">
-                          TIN
-                        </TableHead>
-                      )}
+                          <TableHead className="min-w-[120px] font-semibold text-gray-900">
+                            TIN
+                          </TableHead>
+                        )}
                       {columnVisibility.find((col) => col.key === "name")
                         ?.visible && (
-                        <TableHead className="min-w-[180px] font-semibold text-gray-900">
-                          Name
-                        </TableHead>
-                      )}
+                          <TableHead className="min-w-[180px] font-semibold text-gray-900">
+                            Name
+                          </TableHead>
+                        )}
                       {columnVisibility.find((col) => col.key === "tax_type")
                         ?.visible && (
-                        <TableHead className="min-w-[100px] font-semibold text-gray-900">
-                          Tax Type
-                        </TableHead>
-                      )}
+                          <TableHead className="min-w-[100px] font-semibold text-gray-900">
+                            Tax Type
+                          </TableHead>
+                        )}
                       {columnVisibility.find((col) => col.key === "sale_type")
                         ?.visible && (
-                        <TableHead className="min-w-[100px] font-semibold text-gray-900">
-                          Sale Type
-                        </TableHead>
-                      )}
+                          <TableHead className="min-w-[100px] font-semibold text-gray-900">
+                            Sale Type
+                          </TableHead>
+                        )}
                       {columnVisibility.find(
                         (col) => col.key === "gross_taxable"
                       )?.visible && (
-                        <TableHead className="min-w-[120px] font-semibold text-gray-900">
-                          Gross Taxable
-                        </TableHead>
-                      )}
+                          <TableHead className="min-w-[120px] font-semibold text-gray-900">
+                            Gross Taxable
+                          </TableHead>
+                        )}
                       {columnVisibility.find(
                         (col) => col.key === "total_actual_amount"
                       )?.visible && (
-                        <TableHead className="min-w-[140px] font-semibold text-gray-900">
-                          Total Actual Amount
-                        </TableHead>
-                      )}
+                          <TableHead className="min-w-[140px] font-semibold text-gray-900">
+                            Total Actual Amount
+                          </TableHead>
+                        )}
                       {columnVisibility.find(
                         (col) => col.key === "invoice_number"
                       )?.visible && (
-                        <TableHead className="min-w-[120px] font-semibold text-gray-900">
-                          Invoice #
-                        </TableHead>
-                      )}
+                          <TableHead className="min-w-[120px] font-semibold text-gray-900">
+                            Invoice #
+                          </TableHead>
+                        )}
                       {columnVisibility.find((col) => col.key === "pickup_date")
                         ?.visible && (
-                        <TableHead className="min-w-[120px] font-semibold text-gray-900">
-                          Pickup Date
-                        </TableHead>
-                      )}
+                          <TableHead className="min-w-[120px] font-semibold text-gray-900">
+                            Pickup Date
+                          </TableHead>
+                        )}
                       {columnVisibility.find((col) => col.key === "files")
                         ?.visible && (
-                        <TableHead className="min-w-[150px] font-semibold text-gray-900">
-                          Files
-                        </TableHead>
-                      )}
+                          <TableHead className="min-w-[150px] font-semibold text-gray-900">
+                            Files
+                          </TableHead>
+                        )}
                       {columnVisibility.find((col) => col.key === "actions")
                         ?.visible && (
-                        <TableHead className="min-w-[120px] font-semibold text-gray-900">
-                          Actions
-                        </TableHead>
-                      )}
+                          <TableHead className="min-w-[120px] font-semibold text-gray-900">
+                            Actions
+                          </TableHead>
+                        )}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -773,166 +830,166 @@ export default function AdminSalesPage() {
                           {columnVisibility.find(
                             (col) => col.key === "tax_month"
                           )?.visible && (
-                            <TableCell className="text-gray-900 font-medium">
-                              <div className="flex items-center gap-2">
-                                <Calendar className="h-4 w-4 text-indigo-500" />
-                                {format(new Date(sale.tax_month), "MMM yyyy")}
-                              </div>
-                            </TableCell>
-                          )}
+                              <TableCell className="text-gray-900 font-medium">
+                                <div className="flex items-center gap-2">
+                                  <Calendar className="h-4 w-4 text-indigo-500" />
+                                  {format(new Date(sale.tax_month), "MMM yyyy")}
+                                </div>
+                              </TableCell>
+                            )}
                           {columnVisibility.find((col) => col.key === "tin")
                             ?.visible && (
-                            <TableCell className="font-mono text-gray-900">
-                              <div className="flex items-center gap-2">
-                                <div className="w-2 h-2 bg-indigo-500 rounded-full"></div>
-                                {formatTin(sale.tin)}
-                              </div>
-                            </TableCell>
-                          )}
+                              <TableCell className="font-mono text-gray-900">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-2 h-2 bg-indigo-500 rounded-full"></div>
+                                  {formatTin(sale.tin)}
+                                </div>
+                              </TableCell>
+                            )}
                           {columnVisibility.find((col) => col.key === "name")
                             ?.visible && (
-                            <TableCell className="text-gray-900">
-                              <div>
-                                <div className="font-medium">{sale.name}</div>
-                                {sale.substreet_street_brgy && (
-                                  <div className="text-sm text-gray-500 flex items-center gap-1">
-                                    <MapPin className="h-3 w-3" />
-                                    {sale.substreet_street_brgy}
-                                  </div>
-                                )}
-                              </div>
-                            </TableCell>
-                          )}
+                              <TableCell className="text-gray-900">
+                                <div>
+                                  <div className="font-medium">{sale.name}</div>
+                                  {sale.substreet_street_brgy && (
+                                    <div className="text-sm text-gray-500 flex items-center gap-1">
+                                      <MapPin className="h-3 w-3" />
+                                      {sale.substreet_street_brgy}
+                                    </div>
+                                  )}
+                                </div>
+                              </TableCell>
+                            )}
                           {columnVisibility.find(
                             (col) => col.key === "tax_type"
                           )?.visible && (
-                            <TableCell>
-                              <Badge
-                                className={getTaxTypeBadgeColor(sale.tax_type)}
-                              >
-                                {sale.tax_type?.toUpperCase()}
-                              </Badge>
-                            </TableCell>
-                          )}
+                              <TableCell>
+                                <Badge
+                                  className={getTaxTypeBadgeColor(sale.tax_type)}
+                                >
+                                  {sale.tax_type?.toUpperCase()}
+                                </Badge>
+                              </TableCell>
+                            )}
                           {columnVisibility.find(
                             (col) => col.key === "sale_type"
                           )?.visible && (
-                            <TableCell>
-                              <Badge
-                                className={
-                                  sale.sale_type === "invoice"
-                                    ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
-                                    : "bg-orange-100 text-orange-800 border border-orange-200"
-                                }
-                              >
-                                {sale.sale_type?.toUpperCase() || "INVOICE"}
-                              </Badge>
-                            </TableCell>
-                          )}
+                              <TableCell>
+                                <Badge
+                                  className={
+                                    sale.sale_type === "invoice"
+                                      ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                                      : "bg-orange-100 text-orange-800 border border-orange-200"
+                                  }
+                                >
+                                  {sale.sale_type?.toUpperCase() || "INVOICE"}
+                                </Badge>
+                              </TableCell>
+                            )}
                           {columnVisibility.find(
                             (col) => col.key === "gross_taxable"
                           )?.visible && (
-                            <TableCell className="text-gray-900 font-semibold">
-                              {formatCurrency(sale.gross_taxable || 0)}
-                            </TableCell>
-                          )}
+                              <TableCell className="text-gray-900 font-semibold">
+                                {formatCurrency(sale.gross_taxable || 0)}
+                              </TableCell>
+                            )}
                           {columnVisibility.find(
                             (col) => col.key === "total_actual_amount"
                           )?.visible && (
-                            <TableCell className="text-gray-900 font-semibold">
-                              {formatCurrency(sale.total_actual_amount || 0)}
-                            </TableCell>
-                          )}
+                              <TableCell className="text-gray-900 font-semibold">
+                                {formatCurrency(sale.total_actual_amount || 0)}
+                              </TableCell>
+                            )}
                           {columnVisibility.find(
                             (col) => col.key === "invoice_number"
                           )?.visible && (
-                            <TableCell className="text-gray-600">
-                              {sale.invoice_number || "-"}
-                            </TableCell>
-                          )}
+                              <TableCell className="text-gray-600">
+                                {sale.invoice_number || "-"}
+                              </TableCell>
+                            )}
                           {columnVisibility.find(
                             (col) => col.key === "pickup_date"
                           )?.visible && (
-                            <TableCell className="text-gray-600">
-                              {sale.pickup_date
-                                ? format(
+                              <TableCell className="text-gray-600">
+                                {sale.pickup_date
+                                  ? format(
                                     new Date(sale.pickup_date),
                                     "MMM dd, yyyy"
                                   )
-                                : "-"}
-                            </TableCell>
-                          )}
+                                  : "-"}
+                              </TableCell>
+                            )}
                           {columnVisibility.find((col) => col.key === "files")
                             ?.visible && (
-                            <TableCell>
-                              <div className="flex flex-wrap gap-1">
-                                {sale.cheque && sale.cheque.length > 0 && (
-                                  <Badge
-                                    variant="outline"
-                                    className="text-xs font-semibold bg-blue-50 text-blue-800 border border-blue-200 px-2 py-1 rounded-lg shadow-sm"
-                                  >
-                                    {" "}
-                                    Cheque ( {sale.cheque.length}){" "}
-                                  </Badge>
-                                )}
-                                {sale.voucher && sale.voucher.length > 0 && (
-                                  <Badge variant="outline" className="text-xs font-semibold bg-green-50 text-green-800 border border-green-200 px-2 py-1 rounded-lg shadow-sm">
-                                    Voucher ({sale.voucher.length})
-                                  </Badge>
-                                )}
-                                {sale.invoice && sale.invoice.length > 0 && (
-                                  <Badge variant="outline" className="text-xs font-semibold bg-yellow-50 text-yellow-800 border border-yellow-200 px-2 py-1 rounded-lg shadow-sm">
-                                    Invoice ({sale.invoice.length})
-                                  </Badge>
-                                )}
-                                {sale.doc_2307 && sale.doc_2307.length > 0 && (
-                                  <Badge variant="outline" className="text-xs font-semibold bg-gray-50 text-gray-800 border border-gray-200 px-2 py-1 rounded-lg shadow-sm">
-                                    2307 ({sale.doc_2307.length})
-                                  </Badge>
-                                )}
-                                {sale.deposit_slip &&
-                                  sale.deposit_slip.length > 0 && (
+                              <TableCell>
+                                <div className="flex flex-wrap gap-1">
+                                  {sale.cheque && sale.cheque.length > 0 && (
                                     <Badge
                                       variant="outline"
                                       className="text-xs font-semibold bg-blue-50 text-blue-800 border border-blue-200 px-2 py-1 rounded-lg shadow-sm"
                                     >
-                                      Deposit ({sale.deposit_slip.length})
+                                      {" "}
+                                      Cheque ( {sale.cheque.length}){" "}
                                     </Badge>
                                   )}
-                              </div>
-                            </TableCell>
-                          )}
+                                  {sale.voucher && sale.voucher.length > 0 && (
+                                    <Badge variant="outline" className="text-xs font-semibold bg-green-50 text-green-800 border border-green-200 px-2 py-1 rounded-lg shadow-sm">
+                                      Voucher ({sale.voucher.length})
+                                    </Badge>
+                                  )}
+                                  {sale.invoice && sale.invoice.length > 0 && (
+                                    <Badge variant="outline" className="text-xs font-semibold bg-yellow-50 text-yellow-800 border border-yellow-200 px-2 py-1 rounded-lg shadow-sm">
+                                      Invoice ({sale.invoice.length})
+                                    </Badge>
+                                  )}
+                                  {sale.doc_2307 && sale.doc_2307.length > 0 && (
+                                    <Badge variant="outline" className="text-xs font-semibold bg-gray-50 text-gray-800 border border-gray-200 px-2 py-1 rounded-lg shadow-sm">
+                                      2307 ({sale.doc_2307.length})
+                                    </Badge>
+                                  )}
+                                  {sale.deposit_slip &&
+                                    sale.deposit_slip.length > 0 && (
+                                      <Badge
+                                        variant="outline"
+                                        className="text-xs font-semibold bg-blue-50 text-blue-800 border border-blue-200 px-2 py-1 rounded-lg shadow-sm"
+                                      >
+                                        Deposit ({sale.deposit_slip.length})
+                                      </Badge>
+                                    )}
+                                </div>
+                              </TableCell>
+                            )}
                           {columnVisibility.find((col) => col.key === "actions")
                             ?.visible && (
-                            <TableCell>
-                              <div className="flex items-center gap-2">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleViewSale(sale)}
-                                  className="h-8 w-8 p-0 hover:bg-blue-100"
-                                >
-                                  <Eye className="h-4 w-4 text-blue-600" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleEditSale(sale)}
-                                  className="h-8 w-8 p-0 hover:bg-green-100"
-                                >
-                                  <Edit className="h-4 w-4 text-green-600" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleSoftDelete(sale)}
-                                  className="h-8 w-8 p-0 hover:bg-red-100"
-                                >
-                                  <Trash2 className="h-4 w-4 text-red-600" />
-                                </Button>
-                              </div>
-                            </TableCell>
-                          )}
+                              <TableCell>
+                                <div className="flex items-center gap-2">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleViewSale(sale)}
+                                    className="h-8 w-8 p-0 hover:bg-blue-100"
+                                  >
+                                    <Eye className="h-4 w-4 text-blue-600" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleEditSale(sale)}
+                                    className="h-8 w-8 p-0 hover:bg-green-100"
+                                  >
+                                    <Edit className="h-4 w-4 text-green-600" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleSoftDelete(sale)}
+                                    className="h-8 w-8 p-0 hover:bg-red-100"
+                                  >
+                                    <Trash2 className="h-4 w-4 text-red-600" />
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            )}
                         </TableRow>
                       ))
                     )}

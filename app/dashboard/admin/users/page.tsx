@@ -32,6 +32,7 @@ import { supabase } from "@/lib/supabase/client"
 import type { UserProfile, UserRole, UserStatus } from "@/types/auth"
 import { Search, Edit, Trash2, UserPlus, CheckCircle, AlertCircle, RefreshCw } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { logNotification } from "@/utils/logNotification";
 
 interface UserFormData {
   email: string
@@ -227,6 +228,18 @@ export default function AdminUserManagement() {
 
       const successMessage = `User "${formData.first_name} ${formData.last_name}" (${formData.email}) created successfully with login capabilities! Default password: TempPass123! (user should change this)`
 
+      await logNotification(supabase, {
+        action: "user_created",
+        user_uuid: currentUser?.id, // the admin performing the action
+        user_name: currentUser?.full_name || currentUser?.first_name || currentUser?.id,
+        user_email: currentUser?.email,
+        description: `Created user: ${formData.email} (${formData.first_name} ${formData.last_name})`,
+        user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+        meta: JSON.stringify({
+          created_user: formData,
+        }),
+      });
+
       setSuccess(successMessage)
       setIsAddModalOpen(false)
       setFormData(initialFormData)
@@ -293,6 +306,19 @@ export default function AdminUserManagement() {
         })
         .eq("id", editingUser.id)
 
+      await logNotification(supabase, {
+        action: "user_updated",
+        user_uuid: currentUser?.id,
+        user_name: currentUser?.full_name || currentUser?.first_name || currentUser?.id,
+        user_email: currentUser?.email,
+        description: `Updated user: ${formData.email} (${formData.first_name} ${formData.last_name})`,
+        user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+        meta: JSON.stringify({
+          updated_user: formData,
+          user_id: editingUser?.id,
+        }),
+      });
+
       if (updateError) {
         setError("Error updating user: " + updateError.message)
         return
@@ -322,6 +348,20 @@ export default function AdminUserManagement() {
         return
       }
 
+      await logNotification(supabase, {
+        action: "user_deleted",
+        user_uuid: currentUser?.id,
+        user_name: currentUser?.full_name || currentUser?.first_name || currentUser?.id,
+        user_email: currentUser?.email,
+        description: `Deleted user: ${user.email} (${user.full_name})`,
+        user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+        meta: JSON.stringify({
+          deleted_user_id: user.id,
+          deleted_user_email: user.email,
+          deleted_user_name: user.full_name,
+        }),
+      });
+
       setSuccess(`User ${user.full_name || user.first_name} deleted successfully!`)
       fetchUsers()
     } catch (error: any) {
@@ -339,6 +379,20 @@ export default function AdminUserManagement() {
         setError("Error updating status: " + error.message)
         return
       }
+
+      await logNotification(supabase, {
+        action: "user_status_updated", // or "user_role_updated"
+        user_uuid: currentUser?.id,
+        user_name: currentUser?.full_name || currentUser?.first_name || currentUser?.id,
+        user_email: currentUser?.email,
+        description: `Updated status/role for user: ${userId}`,
+        user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+        meta: JSON.stringify({
+          user_id: userId,
+          new_status: newStatus, // or newRole
+        }),
+      });
+
       setSuccess("Status updated successfully")
       fetchUsers()
     } catch (error: any) {
@@ -354,6 +408,18 @@ export default function AdminUserManagement() {
         setError("Error updating role: " + error.message)
         return
       }
+      await logNotification(supabase, {
+        action: "user_role_updated",
+        user_uuid: currentUser?.id,
+        user_name: currentUser?.full_name || currentUser?.first_name || currentUser?.id,
+        user_email: currentUser?.email,
+        description: `Updated role for user: ${userId}`,
+        user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+        meta: JSON.stringify({
+          user_id: userId,
+          new_role: newRole,
+        }),
+      });
       setSuccess("Role updated successfully")
       fetchUsers()
     } catch (error: any) {
@@ -412,12 +478,12 @@ export default function AdminUserManagement() {
                 <div className="flex gap-2">
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-navy h-4 w-4" />
-                  <Input
-                    placeholder="Search users..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10 w-full sm:w-64 bg-white border-navy text-navy focus:border-navy focus:ring-navy placeholder-navy"
-                  />
+                    <Input
+                      placeholder="Search users..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-10 w-full sm:w-64 bg-white border-navy text-navy focus:border-navy focus:ring-navy placeholder-navy"
+                    />
                   </div>
                   <Button
                     onClick={fetchUsers}

@@ -34,6 +34,7 @@ import {
 import { Search, Eye, FileText, Calendar, User, Hash, CheckCircle, X, Upload } from 'lucide-react';
 import { CommissionReportViewModal } from "@/components/commission-report-view-modal";
 import { useAuth } from "@/contexts/auth-context";
+import { logNotification } from "@/utils/logNotification";
 
 interface CommissionReport {
   uuid: string;
@@ -254,6 +255,24 @@ export default function SecretaryCommissionReportsPage() {
         alert("Failed to update database after S3 delete.");
         return;
       }
+
+      await logNotification(supabase, {
+        action: "commission_report_attachment_deleted",
+        description: `Deleted attachment "${fileToDelete.name}" from report #${report.report_number}`,
+        ip_address: null,
+        location: null,
+        meta: JSON.stringify({
+          report_uuid: report.uuid,
+          report_number: report.report_number,
+          attachment_name: fileToDelete.name,
+          attachment_url: fileToDelete.url,
+          attachment_type: report._attachmentType,
+        }),
+        user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+        user_email: profile?.email,
+        user_name: profile?.full_name || profile?.first_name || profile?.id,
+        user_uuid: profile?.id,
+      });
 
       // Optionally, update the UI or close the modal
       onClose();
@@ -482,6 +501,25 @@ export default function SecretaryCommissionReportsPage() {
             ? { ...report, secretary_pot: JSON.stringify(updatedData) }
             : report
         ));
+
+        await logNotification(supabase, {
+          action: "commission_report_attachments_uploaded",
+          description: `Uploaded ${successfulUploads.length} attachment(s) to report #${uploadReport.report_number}`,
+          ip_address: null,
+          location: null,
+          meta: JSON.stringify({
+            report_uuid: uploadReport.uuid,
+            report_number: uploadReport.report_number,
+            uploaded_files: successfulUploads.map((file: any) => ({
+              name: file.name,
+              url: file.url,
+            })),
+          }),
+          user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+          user_email: profile?.email,
+          user_name: profile?.full_name || profile?.first_name || profile?.id,
+          user_uuid: profile?.id,
+        });
 
         setUploadModalOpen(false);
         setSelectedFiles([]);

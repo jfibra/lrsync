@@ -34,6 +34,8 @@ import {
 } from "@/components/ui/pagination";
 import { Search, Eye, FileText, Calendar, User, Hash, Upload, X, CheckCircle } from 'lucide-react';
 import { CommissionReportViewModal } from "@/components/commission-report-view-modal";
+import { logNotification } from "@/utils/logNotification";
+import { useAuth } from "@/contexts/auth-context"; // If not already imported
 
 interface CommissionReport {
   uuid: string;
@@ -75,6 +77,7 @@ export default function CommissionReportsPage() {
   const [totalRecords, setTotalRecords] = useState(0);
   const [selectedReport, setSelectedReport] = useState<CommissionReport | null>(null);
   const [viewModalOpen, setViewModalOpen] = useState(false);
+  const { profile } = useAuth();
 
   // State for update status modal
   const [statusModalOpen, setStatusModalOpen] = useState(false);
@@ -220,6 +223,27 @@ export default function CommissionReportsPage() {
         setUploadModalOpen(false);
         setSelectedFiles([]);
         setUploadReport(null);
+
+        if (profile?.id) {
+          await logNotification(supabase, {
+            action: "commission_report_attachments_uploaded",
+            description: `Uploaded ${successfulUploads.length} attachment(s) to report #${uploadReport.report_number}`,
+            ip_address: null,
+            location: null,
+            meta: JSON.stringify({
+              report_uuid: uploadReport.uuid,
+              report_number: uploadReport.report_number,
+              uploaded_files: successfulUploads.map((file: any) => ({
+                name: file.name,
+                url: file.url,
+              })),
+            }),
+            user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+            user_email: profile.email,
+            user_name: profile.full_name || profile.first_name || profile.id,
+            user_uuid: profile.id,
+          });
+        }
       } else {
         throw new Error('All files failed to upload');
       }
@@ -449,6 +473,25 @@ export default function CommissionReportsPage() {
             : r
         )
       );
+
+      if (profile?.id && statusUpdateReport) {
+        await logNotification(supabase, {
+          action: "commission_report_status_updated",
+          description: `Updated status for report #${statusUpdateReport.report_number} to "${newStatus}"`,
+          ip_address: null,
+          location: null,
+          meta: JSON.stringify({
+            report_uuid: statusUpdateReport.uuid,
+            report_number: statusUpdateReport.report_number,
+            new_status: newStatus,
+            remarks: statusRemark,
+          }),
+          user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+          user_email: profile.email,
+          user_name: profile.full_name || profile.first_name || profile.id,
+          user_uuid: profile.id,
+        });
+      }
     } catch (err: any) {
       setStatusError("Failed to update status. Please try again.");
     } finally {
@@ -646,6 +689,23 @@ export default function CommissionReportsPage() {
 
     setReports((prev) => prev.filter((r) => r.uuid !== uuid));
     setTotalRecords((prev) => prev - 1);
+
+    if (profile?.id) {
+      await logNotification(supabase, {
+        action: "commission_report_deleted",
+        description: `Deleted commission report #${reports.find(r => r.uuid === uuid)?.report_number}`,
+        ip_address: null,
+        location: null,
+        meta: JSON.stringify({
+          report_uuid: uuid,
+          report_number: reports.find(r => r.uuid === uuid)?.report_number,
+        }),
+        user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+        user_email: profile.email,
+        user_name: profile.full_name || profile.first_name || profile.id,
+        user_uuid: profile.id,
+      });
+    }
     Swal.fire("Deleted!", "The commission report has been deleted.", "success");
   };
 
@@ -1308,6 +1368,26 @@ export default function CommissionReportsPage() {
               .from("commission_report")
               .update(updateField)
               .eq("uuid", selectedAttachmentsReport.uuid);
+
+            if (profile?.id) {
+              await logNotification(supabase, {
+                action: "commission_report_attachment_deleted",
+                description: `Deleted attachment "${fileToDelete.name}" from report #${selectedAttachmentsReport.report_number}`,
+                ip_address: null,
+                location: null,
+                meta: JSON.stringify({
+                  report_uuid: selectedAttachmentsReport.uuid,
+                  report_number: selectedAttachmentsReport.report_number,
+                  attachment_name: fileToDelete.name,
+                  attachment_url: fileToDelete.url,
+                  attachment_type: selectedAttachmentsReport._attachmentType,
+                }),
+                user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+                user_email: profile.email,
+                user_name: profile.full_name || profile.first_name || profile.id,
+                user_uuid: profile.id,
+              });
+            }
 
             if (!error) {
               setReports((prev) =>

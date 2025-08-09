@@ -540,15 +540,11 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
     // Log notification/audit entry for all roles after successful sales record creation
     try {
       await logNotification(supabase, {
-        p_action: "add_sales_record",
-        user_uuid: profile.id,            // <-- add this
-        user_name: profile.full_name || profile.first_name || profile.id,          // <-- add this
-        user_email: profile.email,
-        p_description: `Sales record added for TIN ${formData.tin} by ${user?.user_metadata?.role || "unknown role"
-          }`,
-        p_ip_address: null,
-        p_location: null,
-        p_meta: JSON.stringify({
+        action: "add_sales_record",
+        description: `Sales record added for TIN ${formData.tin} by ${user?.user_metadata?.role || "unknown role"}`,
+        ip_address: null,
+        location: null,
+        meta: JSON.stringify({
           user_id: user.id,
           role: user?.user_metadata?.role || "unknown",
           tin: formData.tin,
@@ -560,8 +556,10 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
           total_actual_amount: formData.total_actual_amount,
           file_attachments: fileMeta,
         }),
-        p_user_agent:
-          typeof window !== "undefined" ? window.navigator.userAgent : "server",
+        user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+        user_email: profile.email,
+        user_name: profile.full_name || profile.first_name || profile.id,
+        user_uuid: profile.id,
       });
     } catch (logError) {
       console.error("Error logging notification:", logError);
@@ -699,8 +697,8 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
         <label
           htmlFor={`file-${upload.id}`}
           className={`cursor-pointer ${upload.uploading || !taxMonth || !formData.tin
-              ? "opacity-50 cursor-not-allowed"
-              : ""
+            ? "opacity-50 cursor-not-allowed"
+            : ""
             }`}
         >
           {upload.uploading ? (

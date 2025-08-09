@@ -310,16 +310,15 @@ export default function UserManagement() {
 
       // Log notification for add user action with correct RPC parameters
       const { error: logError } = await logNotification(supabase, {
-        p_action: "user_created",
-        user_uuid: profile.id,            // <-- add this
-        user_name: profile.full_name || profile.first_name || profile.id,          // <-- add this
+        action: "user_created",
+        user_uuid: profile.id,
+        user_name: profile.full_name || profile.first_name || profile.id,
         user_email: profile.email,
-        p_description: `User created: ${profileData.full_name} (${profileData.email})`,
-        p_ip_address: null,
-        p_location: null,
-        p_meta: JSON.stringify(profileData),
-        p_user_agent:
-          typeof window !== "undefined" ? window.navigator.userAgent : "server",
+        description: `User created: ${profileData.full_name} (${profileData.email})`,
+        ip_address: null,
+        location: null,
+        meta: JSON.stringify(profileData),
+        user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
       });
       if (logError) {
         setError("Notification logging failed: " + logError.message);
@@ -418,6 +417,22 @@ export default function UserManagement() {
           return;
         }
       }
+      if (editUser && profile?.id) {
+        await logNotification(supabase, {
+          action: "user_updated",
+          user_uuid: profile.id,
+          user_name: profile.full_name || profile.first_name || profile.id,
+          user_email: profile.email,
+          description: `User updated: ${editFormData.first_name} ${editFormData.last_name} (${editFormData.email})`,
+          ip_address: null,
+          location: null,
+          meta: JSON.stringify({
+            user_id: editUser.id,
+            updated_fields: editFormData,
+          }),
+          user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+        });
+      }
       setEditModalOpen(false);
       setEditUser(null);
       setSuccess("User updated successfully!");
@@ -478,7 +493,22 @@ export default function UserManagement() {
         setError("Error updating user: " + updateError.message);
         return;
       }
-
+      if (editingUser && profile?.id) {
+        await logNotification(supabase, {
+          action: "user_updated",
+          user_uuid: profile.id,
+          user_name: profile.full_name || profile.first_name || profile.id,
+          user_email: profile.email,
+          description: `User updated: ${formData.first_name} ${formData.last_name} (${formData.email})`,
+          ip_address: null,
+          location: null,
+          meta: JSON.stringify({
+            user_id: editingUser.id,
+            updated_fields: formData,
+          }),
+          user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+        });
+      }
       setSuccess("User updated successfully!");
       setIsEditModalOpen(false);
       setEditingUser(null);
@@ -508,17 +538,15 @@ export default function UserManagement() {
 
       // Log notification for user deletion
       const { error: logError } = await logNotification(supabase, {
-        p_action: "user_deleted",
-        user_uuid: profile.id,            // <-- add this
-        user_name: profile.full_name || profile.first_name || profile.id,          // <-- add this
+        action: "user_deleted",
+        user_uuid: profile.id,
+        user_name: profile.full_name || profile.first_name || profile.id,
         user_email: profile.email,
-        p_description: `User deleted: ${user.full_name || user.email || user.id
-          }`,
-        p_ip_address: null,
-        p_location: null,
-        p_meta: JSON.stringify({ user_id: user.id, email: user.email }),
-        p_user_agent:
-          typeof window !== "undefined" ? window.navigator.userAgent : "server",
+        description: `User deleted: ${user.full_name || user.email || user.id}`,
+        ip_address: null,
+        location: null,
+        meta: JSON.stringify({ user_id: user.id, email: user.email }),
+        user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
       });
       if (logError) {
         setError("Notification logging failed: " + logError.message);
@@ -553,21 +581,19 @@ export default function UserManagement() {
       }
       // Log notification for status change
       const { error: logError } = await logNotification(supabase, {
-        p_action: "user_status_changed",
-        user_uuid: profile.id,            // <-- add this
-        user_name: profile.full_name || profile.first_name || profile.id,          // <-- add this
+        action: "user_status_changed",
+        user_uuid: profile.id,
+        user_name: profile.full_name || profile.first_name || profile.id,
         user_email: profile.email,
-        p_description: `User status changed for ${user?.full_name || userId
-          }: ${prevStatus} → ${newStatus}`,
-        p_ip_address: null,
-        p_location: null,
-        p_meta: JSON.stringify({
+        description: `User status changed for ${user?.full_name || userId}: ${prevStatus} → ${newStatus}`,
+        ip_address: null,
+        location: null,
+        meta: JSON.stringify({
           user_id: userId,
           prev_status: prevStatus,
           new_status: newStatus,
         }),
-        p_user_agent:
-          typeof window !== "undefined" ? window.navigator.userAgent : "server",
+        user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
       });
       if (logError) {
         setError("Notification logging failed: " + logError.message);
@@ -594,21 +620,19 @@ export default function UserManagement() {
       }
       // Log notification for role change
       const { error: logError } = await logNotification(supabase, {
-        p_action: "user_role_changed",
-        user_uuid: profile.id,            // <-- add this
-        user_name: profile.full_name || profile.first_name || profile.id,          // <-- add this
+        action: "user_role_changed",
+        user_uuid: profile.id,
+        user_name: profile.full_name || profile.first_name || profile.id,
         user_email: profile.email,
-        p_description: `User role changed for ${user?.full_name || userId
-          }: ${prevRole} → ${newRole}`,
-        p_ip_address: null,
-        p_location: null,
-        p_meta: JSON.stringify({
+        description: `User role changed for ${user?.full_name || userId}: ${prevRole} → ${newRole}`,
+        ip_address: null,
+        location: null,
+        meta: JSON.stringify({
           user_id: userId,
           prev_role: prevRole,
           new_role: newRole,
         }),
-        p_user_agent:
-          typeof window !== "undefined" ? window.navigator.userAgent : "server",
+        user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
       });
       if (logError) {
         setError("Notification logging failed: " + logError.message);
@@ -644,6 +668,22 @@ export default function UserManagement() {
       }
 
       setSuccess(`Magic link sent successfully to ${user.email}!`);
+      if (user && profile?.id) {
+        await logNotification(supabase, {
+          action: "magic_link_sent",
+          user_uuid: profile.id,
+          user_name: profile.full_name || profile.first_name || profile.id,
+          user_email: profile.email,
+          description: `Magic link sent to user: ${user.email}`,
+          ip_address: null,
+          location: null,
+          meta: JSON.stringify({
+            user_id: user.id,
+            user_email: user.email,
+          }),
+          user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+        });
+      }
     } catch (error: any) {
       setError("An unexpected error occurred while sending magic link");
     } finally {
@@ -664,40 +704,6 @@ export default function UserManagement() {
   const adminUsers = users.filter(
     (user) => user.role === "admin" || user.role === "super_admin"
   ).length;
-
-  useEffect(() => {
-    (async () => {
-      try {
-        // Try to get current user profile from the first loaded user (super admin only)
-        const currentUser =
-          users.find((u) => u.role === "super_admin") || users[0];
-        if (currentUser) {
-          await logNotification(supabase, {
-            action: "user_management_access",
-            user_uuid: profile.id,            // <-- add this
-            user_name: profile.full_name || profile.first_name || profile.id,          // <-- add this
-            user_email: profile.email,
-            description: `User management dashboard accessed by ${currentUser.full_name || currentUser.first_name || currentUser.id
-              }`,
-            user_agent:
-              typeof window !== "undefined"
-                ? window.navigator.userAgent
-                : "server",
-            meta: JSON.stringify({
-              user_id: currentUser.id,
-              role: currentUser.role || "unknown",
-              dashboard: "user_management",
-            }),
-          });
-        }
-      } catch (logError) {
-        console.error("Error logging notification:", logError);
-        // Do not block user on logging failure
-      }
-    })();
-    // Only log once when users are loaded
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [users]);
 
   return (
     <ProtectedRoute allowedRoles={["super_admin"]}>

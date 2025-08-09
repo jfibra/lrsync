@@ -34,7 +34,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
-
+import { logNotification } from "@/utils/logNotification";
 import type { TaxpayerFormData, TaxpayerListing, TaxpayerType } from "@/types/taxpayer"
 
 import {
@@ -170,8 +170,8 @@ export default function AdminTinLibraryPage() {
           ...t,
           user_profiles: t.user_uuid
             ? {
-                assigned_area: areaMap.get(t.user_uuid) ?? null,
-              }
+              assigned_area: areaMap.get(t.user_uuid) ?? null,
+            }
             : null,
         })) ?? []
 
@@ -232,6 +232,21 @@ export default function AdminTinLibraryPage() {
       const { error: insertErr } = await supabase.from("taxpayer_listings").insert(payload)
       if (insertErr) throw insertErr
 
+      await logNotification(supabase, {
+        action: "taxpayer_created",
+        user_uuid: user?.id,
+        user_name: profile?.full_name || profile?.first_name || user?.id,
+        user_email: profile?.email,
+        description: `Created taxpayer: ${formData.tin} (${formData.registered_name})`,
+        user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+        meta: JSON.stringify({
+          user_id: user?.id,
+          role: profile?.role || "unknown",
+          dashboard: "admin_tin_library",
+          taxpayer: formData,
+        }),
+      });
+
       setSuccess("Taxpayer created successfully!")
       setIsAddOpen(false)
       resetForm()
@@ -287,6 +302,22 @@ export default function AdminTinLibraryPage() {
 
       if (updateErr) throw updateErr
 
+      await logNotification(supabase, {
+        action: "taxpayer_updated",
+        user_uuid: user?.id,
+        user_name: profile?.full_name || profile?.first_name || user?.id,
+        user_email: profile?.email,
+        description: `Updated taxpayer: ${formData.tin} (${formData.registered_name})`,
+        user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+        meta: JSON.stringify({
+          user_id: user?.id,
+          role: profile?.role || "unknown",
+          dashboard: "admin_tin_library",
+          taxpayer: formData,
+          taxpayer_id: editingTaxpayer?.id,
+        }),
+      });
+
       setSuccess("Taxpayer updated successfully!")
       setIsEditOpen(false)
       resetForm()
@@ -305,6 +336,23 @@ export default function AdminTinLibraryPage() {
 
       const { error: delErr } = await supabase.from("taxpayer_listings").delete().eq("id", taxpayer.id)
       if (delErr) throw delErr
+
+      await logNotification(supabase, {
+        action: "taxpayer_deleted",
+        user_uuid: user?.id,
+        user_name: profile?.full_name || profile?.first_name || user?.id,
+        user_email: profile?.email,
+        description: `Deleted taxpayer: ${taxpayer.tin} (${taxpayer.registered_name})`,
+        user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+        meta: JSON.stringify({
+          user_id: user?.id,
+          role: profile?.role || "unknown",
+          dashboard: "admin_tin_library",
+          taxpayer_id: taxpayer.id,
+          taxpayer_tin: taxpayer.tin,
+          taxpayer_name: taxpayer.registered_name,
+        }),
+      });
 
       setSuccess("Taxpayer deleted!")
       fetchTaxpayers()
@@ -497,15 +545,15 @@ export default function AdminTinLibraryPage() {
                   </div>
 
                   {/* Type Filter */}
-                  <Select value={filterType} onValueChange={(v) => setFilterType(v as TaxpayerType | "all")}> 
-                    <SelectTrigger className="sm:w-32 bg-white text-gray-900 border border-gray-300 focus:border-emerald-500 focus:ring-emerald-500"> 
-                      <SelectValue placeholder="Type" className="text-gray-900" /> 
-                    </SelectTrigger> 
-                    <SelectContent className="bg-white text-gray-900"> 
-                      <SelectItem value="all" className="text-gray-900">All Types</SelectItem> 
-                      <SelectItem value="sales" className="text-gray-900">Sales</SelectItem> 
-                      <SelectItem value="purchases" className="text-gray-900">Purchases</SelectItem> 
-                    </SelectContent> 
+                  <Select value={filterType} onValueChange={(v) => setFilterType(v as TaxpayerType | "all")}>
+                    <SelectTrigger className="sm:w-32 bg-white text-gray-900 border border-gray-300 focus:border-emerald-500 focus:ring-emerald-500">
+                      <SelectValue placeholder="Type" className="text-gray-900" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white text-gray-900">
+                      <SelectItem value="all" className="text-gray-900">All Types</SelectItem>
+                      <SelectItem value="sales" className="text-gray-900">Sales</SelectItem>
+                      <SelectItem value="purchases" className="text-gray-900">Purchases</SelectItem>
+                    </SelectContent>
                   </Select>
 
                   {/* Area Filter */}
@@ -590,11 +638,10 @@ export default function AdminTinLibraryPage() {
                           <TableCell className="text-gray-900">{t.registered_name}</TableCell>
                           <TableCell>
                             <span
-                              className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                t.type === "sales"
-                                  ? "bg-green-100 text-green-900"
-                                  : "bg-blue-100 text-blue-900"
-                              }`}
+                              className={`px-2 py-1 rounded-full text-xs font-medium ${t.type === "sales"
+                                ? "bg-green-100 text-green-900"
+                                : "bg-blue-100 text-blue-900"
+                                }`}
                             >
                               {t.type}
                             </span>
@@ -631,7 +678,7 @@ export default function AdminTinLibraryPage() {
                               {/* DELETE */}
                               <AlertDialog>
                                 <AlertDialogTrigger asChild>
-                              <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700">
+                                  <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700">
                                     <Trash2 className="h-4 w-4" />
                                   </Button>
                                 </AlertDialogTrigger>

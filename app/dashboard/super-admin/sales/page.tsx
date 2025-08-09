@@ -41,34 +41,6 @@ import { logNotification } from "@/utils/logNotification";
 
 export default function SuperAdminSalesPage() {
   const { profile } = useAuth()
-  // Log notification/audit entry for sales dashboard access (all roles)
-  useEffect(() => {
-    if (profile?.id) {
-      ;(async () => {
-        try {
-          await logNotification(supabase, { 
-            action: "sales_dashboard_access",
-            user_uuid: profile.id,            // <-- add this
-            user_name: profile.full_name || profile.first_name || profile.id,          // <-- add this
-            user_email: profile.email,
-            description: `Sales dashboard accessed by ${profile.full_name || profile.first_name || profile.id}`,
-            user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
-            meta: JSON.stringify({
-              user_id: profile.id,
-              role: profile.role || "unknown",
-              dashboard: "sales_management",
-            }),
-          })
-        } catch (logError) {
-          console.error("Error logging notification:", logError)
-          // Do not block user on logging failure
-        }
-      })()
-    }
-    // Only log once when profile is available
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile?.id])
-
   const [sales, setSales] = useState<Sales[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
@@ -341,6 +313,26 @@ export default function SuperAdminSalesPage() {
 
       // Refresh the data
       fetchSales()
+
+      if (profile?.id) {
+        await logNotification(supabase, {
+          action: "delete_sale",
+          description: `Deleted sales record for ${sale.name} (ID: ${sale.id})`,
+          ip_address: null,
+          location: null,
+          meta: JSON.stringify({
+            user_id: profile.id,
+            role: profile.role || "unknown",
+            dashboard: "super_admin_sales",
+            sale_id: sale.id,
+            sale_name: sale.name,
+          }),
+          user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+          user_email: profile.email,
+          user_name: profile.full_name || profile.first_name || profile.id,
+          user_uuid: profile.id,
+        });
+      }
     } catch (error) {
       console.error("Error deleting sales record:", error)
       alert("Error deleting sales record. Please try again.")
@@ -348,7 +340,7 @@ export default function SuperAdminSalesPage() {
   }
 
   // Export to Excel function - exclude non-invoice sales
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
     // Filter out non-invoice sales for export
     const invoiceSales = sales.filter((sale) => sale.sale_type === "invoice")
 
@@ -512,6 +504,26 @@ export default function SuperAdminSalesPage() {
     link.click()
     document.body.removeChild(link)
     URL.revokeObjectURL(url)
+
+    if (profile?.id) {
+      await logNotification(supabase, {
+        action: "export_invoice_sales",
+        description: `Exported invoice sales to Excel (${invoiceSales.length} records)`,
+        ip_address: null,
+        location: null,
+        meta: JSON.stringify({
+          user_id: profile.id,
+          role: profile.role || "unknown",
+          dashboard: "super_admin_sales",
+          export_type: "invoice_only",
+          record_count: invoiceSales.length,
+        }),
+        user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+        user_email: profile.email,
+        user_name: profile.full_name || profile.first_name || profile.id,
+        user_uuid: profile.id,
+      });
+    }
   }
 
   // Calculate stats
@@ -688,7 +700,31 @@ export default function SuperAdminSalesPage() {
                 </div>
                 <div className="flex gap-2">
                   <ColumnVisibilityControl columns={columnVisibility} onColumnToggle={toggleColumnVisibility} />
-                  <CustomExportModal sales={sales} />
+                  <CustomExportModal
+                    sales={sales}
+                    onExport={async (exportedCount, selectedFields) => {
+                      if (profile?.id) {
+                        await logNotification(supabase, {
+                          action: "export_custom_sales",
+                          description: `Exported custom sales to Excel (${exportedCount} records)`,
+                          ip_address: null,
+                          location: null,
+                          meta: JSON.stringify({
+                            user_id: profile.id,
+                            role: profile.role || "unknown",
+                            dashboard: "super_admin_sales",
+                            export_type: "custom",
+                            record_count: exportedCount,
+                            selected_fields: selectedFields,
+                          }),
+                          user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+                          user_email: profile.email,
+                          user_name: profile.full_name || profile.first_name || profile.id,
+                          user_uuid: profile.id,
+                        });
+                      }
+                    }}
+                  />
                   <Button
                     variant="outline"
                     size="sm"
@@ -1004,11 +1040,10 @@ export default function SuperAdminSalesPage() {
                         variant={currentPage === pageNum ? "default" : "outline"}
                         size="sm"
                         onClick={() => setCurrentPage(pageNum)}
-                        className={`h-8 px-3 min-w-[32px] ${
-                          currentPage === pageNum
-                            ? "bg-indigo-600 text-white hover:bg-indigo-700 border-indigo-600"
-                            : "border-gray-300 hover:bg-gray-50"
-                        }`}
+                        className={`h-8 px-3 min-w-[32px] ${currentPage === pageNum
+                          ? "bg-indigo-600 text-white hover:bg-indigo-700 border-indigo-600"
+                          : "border-gray-300 hover:bg-gray-50"
+                          }`}
                       >
                         {pageNum}
                       </Button>

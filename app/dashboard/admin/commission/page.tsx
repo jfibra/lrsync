@@ -16,6 +16,7 @@ import { DashboardHeader } from "@/components/dashboard-header"
 import { ColumnVisibilityControl } from "@/components/column-visibility-control"
 import { CommissionGenerationModal } from "@/components/commission-generation-modal"
 import type { Sales } from "@/types/sales"
+import { logNotification } from "@/utils/logNotification";
 
 export default function AdminCommissionPage() {
   const { profile } = useAuth()

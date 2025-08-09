@@ -11,6 +11,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useAuth } from "@/contexts/auth-context"
 import { supabase } from "@/lib/supabase/client"
 import { CheckCircle, AlertCircle, User, Settings, Shield, Clock, Mail } from "lucide-react"
+import { logNotification } from "@/utils/logNotification";
 
 export default function SecretaryProfilePage() {
   const [showPassword, setShowPassword] = useState({
@@ -83,6 +84,23 @@ export default function SecretaryProfilePage() {
       setSuccess("Profile updated successfully!")
       setIsEditing(false)
 
+      await logNotification(supabase, {
+        action: "profile_updated",
+        description: `Secretary updated profile: ${profile.email}`,
+        ip_address: null,
+        location: null,
+        meta: JSON.stringify({
+          user_id: profile.id,
+          role: profile.role || "unknown",
+          dashboard: "secretary_profile",
+          updated_fields: formData,
+        }),
+        user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+        user_email: profile.email,
+        user_name: profile.full_name || profile.first_name || profile.id,
+        user_uuid: profile.id,
+      });
+
       // Refresh the profile data
       await refreshProfile()
     } catch (error) {
@@ -92,7 +110,7 @@ export default function SecretaryProfilePage() {
     }
   }
 
-  const handleCancel = () => {
+  const handleCancel = async () => {
     if (profile) {
       setFormData({
         first_name: profile.first_name || "",
@@ -103,6 +121,23 @@ export default function SecretaryProfilePage() {
     setIsEditing(false)
     setError("")
     setSuccess("")
+    if (profile) {
+      await logNotification(supabase, {
+        action: "profile_edit_cancelled",
+        description: `Secretary cancelled profile edit: ${profile.email}`,
+        ip_address: null,
+        location: null,
+        meta: JSON.stringify({
+          user_id: profile.id,
+          role: profile.role || "unknown",
+          dashboard: "secretary_profile",
+        }),
+        user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+        user_email: profile.email,
+        user_name: profile.full_name || profile.first_name || profile.id,
+        user_uuid: profile.id,
+      });
+    }
   }
 
   const handleChangePassword = async () => {
@@ -159,6 +194,22 @@ export default function SecretaryProfilePage() {
         newPassword: "",
         confirmPassword: "",
       })
+
+      await logNotification(supabase, {
+        action: "password_changed",
+        description: `Secretary changed password: ${profile?.email}`,
+        ip_address: null,
+        location: null,
+        meta: JSON.stringify({
+          user_id: profile?.id,
+          role: profile?.role || "unknown",
+          dashboard: "secretary_profile",
+        }),
+        user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+        user_email: profile?.email,
+        user_name: profile?.full_name || profile?.first_name || profile?.id,
+        user_uuid: profile?.id,
+      });
     } catch (error) {
       setPasswordError("An unexpected error occurred")
     } finally {

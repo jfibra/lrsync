@@ -11,6 +11,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useAuth } from "@/contexts/auth-context"
 import { supabase } from "@/lib/supabase/client"
 import { CheckCircle, AlertCircle, User } from "lucide-react"
+import { logNotification } from "@/utils/logNotification";
 
 export default function ProfilePage() {
   const { profile, refreshProfile } = useAuth()
@@ -69,6 +70,21 @@ export default function ProfilePage() {
         setError("Error updating profile: " + updateError.message)
         return
       }
+
+      await logNotification(supabase, {
+        action: "profile_updated",
+        user_uuid: profile?.id,
+        user_name: profile?.full_name || profile?.first_name || profile?.id,
+        user_email: profile?.email,
+        description: `Profile updated by ${profile?.full_name || profile?.first_name || profile?.id}`,
+        user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+        meta: JSON.stringify({
+          user_id: profile?.id,
+          role: profile?.role || "unknown",
+          dashboard: "admin_profile",
+          updated_fields: formData,
+        }),
+      });
 
       setSuccess("Profile updated successfully!")
       setIsEditing(false)
@@ -147,6 +163,21 @@ export default function ProfilePage() {
         newPassword: "",
         confirmPassword: "",
       })
+
+      await logNotification(supabase, {
+        action: "password_changed",
+        user_uuid: profile?.id,
+        user_name: profile?.full_name || profile?.first_name || profile?.id,
+        user_email: profile?.email,
+        description: `Password changed by ${profile?.full_name || profile?.first_name || profile?.id}`,
+        user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+        meta: JSON.stringify({
+          user_id: profile?.id,
+          role: profile?.role || "unknown",
+          dashboard: "admin_profile",
+        }),
+      });
+
     } catch (error: any) {
       setPasswordError("An unexpected error occurred: " + error.message)
     } finally {

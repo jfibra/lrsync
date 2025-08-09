@@ -65,33 +65,6 @@ const initialFormData: TaxpayerFormData = {
 
 export default function TinLibraryPage() {
   const { user, profile } = useAuth()
-  // Log notification/audit entry for TIN library dashboard access (all roles)
-  useEffect(() => {
-    if (user?.id) {
-      (async () => {
-        try {
-          await logNotification(supabase, { 
-            action: "tin_library_access",
-            user_uuid: profile.id,            // <-- add this
-            user_name: profile.full_name || profile.first_name || profile.id,          // <-- add this
-            user_email: profile.email,
-            description: `TIN library dashboard accessed by ${profile?.full_name || profile?.first_name || user.id}`,
-            user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
-            meta: JSON.stringify({
-              user_id: user.id,
-              role: profile?.role || "unknown",
-              dashboard: "tin_library",
-            }),
-          })
-        } catch (logError) {
-          console.error("Error logging notification:", logError)
-          // Do not block user on logging failure
-        }
-      })()
-    }
-    // Only log once when user is available
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id])
   const [taxpayers, setTaxpayers] = useState<TaxpayerListing[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
@@ -150,8 +123,8 @@ export default function TinLibraryPage() {
           ...taxpayer,
           user_profiles: taxpayer.user_uuid
             ? {
-                assigned_area: userAreaMap.get(taxpayer.user_uuid) || null,
-              }
+              assigned_area: userAreaMap.get(taxpayer.user_uuid) || null,
+            }
             : null,
         })) || []
 
@@ -269,6 +242,25 @@ export default function TinLibraryPage() {
       setIsAddModalOpen(false)
       setFormData(initialFormData)
       fetchTaxpayers()
+
+      if (profile?.id) {
+        await logNotification(supabase, {
+          action: "taxpayer_created",
+          description: `Created taxpayer: ${formData.tin} (${formData.registered_name})`,
+          ip_address: null,
+          location: null,
+          meta: JSON.stringify({
+            user_id: profile.id,
+            role: profile.role || "unknown",
+            dashboard: "super_admin_tin_library",
+            taxpayer: formData,
+          }),
+          user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+          user_email: profile.email,
+          user_name: profile.full_name || profile.first_name || profile.id,
+          user_uuid: profile.id,
+        });
+      }
     } catch (error: any) {
       console.error("Unexpected error:", error)
       setError("An unexpected error occurred: " + error.message)
@@ -341,6 +333,24 @@ export default function TinLibraryPage() {
       setEditingTaxpayer(null)
       setFormData(initialFormData)
       fetchTaxpayers()
+
+      if (profile?.id && editingTaxpayer) {
+        await logNotification(supabase, {
+          action: "taxpayer_updated",
+          user_uuid: profile.id,
+          user_name: profile.full_name || profile.first_name || profile.id,
+          user_email: profile.email,
+          description: `Updated taxpayer: ${formData.tin} (${formData.registered_name})`,
+          user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+          meta: JSON.stringify({
+            user_id: profile.id,
+            role: profile.role || "unknown",
+            dashboard: "super_admin_tin_library",
+            taxpayer: formData,
+            taxpayer_id: editingTaxpayer.id,
+          }),
+        });
+      }
     } catch (error: any) {
       setError("An unexpected error occurred: " + error.message)
     } finally {
@@ -362,6 +372,25 @@ export default function TinLibraryPage() {
 
       setSuccess(`Taxpayer listing for TIN "${taxpayer.tin}" deleted successfully!`)
       fetchTaxpayers()
+
+      if (profile?.id) {
+        await logNotification(supabase, {
+          action: "taxpayer_deleted",
+          user_uuid: profile.id,
+          user_name: profile.full_name || profile.first_name || profile.id,
+          user_email: profile.email,
+          description: `Deleted taxpayer: ${taxpayer.tin} (${taxpayer.registered_name})`,
+          user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+          meta: JSON.stringify({
+            user_id: profile.id,
+            role: profile.role || "unknown",
+            dashboard: "super_admin_tin_library",
+            taxpayer_id: taxpayer.id,
+            taxpayer_tin: taxpayer.tin,
+            taxpayer_name: taxpayer.registered_name,
+          }),
+        });
+      }
     } catch (error: any) {
       setError("An unexpected error occurred: " + error.message)
     } finally {
@@ -704,11 +733,10 @@ export default function TinLibraryPage() {
                               </TableCell>
                               <TableCell>
                                 <span
-                                  className={`px-3 py-1 rounded-full text-xs font-medium ${
-                                    taxpayer.type === "sales"
-                                      ? "bg-[#bbf7d0] text-[#065f46] border border-[#10b981]"
-                                      : "bg-[#bae6fd] text-[#0ea5e9] border border-[#0ea5e9]"
-                                  }`}
+                                  className={`px-3 py-1 rounded-full text-xs font-medium ${taxpayer.type === "sales"
+                                    ? "bg-[#bbf7d0] text-[#065f46] border border-[#10b981]"
+                                    : "bg-[#bae6fd] text-[#0ea5e9] border border-[#0ea5e9]"
+                                    }`}
                                 >
                                   {taxpayer.type.toUpperCase()}
                                 </span>

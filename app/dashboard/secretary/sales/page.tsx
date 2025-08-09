@@ -33,6 +33,7 @@ import { CustomExportModal } from "@/components/custom-export-modal"
 import { ColumnVisibilityControl } from "@/components/column-visibility-control"
 import type { Sales } from "@/types/sales"
 import * as XLSX from "xlsx"
+import { logNotification } from "@/utils/logNotification";
 
 export default function SecretarySalesPage() {
   const { profile } = useAuth()
@@ -245,6 +246,26 @@ export default function SecretarySalesPage() {
 
       // Refresh the data
       fetchSales()
+
+      if (profile?.id) {
+        await logNotification(supabase, {
+          action: "delete_sale",
+          description: `Deleted sales record for ${sale.name} (ID: ${sale.id})`,
+          ip_address: null,
+          location: null,
+          meta: JSON.stringify({
+            user_id: profile.id,
+            role: profile.role || "unknown",
+            dashboard: "secretary_sales",
+            sale_id: sale.id,
+            sale_name: sale.name,
+          }),
+          user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+          user_email: profile.email,
+          user_name: profile.full_name || profile.first_name || profile.id,
+          user_uuid: profile.id,
+        });
+      }
     } catch (error) {
       console.error("Error deleting sales record:", error)
       alert("Error deleting sales record. Please try again.")
@@ -252,7 +273,7 @@ export default function SecretarySalesPage() {
   }
 
   // Export to Excel function - exclude non-invoice sales
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
     // Filter out non-invoice sales for export
     const invoiceSales = sales.filter((sale) => sale.sale_type === "invoice")
 
@@ -399,9 +420,8 @@ export default function SecretarySalesPage() {
     XLSX.utils.book_append_sheet(wb, ws, "Invoice Sales Report")
 
     // Generate filename with current date and area
-    const filename = `Invoice_Sales_Report_${profile?.assigned_area || "Area"}_${
-      new Date().toISOString().split("T")[0]
-    }.xlsx`
+    const filename = `Invoice_Sales_Report_${profile?.assigned_area || "Area"}_${new Date().toISOString().split("T")[0]
+      }.xlsx`
 
     /* ---- browser-safe download ---- */
     const wbArray = XLSX.write(wb, { bookType: "xlsx", type: "array" })
@@ -416,6 +436,27 @@ export default function SecretarySalesPage() {
     link.click()
     document.body.removeChild(link)
     URL.revokeObjectURL(url)
+
+    if (profile?.id) {
+      await logNotification(supabase, {
+        action: "export_invoice_sales",
+        description: `Exported invoice sales to Excel (${invoiceSales.length} records)`,
+        ip_address: null,
+        location: null,
+        meta: JSON.stringify({
+          user_id: profile.id,
+          role: profile.role || "unknown",
+          dashboard: "secretary_sales",
+          export_type: "invoice_only",
+          record_count: invoiceSales.length,
+          area: profile.assigned_area,
+        }),
+        user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+        user_email: profile.email,
+        user_name: profile.full_name || profile.first_name || profile.id,
+        user_uuid: profile.id,
+      });
+    }
   }
 
   // Calculate stats

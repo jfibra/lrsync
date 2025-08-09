@@ -20,33 +20,6 @@ import { logNotification } from "@/utils/logNotification";
 
 export default function SuperAdminCommissionPage() {
   const { profile } = useAuth()
-  // Log notification/audit entry for commission dashboard access (all roles)
-  useEffect(() => {
-    if (profile?.id) {
-      (async () => {
-        try {
-          await logNotification(supabase, { 
-            action: "commission_dashboard_access",
-            user_uuid: profile.id,            // <-- add this
-            user_name: profile.full_name || profile.first_name || profile.id,          // <-- add this
-            user_email: profile.email,
-            description: `Commission dashboard accessed by ${profile.full_name || profile.first_name || profile.id}`,
-            user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
-            meta: JSON.stringify({
-              user_id: profile.id,
-              role: profile.role || "unknown",
-              dashboard: "commission_management",
-            }),
-          })
-        } catch (logError) {
-          console.error("Error logging notification:", logError)
-          // Do not block user on logging failure
-        }
-      })()
-    }
-    // Only log once when profile is available
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile?.id])
   const [sales, setSales] = useState<Sales[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
