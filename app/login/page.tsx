@@ -141,10 +141,10 @@ export default function LoginPage() {
             error: result.error,
           }),
           user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
-          user_email: profile.email,
-          user_name: profile.full_name || profile.first_name || profile.id,
-          user_uuid: profile.id,
-        })
+          user_email: email, // Use attempted email
+          user_name: "unknown",
+          user_uuid: null,
+        });
       } catch (logError) {
         console.error("Error logging notification (failed login):", logError)
       }
@@ -165,7 +165,7 @@ export default function LoginPage() {
           user_email: profile.email,
           user_name: profile.full_name || profile.first_name || profile.id,
           user_uuid: profile.id,
-        })
+        });
       } catch (logError) {
         console.error("Error logging notification (login success):", logError)
       }
