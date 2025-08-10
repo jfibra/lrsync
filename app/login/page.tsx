@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
 import { Button } from "@/components/ui/button"
@@ -30,6 +30,45 @@ export default function LoginPage() {
   const { signIn, user, profile, loading } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
+  const hasLogged = useRef(false);
+
+  useEffect(() => {
+    if (!loading && user && profile && !hasLogged.current) {
+      // Log notification for successful login
+      logNotification(supabase, {
+        action: "user_login",
+        description: `Successful login for user ${profile.email}`,
+        ip_address: null,
+        location: null,
+        meta: JSON.stringify({
+          email: profile.email,
+          method: "password",
+        }),
+        user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+        user_email: profile.email,
+        user_name: profile.full_name || profile.first_name || profile.id,
+        user_uuid: profile.id,
+      }).catch((logError) => {
+        console.error("Error logging notification (login success):", logError)
+      });
+      hasLogged.current = true;
+
+      // Redirect based on role
+      switch (profile.role) {
+        case "super_admin":
+          router.push("/dashboard/super-admin");
+          break;
+        case "admin":
+          router.push("/dashboard/admin");
+          break;
+        case "secretary":
+          router.push("/dashboard/secretary");
+          break;
+        default:
+          router.push("/dashboard");
+      }
+    }
+  }, [user, profile, loading, router, supabase]);
 
   // Handle magic link authentication on page load
   useEffect(() => {
@@ -150,25 +189,6 @@ export default function LoginPage() {
       }
     } else {
       console.log("Login successful")
-      // Log notification for successful login
-      try {
-        await logNotification(supabase, {
-          action: "user_login",
-          description: `Successful login for user ${email}`,
-          ip_address: null,
-          location: null,
-          meta: JSON.stringify({
-            email,
-            method: "password",
-          }),
-          user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
-          user_email: profile.email,
-          user_name: profile.full_name || profile.first_name || profile.id,
-          user_uuid: profile.id,
-        });
-      } catch (logError) {
-        console.error("Error logging notification (login success):", logError)
-      }
     }
 
     setIsLoading(false)
