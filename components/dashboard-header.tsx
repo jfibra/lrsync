@@ -5,7 +5,18 @@ import { useEffect, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { BookText, PhilippinePeso, Menu, User, Users, LogOut, FileText, UserCog, BarChart3, Bell } from "lucide-react";
+import {
+  BookText,
+  PoundSterlingIcon as PhilippinePeso,
+  Menu,
+  User,
+  LogOut,
+  FileText,
+  UserCog,
+  BarChart3,
+  Bell,
+  Activity,
+} from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -20,7 +31,7 @@ import {
   DropdownMenuContent as NotificationDropdownContent,
   DropdownMenuLabel as NotificationDropdownLabel,
   DropdownMenuSeparator as NotificationDropdownSeparator,
-  DropdownMenuItem as NotificationDropdownItem
+  DropdownMenuItem as NotificationDropdownItem,
 } from "@/components/ui/dropdown-menu"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { useAuth } from "@/contexts/auth-context"
@@ -44,10 +55,7 @@ export function DashboardHeader() {
     const fetchNotifications = async () => {
       if (!profile?.id) return
       setLoadingNotifications(true)
-      const { data, error } = await supabase
-        .from("notifications")
-        .select("*")
-        .order("id", { ascending: false })
+      const { data, error } = await supabase.from("notifications").select("*").order("id", { ascending: false })
       if (!error && data) setNotifications(data)
       setLoadingNotifications(false)
     }
@@ -59,31 +67,37 @@ export function DashboardHeader() {
       {
         label: "Sales",
         href: (role: string) => `/dashboard/${role.replace("_", "-")}/sales`,
-        icon: PhilippinePeso, // Example: PhilippinePeso icon for Sales
+        icon: PhilippinePeso,
         roles: ["super_admin", "admin", "secretary"],
       },
       {
         label: "TIN Library",
         href: (role: string) => `/dashboard/${role.replace("_", "-")}/tin-library`,
-        icon: BookText, // Example: BookText icon for TIN Library
+        icon: BookText,
         roles: ["super_admin", "admin", "secretary"],
       },
       {
         label: "Commission Generator",
         href: (role: string) => `/dashboard/${role.replace("_", "-")}/commission`,
-        icon: BarChart3, // <-- Updated icon for Commission Generator
+        icon: BarChart3,
         roles: ["super_admin", "secretary"],
       },
       {
         label: "Commission Reports",
         href: (role: string) => `/dashboard/${role.replace("_", "-")}/commission-reports`,
-        icon: FileText, // <-- Updated icon for Commission Reports
+        icon: FileText,
         roles: ["super_admin", "secretary"],
+      },
+      {
+        label: "Activity Tracker",
+        href: (role: string) => `/dashboard/${role.replace("_", "-")}/activity-tracker`,
+        icon: Activity,
+        roles: ["super_admin"],
       },
       {
         label: "Users",
         href: (role: string) => `/dashboard/${role.replace("_", "-")}/users`,
-        icon: UserCog, // <-- Updated icon for Users
+        icon: UserCog,
         roles: ["super_admin", "admin"],
       },
       {
@@ -94,7 +108,7 @@ export function DashboardHeader() {
       },
     ],
     [],
-  );
+  )
 
   const filteredNavItems = React.useMemo(() => {
     if (!profile?.role) return []
@@ -103,9 +117,9 @@ export function DashboardHeader() {
 
   const getDashboardLink = () => {
     if (profile?.role) {
-      return `/dashboard/${profile.role.replace("_", "-")}` // Re-added replace
+      return `/dashboard/${profile.role.replace("_", "-")}`
     }
-    return "/dashboard" // Fallback
+    return "/dashboard"
   }
 
   return (
@@ -129,7 +143,7 @@ export function DashboardHeader() {
           {filteredNavItems.map((item) => (
             <Link
               key={item.label}
-              href={item.href(profile?.role || "secretary")} // Default to secretary if role is not yet loaded
+              href={item.href(profile?.role || "secretary")}
               className={cn(
                 "flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-white/10 hover:text-white",
                 pathname === item.href(profile?.role || "") ? "bg-white/10 text-white" : "text-white/80",
@@ -156,41 +170,38 @@ export function DashboardHeader() {
                 </Button>
               </NotificationDropdownTrigger>
               <NotificationDropdownContent align="end" className="w-80">
-                <NotificationDropdownLabel>
-                  Notifications
-                </NotificationDropdownLabel>
+                <NotificationDropdownLabel>Notifications</NotificationDropdownLabel>
                 <NotificationDropdownSeparator />
                 {loadingNotifications ? (
                   <div className="p-4 text-center text-xs text-muted-foreground">Loading...</div>
                 ) : notifications.filter(
-                  notif =>
-                    notif.action !== "user_login" &&
-                    notif.action !== "dashboard_access"
-                ).length === 0 ? (
+                    (notif) => notif.action !== "user_login" && notif.action !== "dashboard_access",
+                  ).length === 0 ? (
                   <div className="p-4 text-center text-xs text-muted-foreground">No recent activities.</div>
                 ) : (
                   <div style={{ maxHeight: 320, overflowY: "auto" }}>
                     {notifications
-                      .filter(
-                        notif =>
-                          notif.action !== "user_login" &&
-                          notif.action !== "dashboard_access"
-                      )
+                      .filter((notif) => notif.action !== "user_login" && notif.action !== "dashboard_access")
                       .map((notif) => (
-                        <NotificationDropdownItem key={notif.id} className="flex flex-col items-start gap-1 cursor-default">
-                          <span className="font-medium text-sm"> {notif.action .replace(/_/g, " ") .replace(/\b\w/g, c => c.toUpperCase()) }  </span>
+                        <NotificationDropdownItem
+                          key={notif.id}
+                          className="flex flex-col items-start gap-1 cursor-default"
+                        >
+                          <span className="font-medium text-sm">
+                            {" "}
+                            {notif.action.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}{" "}
+                          </span>
                           <span className="text-xs text-muted-foreground">{notif.description}</span>
-                          <span className="text-[10px] text-muted-foreground">{notif.user_name} - {new Date(notif.created_at).toLocaleString()}</span>
+                          <span className="text-[10px] text-muted-foreground">
+                            {notif.user_name} - {new Date(notif.created_at).toLocaleString()}
+                          </span>
                         </NotificationDropdownItem>
                       ))}
                   </div>
                 )}
                 <NotificationDropdownSeparator />
-                <NotificationDropdownItem
-                  className="justify-center text-center font-semibold cursor-pointer"
-                // onClick={() => {}} // Add handler if needed in the future
-                >
-                  Show all activities
+                <NotificationDropdownItem className="justify-center text-center font-semibold cursor-pointer" asChild>
+                  <Link href="/dashboard/super-admin/activity-tracker">Show all activities</Link>
                 </NotificationDropdownItem>
               </NotificationDropdownContent>
             </NotificationDropdown>
@@ -266,9 +277,7 @@ export function DashboardHeader() {
                       href={item.href(profile?.role || "secretary")}
                       className={cn(
                         "flex items-center gap-3 rounded-md px-3 py-2 text-lg font-medium transition-colors hover:bg-white/10 hover:text-white",
-                        pathname === item.href(profile?.role || "")
-                          ? "bg-white/10 text-white"
-                          : "text-white/80",
+                        pathname === item.href(profile?.role || "") ? "bg-white/10 text-white" : "text-white/80",
                       )}
                       onClick={() => setIsMobileMenuOpen(false)}
                     >
