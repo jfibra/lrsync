@@ -1,10 +1,11 @@
 "use client"
 
 import * as React from "react"
+import { useEffect, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { BookText, PhilippinePeso, Menu, User, Users, LogOut, FileText, UserCog, BarChart3 } from "lucide-react";
+import { BookText, PhilippinePeso, Menu, User, Users, LogOut, FileText, UserCog, BarChart3, Bell } from "lucide-react";
 
 import { Button } from "@/components/ui/button"
 import {
@@ -14,6 +15,12 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenu as NotificationDropdown,
+  DropdownMenuTrigger as NotificationDropdownTrigger,
+  DropdownMenuContent as NotificationDropdownContent,
+  DropdownMenuLabel as NotificationDropdownLabel,
+  DropdownMenuSeparator as NotificationDropdownSeparator,
+  DropdownMenuItem as NotificationDropdownItem
 } from "@/components/ui/dropdown-menu"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { useAuth } from "@/contexts/auth-context"
@@ -24,11 +31,28 @@ export function DashboardHeader() {
   const { user, profile, loading: authLoading } = useAuth()
   const pathname = usePathname()
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false)
+  const [notifications, setNotifications] = useState<any[]>([])
+  const [loadingNotifications, setLoadingNotifications] = useState(false)
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
     window.location.href = "/login"
   }
+
+  // Fetch recent notifications for the logged-in user
+  useEffect(() => {
+    const fetchNotifications = async () => {
+      if (!profile?.id) return
+      setLoadingNotifications(true)
+      const { data, error } = await supabase
+        .from("notifications")
+        .select("*")
+        .order("id", { ascending: false })
+      if (!error && data) setNotifications(data)
+      setLoadingNotifications(false)
+    }
+    fetchNotifications()
+  }, [profile?.id])
 
   const navItems = React.useMemo(
     () => [
@@ -119,6 +143,58 @@ export function DashboardHeader() {
 
         {/* User Dropdown and Mobile Menu */}
         <div className="flex items-center gap-4">
+          {/* Notification Bell */}
+          {!authLoading && user && profile && (
+            <NotificationDropdown>
+              <NotificationDropdownTrigger asChild>
+                <Button variant="ghost" size="icon" className="relative text-white">
+                  <Bell className="h-6 w-6" />
+                  {notifications.length > 0 && (
+                    <span className="absolute top-1 right-1 inline-block h-2 w-2 rounded-full bg-red-500" />
+                  )}
+                  <span className="sr-only">Show notifications</span>
+                </Button>
+              </NotificationDropdownTrigger>
+              <NotificationDropdownContent align="end" className="w-80">
+                <NotificationDropdownLabel>
+                  Notifications
+                </NotificationDropdownLabel>
+                <NotificationDropdownSeparator />
+                {loadingNotifications ? (
+                  <div className="p-4 text-center text-xs text-muted-foreground">Loading...</div>
+                ) : notifications.filter(
+                  notif =>
+                    notif.action !== "user_login" &&
+                    notif.action !== "dashboard_access"
+                ).length === 0 ? (
+                  <div className="p-4 text-center text-xs text-muted-foreground">No recent activities.</div>
+                ) : (
+                  <div style={{ maxHeight: 320, overflowY: "auto" }}>
+                    {notifications
+                      .filter(
+                        notif =>
+                          notif.action !== "user_login" &&
+                          notif.action !== "dashboard_access"
+                      )
+                      .map((notif) => (
+                        <NotificationDropdownItem key={notif.id} className="flex flex-col items-start gap-1 cursor-default">
+                          <span className="font-medium text-sm"> {notif.action .replace(/_/g, " ") .replace(/\b\w/g, c => c.toUpperCase()) }  </span>
+                          <span className="text-xs text-muted-foreground">{notif.description}</span>
+                          <span className="text-[10px] text-muted-foreground">{notif.user_name} - {new Date(notif.created_at).toLocaleString()}</span>
+                        </NotificationDropdownItem>
+                      ))}
+                  </div>
+                )}
+                <NotificationDropdownSeparator />
+                <NotificationDropdownItem
+                  className="justify-center text-center font-semibold cursor-pointer"
+                // onClick={() => {}} // Add handler if needed in the future
+                >
+                  Show all activities
+                </NotificationDropdownItem>
+              </NotificationDropdownContent>
+            </NotificationDropdown>
+          )}
           {/* User Dropdown */}
           {!authLoading && user && profile && (
             <DropdownMenu>
