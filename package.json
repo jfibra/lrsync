@@ -60,7 +60,7 @@
     "react-dom": "^18",
     "react-hook-form": "^7.49.3",
     "react-resizable-panels": "^2.0.11",
-    "recharts": "^2.12.2",
+    "recharts": "latest",
     "sonner": "latest",
     "sweetalert2": "latest",
     "tailwind-merge": "^2.5.5",
