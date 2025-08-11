@@ -49,8 +49,19 @@ export async function POST(request: NextRequest) {
         typeLabel = "Accounting_Image_Attachment";
       }
 
-      // Use underscores and hyphens, no # or spaces
-      const fileName = `CR_${safeReport}-${typeLabel}_${seq}.${ext}`;
+      // Add 1 second per file to the base date for unique datetime
+      const now = new Date();
+      const fileDate = new Date(now.getTime() + i * 1000);
+      const yyyy = fileDate.getFullYear();
+      const MM = String(fileDate.getMonth() + 1).padStart(2, "0");
+      const dd = String(fileDate.getDate()).padStart(2, "0");
+      const HH = String(fileDate.getHours()).padStart(2, "0");
+      const mm = String(fileDate.getMinutes()).padStart(2, "0");
+      const ss = String(fileDate.getSeconds()).padStart(2, "0");
+      const datetime = `${yyyy}${MM}${dd}-${HH}${mm}${ss}`;
+
+      // Use underscores and hyphens, no # or spaces, and include datetime
+      const fileName = `CR_${safeReport}-${typeLabel}_${seq}-${datetime}.${ext}`;
       const key = `lrsync/commission_report_attachments/${safeArea}/CR_${safeReport}/${fileName}`;
 
       await s3.send(
@@ -66,6 +77,11 @@ export async function POST(request: NextRequest) {
         name: fileName,
         url: `${PUBLIC_URL.replace(/\/$/, "")}/${key.replace(/^\//, "")}`,
       });
+
+      // Add a 1 second delay before next upload (except after last file)
+      if (i < files.length - 1) {
+        await new Promise((res) => setTimeout(res, 1000));
+      }
     }
 
     return NextResponse.json({ files: uploaded });

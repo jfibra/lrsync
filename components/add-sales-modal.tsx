@@ -79,10 +79,7 @@ const uploadToS3API = async (
   // Generate filename with proper indexing
   const cleanTin = tin.replace(/-/g, "");
   const fileExtension = file.name.split(".").pop();
-  const baseFileName = `${cleanTin}-${fileType}-${format(
-    new Date(),
-    "MMddyyyy"
-  )}`;
+  const baseFileName = `${cleanTin}-${fileType}-${format(new Date(), "MMddyyyy-HHmmss")}`;
   const fileName =
     existingFileCount > 0
       ? `${baseFileName}-${existingFileCount + 1}.${fileExtension}`
@@ -406,6 +403,9 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
       const existingFileCount = currentUpload?.uploadedUrls.length || 0;
 
       const uploadPromises = validFiles.map(async (file, index) => {
+        if (index > 0) {
+          await new Promise((res) => setTimeout(res, 1000)); // 1 second delay for uniqueness
+        }
         return await uploadToS3API(
           file,
           taxMonth,
