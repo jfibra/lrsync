@@ -89,12 +89,6 @@ export function DashboardHeader() {
         roles: ["super_admin", "secretary"],
       },
       {
-        label: "Activity Tracker",
-        href: (role: string) => `/dashboard/${role.replace("_", "-")}/activity-tracker`,
-        icon: Activity,
-        roles: ["super_admin"],
-      },
-      {
         label: "Users",
         href: (role: string) => `/dashboard/${role.replace("_", "-")}/users`,
         icon: UserCog,
