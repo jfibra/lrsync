@@ -24,6 +24,7 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  MessageSquarePlus,
 } from "lucide-react"
 import { format } from "date-fns"
 import { useAuth } from "@/contexts/auth-context"
@@ -37,7 +38,8 @@ import { CustomExportModal } from "@/components/custom-export-modal"
 import { ColumnVisibilityControl } from "@/components/column-visibility-control"
 import type { Sales } from "@/types/sales"
 import * as XLSX from "xlsx"
-import { logNotification } from "@/utils/logNotification";
+import { logNotification } from "@/utils/logNotification"
+import { AddRemarkModal } from "@/components/add-remark-modal"
 
 export default function SuperAdminSalesPage() {
   const { profile } = useAuth()
@@ -58,6 +60,9 @@ export default function SuperAdminSalesPage() {
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [selectedSale, setSelectedSale] = useState<Sales | null>(null)
 
+  const [addRemarkModalOpen, setAddRemarkModalOpen] = useState(false)
+  const [selectedSaleForRemark, setSelectedSaleForRemark] = useState<Sales | null>(null)
+
   // Column visibility state
   const [columnVisibility, setColumnVisibility] = useState([
     { key: "tax_month", label: "Tax Month", visible: true },
@@ -74,6 +79,7 @@ export default function SuperAdminSalesPage() {
     { key: "invoice_number", label: "Invoice #", visible: true },
     { key: "pickup_date", label: "Pickup Date", visible: true },
     { key: "area", label: "Area", visible: true },
+    { key: "recent_remark", label: "Recent Remark", visible: true },
     { key: "files", label: "Files", visible: true },
     { key: "actions", label: "Actions", visible: true },
   ])
@@ -294,6 +300,15 @@ export default function SuperAdminSalesPage() {
     setEditModalOpen(true)
   }
 
+  const handleAddRemark = (sale: Sales) => {
+    setSelectedSaleForRemark(sale)
+    setAddRemarkModalOpen(true)
+  }
+
+  const handleRemarkAdded = () => {
+    fetchSales()
+  }
+
   // Handle soft delete
   const handleSoftDelete = async (sale: Sales) => {
     if (!confirm(`Are you sure you want to delete the sales record for ${sale.name}?`)) {
@@ -331,7 +346,7 @@ export default function SuperAdminSalesPage() {
           user_email: profile.email,
           user_name: profile.full_name || profile.first_name || profile.id,
           user_uuid: profile.id,
-        });
+        })
       }
     } catch (error) {
       console.error("Error deleting sales record:", error)
@@ -394,6 +409,7 @@ export default function SuperAdminSalesPage() {
         "Invoice Files",
         "2307 Files",
         "Deposit Files",
+        "Recent Remark",
       ],
     ]
 
@@ -425,6 +441,7 @@ export default function SuperAdminSalesPage() {
         sale.invoice?.join(", ") || "",
         sale.doc_2307?.join(", ") || "",
         sale.deposit_slip?.join(", ") || "",
+        sale.remarks ? JSON.parse(sale.remarks)[0]?.remark || "No remarks" : "No remarks",
       ])
     })
 
@@ -450,6 +467,7 @@ export default function SuperAdminSalesPage() {
       { width: 30 }, // Invoice Files
       { width: 30 }, // 2307 Files
       { width: 30 }, // Deposit Files
+      { width: 30 }, // Recent Remark
     ]
 
     // Style the header rows
@@ -474,7 +492,7 @@ export default function SuperAdminSalesPage() {
     if (ws["A11"]) ws["A11"].s = summaryHeaderStyle
 
     // Style the data header row
-    for (let col = 0; col < 17; col++) {
+    for (let col = 0; col < 18; col++) {
       const cellRef = XLSX.utils.encode_cell({ r: 11, c: col })
       if (ws[cellRef]) {
         ws[cellRef].s = {
@@ -522,7 +540,7 @@ export default function SuperAdminSalesPage() {
         user_email: profile.email,
         user_name: profile.full_name || profile.first_name || profile.id,
         user_uuid: profile.id,
-      });
+      })
     }
   }
 
@@ -532,6 +550,43 @@ export default function SuperAdminSalesPage() {
   const nonVatSales = sales.filter((s) => s.tax_type === "non-vat").length
   const totalAmount = sales.reduce((sum, sale) => sum + (sale.gross_taxable || 0), 0)
   const totalActualAmount = sales.reduce((sum, sale) => sum + (sale.total_actual_amount || 0), 0)
+
+  const getMostRecentRemark = (remarksJson: string | null) => {
+    if (!remarksJson) return null
+
+    try {
+      const remarks = JSON.parse(remarksJson)
+      if (!Array.isArray(remarks) || remarks.length === 0) return null
+
+      // Sort by date descending and get the most recent
+      const sortedRemarks = remarks.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      return sortedRemarks[0]
+    } catch (error) {
+      console.error("Error parsing remarks JSON:", error)
+      return null
+    }
+  }
+
+  const RecentRemarkDisplay = ({ remark }: { remark: any }) => {
+    if (!remark) {
+      return <div className="text-gray-400 text-sm italic">No remarks</div>
+    }
+
+    return (
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 max-w-xs">
+        <div className="flex items-start gap-2">
+          <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm text-gray-800 font-medium mb-1 line-clamp-2">{remark.remark}</p>
+            <div className="flex items-center justify-between text-xs text-gray-600">
+              <span className="font-medium">{remark.name}</span>
+              <span>{format(new Date(remark.date), "MMM dd, yyyy")}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <ProtectedRoute allowedRoles={["super_admin"]}>
@@ -721,7 +776,7 @@ export default function SuperAdminSalesPage() {
                           user_email: profile.email,
                           user_name: profile.full_name || profile.first_name || profile.id,
                           user_uuid: profile.id,
-                        });
+                        })
                       }
                     }}
                   />
@@ -772,6 +827,9 @@ export default function SuperAdminSalesPage() {
                       {columnVisibility.find((col) => col.key === "area")?.visible && (
                         <TableHead className="min-w-[100px] font-semibold text-gray-900">Area</TableHead>
                       )}
+                      {columnVisibility.find((col) => col.key === "recent_remark")?.visible && (
+                        <TableHead className="min-w-[200px] font-semibold text-gray-900">Recent Remark</TableHead>
+                      )}
                       {columnVisibility.find((col) => col.key === "files")?.visible && (
                         <TableHead className="min-w-[150px] font-semibold text-gray-900">Files</TableHead>
                       )}
@@ -783,7 +841,7 @@ export default function SuperAdminSalesPage() {
                   <TableBody>
                     {loading ? (
                       <TableRow>
-                        <TableCell colSpan={12} className="text-center py-12">
+                        <TableCell colSpan={13} className="text-center py-12">
                           <div className="flex flex-col items-center justify-center">
                             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mb-4"></div>
                             <span className="text-gray-600 font-medium">Loading sales records...</span>
@@ -792,7 +850,7 @@ export default function SuperAdminSalesPage() {
                       </TableRow>
                     ) : sales.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={12} className="text-center py-12">
+                        <TableCell colSpan={13} className="text-center py-12">
                           <BarChart3 className="h-16 w-16 text-gray-300 mx-auto mb-4" />
                           <h3 className="text-lg font-medium text-gray-900 mb-2">No sales records found</h3>
                           <p className="text-gray-500">Create your first sales record to get started!</p>
@@ -878,6 +936,11 @@ export default function SuperAdminSalesPage() {
                               </div>
                             </TableCell>
                           )}
+                          {columnVisibility.find((col) => col.key === "recent_remark")?.visible && (
+                            <TableCell>
+                              <RecentRemarkDisplay remark={getMostRecentRemark(sale.remarks)} />
+                            </TableCell>
+                          )}
                           {columnVisibility.find((col) => col.key === "files")?.visible && (
                             <TableCell>
                               <div className="flex flex-wrap gap-1">
@@ -942,6 +1005,15 @@ export default function SuperAdminSalesPage() {
                                   className="h-8 w-8 p-0 hover:bg-green-100"
                                 >
                                   <Edit className="h-4 w-4 text-green-600" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleAddRemark(sale)}
+                                  className="h-8 w-8 p-0 hover:bg-purple-100"
+                                  title="Add Remark"
+                                >
+                                  <MessageSquarePlus className="h-4 w-4 text-purple-600" />
                                 </Button>
                                 <Button
                                   variant="ghost"
@@ -1040,10 +1112,11 @@ export default function SuperAdminSalesPage() {
                         variant={currentPage === pageNum ? "default" : "outline"}
                         size="sm"
                         onClick={() => setCurrentPage(pageNum)}
-                        className={`h-8 px-3 min-w-[32px] ${currentPage === pageNum
-                          ? "bg-indigo-600 text-white hover:bg-indigo-700 border-indigo-600"
-                          : "border-gray-300 hover:bg-gray-50"
-                          }`}
+                        className={`h-8 px-3 min-w-[32px] ${
+                          currentPage === pageNum
+                            ? "bg-indigo-600 text-white hover:bg-indigo-700 border-indigo-600"
+                            : "border-gray-300 hover:bg-gray-50"
+                        }`}
                       >
                         {pageNum}
                       </Button>
@@ -1091,6 +1164,13 @@ export default function SuperAdminSalesPage() {
             />
           </>
         )}
+
+        <AddRemarkModal
+          open={addRemarkModalOpen}
+          onOpenChange={setAddRemarkModalOpen}
+          saleId={selectedSaleForRemark?.id || 0}
+          onRemarkAdded={handleRemarkAdded}
+        />
       </div>
     </ProtectedRoute>
   )

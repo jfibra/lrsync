@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-import { Trash2 } from "lucide-react" // Import Trash2 icon
 
 import { useState, useEffect } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -15,14 +14,13 @@ import { useAuth } from "@/contexts/auth-context"
 import { supabase } from "@/lib/supabase/client"
 import type { Sales } from "@/types/sales"
 import type { TaxpayerListing } from "@/types/taxpayer"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table" // Import Table components
-import { logNotification } from "@/utils/logNotification";
+import { logNotification } from "@/utils/logNotification"
 
 interface EditSalesModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   sale: Sales | null
-  onSalesUpdated?: () => void
+  onSaleUpdated?: () => void
 }
 
 interface TaxMonthOption {
@@ -59,10 +57,14 @@ const uploadToS3API = async (
   formData.append("tax_year", taxYear)
   formData.append("tax_date", taxDay)
 
-  // Generate filename with proper indexing
+  // Generate unique ID for the file
+  const uniqueId =
+    typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2, 10)
+
+  // Generate filename with unique ID
   const cleanTin = tin.replace(/-/g, "")
   const fileExtension = file.name.split(".").pop()
-  const baseFileName = `${cleanTin}-${fileType}-${format(new Date(), "MMddyyyy")}`
+  const baseFileName = `${cleanTin}-${fileType}-${format(new Date(), "MMddyyyy-HHmmss")}-${uniqueId}`
   const fileName =
     existingFileCount > 0
       ? `${baseFileName}-${existingFileCount + 1}.${fileExtension}`
@@ -106,7 +108,7 @@ const uploadToS3API = async (
   }
 }
 
-export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: EditSalesModalProps) {
+export function EditSalesModal({ open, onOpenChange, sale, onSaleUpdated }: EditSalesModalProps) {
   const { profile } = useAuth()
   const [loading, setLoading] = useState(false)
 
@@ -170,10 +172,6 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
     },
   ])
 
-  // Add state for remark input and remarks
-  const [remarkInput, setRemarkInput] = useState("")
-  const [remarks, setRemarks] = useState<any[]>([])
-
   // Initialize form with sale data
   useEffect(() => {
     if (sale && open) {
@@ -198,17 +196,6 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
           uploadedUrls: [],
         })),
       )
-
-      setRemarkInput("")
-      let parsedRemarks: any[] = []
-      if (sale.remarks) {
-        try {
-          parsedRemarks = JSON.parse(sale.remarks)
-        } catch {
-          parsedRemarks = []
-        }
-      }
-      setRemarks(Array.isArray(parsedRemarks) ? parsedRemarks : [])
     }
   }, [sale, open])
 
@@ -314,6 +301,9 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
       const existingFileCount = (currentUpload?.existingUrls.length || 0) + (currentUpload?.uploadedUrls.length || 0)
 
       const uploadPromises = validFiles.map(async (file, index) => {
+        if (index > 0) {
+          await new Promise((res) => setTimeout(res, 1000)) // 1 second delay for uniqueness
+        }
         return await uploadToS3API(file, taxMonth, tinSearch, uploadId, existingFileCount + index)
       })
 
@@ -323,11 +313,11 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
         prev.map((upload) =>
           upload.id === uploadId
             ? {
-              ...upload,
-              files: [...upload.files, ...validFiles],
-              uploadedUrls: [...upload.uploadedUrls, ...uploadedUrls],
-              uploading: false,
-            }
+                ...upload,
+                files: [...upload.files, ...validFiles],
+                uploadedUrls: [...upload.uploadedUrls, ...uploadedUrls],
+                uploading: false,
+              }
             : upload,
         ),
       )
@@ -347,9 +337,9 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
       prev.map((upload) =>
         upload.id === uploadId
           ? {
-            ...upload,
-            existingUrls: upload.existingUrls.filter((_, index) => index !== fileIndex),
-          }
+              ...upload,
+              existingUrls: upload.existingUrls.filter((_, index) => index !== fileIndex),
+            }
           : upload,
       ),
     )
@@ -361,10 +351,10 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
       prev.map((upload) =>
         upload.id === uploadId
           ? {
-            ...upload,
-            files: upload.files.filter((_, index) => index !== fileIndex),
-            uploadedUrls: upload.uploadedUrls.filter((_, index) => index !== fileIndex),
-          }
+              ...upload,
+              files: upload.files.filter((_, index) => index !== fileIndex),
+              uploadedUrls: upload.uploadedUrls.filter((_, index) => index !== fileIndex),
+            }
           : upload,
       ),
     )
@@ -375,39 +365,10 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
     return true
   }
 
-  // Add Remark handler
-  const handleAddRemark = () => {
-    console.log("Add remark clicked", { remarkInput, profile }) // Debug log
-    if (!remarkInput.trim() || !profile) {
-      console.log("Cannot add remark - missing input or profile") // Debug log
-      return
-    }
-    const newRemark = {
-      remark: remarkInput.trim(),
-      name: profile.full_name || "",
-      uuid: profile.id || "",
-      date: new Date().toISOString(),
-    }
-    console.log("Adding new remark:", newRemark) // Debug log
-    setRemarks((prev) => [...prev, newRemark])
-    setRemarkInput("")
-  }
-
-  // Delete Remark handler
-  const handleDeleteRemark = (indexToDelete: number) => {
-    console.log("Delete remark clicked", indexToDelete) // Debug log
-    setRemarks((prev) => prev.filter((_, index) => index !== indexToDelete))
-  }
-
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!profile || !sale) return
-
-    if (!areRequiredFilesAvailable()) {
-      alert("Please ensure required files are available")
-      return
-    }
+    if (!sale) return
 
     setLoading(true)
     try {
@@ -459,7 +420,6 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
         doc_2307: fileArrays.doc_2307,
         invoice: fileArrays.invoice,
         deposit_slip: fileArrays.deposit_slip,
-        remarks: remarks.length > 0 ? JSON.stringify(remarks) : null,
         updated_at: new Date().toISOString(),
       }
 
@@ -494,11 +454,11 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
           role: profile?.role || "",
           file_attachments: fileMeta,
         }),
-      });
+      })
 
       // Success
       onOpenChange(false)
-      onSalesUpdated?.()
+      onSaleUpdated?.()
     } catch (error) {
       console.error("Error updating sales record:", error)
       alert("Error updating sales record. Please try again.")
@@ -692,72 +652,9 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
             </div>
           </div>
 
-          {/* Remark Input Row */}
-          <div className="flex flex-col md:flex-row items-start md:items-center gap-4 py-4">
-            <div className="flex-1 w-full">
-              <Label htmlFor="remark" className="text-sm font-medium text-[#001f3f]">
-                Add Remark
-              </Label>
-              <textarea
-                id="remark"
-                value={remarkInput}
-                onChange={(e) => setRemarkInput(e.target.value)}
-                rows={2}
-                className="w-full border-2 border-[#001f3f] focus:border-blue-500 focus:ring-blue-500 text-[#001f3f] bg-blue-50 rounded-lg p-3 shadow-sm"
-                placeholder="Enter your remark..."
-              />
-            </div>
-            <Button
-              type="button"
-              onClick={handleAddRemark}
-              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white mt-2 md:mt-0"
-              disabled={loading || !remarkInput.trim()}
-            >
-              Add Remark
-            </Button>
-          </div>
-
-          {/* Display Existing Remarks */}
-          {remarks.length > 0 && (
-            <div className="space-y-2">
-              <Label className="text-sm font-medium text-[#001f3f]">Existing Remarks</Label>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Remark</TableHead>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead className="w-[50px]"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {remarks.map((remark, index) => (
-                    <TableRow key={index}>
-                      <TableCell>{remark.remark}</TableCell>
-                      <TableCell>{remark.name}</TableCell>
-                      <TableCell>{format(new Date(remark.date), "MMM dd, yyyy hh:mm a")}</TableCell>
-                      <TableCell>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDeleteRemark(index)}
-                          className="h-8 w-8 p-0 hover:bg-red-100 text-red-600 hover:text-red-700"
-                          title="Delete remark"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-
-          {/* File Uploads */}
+          {/* File Upload Section */}
           <div className="space-y-4">
-            <Label className="text-base font-semibold text-[#001f3f]">File Management</Label>
+            <Label className="text-lg font-semibold text-[#001f3f]">File Attachments</Label>
             <div className="text-sm text-[#001f3f]/80 mb-4">
               <AlertCircle className="inline h-4 w-4 mr-1" />
               Required: None | Optional: Voucher, Deposit Slip, Cheque, Invoice, Doc 2307
@@ -829,8 +726,9 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
                     />
                     <label
                       htmlFor={upload.id}
-                      className={`flex flex-col items-center justify-center cursor-pointer ${upload.uploading || !taxMonth || !tinSearch ? "opacity-50 cursor-not-allowed" : ""
-                        }`}
+                      className={`flex flex-col items-center justify-center cursor-pointer ${
+                        upload.uploading || !taxMonth || !tinSearch ? "opacity-50 cursor-not-allowed" : ""
+                      }`}
                     >
                       {upload.uploading ? (
                         <>

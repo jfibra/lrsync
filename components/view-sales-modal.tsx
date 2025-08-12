@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { ExternalLink } from "lucide-react"
 import { format } from "date-fns"
 import type { Sales } from "@/types/sales"
+import { useAuth } from "@/contexts/auth-context"
 
 interface ViewSalesModalProps {
   open: boolean
@@ -16,7 +17,8 @@ interface ViewSalesModalProps {
 }
 
 export function ViewSalesModal({ open, onOpenChange, sale }: ViewSalesModalProps) {
-  const { profile } = typeof window !== 'undefined' ? require('@/contexts/auth-context').useAuth() : { profile: null }
+  const { profile } = useAuth()
+
   // Format TIN display - add dash after every 3 digits
   const formatTin = (tin: string) => {
     const digits = tin.replace(/\D/g, "")
@@ -46,23 +48,23 @@ export function ViewSalesModal({ open, onOpenChange, sale }: ViewSalesModalProps
   // Log view action when modal opens
   React.useEffect(() => {
     if (open && sale) {
-      (async () => {
+      ;(async () => {
         try {
-          const { supabase } = await import('@/lib/supabase/client')
-          await supabase.rpc('log_notification', {
-            p_action: 'sales_viewed',
+          const { supabase } = await import("@/lib/supabase/client")
+          await supabase.rpc("log_notification", {
+            p_action: "sales_viewed",
             p_description: `Sales record viewed for ${sale.name} (TIN: ${sale.tin})`,
-            p_ip_address: '',
+            p_ip_address: "",
             p_location: null,
-            p_user_agent: typeof window !== 'undefined' ? window.navigator.userAgent : '',
-            p_meta: { saleId: sale.id, viewedBy: profile?.full_name || '', role: profile?.role || '' }
+            p_user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "",
+            p_meta: { saleId: sale.id, viewedBy: profile?.full_name || "", role: profile?.role || "" },
           })
         } catch (err) {
           // Silent fail for logging
         }
       })()
     }
-  }, [open, sale])
+  }, [open, sale, profile])
 
   if (!sale) return null
 
@@ -239,7 +241,9 @@ export function ViewSalesModal({ open, onOpenChange, sale }: ViewSalesModalProps
               {/* Deposit Slip Files */}
               {sale.deposit_slip && sale.deposit_slip.length > 0 && (
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-[#001f3f]">Deposit Slip ({sale.deposit_slip.length})</label>
+                  <label className="text-sm font-medium text-[#001f3f]">
+                    Deposit Slip ({sale.deposit_slip.length})
+                  </label>
                   <div className="space-y-1">
                     {sale.deposit_slip.map((url, index) => (
                       <Button

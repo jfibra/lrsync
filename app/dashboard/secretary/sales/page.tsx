@@ -20,6 +20,7 @@ import {
   TrendingUp,
   DollarSign,
   BarChart3,
+  MessageSquarePlus,
 } from "lucide-react"
 import { format } from "date-fns"
 import { useAuth } from "@/contexts/auth-context"
@@ -33,7 +34,8 @@ import { CustomExportModal } from "@/components/custom-export-modal"
 import { ColumnVisibilityControl } from "@/components/column-visibility-control"
 import type { Sales } from "@/types/sales"
 import * as XLSX from "xlsx"
-import { logNotification } from "@/utils/logNotification";
+import { logNotification } from "@/utils/logNotification"
+import { AddRemarkModal } from "@/components/add-remark-modal"
 
 export default function SecretarySalesPage() {
   const { profile } = useAuth()
@@ -47,6 +49,8 @@ export default function SecretarySalesPage() {
   const [viewModalOpen, setViewModalOpen] = useState(false)
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [selectedSale, setSelectedSale] = useState<Sales | null>(null)
+  const [addRemarkModalOpen, setAddRemarkModalOpen] = useState(false)
+  const [selectedSaleForRemark, setSelectedSaleForRemark] = useState<Sales | null>(null)
 
   // Column visibility state
   const [columnVisibility, setColumnVisibility] = useState([
@@ -63,6 +67,7 @@ export default function SecretarySalesPage() {
     },
     { key: "invoice_number", label: "Invoice #", visible: true },
     { key: "pickup_date", label: "Pickup Date", visible: true },
+    { key: "recent_remark", label: "Recent Remark", visible: true },
     { key: "files", label: "Files", visible: true },
     { key: "actions", label: "Actions", visible: true },
   ])
@@ -264,7 +269,7 @@ export default function SecretarySalesPage() {
           user_email: profile.email,
           user_name: profile.full_name || profile.first_name || profile.id,
           user_uuid: profile.id,
-        });
+        })
       }
     } catch (error) {
       console.error("Error deleting sales record:", error)
@@ -321,6 +326,7 @@ export default function SecretarySalesPage() {
         "Total Actual Amount",
         "Invoice #",
         "Pickup Date",
+        "Recent Remark",
         "Files Count",
         "Cheque Files",
         "Voucher Files",
@@ -340,6 +346,9 @@ export default function SecretarySalesPage() {
         ...(sale.deposit_slip || []),
       ].length
 
+      const recentRemark = getMostRecentRemark(sale.remarks)
+      const remarkText = recentRemark ? `${recentRemark.remark} - ${recentRemark.name}` : "No remarks"
+
       summaryData.push([
         format(new Date(sale.tax_month), "MMM yyyy"),
         formatTin(sale.tin),
@@ -351,6 +360,7 @@ export default function SecretarySalesPage() {
         sale.total_actual_amount || 0,
         sale.invoice_number || "",
         sale.pickup_date ? format(new Date(sale.pickup_date), "MMM dd, yyyy") : "",
+        remarkText,
         filesCount,
         sale.cheque?.join(", ") || "",
         sale.voucher?.join(", ") || "",
@@ -375,6 +385,7 @@ export default function SecretarySalesPage() {
       { width: 15 }, // Total Actual Amount
       { width: 15 }, // Invoice #
       { width: 15 }, // Pickup Date
+      { width: 20 }, // Recent Remark
       { width: 12 }, // Files Count
       { width: 30 }, // Cheque Files
       { width: 30 }, // Voucher Files
@@ -405,7 +416,7 @@ export default function SecretarySalesPage() {
     if (ws["A12"]) ws["A12"].s = summaryHeaderStyle
 
     // Style the data header row
-    for (let col = 0; col < 16; col++) {
+    for (let col = 0; col < 17; col++) {
       const cellRef = XLSX.utils.encode_cell({ r: 12, c: col })
       if (ws[cellRef]) {
         ws[cellRef].s = {
@@ -420,8 +431,9 @@ export default function SecretarySalesPage() {
     XLSX.utils.book_append_sheet(wb, ws, "Invoice Sales Report")
 
     // Generate filename with current date and area
-    const filename = `Invoice_Sales_Report_${profile?.assigned_area || "Area"}_${new Date().toISOString().split("T")[0]
-      }.xlsx`
+    const filename = `Invoice_Sales_Report_${profile?.assigned_area || "Area"}_${
+      new Date().toISOString().split("T")[0]
+    }.xlsx`
 
     /* ---- browser-safe download ---- */
     const wbArray = XLSX.write(wb, { bookType: "xlsx", type: "array" })
@@ -455,7 +467,7 @@ export default function SecretarySalesPage() {
         user_email: profile.email,
         user_name: profile.full_name || profile.first_name || profile.id,
         user_uuid: profile.id,
-      });
+      })
     }
   }
 
@@ -466,9 +478,57 @@ export default function SecretarySalesPage() {
   const totalAmount = sales.reduce((sum, sale) => sum + (sale.gross_taxable || 0), 0)
   const totalActualAmount = sales.reduce((sum, sale) => sum + (sale.total_actual_amount || 0), 0)
 
+  const getMostRecentRemark = (remarksJson: string | null) => {
+    if (!remarksJson) return null
+
+    try {
+      const remarks = JSON.parse(remarksJson)
+      if (!Array.isArray(remarks) || remarks.length === 0) return null
+
+      // Sort by date descending and get the most recent
+      const sortedRemarks = remarks.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      return sortedRemarks[0]
+    } catch (error) {
+      console.error("Error parsing remarks JSON:", error)
+      return null
+    }
+  }
+
+  const RecentRemarkDisplay = ({ remark }: { remark: any }) => {
+    if (!remark) {
+      return <div className="text-gray-400 text-sm italic">No remarks</div>
+    }
+
+    return (
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 max-w-xs">
+        <div className="flex items-start gap-2">
+          <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm text-gray-800 font-medium mb-1 line-clamp-2">{remark.remark}</p>
+            <div className="flex items-center justify-between text-xs text-gray-600">
+              <span className="font-medium">{remark.name}</span>
+              <span>{format(new Date(remark.date), "MMM dd, yyyy")}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Handle add remark
+  const handleAddRemark = (sale: Sales) => {
+    setSelectedSaleForRemark(sale)
+    setAddRemarkModalOpen(true)
+  }
+
+  // Handle remark added callback
+  const handleRemarkAdded = () => {
+    fetchSales()
+  }
+
   return (
     <ProtectedRoute allowedRoles={["secretary"]}>
-      <div style={{ background: '#fff' }} className="min-h-screen">
+      <div style={{ background: "#fff" }} className="min-h-screen">
         <DashboardHeader />
 
         <div className="pt-20 px-4 sm:px-6 lg:px-8 py-8">
@@ -596,10 +656,10 @@ export default function SecretarySalesPage() {
                     setFilterTaxType("all")
                     setFilterMonth("all")
                   }}
-                  style={{ background: '#fff', color: '#001f3f', border: '1px solid #001f3f' }}
+                  style={{ background: "#fff", color: "#001f3f", border: "1px solid #001f3f" }}
                   className="w-full font-semibold shadow-md hover:text-[#ee3433] transition-all duration-150 flex items-center justify-center gap-2"
                 >
-                  <Filter className="h-4 w-4 mr-1" style={{ color: '#001f3f' }} />
+                  <Filter className="h-4 w-4 mr-1" style={{ color: "#001f3f" }} />
                   Clear Filters
                 </Button>
               </div>
@@ -607,15 +667,15 @@ export default function SecretarySalesPage() {
           </Card>
 
           {/* Sales Table */}
-          <Card style={{ background: '#f9f9f9', border: '1px solid #e0e0e0' }} className="shadow-lg">
-            <CardHeader style={{ background: '#fff', borderBottom: '1px solid #e0e0e0' }}>
+          <Card style={{ background: "#f9f9f9", border: "1px solid #e0e0e0" }} className="shadow-lg">
+            <CardHeader style={{ background: "#fff", borderBottom: "1px solid #e0e0e0" }}>
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle className="text-2xl font-bold flex items-center gap-2" style={{ color: '#001f3f' }}>
-                    <BarChart3 className="h-6 w-6" style={{ color: '#001f3f' }} />
+                  <CardTitle className="text-2xl font-bold flex items-center gap-2" style={{ color: "#001f3f" }}>
+                    <BarChart3 className="h-6 w-6" style={{ color: "#001f3f" }} />
                     Sales Records
                   </CardTitle>
-                  <CardDescription style={{ color: '#555' }} className="mt-1">
+                  <CardDescription style={{ color: "#555" }} className="mt-1">
                     {loading
                       ? "Loading..."
                       : `${sales.length} records found in ${profile?.assigned_area || "your area"}`}
@@ -628,10 +688,10 @@ export default function SecretarySalesPage() {
                     variant="outline"
                     size="sm"
                     onClick={exportToExcel}
-                    style={{ background: '#001f3f', color: '#fff', border: 'none' }}
-                    className="shadow-lg hover:bg-[#ee3433]"
+                    style={{ background: "#001f3f", color: "#fff", border: "none" }}
+                    className="shadow-lg hover:bg-[#ee3433] bg-transparent"
                   >
-                    <Download className="h-4 w-4 mr-2" style={{ color: '#fff' }} />
+                    <Download className="h-4 w-4 mr-2" style={{ color: "#fff" }} />
                     Export (Invoice Only)
                   </Button>
                 </div>
@@ -641,58 +701,92 @@ export default function SecretarySalesPage() {
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
-                    <TableRow style={{ background: '#fff', borderBottom: '1px solid #e0e0e0' }}>
+                    <TableRow style={{ background: "#fff", borderBottom: "1px solid #e0e0e0" }}>
                       {columnVisibility.find((col) => col.key === "tax_month")?.visible && (
-                        <TableHead className="min-w-[120px] font-semibold" style={{ color: '#001f3f' }}>Tax Month</TableHead>
+                        <TableHead className="min-w-[120px] font-semibold" style={{ color: "#001f3f" }}>
+                          Tax Month
+                        </TableHead>
                       )}
                       {columnVisibility.find((col) => col.key === "tin")?.visible && (
-                        <TableHead className="min-w-[120px] font-semibold" style={{ color: '#001f3f' }}>TIN</TableHead>
+                        <TableHead className="min-w-[120px] font-semibold" style={{ color: "#001f3f" }}>
+                          TIN
+                        </TableHead>
                       )}
                       {columnVisibility.find((col) => col.key === "name")?.visible && (
-                        <TableHead className="min-w-[180px] font-semibold" style={{ color: '#001f3f' }}>Name</TableHead>
+                        <TableHead className="min-w-[180px] font-semibold" style={{ color: "#001f3f" }}>
+                          Name
+                        </TableHead>
                       )}
                       {columnVisibility.find((col) => col.key === "tax_type")?.visible && (
-                        <TableHead className="min-w-[100px] font-semibold" style={{ color: '#001f3f' }}>Tax Type</TableHead>
+                        <TableHead className="min-w-[100px] font-semibold" style={{ color: "#001f3f" }}>
+                          Tax Type
+                        </TableHead>
                       )}
                       {columnVisibility.find((col) => col.key === "sale_type")?.visible && (
-                        <TableHead className="min-w-[100px] font-semibold" style={{ color: '#001f3f' }}>Sale Type</TableHead>
+                        <TableHead className="min-w-[100px] font-semibold" style={{ color: "#001f3f" }}>
+                          Sale Type
+                        </TableHead>
                       )}
                       {columnVisibility.find((col) => col.key === "gross_taxable")?.visible && (
-                        <TableHead className="min-w-[120px] font-semibold" style={{ color: '#001f3f' }}>Gross Taxable</TableHead>
+                        <TableHead className="min-w-[120px] font-semibold" style={{ color: "#001f3f" }}>
+                          Gross Taxable
+                        </TableHead>
                       )}
                       {columnVisibility.find((col) => col.key === "total_actual_amount")?.visible && (
-                        <TableHead className="min-w-[140px] font-semibold" style={{ color: '#001f3f' }}>Total Actual Amount</TableHead>
+                        <TableHead className="min-w-[140px] font-semibold" style={{ color: "#001f3f" }}>
+                          Total Actual Amount
+                        </TableHead>
                       )}
                       {columnVisibility.find((col) => col.key === "invoice_number")?.visible && (
-                        <TableHead className="min-w-[120px] font-semibold" style={{ color: '#001f3f' }}>Invoice #</TableHead>
+                        <TableHead className="min-w-[120px] font-semibold" style={{ color: "#001f3f" }}>
+                          Invoice #
+                        </TableHead>
                       )}
                       {columnVisibility.find((col) => col.key === "pickup_date")?.visible && (
-                        <TableHead className="min-w-[120px] font-semibold" style={{ color: '#001f3f' }}>Pickup Date</TableHead>
+                        <TableHead className="min-w-[120px] font-semibold" style={{ color: "#001f3f" }}>
+                          Pickup Date
+                        </TableHead>
+                      )}
+                      {columnVisibility.find((col) => col.key === "recent_remark")?.visible && (
+                        <TableHead className="min-w-[200px] font-semibold" style={{ color: "#001f3f" }}>
+                          Recent Remark
+                        </TableHead>
                       )}
                       {columnVisibility.find((col) => col.key === "files")?.visible && (
-                        <TableHead className="min-w-[150px] font-semibold" style={{ color: '#001f3f' }}>Files</TableHead>
+                        <TableHead className="min-w-[150px] font-semibold" style={{ color: "#001f3f" }}>
+                          Files
+                        </TableHead>
                       )}
                       {columnVisibility.find((col) => col.key === "actions")?.visible && (
-                        <TableHead className="min-w-[120px] font-semibold" style={{ color: '#001f3f' }}>Actions</TableHead>
+                        <TableHead className="min-w-[120px] font-semibold" style={{ color: "#001f3f" }}>
+                          Actions
+                        </TableHead>
                       )}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {loading ? (
                       <TableRow>
-                        <TableCell colSpan={11} className="text-center py-12">
+                        <TableCell colSpan={12} className="text-center py-12">
                           <div className="flex flex-col items-center justify-center">
-                            <div className="animate-spin rounded-full h-12 w-12" style={{ borderBottom: '2px solid #001f3f' }}></div>
-                            <span style={{ color: '#555' }} className="font-medium">Loading sales records...</span>
+                            <div
+                              className="animate-spin rounded-full h-12 w-12"
+                              style={{ borderBottom: "2px solid #001f3f" }}
+                            ></div>
+                            <span style={{ color: "#555" }} className="font-medium">
+                              Loading sales records...
+                            </span>
                           </div>
                         </TableCell>
                       </TableRow>
                     ) : sales.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={11} className="text-center py-12">
-                          <BarChart3 className="h-16 w-16 mx-auto mb-4" style={{ color: '#e0e0e0' }} />
-                          <h3 className="text-lg font-medium mb-2" style={{ color: '#001f3f' }}>No sales records found</h3>
-                          <p style={{ color: '#555' }}>
+                        <TableCell colSpan={12} className="text-center py-12">
+                          <BarChart3 className="h-16 w-16 mx-auto mb-4" style={{ color: "#e0e0e0" }} />
+                          <h3 className="text-lg font-medium mb-2" style={{ color: "#001f3f" }}>
+                            No sales records found
+                          </h3>
+                          <p style={{ color: "#555" }}>
                             {profile?.assigned_area
                               ? `No sales records found for ${profile.assigned_area}. Create your first sales record to get started!`
                               : "No assigned area found. Please contact your administrator."}
@@ -701,30 +795,34 @@ export default function SecretarySalesPage() {
                       </TableRow>
                     ) : (
                       sales.map((sale) => (
-                        <TableRow key={sale.id} style={{ background: '#fff' }} className="hover:bg-[#f9f9f9] transition-colors" >
+                        <TableRow
+                          key={sale.id}
+                          style={{ background: "#fff" }}
+                          className="hover:bg-[#f9f9f9] transition-colors"
+                        >
                           {columnVisibility.find((col) => col.key === "tax_month")?.visible && (
-                            <TableCell style={{ color: '#001f3f' }} className="font-medium">
+                            <TableCell style={{ color: "#001f3f" }} className="font-medium">
                               <div className="flex items-center gap-2">
-                                <Calendar className="h-4 w-4" style={{ color: '#001f3f' }} />
+                                <Calendar className="h-4 w-4" style={{ color: "#001f3f" }} />
                                 {format(new Date(sale.tax_month), "MMM yyyy")}
                               </div>
                             </TableCell>
                           )}
                           {columnVisibility.find((col) => col.key === "tin")?.visible && (
-                            <TableCell style={{ color: '#001f3f' }} className="font-mono">
+                            <TableCell style={{ color: "#001f3f" }} className="font-mono">
                               <div className="flex items-center gap-2">
-                                <div className="w-2 h-2 rounded-full" style={{ background: '#001f3f' }}></div>
+                                <div className="w-2 h-2 rounded-full" style={{ background: "#001f3f" }}></div>
                                 {formatTin(sale.tin)}
                               </div>
                             </TableCell>
                           )}
                           {columnVisibility.find((col) => col.key === "name")?.visible && (
-                            <TableCell style={{ color: '#001f3f' }}>
+                            <TableCell style={{ color: "#001f3f" }}>
                               <div>
                                 <div className="font-medium">{sale.name}</div>
                                 {sale.substreet_street_brgy && (
-                                  <div className="text-sm flex items-center gap-1" style={{ color: '#555' }}>
-                                    <MapPin className="h-3 w-3" style={{ color: '#001f3f' }} />
+                                  <div className="text-sm flex items-center gap-1" style={{ color: "#555" }}>
+                                    <MapPin className="h-3 w-3" style={{ color: "#001f3f" }} />
                                     {sale.substreet_street_brgy}
                                   </div>
                                 )}
@@ -752,21 +850,26 @@ export default function SecretarySalesPage() {
                             </TableCell>
                           )}
                           {columnVisibility.find((col) => col.key === "gross_taxable")?.visible && (
-                            <TableCell style={{ color: '#001f3f' }} className="font-semibold">
+                            <TableCell style={{ color: "#001f3f" }} className="font-semibold">
                               {formatCurrency(sale.gross_taxable || 0)}
                             </TableCell>
                           )}
                           {columnVisibility.find((col) => col.key === "total_actual_amount")?.visible && (
-                            <TableCell style={{ color: '#001f3f' }} className="font-semibold">
+                            <TableCell style={{ color: "#001f3f" }} className="font-semibold">
                               {formatCurrency(sale.total_actual_amount || 0)}
                             </TableCell>
                           )}
                           {columnVisibility.find((col) => col.key === "invoice_number")?.visible && (
-                            <TableCell style={{ color: '#555' }}>{sale.invoice_number || "-"}</TableCell>
+                            <TableCell style={{ color: "#555" }}>{sale.invoice_number || "-"}</TableCell>
                           )}
                           {columnVisibility.find((col) => col.key === "pickup_date")?.visible && (
-                            <TableCell style={{ color: '#555' }}>
+                            <TableCell style={{ color: "#555" }}>
                               {sale.pickup_date ? format(new Date(sale.pickup_date), "MMM dd, yyyy") : "-"}
+                            </TableCell>
+                          )}
+                          {columnVisibility.find((col) => col.key === "recent_remark")?.visible && (
+                            <TableCell>
+                              <RecentRemarkDisplay remark={getMostRecentRemark(sale.remarks)} />
                             </TableCell>
                           )}
                           {columnVisibility.find((col) => col.key === "files")?.visible && (
@@ -775,7 +878,7 @@ export default function SecretarySalesPage() {
                                 {sale.cheque && sale.cheque.length > 0 && (
                                   <Badge
                                     variant="outline"
-                                    style={{ background: '#f9f9f9', color: '#001f3f', border: '1px solid #e0e0e0' }}
+                                    style={{ background: "#f9f9f9", color: "#001f3f", border: "1px solid #e0e0e0" }}
                                     className="text-xs font-semibold px-2 py-1 rounded-lg shadow-sm"
                                   >
                                     Cheque ( {sale.cheque.length})
@@ -784,7 +887,7 @@ export default function SecretarySalesPage() {
                                 {sale.voucher && sale.voucher.length > 0 && (
                                   <Badge
                                     variant="outline"
-                                    style={{ background: '#f9f9f9', color: '#001f3f', border: '1px solid #e0e0e0' }}
+                                    style={{ background: "#f9f9f9", color: "#001f3f", border: "1px solid #e0e0e0" }}
                                     className="text-xs font-semibold px-2 py-1 rounded-lg shadow-sm"
                                   >
                                     Voucher ({sale.voucher.length})
@@ -793,7 +896,7 @@ export default function SecretarySalesPage() {
                                 {sale.invoice && sale.invoice.length > 0 && (
                                   <Badge
                                     variant="outline"
-                                    style={{ background: '#f9f9f9', color: '#001f3f', border: '1px solid #e0e0e0' }}
+                                    style={{ background: "#f9f9f9", color: "#001f3f", border: "1px solid #e0e0e0" }}
                                     className="text-xs font-semibold px-2 py-1 rounded-lg shadow-sm"
                                   >
                                     Invoice ({sale.invoice.length})
@@ -802,7 +905,7 @@ export default function SecretarySalesPage() {
                                 {sale.doc_2307 && sale.doc_2307.length > 0 && (
                                   <Badge
                                     variant="outline"
-                                    style={{ background: '#fffbe6', color: '#001f3f', border: '1px solid #e0e0e0' }}
+                                    style={{ background: "#fffbe6", color: "#001f3f", border: "1px solid #e0e0e0" }}
                                     className="text-xs font-semibold px-2 py-1 rounded-lg shadow-sm"
                                   >
                                     2307 ({sale.doc_2307.length})
@@ -811,7 +914,7 @@ export default function SecretarySalesPage() {
                                 {sale.deposit_slip && sale.deposit_slip.length > 0 && (
                                   <Badge
                                     variant="outline"
-                                    style={{ background: '#f9f9f9', color: '#001f3f', border: '1px solid #e0e0e0' }}
+                                    style={{ background: "#f9f9f9", color: "#001f3f", border: "1px solid #e0e0e0" }}
                                     className="text-xs font-semibold px-2 py-1 rounded-lg shadow-sm"
                                   >
                                     Deposit ({sale.deposit_slip.length})
@@ -827,28 +930,38 @@ export default function SecretarySalesPage() {
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => handleViewSale(sale)}
-                                  style={{ color: '#001f3f', background: '#fff' }}
+                                  style={{ color: "#001f3f", background: "#fff" }}
                                   className="h-8 w-8 p-0 hover:text-[#ee3433] hover:bg-[#f9f9f9]"
                                 >
-                                  <Eye className="h-4 w-4" style={{ color: '#001f3f' }} />
+                                  <Eye className="h-4 w-4" style={{ color: "#001f3f" }} />
                                 </Button>
                                 <Button
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => handleEditSale(sale)}
-                                  style={{ color: '#001f3f', background: '#fff' }}
+                                  style={{ color: "#001f3f", background: "#fff" }}
                                   className="h-8 w-8 p-0 hover:text-[#ee3433] hover:bg-[#f9f9f9]"
                                 >
-                                  <Edit className="h-4 w-4" style={{ color: '#001f3f' }} />
+                                  <Edit className="h-4 w-4" style={{ color: "#001f3f" }} />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleAddRemark(sale)}
+                                  style={{ color: "#001f3f", background: "#fff" }}
+                                  className="h-8 w-8 p-0 hover:text-[#ee3433] hover:bg-[#f9f9f9]"
+                                  title="Add Remark"
+                                >
+                                  <MessageSquarePlus className="h-4 w-4" style={{ color: "#001f3f" }} />
                                 </Button>
                                 <Button
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => handleSoftDelete(sale)}
-                                  style={{ color: '#ee3433', background: '#fff' }}
+                                  style={{ color: "#ee3433", background: "#fff" }}
                                   className="h-8 w-8 p-0 hover:text-[#ee3433] hover:bg-[#fffbe6]"
                                 >
-                                  <Trash2 className="h-4 w-4" style={{ color: '#ee3433' }} />
+                                  <Trash2 className="h-4 w-4" style={{ color: "#ee3433" }} />
                                 </Button>
                               </div>
                             </TableCell>
@@ -874,6 +987,14 @@ export default function SecretarySalesPage() {
               onSalesUpdated={fetchSales}
             />
           </>
+        )}
+        {selectedSaleForRemark && (
+          <AddRemarkModal
+            open={addRemarkModalOpen}
+            onOpenChange={setAddRemarkModalOpen}
+            saleId={selectedSaleForRemark?.id || 0}
+            onRemarkAdded={handleRemarkAdded}
+          />
         )}
       </div>
     </ProtectedRoute>
