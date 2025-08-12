@@ -152,7 +152,7 @@ export function DashboardHeader() {
         {/* User Dropdown and Mobile Menu */}
         <div className="flex items-center gap-4">
           {/* Notification Bell */}
-          {!authLoading && user && profile && profile.role === "super_admin" && (
+          {!authLoading && user && profile && (
             <NotificationDropdown>
               <NotificationDropdownTrigger asChild>
                 <Button variant="ghost" size="icon" className="relative text-white">

@@ -669,9 +669,6 @@ export default function SecretaryCommissionReportsPage() {
                               Created Date
                             </div>
                           </TableHead>
-                          <TableHead className="text-purple-700 font-semibold border-b border-blue-200">
-                            Status
-                          </TableHead>
                           <TableHead className="text-purple-700 font-semibold border-b border-purple-200">
                             Sales Count
                           </TableHead>
@@ -729,9 +726,6 @@ export default function SecretaryCommissionReportsPage() {
                                       minute: "2-digit",
                                     }
                                   )}
-                                </TableCell>
-                                <TableCell>
-                                  {getStatusBadge(report.status)}
                                 </TableCell>
                                 <TableCell>
                                   <Badge

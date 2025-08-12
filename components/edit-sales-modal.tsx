@@ -59,19 +59,14 @@ const uploadToS3API = async (
   formData.append("tax_year", taxYear)
   formData.append("tax_date", taxDay)
 
-  // Generate unique ID for the file
-  const uniqueId = typeof crypto !== "undefined" && crypto.randomUUID
-    ? crypto.randomUUID()
-    : Math.random().toString(36).slice(2, 10);
-
-  // Generate filename with unique ID
+  // Generate filename with proper indexing
   const cleanTin = tin.replace(/-/g, "")
   const fileExtension = file.name.split(".").pop()
-  const baseFileName = `${cleanTin}-${fileType}-${format(new Date(), "MMddyyyy-HHmmss")}-${uniqueId}`;
+  const baseFileName = `${cleanTin}-${fileType}-${format(new Date(), "MMddyyyy")}`
   const fileName =
     existingFileCount > 0
       ? `${baseFileName}-${existingFileCount + 1}.${fileExtension}`
-      : `${baseFileName}.${fileExtension}`;
+      : `${baseFileName}.${fileExtension}`
 
   formData.append("file_name", fileName)
 
@@ -319,11 +314,8 @@ export function EditSalesModal({ open, onOpenChange, sale, onSalesUpdated }: Edi
       const existingFileCount = (currentUpload?.existingUrls.length || 0) + (currentUpload?.uploadedUrls.length || 0)
 
       const uploadPromises = validFiles.map(async (file, index) => {
-        if (index > 0) {
-          await new Promise((res) => setTimeout(res, 1000)); // 1 second delay for uniqueness
-        }
-        return await uploadToS3API(file, taxMonth, tinSearch, uploadId, existingFileCount + index);
-      });
+        return await uploadToS3API(file, taxMonth, tinSearch, uploadId, existingFileCount + index)
+      })
 
       const uploadedUrls = await Promise.all(uploadPromises)
 
