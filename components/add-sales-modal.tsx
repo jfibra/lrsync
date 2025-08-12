@@ -76,10 +76,13 @@ const uploadToS3API = async (
   formData.append("tax_year", taxYear);
   formData.append("tax_date", taxDay);
 
-  // Generate filename with proper indexing
+  // Generate unique ID for the file
+  const uniqueId = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2, 10);
+
+  // Generate filename with unique ID
   const cleanTin = tin.replace(/-/g, "");
   const fileExtension = file.name.split(".").pop();
-  const baseFileName = `${cleanTin}-${fileType}-${format(new Date(), "MMddyyyy-HHmmss")}`;
+  const baseFileName = `${cleanTin}-${fileType}-${format(new Date(), "MMddyyyy-HHmmss")}-${uniqueId}`;
   const fileName =
     existingFileCount > 0
       ? `${baseFileName}-${existingFileCount + 1}.${fileExtension}`

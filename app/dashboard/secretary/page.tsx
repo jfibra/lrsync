@@ -1,15 +1,92 @@
 "use client"
 
 import type React from "react"
-
-import { ProtectedRoute } from "@/components/protected-route"
-import { DashboardHeader } from "@/components/dashboard-header"
-import { DashboardMenuCards } from "@/components/dashboard-menu-cards"
+import { useEffect, useState } from "react"
+import { supabase } from "@/lib/supabase/client"
 import { useAuth } from "@/contexts/auth-context"
-import { FileText, CheckSquare, Clock, TrendingUp } from "lucide-react"
+import { ProtectedRoute } from "@/components/protected-route"
+import DashboardHeader from "@/components/dashboard-header"
+import { DashboardMenuCards } from "@/components/dashboard-menu-cards"
+import { Clock, CheckSquare, TrendingUp, FileText } from "lucide-react"
+
+function getWeekRange(date = new Date()) {
+  const day = date.getDay()
+  const diff = date.getDate() - day + (day === 0 ? -6 : 1)
+  const monday = new Date(date.setDate(diff))
+  monday.setHours(0, 0, 0, 0)
+  const sunday = new Date(monday)
+  sunday.setDate(monday.getDate() + 6)
+  sunday.setHours(23, 59, 59, 999)
+  return { monday, sunday }
+}
+
+function getMonthRange(date = new Date()) {
+  const firstDay = new Date(date.getFullYear(), date.getMonth(), 1)
+  firstDay.setHours(0, 0, 0, 0)
+  const lastDay = new Date(date.getFullYear(), date.getMonth() + 1, 0)
+  lastDay.setHours(23, 59, 59, 999)
+  return { firstDay, lastDay }
+}
 
 export default function SecretaryDashboard() {
   const { profile } = useAuth()
+  const [stats, setStats] = useState({
+    salesThisWeek: 0,
+    salesUpdatedThisMonth: 0,
+    commissionReportsThisMonth: 0,
+    activitiesThisWeek: 0,
+  })
+
+  useEffect(() => {
+    async function fetchStats() {
+      if (!profile?.id) return
+      const { monday, sunday } = getWeekRange(new Date())
+      const { firstDay, lastDay } = getMonthRange(new Date())
+
+      // 1. Total Sales Encoded This Week
+      const { count: salesThisWeek } = await supabase
+        .from("sales")
+        .select("*", { count: "exact", head: true })
+        .gte("created_at", monday.toISOString())
+        .lte("created_at", sunday.toISOString())
+        .eq("user_uuid", profile.id)
+        .eq("is_deleted", false)
+
+      // 2. Sales Updated This Month (from notifications)
+      const { count: salesUpdatedThisMonth } = await supabase
+        .from("notifications")
+        .select("*", { count: "exact", head: true })
+        .eq("user_uuid", profile.id)
+        .eq("action", "sales_updated")
+        .gte("created_at", firstDay.toISOString())
+        .lte("created_at", lastDay.toISOString())
+
+      // 3. Number of Commission Report Generated This Month (from notifications)
+      const { count: commissionReportsThisMonth } = await supabase
+        .from("notifications")
+        .select("*", { count: "exact", head: true })
+        .eq("user_uuid", profile.id)
+        .eq("action", "commission_report_generated")
+        .gte("created_at", firstDay.toISOString())
+        .lte("created_at", lastDay.toISOString())
+
+      // 4. Total Activities of User This Week
+      const { count: activitiesThisWeek } = await supabase
+        .from("notifications")
+        .select("*", { count: "exact", head: true })
+        .eq("user_uuid", profile.id)
+        .gte("created_at", monday.toISOString())
+        .lte("created_at", sunday.toISOString())
+
+      setStats({
+        salesThisWeek: salesThisWeek || 0,
+        salesUpdatedThisMonth: salesUpdatedThisMonth || 0,
+        commissionReportsThisMonth: commissionReportsThisMonth || 0,
+        activitiesThisWeek: activitiesThisWeek || 0,
+      })
+    }
+    fetchStats()
+  }, [profile?.id])
 
   const StatCard = ({
     icon,
@@ -58,7 +135,6 @@ export default function SecretaryDashboard() {
     <ProtectedRoute allowedRoles={["secretary"]}>
       <div className="min-h-screen" style={{ background: '#fff' }}>
         <DashboardHeader />
-
         <div className="pt-20 px-4 sm:px-6 lg:px-8 py-8">
           {/* Welcome Section */}
           <div className="bg-white/80 backdrop-blur-sm border-l-4 border-l-purple-600 p-6 mb-8 rounded-r-xl shadow-xl hover:shadow-2xl transition-shadow duration-300 animate-in fade-in-50 slide-in-from-left-4">
@@ -93,28 +169,35 @@ export default function SecretaryDashboard() {
               </div>
             </div>
 
-            {/* Stats Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-8">
+            {/* Stats Grid - Only Four Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mt-8">
               <StatCard
-                icon={<Clock className="h-6 w-6" />}
-                title="Pending Tasks"
-                value="--"
-                subtitle="Awaiting completion"
-                color="orange"
-              />
-              <StatCard
-                icon={<CheckSquare className="h-6 w-6" />}
-                title="Completed"
-                value="--"
-                subtitle="Tasks finished"
-                color="green"
+                icon={<TrendingUp className="h-6 w-6" />}
+                title="Sales Encoded (This Week)"
+                value={stats.salesThisWeek}
+                subtitle="Total sales encoded this week"
+                color="purple"
               />
               <StatCard
                 icon={<FileText className="h-6 w-6" />}
-                title="Documents"
-                value="--"
-                subtitle="Files managed"
+                title="Sales Updated (This Month)"
+                value={stats.salesUpdatedThisMonth}
+                subtitle="Sales updated this month"
                 color="blue"
+              />
+              <StatCard
+                icon={<CheckSquare className="h-6 w-6" />}
+                title="Commission Reports (This Month)"
+                value={stats.commissionReportsThisMonth}
+                subtitle="Reports generated this month"
+                color="green"
+              />
+              <StatCard
+                icon={<Clock className="h-6 w-6" />}
+                title="Your Activities (This Week)"
+                value={stats.activitiesThisWeek}
+                subtitle="Your activities this week"
+                color="orange"
               />
             </div>
           </div>
