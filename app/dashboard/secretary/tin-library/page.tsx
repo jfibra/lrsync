@@ -79,6 +79,9 @@ export default function SecretaryTinLibraryPage() {
   const [isUpdating, setIsUpdating] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
   // Form data
   const [formData, setFormData] = useState<TaxpayerFormData>(initialFormData)
   const [editingTaxpayer, setEditingTaxpayer] = useState<TaxpayerListing | null>(null)
@@ -146,6 +149,41 @@ export default function SecretaryTinLibraryPage() {
     }
   }
 
+  const filteredTaxpayers = taxpayers.filter((taxpayer) => {
+    const matchesSearch =
+      taxpayer.tin.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      taxpayer.registered_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      taxpayer.substreet_street_brgy?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      taxpayer.district_city_zip?.toLowerCase().includes(searchTerm.toLowerCase())
+
+    const matchesType = filterType === "all" || taxpayer.type === filterType
+
+    return matchesSearch && matchesType;
+  })
+
+  const totalPages = Math.ceil(filteredTaxpayers.length / pageSize);
+  const startRecord = filteredTaxpayers.length === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const endRecord = Math.min(currentPage * pageSize, filteredTaxpayers.length);
+
+  const paginatedTaxpayers = filteredTaxpayers.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
+
+  const getPageNumbers = () => {
+    const pages = [];
+    const maxVisiblePages = 5;
+    if (totalPages <= maxVisiblePages) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+      const startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+      const endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+      for (let i = startPage; i <= endPage; i++) pages.push(i);
+    }
+    return pages;
+  };
+  const pageNumbers = getPageNumbers();
+
   useEffect(() => {
     if (profile?.assigned_area) {
       fetchTaxpayers()
@@ -166,17 +204,9 @@ export default function SecretaryTinLibraryPage() {
     }
   }, [error])
 
-  const filteredTaxpayers = taxpayers.filter((taxpayer) => {
-    const matchesSearch =
-      taxpayer.tin.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      taxpayer.registered_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      taxpayer.substreet_street_brgy?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      taxpayer.district_city_zip?.toLowerCase().includes(searchTerm.toLowerCase())
-
-    const matchesType = filterType === "all" || taxpayer.type === filterType
-
-    return matchesSearch && matchesType
-  })
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filterType]);
 
   const validateForm = (data: TaxpayerFormData): string | null => {
     if (!data.tin.trim()) return "TIN is required"
@@ -817,6 +847,100 @@ export default function SecretaryTinLibraryPage() {
                   )}
                 </>
               )}
+            </CardContent>
+          </Card>
+
+          <Card className="mt-6 shadow-lg border border-gray-200 bg-white">
+            <CardContent className="p-4">
+              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                {/* Left side - Page size selector and record count */}
+                <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-gray-700">Show:</span>
+                    <Select
+                      value={pageSize.toString()}
+                      onValueChange={(value) => {
+                        setPageSize(Number(value));
+                        setCurrentPage(1);
+                      }}
+                    >
+                      <SelectTrigger className="w-20 h-8 border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white text-gray-900">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-white border border-gray-200">
+                        <SelectItem value="10" className="text-gray-900 hover:bg-gray-100">10</SelectItem>
+                        <SelectItem value="25" className="text-gray-900 hover:bg-gray-100">25</SelectItem>
+                        <SelectItem value="50" className="text-gray-900 hover:bg-gray-100">50</SelectItem>
+                        <SelectItem value="100" className="text-gray-900 hover:bg-gray-100">100</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <span className="text-sm text-gray-700">records per page</span>
+                  </div>
+                  <div className="text-sm text-gray-600">
+                    Showing {startRecord} to {endRecord} of {filteredTaxpayers.length} records
+                    {(searchTerm || filterType !== "all") && ` (filtered)`}
+                  </div>
+                </div>
+                {/* Right side - Pagination Controls */}
+                {totalPages > 1 && (
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(1)}
+                      disabled={currentPage === 1}
+                      className="h-8 px-2 border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="First page"
+                    >
+                      {"<<"}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                      disabled={currentPage === 1}
+                      className="h-8 px-2 border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Previous page"
+                    >
+                      {"<"}
+                    </Button>
+                    {pageNumbers.map((pageNum) => (
+                      <Button
+                        key={pageNum}
+                        variant={currentPage === pageNum ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setCurrentPage(pageNum)}
+                        className={`h-8 px-3 min-w-[32px] ${currentPage === pageNum
+                          ? "bg-indigo-600 text-white hover:bg-indigo-700 border-indigo-600"
+                          : "border-gray-300 hover:bg-gray-50"
+                          }`}
+                      >
+                        {pageNum}
+                      </Button>
+                    ))}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                      disabled={currentPage === totalPages}
+                      className="h-8 px-2 border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Next page"
+                    >
+                      {">"}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(totalPages)}
+                      disabled={currentPage === totalPages}
+                      className="h-8 px-2 border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Last page"
+                    >
+                      {">>"}
+                    </Button>
+                  </div>
+                )}
+              </div>
             </CardContent>
           </Card>
 
