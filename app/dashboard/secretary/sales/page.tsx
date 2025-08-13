@@ -1,13 +1,12 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import {
   Search,
   Filter,
@@ -22,6 +21,10 @@ import {
   DollarSign,
   BarChart3,
   MessageSquarePlus,
+  ChevronsLeft,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsRight,
 } from "lucide-react"
 import { format } from "date-fns"
 import { useAuth } from "@/contexts/auth-context"
@@ -38,6 +41,105 @@ import * as XLSX from "xlsx"
 import { logNotification } from "@/utils/logNotification"
 import { AddRemarkModal } from "@/components/add-remark-modal"
 
+const formatCurrency = (amount: number) => {
+  return new Intl.NumberFormat("en-PH", {
+    style: "currency",
+    currency: "PHP",
+  }).format(amount)
+}
+
+const formatTin = (tin: string) => {
+  if (!tin) return ""
+  // Remove any existing dashes and spaces
+  const cleanTin = tin.replace(/[-\s]/g, "")
+  // Format as XXX-XXX-XXX-XXX
+  return cleanTin.replace(/(\d{3})(\d{3})(\d{3})(\d{3})/, "$1-$2-$3-$4")
+}
+
+const getMostRecentRemark = (remarks: string | any[] | null) => {
+  if (!remarks) return null
+  let remarksArr: any[] = []
+  if (typeof remarks === "string") {
+    try {
+      remarksArr = JSON.parse(remarks)
+    } catch {
+      return null
+    }
+  } else if (Array.isArray(remarks)) {
+    remarksArr = remarks
+  }
+  if (!Array.isArray(remarksArr) || remarksArr.length === 0) return null
+  const sortedRemarks = remarksArr.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+  return sortedRemarks[0]
+}
+
+const RecentRemarkDisplay = ({
+  remark,
+  commission,
+  onCommissionClick,
+}: {
+  remark: any
+  commission?: { report_number: number; created_by: string; created_at: string; status: string; deleted_at: string }
+  onCommissionClick?: (commission: any) => void
+}) => {
+  if (remark) {
+    return (
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 max-w-xs">
+        <div className="flex items-start gap-2">
+          <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm text-gray-800 font-medium mb-1 line-clamp-2">{remark.remark}</p>
+            <div className="flex items-center gap-2 text-xs text-gray-600">
+              <span className="font-medium">{remark.name}</span>
+              <span>•</span>
+              <span>{format(new Date(remark.date), "MMM dd, yyyy")}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (commission) {
+    const isDeleted = commission.deleted_at
+    const statusColor =
+      commission.status === "approved"
+        ? "text-green-600"
+        : commission.status === "rejected"
+          ? "text-red-600"
+          : "text-yellow-600"
+
+    return (
+      <div className="bg-green-50 border border-green-200 rounded-lg p-3 max-w-xs">
+        <div className="flex items-start gap-2">
+          <div className="w-2 h-2 bg-green-500 rounded-full mt-2 flex-shrink-0"></div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm text-gray-800 font-medium mb-1">
+              {isDeleted ? (
+                <span className="text-red-600">Commission Report #{commission.report_number} (Deleted)</span>
+              ) : (
+                <button
+                  onClick={() => onCommissionClick?.(commission)}
+                  className="text-blue-600 hover:text-blue-800 underline"
+                >
+                  Commission Report #{commission.report_number}
+                </button>
+              )}
+            </p>
+            <div className="flex items-center gap-2 text-xs text-gray-600">
+              <span className={`font-medium ${statusColor}`}>{commission.status?.toUpperCase() || "PENDING"}</span>
+              <span>•</span>
+              <span>{format(new Date(commission.created_at), "MMM dd, yyyy")}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return <div className="text-sm text-gray-500 italic">No remarks</div>
+}
+
 export default function SecretarySalesPage() {
   const { profile } = useAuth()
   const [sales, setSales] = useState<Sales[]>([])
@@ -53,14 +155,14 @@ export default function SecretarySalesPage() {
   const [addRemarkModalOpen, setAddRemarkModalOpen] = useState(false)
   const [selectedSaleForRemark, setSelectedSaleForRemark] = useState<Sales | null>(null)
 
-  const [saleIdToCommission, setSaleIdToCommission] = useState<Record<string, any>>({});
-  const [creatorIdToName, setCreatorIdToName] = useState<Record<string, string>>({});
+  const [saleIdToCommission, setSaleIdToCommission] = useState<Record<string, any>>({})
+  const [creatorIdToName, setCreatorIdToName] = useState<Record<string, string>>({})
 
-  const [commissionModalOpen, setCommissionModalOpen] = useState(false);
-  const [selectedCommission, setSelectedCommission] = useState<any>(null);
+  const [commissionModalOpen, setCommissionModalOpen] = useState(false)
+  const [selectedCommission, setSelectedCommission] = useState<any>(null)
 
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(25)
 
   // Column visibility state
   const [columnVisibility, setColumnVisibility] = useState([
@@ -167,52 +269,48 @@ export default function SecretarySalesPage() {
       setSales(filteredData)
 
       // After setSales(filteredData)
-      const saleIds = filteredData?.map((sale) => sale.id) || [];
-      let commissionReports: any[] = [];
+      const saleIds = filteredData?.map((sale) => sale.id) || []
+      let commissionReports: any[] = []
       if (saleIds.length > 0) {
         const { data: reportsData, error: reportsError } = await supabase
           .from("commission_report")
           .select("report_number, sales_uuids, created_by, created_at, status, deleted_at")
-          .overlaps("sales_uuids", saleIds);
+          .overlaps("sales_uuids", saleIds)
 
         if (reportsError) {
-          console.error("Error fetching commission reports:", reportsError);
+          console.error("Error fetching commission reports:", reportsError)
         } else {
-          commissionReports = reportsData || [];
+          commissionReports = reportsData || []
         }
       }
 
       // Map saleId to commission report info
-      const saleIdToCommissionObj: Record<string, any> = {};
+      const saleIdToCommissionObj: Record<string, any> = {}
       commissionReports.forEach((report) => {
-        (report.sales_uuids || []).forEach((saleId: string) => {
+        ;(report.sales_uuids || []).forEach((saleId: string) => {
           saleIdToCommissionObj[saleId] = {
             report_number: report.report_number,
             created_by: report.created_by,
             created_at: report.created_at,
             status: report.status,
             deleted_at: report.deleted_at,
-          };
-        });
-      });
-      setSaleIdToCommission(saleIdToCommissionObj);
+          }
+        })
+      })
+      setSaleIdToCommission(saleIdToCommissionObj)
 
       // Fetch creator names
-      const creatorIds = [
-        ...new Set(commissionReports.map((r) => r.created_by).filter(Boolean)),
-      ];
-      let creators: any[] = [];
+      const creatorIds = [...new Set(commissionReports.map((r) => r.created_by).filter(Boolean))]
+      let creators: any[] = []
       if (creatorIds.length > 0) {
         const { data: creatorProfiles } = await supabase
           .from("user_profiles")
           .select("id, full_name")
-          .in("id", creatorIds);
-        creators = creatorProfiles || [];
+          .in("id", creatorIds)
+        creators = creatorProfiles || []
       }
-      const creatorIdToNameObj = Object.fromEntries(
-        creators.map((c) => [c.id, c.full_name])
-      );
-      setCreatorIdToName(creatorIdToNameObj);
+      const creatorIdToNameObj = Object.fromEntries(creators.map((c) => [c.id, c.full_name]))
+      setCreatorIdToName(creatorIdToNameObj)
     } catch (error) {
       console.error("Error fetching sales:", error)
     } finally {
@@ -221,8 +319,8 @@ export default function SecretarySalesPage() {
   }
 
   useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm, filterTaxType, filterMonth]);
+    setCurrentPage(1)
+  }, [searchTerm, filterTaxType, filterMonth])
 
   useEffect(() => {
     if (profile?.assigned_area) {
@@ -231,38 +329,38 @@ export default function SecretarySalesPage() {
   }, [searchTerm, filterTaxType, filterMonth, profile?.assigned_area])
 
   const getPageNumbers = () => {
-    const pages = [];
-    const maxVisiblePages = 5;
+    const pages = []
+    const maxVisiblePages = 5
 
     if (totalPages <= maxVisiblePages) {
       for (let i = 1; i <= totalPages; i++) {
-        pages.push(i);
+        pages.push(i)
       }
     } else {
-      const startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
-      const endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+      const startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2))
+      const endPage = Math.min(totalPages, startPage + maxVisiblePages - 1)
 
       for (let i = startPage; i <= endPage; i++) {
-        pages.push(i);
+        pages.push(i)
       }
     }
-    return pages;
-  };
-  const pageNumbers = getPageNumbers();
+    return pages
+  }
+  const pageNumbers = getPageNumbers()
 
   // Format currency
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-PH", {
-      style: "currency",
-      currency: "PHP",
-    }).format(amount)
-  }
+  // const formatCurrency = (amount: number) => {
+  //   return new Intl.NumberFormat("en-PH", {
+  //     style: "currency",
+  //     currency: "PHP",
+  //   }).format(amount)
+  // }
 
   // Format TIN display - add dash after every 3 digits
-  const formatTin = (tin: string) => {
-    const digits = tin.replace(/\D/g, "")
-    return digits.replace(/(\d{3})(?=\d)/g, "$1-")
-  }
+  // const formatTin = (tin: string) => {
+  //   const digits = tin.replace(/\D/g, "")
+  //   return digits.replace(/(\d{3})(?=\d)/g, "$1-")
+  // }
 
   // Get tax type badge color
   const getTaxTypeBadgeColor = (taxType: string) => {
@@ -302,14 +400,14 @@ export default function SecretarySalesPage() {
   const monthOptions = generateMonthOptions()
 
   const paginatedSales = useMemo(() => {
-    const startIndex = (currentPage - 1) * pageSize;
-    const endIndex = startIndex + pageSize;
-    return sales.slice(startIndex, endIndex);
-  }, [sales, currentPage, pageSize]);
+    const startIndex = (currentPage - 1) * pageSize
+    const endIndex = startIndex + pageSize
+    return sales.slice(startIndex, endIndex)
+  }, [sales, currentPage, pageSize])
 
-  const totalPages = Math.ceil(sales.length / pageSize);
-  const startRecord = sales.length === 0 ? 0 : (currentPage - 1) * pageSize + 1;
-  const endRecord = Math.min(currentPage * pageSize, sales.length);
+  const totalPages = Math.ceil(sales.length / pageSize)
+  const startRecord = sales.length === 0 ? 0 : (currentPage - 1) * pageSize + 1
+  const endRecord = Math.min(currentPage * pageSize, sales.length)
 
   // Handle view sale
   const handleViewSale = (sale: Sales) => {
@@ -522,8 +620,9 @@ export default function SecretarySalesPage() {
     XLSX.utils.book_append_sheet(wb, ws, "Invoice Sales Report")
 
     // Generate filename with current date and area
-    const filename = `Invoice_Sales_Report_${profile?.assigned_area || "Area"}_${new Date().toISOString().split("T")[0]
-      }.xlsx`
+    const filename = `Invoice_Sales_Report_${profile?.assigned_area || "Area"}_${
+      new Date().toISOString().split("T")[0]
+    }.xlsx`
 
     /* ---- browser-safe download ---- */
     const wbArray = XLSX.write(wb, { bookType: "xlsx", type: "array" })
@@ -556,27 +655,26 @@ export default function SecretarySalesPage() {
         user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
         user_email: profile.email,
         user_name: profile.full_name || profile.first_name || profile.id,
-        user_uuid: profile.id,
       })
     }
   }
 
   const getStatusBadgeClass = (status: string, deleted: boolean) => {
-    if (deleted) return "bg-red-100 text-red-700 border border-red-200";
+    if (deleted) return "bg-red-100 text-red-700 border border-red-200"
     switch ((status || "").toLowerCase()) {
       case "approved":
       case "completed":
-        return "bg-green-100 text-green-700 border border-green-200";
+        return "bg-green-100 text-green-700 border border-green-200"
       case "pending":
       case "new":
-        return "bg-yellow-100 text-yellow-800 border border-yellow-200";
+        return "bg-yellow-100 text-yellow-800 border border-yellow-200"
       case "rejected":
       case "cancelled":
-        return "bg-gray-200 text-gray-700 border border-gray-300";
+        return "bg-gray-200 text-gray-700 border border-gray-300"
       default:
-        return "bg-blue-100 text-blue-800 border border-blue-200";
+        return "bg-blue-100 text-blue-800 border border-blue-200"
     }
-  };
+  }
 
   // Calculate stats
   const totalSales = sales.length
@@ -585,64 +683,64 @@ export default function SecretarySalesPage() {
   const totalAmount = sales.reduce((sum, sale) => sum + (sale.gross_taxable || 0), 0)
   const totalActualAmount = sales.reduce((sum, sale) => sum + (sale.total_actual_amount || 0), 0)
 
-  const getMostRecentRemark = (remarks: string | any[] | null) => {
-    if (!remarks) return null;
-    let remarksArr: any[] = [];
-    if (typeof remarks === "string") {
-      try {
-        remarksArr = JSON.parse(remarks);
-      } catch {
-        return null;
-      }
-    } else if (Array.isArray(remarks)) {
-      remarksArr = remarks;
-    }
-    if (!Array.isArray(remarksArr) || remarksArr.length === 0) return null;
-    const sortedRemarks = remarksArr.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    return sortedRemarks[0];
-  };
+  // const getMostRecentRemark = (remarks: string | any[] | null) => {
+  //   if (!remarks) return null;
+  //   let remarksArr: any[] = [];
+  //   if (typeof remarks === "string") {
+  //     try {
+  //       remarksArr = JSON.parse(remarks);
+  //     } catch {
+  //       return null;
+  //     }
+  //   } else if (Array.isArray(remarks)) {
+  //     remarksArr = remarks;
+  //   }
+  //   if (!Array.isArray(remarksArr) || remarksArr.length === 0) return null;
+  //   const sortedRemarks = remarksArr.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  //   return sortedRemarks[0];
+  // };
 
-  const RecentRemarkDisplay = ({
-    remark,
-    commission,
-    onCommissionClick,
-  }: {
-    remark: any
-    commission?: { report_number: number; created_by: string; created_at: string, status: string, deleted_at: string }
-    onCommissionClick?: (commission: any) => void
-  }) => {
-    if (remark) {
-      return (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 max-w-xs">
-          <div className="flex items-start gap-2">
-            <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm text-gray-800 font-medium mb-1 line-clamp-2">{remark.remark}</p>
-              <div className="flex items-center justify-between text-xs text-gray-600">
-                <span className="font-medium">{remark.name}</span>
-                <span>{format(new Date(remark.date), "MMM dd, yyyy")}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      )
-    }
+  // const RecentRemarkDisplay = ({
+  //   remark,
+  //   commission,
+  //   onCommissionClick,
+  // }: {
+  //   remark: any
+  //   commission?: { report_number: number; created_by: string; created_at: string, status: string, deleted_at: string }
+  //   onCommissionClick?: (commission: any) => void
+  // }) => {
+  //   if (remark) {
+  //     return (
+  //       <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 max-w-xs">
+  //         <div className="flex items-start gap-2">
+  //           <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
+  //           <div className="flex-1 min-w-0">
+  //             <p className="text-sm text-gray-800 font-medium mb-1 line-clamp-2">{remark.remark}</p>
+  //             <div className="flex items-center justify-between text-xs text-gray-600">
+  //               <span className="font-medium">{remark.name}</span>
+  //               <span>{format(new Date(remark.date), "MMM dd, yyyy")}</span>
+  //             </div>
+  //           </div>
+  //         </div>
+  //       </div>
+  //     )
+  //   }
 
-    if (commission && !commission.deleted_at) {
-      return (
-        <Badge
-          variant="outline"
-          className={getStatusBadgeClass(commission.status, false) + " cursor-pointer"}
-          onClick={() => onCommissionClick?.(commission)}
-          style={{ cursor: "pointer" }}
-        >
-          Report #{commission.report_number}
-        </Badge>
-      )
-    }
+  //   if (commission && !commission.deleted_at) {
+  //     return (
+  //       <Badge
+  //         variant="outline"
+  //         className={getStatusBadgeClass(commission.status, false) + " cursor-pointer"}
+  //         onClick={() => onCommissionClick?.(commission)}
+  //         style={{ cursor: "pointer" }}
+  //       >
+  //         Report #{commission.report_number}
+  //       </Badge>
+  //     )
+  //   }
 
-    return <div className="text-gray-400 text-sm italic">No remarks</div>
-  }
+  //   return <div className="text-gray-400 text-sm italic">No remarks</div>
+  // }
 
   // Handle add remark
   const handleAddRemark = (sale: Sales) => {
@@ -997,8 +1095,8 @@ export default function SecretarySalesPage() {
                                 remark={getMostRecentRemark(sale.remarks)}
                                 commission={saleIdToCommission[sale.id]}
                                 onCommissionClick={(commission) => {
-                                  setSelectedCommission(commission);
-                                  setCommissionModalOpen(true);
+                                  setSelectedCommission(commission)
+                                  setCommissionModalOpen(true)
                                 }}
                               />
                             </TableCell>
@@ -1065,18 +1163,26 @@ export default function SecretarySalesPage() {
                     <Select
                       value={pageSize.toString()}
                       onValueChange={(value) => {
-                        setPageSize(Number(value));
-                        setCurrentPage(1);
+                        setPageSize(Number(value))
+                        setCurrentPage(1)
                       }}
                     >
                       <SelectTrigger className="w-20 h-8 border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white text-gray-900">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent className="bg-white border border-gray-200">
-                        <SelectItem value="10" className="text-gray-900 hover:bg-gray-100">10</SelectItem>
-                        <SelectItem value="25" className="text-gray-900 hover:bg-gray-100">25</SelectItem>
-                        <SelectItem value="50" className="text-gray-900 hover:bg-gray-100">50</SelectItem>
-                        <SelectItem value="100" className="text-gray-900 hover:bg-gray-100">100</SelectItem>
+                        <SelectItem value="10" className="text-gray-900 hover:bg-gray-100">
+                          10
+                        </SelectItem>
+                        <SelectItem value="25" className="text-gray-900 hover:bg-gray-100">
+                          25
+                        </SelectItem>
+                        <SelectItem value="50" className="text-gray-900 hover:bg-gray-100">
+                          50
+                        </SelectItem>
+                        <SelectItem value="100" className="text-gray-900 hover:bg-gray-100">
+                          100
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                     <span className="text-sm text-gray-700">records per page</span>
@@ -1115,10 +1221,11 @@ export default function SecretarySalesPage() {
                         variant={currentPage === pageNum ? "default" : "outline"}
                         size="sm"
                         onClick={() => setCurrentPage(pageNum)}
-                        className={`h-8 px-3 min-w-[32px] ${currentPage === pageNum
-                          ? "bg-indigo-600 text-white hover:bg-indigo-700 border-indigo-600"
-                          : "border-gray-300 hover:bg-gray-50"
-                          }`}
+                        className={`h-8 px-3 min-w-[32px] ${
+                          currentPage === pageNum
+                            ? "bg-indigo-600 text-white hover:bg-indigo-700 border-indigo-600"
+                            : "border-gray-300 hover:bg-gray-50"
+                        }`}
                       >
                         {pageNum}
                       </Button>
@@ -1170,7 +1277,8 @@ export default function SecretarySalesPage() {
             onRemarkAdded={handleRemarkAdded}
           />
         )}
-        {commissionModalOpen && selectedCommission && (
+        {commissionModalOpen &&
+          selectedCommission &&
           (() => {
             return (
               <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
@@ -1202,9 +1310,8 @@ export default function SecretarySalesPage() {
                   </div>
                 </div>
               </div>
-            );
-          })()
-        )}
+            )
+          })()}
       </div>
     </ProtectedRoute>
   )
