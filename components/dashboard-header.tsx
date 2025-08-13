@@ -7,7 +7,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
   BookText,
-  PoundSterlingIcon as PhilippinePeso,
+  PhilippinePeso,
   Menu,
   User,
   LogOut,
