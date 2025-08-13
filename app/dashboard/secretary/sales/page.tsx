@@ -180,6 +180,7 @@ export default function SecretarySalesPage() {
     { key: "invoice_number", label: "Invoice #", visible: true },
     { key: "pickup_date", label: "Pickup Date", visible: true },
     { key: "recent_remark", label: "Recent Remark", visible: true },
+    { key: "files", label: "Files", visible: true },
     { key: "actions", label: "Actions", visible: true },
   ])
 
@@ -978,6 +979,9 @@ export default function SecretarySalesPage() {
                           Recent Remark
                         </TableHead>
                       )}
+                      {columnVisibility.find((col) => col.key === "files")?.visible && (
+                        <TableHead className="min-w-[150px] font-semibold text-gray-900">Files</TableHead>
+                      )}
                       {columnVisibility.find((col) => col.key === "actions")?.visible && (
                         <TableHead className="min-w-[120px] font-semibold" style={{ color: "#001f3f" }}>
                           Actions
@@ -1098,6 +1102,52 @@ export default function SecretarySalesPage() {
                                   setCommissionModalOpen(true)
                                 }}
                               />
+                            </TableCell>
+                          )}
+                          {columnVisibility.find((col) => col.key === "files")?.visible && (
+                            <TableCell>
+                              <div className="flex flex-wrap gap-1">
+                                {sale.cheque && sale.cheque.length > 0 && (
+                                  <Badge
+                                    variant="outline"
+                                    className="text-xs font-semibold bg-blue-50 text-blue-800 border border-blue-200 px-2 py-1 rounded-lg shadow-sm"
+                                  >
+                                    Cheque ({sale.cheque.length})
+                                  </Badge>
+                                )}
+                                {sale.voucher && sale.voucher.length > 0 && (
+                                  <Badge
+                                    variant="outline"
+                                    className="text-xs font-semibold bg-green-50 text-green-800 border border-green-200 px-2 py-1 rounded-lg shadow-sm"
+                                  >
+                                    Voucher ({sale.voucher.length})
+                                  </Badge>
+                                )}
+                                {sale.invoice && sale.invoice.length > 0 && (
+                                  <Badge
+                                    variant="outline"
+                                    className="text-xs font-semibold bg-green-50 text-green-800 border border-green-200 px-2 py-1 rounded-lg shadow-sm"
+                                  >
+                                    Invoice ({sale.invoice.length})
+                                  </Badge>
+                                )}
+                                {sale.doc_2307 && sale.doc_2307.length > 0 && (
+                                  <Badge
+                                    variant="outline"
+                                    className="text-xs font-semibold bg-gray-50 text-gray-800 border border-gray-200 px-2 py-1 rounded-lg shadow-sm"
+                                  >
+                                    2307 ({sale.doc_2307.length})
+                                  </Badge>
+                                )}
+                                {sale.deposit_slip && sale.deposit_slip.length > 0 && (
+                                  <Badge
+                                    variant="outline"
+                                    className="text-xs font-semibold bg-green-50 text-green-800 border border-green-200 px-2 py-1 rounded-lg shadow-sm"
+                                  >
+                                    Deposit ({sale.deposit_slip.length})
+                                  </Badge>
+                                )}
+                              </div>
                             </TableCell>
                           )}
                           {columnVisibility.find((col) => col.key === "actions")?.visible && (
