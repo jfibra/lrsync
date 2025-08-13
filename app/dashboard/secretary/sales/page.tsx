@@ -287,7 +287,7 @@ export default function SecretarySalesPage() {
       // Map saleId to commission report info
       const saleIdToCommissionObj: Record<string, any> = {}
       commissionReports.forEach((report) => {
-        ;(report.sales_uuids || []).forEach((saleId: string) => {
+        ; (report.sales_uuids || []).forEach((saleId: string) => {
           saleIdToCommissionObj[saleId] = {
             report_number: report.report_number,
             created_by: report.created_by,
@@ -327,26 +327,6 @@ export default function SecretarySalesPage() {
       fetchSales()
     }
   }, [searchTerm, filterTaxType, filterMonth, profile?.assigned_area])
-
-  const getPageNumbers = () => {
-    const pages = []
-    const maxVisiblePages = 5
-
-    if (totalPages <= maxVisiblePages) {
-      for (let i = 1; i <= totalPages; i++) {
-        pages.push(i)
-      }
-    } else {
-      const startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2))
-      const endPage = Math.min(totalPages, startPage + maxVisiblePages - 1)
-
-      for (let i = startPage; i <= endPage; i++) {
-        pages.push(i)
-      }
-    }
-    return pages
-  }
-  const pageNumbers = getPageNumbers()
 
   // Format currency
   // const formatCurrency = (amount: number) => {
@@ -408,6 +388,26 @@ export default function SecretarySalesPage() {
   const totalPages = Math.ceil(sales.length / pageSize)
   const startRecord = sales.length === 0 ? 0 : (currentPage - 1) * pageSize + 1
   const endRecord = Math.min(currentPage * pageSize, sales.length)
+
+  const getPageNumbers = () => {
+    const pages = []
+    const maxVisiblePages = 5
+
+    if (totalPages <= maxVisiblePages) {
+      for (let i = 1; i <= totalPages; i++) {
+        pages.push(i)
+      }
+    } else {
+      const startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2))
+      const endPage = Math.min(totalPages, startPage + maxVisiblePages - 1)
+
+      for (let i = startPage; i <= endPage; i++) {
+        pages.push(i)
+      }
+    }
+    return pages
+  }
+  const pageNumbers = getPageNumbers()
 
   // Handle view sale
   const handleViewSale = (sale: Sales) => {
@@ -620,9 +620,8 @@ export default function SecretarySalesPage() {
     XLSX.utils.book_append_sheet(wb, ws, "Invoice Sales Report")
 
     // Generate filename with current date and area
-    const filename = `Invoice_Sales_Report_${profile?.assigned_area || "Area"}_${
-      new Date().toISOString().split("T")[0]
-    }.xlsx`
+    const filename = `Invoice_Sales_Report_${profile?.assigned_area || "Area"}_${new Date().toISOString().split("T")[0]
+      }.xlsx`
 
     /* ---- browser-safe download ---- */
     const wbArray = XLSX.write(wb, { bookType: "xlsx", type: "array" })
@@ -1221,11 +1220,10 @@ export default function SecretarySalesPage() {
                         variant={currentPage === pageNum ? "default" : "outline"}
                         size="sm"
                         onClick={() => setCurrentPage(pageNum)}
-                        className={`h-8 px-3 min-w-[32px] ${
-                          currentPage === pageNum
+                        className={`h-8 px-3 min-w-[32px] ${currentPage === pageNum
                             ? "bg-indigo-600 text-white hover:bg-indigo-700 border-indigo-600"
                             : "border-gray-300 hover:bg-gray-50"
-                        }`}
+                          }`}
                       >
                         {pageNum}
                       </Button>
