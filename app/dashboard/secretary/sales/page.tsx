@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import {
   Search,
   Filter,
@@ -51,6 +52,15 @@ export default function SecretarySalesPage() {
   const [selectedSale, setSelectedSale] = useState<Sales | null>(null)
   const [addRemarkModalOpen, setAddRemarkModalOpen] = useState(false)
   const [selectedSaleForRemark, setSelectedSaleForRemark] = useState<Sales | null>(null)
+
+  const [saleIdToCommission, setSaleIdToCommission] = useState<Record<string, any>>({});
+  const [creatorIdToName, setCreatorIdToName] = useState<Record<string, string>>({});
+
+  const [commissionModalOpen, setCommissionModalOpen] = useState(false);
+  const [selectedCommission, setSelectedCommission] = useState<any>(null);
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
   // Column visibility state
   const [columnVisibility, setColumnVisibility] = useState([
@@ -156,6 +166,54 @@ export default function SecretarySalesPage() {
       const filteredData = salesWithProfiles.filter((sale) => sale.user_assigned_area === profile.assigned_area)
 
       setSales(filteredData)
+
+      // After setSales(filteredData)
+      const saleIds = filteredData?.map((sale) => sale.id) || [];
+      let commissionReports: any[] = [];
+      if (saleIds.length > 0) {
+        const { data: reportsData, error: reportsError } = await supabase
+          .from("commission_report")
+          .select("report_number, sales_uuids, created_by, created_at, status, deleted_at")
+          .overlaps("sales_uuids", saleIds);
+
+        if (reportsError) {
+          console.error("Error fetching commission reports:", reportsError);
+        } else {
+          commissionReports = reportsData || [];
+        }
+      }
+
+      // Map saleId to commission report info
+      const saleIdToCommissionObj: Record<string, any> = {};
+      commissionReports.forEach((report) => {
+        (report.sales_uuids || []).forEach((saleId: string) => {
+          saleIdToCommissionObj[saleId] = {
+            report_number: report.report_number,
+            created_by: report.created_by,
+            created_at: report.created_at,
+            status: report.status,
+            deleted_at: report.deleted_at,
+          };
+        });
+      });
+      setSaleIdToCommission(saleIdToCommissionObj);
+
+      // Fetch creator names
+      const creatorIds = [
+        ...new Set(commissionReports.map((r) => r.created_by).filter(Boolean)),
+      ];
+      let creators: any[] = [];
+      if (creatorIds.length > 0) {
+        const { data: creatorProfiles } = await supabase
+          .from("user_profiles")
+          .select("id, full_name")
+          .in("id", creatorIds);
+        creators = creatorProfiles || [];
+      }
+      const creatorIdToNameObj = Object.fromEntries(
+        creators.map((c) => [c.id, c.full_name])
+      );
+      setCreatorIdToName(creatorIdToNameObj);
     } catch (error) {
       console.error("Error fetching sales:", error)
     } finally {
@@ -164,10 +222,34 @@ export default function SecretarySalesPage() {
   }
 
   useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filterTaxType, filterMonth]);
+
+  useEffect(() => {
     if (profile?.assigned_area) {
       fetchSales()
     }
   }, [searchTerm, filterTaxType, filterMonth, profile?.assigned_area])
+
+  const getPageNumbers = () => {
+    const pages = [];
+    const maxVisiblePages = 5;
+
+    if (totalPages <= maxVisiblePages) {
+      for (let i = 1; i <= totalPages; i++) {
+        pages.push(i);
+      }
+    } else {
+      const startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+      const endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+
+      for (let i = startPage; i <= endPage; i++) {
+        pages.push(i);
+      }
+    }
+    return pages;
+  };
+  const pageNumbers = getPageNumbers();
 
   // Format currency
   const formatCurrency = (amount: number) => {
@@ -219,6 +301,16 @@ export default function SecretarySalesPage() {
   }
 
   const monthOptions = generateMonthOptions()
+
+  const paginatedSales = useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    return sales.slice(startIndex, endIndex);
+  }, [sales, currentPage, pageSize]);
+
+  const totalPages = Math.ceil(sales.length / pageSize);
+  const startRecord = sales.length === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const endRecord = Math.min(currentPage * pageSize, sales.length);
 
   // Handle view sale
   const handleViewSale = (sale: Sales) => {
@@ -431,9 +523,8 @@ export default function SecretarySalesPage() {
     XLSX.utils.book_append_sheet(wb, ws, "Invoice Sales Report")
 
     // Generate filename with current date and area
-    const filename = `Invoice_Sales_Report_${profile?.assigned_area || "Area"}_${
-      new Date().toISOString().split("T")[0]
-    }.xlsx`
+    const filename = `Invoice_Sales_Report_${profile?.assigned_area || "Area"}_${new Date().toISOString().split("T")[0]
+      }.xlsx`
 
     /* ---- browser-safe download ---- */
     const wbArray = XLSX.write(wb, { bookType: "xlsx", type: "array" })
@@ -471,6 +562,23 @@ export default function SecretarySalesPage() {
     }
   }
 
+  const getStatusBadgeClass = (status: string, deleted: boolean) => {
+    if (deleted) return "bg-red-100 text-red-700 border border-red-200";
+    switch ((status || "").toLowerCase()) {
+      case "approved":
+      case "completed":
+        return "bg-green-100 text-green-700 border border-green-200";
+      case "pending":
+      case "new":
+        return "bg-yellow-100 text-yellow-800 border border-yellow-200";
+      case "rejected":
+      case "cancelled":
+        return "bg-gray-200 text-gray-700 border border-gray-300";
+      default:
+        return "bg-blue-100 text-blue-800 border border-blue-200";
+    }
+  };
+
   // Calculate stats
   const totalSales = sales.length
   const vatSales = sales.filter((s) => s.tax_type === "vat").length
@@ -494,25 +602,46 @@ export default function SecretarySalesPage() {
     }
   }
 
-  const RecentRemarkDisplay = ({ remark }: { remark: any }) => {
-    if (!remark) {
-      return <div className="text-gray-400 text-sm italic">No remarks</div>
-    }
-
-    return (
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 max-w-xs">
-        <div className="flex items-start gap-2">
-          <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm text-gray-800 font-medium mb-1 line-clamp-2">{remark.remark}</p>
-            <div className="flex items-center justify-between text-xs text-gray-600">
-              <span className="font-medium">{remark.name}</span>
-              <span>{format(new Date(remark.date), "MMM dd, yyyy")}</span>
+  const RecentRemarkDisplay = ({
+    remark,
+    commission,
+    onCommissionClick,
+  }: {
+    remark: any
+    commission?: { report_number: number; created_by: string; created_at: string, status: string, deleted_at: string }
+    onCommissionClick?: (commission: any) => void
+  }) => {
+    if (remark) {
+      return (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 max-w-xs">
+          <div className="flex items-start gap-2">
+            <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm text-gray-800 font-medium mb-1 line-clamp-2">{remark.remark}</p>
+              <div className="flex items-center justify-between text-xs text-gray-600">
+                <span className="font-medium">{remark.name}</span>
+                <span>{format(new Date(remark.date), "MMM dd, yyyy")}</span>
+              </div>
             </div>
           </div>
         </div>
-      </div>
-    )
+      )
+    }
+
+    if (commission && !commission.deleted_at) {
+      return (
+        <Badge
+          variant="outline"
+          className={getStatusBadgeClass(commission.status, false) + " cursor-pointer"}
+          onClick={() => onCommissionClick?.(commission)}
+          style={{ cursor: "pointer" }}
+        >
+          Report #{commission.report_number}
+        </Badge>
+      )
+    }
+
+    return <div className="text-gray-400 text-sm italic">No remarks</div>
   }
 
   // Handle add remark
@@ -794,7 +923,7 @@ export default function SecretarySalesPage() {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      sales.map((sale) => (
+                      paginatedSales.map((sale) => (
                         <TableRow
                           key={sale.id}
                           style={{ background: "#fff" }}
@@ -869,7 +998,14 @@ export default function SecretarySalesPage() {
                           )}
                           {columnVisibility.find((col) => col.key === "recent_remark")?.visible && (
                             <TableCell>
-                              <RecentRemarkDisplay remark={getMostRecentRemark(sale.remarks)} />
+                              <RecentRemarkDisplay
+                                remark={getMostRecentRemark(sale.remarks)}
+                                commission={saleIdToCommission[sale.id]}
+                                onCommissionClick={(commission) => {
+                                  setSelectedCommission(commission);
+                                  setCommissionModalOpen(true);
+                                }}
+                              />
                             </TableCell>
                           )}
                           {columnVisibility.find((col) => col.key === "files")?.visible && (
@@ -974,6 +1110,100 @@ export default function SecretarySalesPage() {
               </div>
             </CardContent>
           </Card>
+
+          <Card className="mt-6 shadow-lg border border-gray-200 bg-white">
+            <CardContent className="p-4">
+              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                {/* Left side - Page size selector and record count */}
+                <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-gray-700">Show:</span>
+                    <Select
+                      value={pageSize.toString()}
+                      onValueChange={(value) => {
+                        setPageSize(Number(value));
+                        setCurrentPage(1);
+                      }}
+                    >
+                      <SelectTrigger className="w-20 h-8 border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white text-gray-900">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-white border border-gray-200">
+                        <SelectItem value="10" className="text-gray-900 hover:bg-gray-100">10</SelectItem>
+                        <SelectItem value="25" className="text-gray-900 hover:bg-gray-100">25</SelectItem>
+                        <SelectItem value="50" className="text-gray-900 hover:bg-gray-100">50</SelectItem>
+                        <SelectItem value="100" className="text-gray-900 hover:bg-gray-100">100</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <span className="text-sm text-gray-700">records per page</span>
+                  </div>
+                  <div className="text-sm text-gray-600">
+                    Showing {startRecord} to {endRecord} of {sales.length} records
+                    {(searchTerm || filterTaxType !== "all" || filterMonth !== "all") && ` (filtered)`}
+                  </div>
+                </div>
+                {/* Right side - Pagination Controls */}
+                {totalPages > 1 && (
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(1)}
+                      disabled={currentPage === 1}
+                      className="h-8 px-2 border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="First page"
+                    >
+                      <ChevronsLeft className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                      disabled={currentPage === 1}
+                      className="h-8 px-2 border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Previous page"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    {pageNumbers.map((pageNum) => (
+                      <Button
+                        key={pageNum}
+                        variant={currentPage === pageNum ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setCurrentPage(pageNum)}
+                        className={`h-8 px-3 min-w-[32px] ${currentPage === pageNum
+                          ? "bg-indigo-600 text-white hover:bg-indigo-700 border-indigo-600"
+                          : "border-gray-300 hover:bg-gray-50"
+                          }`}
+                      >
+                        {pageNum}
+                      </Button>
+                    ))}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                      disabled={currentPage === totalPages}
+                      className="h-8 px-2 border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Next page"
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(totalPages)}
+                      disabled={currentPage === totalPages}
+                      className="h-8 px-2 border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Last page"
+                    >
+                      <ChevronsRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Modals */}
@@ -995,6 +1225,41 @@ export default function SecretarySalesPage() {
             saleId={selectedSaleForRemark?.id || 0}
             onRemarkAdded={handleRemarkAdded}
           />
+        )}
+        {commissionModalOpen && selectedCommission && (
+          (() => {
+            return (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+                <div className="bg-white rounded-lg shadow-lg p-6 min-w-[320px] max-w-[90vw]">
+                  <h2 className="text-[#001f3f] text-xl font-bold mb-2">
+                    Commission Report #{selectedCommission.report_number}
+                  </h2>
+                  <div className="text-[#001f3f] mb-2">
+                    <span className="font-semibold">Created by:</span>{" "}
+                    {creatorIdToName[selectedCommission.created_by] || selectedCommission.created_by}
+                  </div>
+                  <div className="text-[#001f3f] mb-2">
+                    <span className="font-semibold">Date:</span>{" "}
+                    {format(new Date(selectedCommission.created_at), "MMM dd, yyyy HH:mm")}
+                  </div>
+                  <div className="text-[#001f3f] mb-2 flex items-center gap-2">
+                    <span className="font-semibold">Status:</span>
+                    {selectedCommission.deleted_at ? (
+                      <span className="bg-red-100 text-red-700 px-2 py-1 rounded font-semibold text-xs">Deleted</span>
+                    ) : (
+                      <span className="bg-green-100 text-green-700 px-2 py-1 rounded font-semibold text-xs capitalize">
+                        {selectedCommission.status || "N/A"}
+                      </span>
+                    )}
+                  </div>
+                  {/* Add more commission report details here if needed */}
+                  <div className="flex justify-end mt-4">
+                    <Button onClick={() => setCommissionModalOpen(false)}>Close</Button>
+                  </div>
+                </div>
+              </div>
+            );
+          })()
         )}
       </div>
     </ProtectedRoute>
