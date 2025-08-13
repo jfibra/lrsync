@@ -29,6 +29,10 @@ export default function SecretaryCommissionPage() {
   const [recordsPerPage, setRecordsPerPage] = useState(10)
   const [showCommissionModal, setShowCommissionModal] = useState(false)
 
+  const [saleIdToCommission, setSaleIdToCommission] = useState<Record<string, any>>({});
+  const [commissionModalOpen, setCommissionModalOpen] = useState(false);
+  const [selectedCommission, setSelectedCommission] = useState<any>(null);
+
   // Column visibility state
   const [columnVisibility, setColumnVisibility] = useState([
     { key: "tax_month", label: "Tax Month", visible: true },
@@ -45,7 +49,7 @@ export default function SecretaryCommissionPage() {
     { key: "invoice_number", label: "Invoice #", visible: true },
     { key: "pickup_date", label: "Pickup Date", visible: true },
     { key: "area", label: "Area", visible: true },
-    { key: "files", label: "Files", visible: true },
+    { key: "recent_remark", label: "Remarks", visible: true }, // <-- add this
   ])
 
   // Toggle column visibility
@@ -62,6 +66,48 @@ export default function SecretaryCommissionPage() {
         return [...prev, saleId]
       }
     })
+  }
+
+  const RecentRemarkDisplay = ({
+    remark,
+    commission,
+    onCommissionClick,
+  }: {
+    remark: any
+    commission?: { report_number: number; created_by: string; created_at: string; status?: string; deleted_at?: string }
+    onCommissionClick?: (commission: any) => void
+  }) => {
+    if (remark) {
+      return (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 max-w-xs">
+          <div className="flex items-start gap-2">
+            <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm text-gray-800 font-medium mb-1 line-clamp-2">{remark.remark}</p>
+              <div className="flex items-center justify-between text-xs text-gray-600">
+                <span className="font-medium">{remark.name}</span>
+                <span>{remark.date ? format(new Date(remark.date), "MMM dd, yyyy") : ""}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )
+    }
+
+    if (commission && !commission.deleted_at) {
+      return (
+        <Badge
+          variant="outline"
+          className="bg-yellow-50 text-yellow-800 border-yellow-300 cursor-pointer"
+          onClick={() => onCommissionClick?.(commission)}
+          style={{ cursor: "pointer" }}
+        >
+          Report #{commission.report_number}
+        </Badge>
+      )
+    }
+
+    return <div className="text-gray-400 text-sm italic">No remarks</div>
   }
 
   // Fetch sales data - filtered by secretary's assigned area
@@ -143,6 +189,30 @@ export default function SecretaryCommissionPage() {
       const filteredData = salesWithProfiles.filter((sale) => sale.user_assigned_area === profile.assigned_area)
 
       setSales(filteredData)
+
+      const saleIds = filteredData.map((sale) => sale.id);
+      if (saleIds.length > 0) {
+        const { data: reportsData, error } = await supabase
+          .from("commission_report")
+          .select("report_number, sales_uuids, created_by, created_at, status, deleted_at")
+          .overlaps("sales_uuids", saleIds);
+
+        if (!error && reportsData) {
+          const saleIdToCommissionObj: Record<string, any> = {};
+          reportsData.forEach((report) => {
+            (report.sales_uuids || []).forEach((saleId) => {
+              saleIdToCommissionObj[saleId] = {
+                report_number: report.report_number,
+                created_by: report.created_by,
+                created_at: report.created_at,
+                status: report.status,
+                deleted_at: report.deleted_at,
+              };
+            });
+          });
+          setSaleIdToCommission(saleIdToCommissionObj);
+        }
+      }
     } catch (error) {
       console.error("Error fetching sales:", error)
     } finally {
@@ -155,6 +225,23 @@ export default function SecretaryCommissionPage() {
       fetchSales()
     }
   }, [profile, searchTerm, filterTaxType, filterMonth])
+
+  function getMostRecentRemark(remarks: string | any[]): { remark: string; name: string; date: string } | null {
+    if (!remarks) return null;
+    let remarksArr: any[] = [];
+    if (typeof remarks === "string") {
+      try {
+        remarksArr = JSON.parse(remarks);
+      } catch {
+        return null;
+      }
+    } else if (Array.isArray(remarks)) {
+      remarksArr = remarks;
+    }
+    if (!Array.isArray(remarksArr) || remarksArr.length === 0) return null;
+    remarksArr.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    return remarksArr[0];
+  }
 
   // Format currency
   const formatCurrency = (amount: number) => {
@@ -439,8 +526,8 @@ export default function SecretaryCommissionPage() {
                       {columnVisibility.find((col) => col.key === "area")?.visible && (
                         <TableHead className="min-w-[100px] font-semibold text-gray-900">Area</TableHead>
                       )}
-                      {columnVisibility.find((col) => col.key === "files")?.visible && (
-                        <TableHead className="min-w-[150px] font-semibold text-gray-900">Files</TableHead>
+                      {columnVisibility.find((col) => col.key === "recent_remark")?.visible && (
+                        <TableHead className="min-w-[150px] font-semibold text-gray-900">Remarks</TableHead>
                       )}
                     </TableRow>
                   </TableHeader>
@@ -478,9 +565,8 @@ export default function SecretaryCommissionPage() {
                       currentSales.map((sale) => (
                         <TableRow
                           key={sale.id}
-                          className={`cursor-pointer transition-colors border-b border-gray-100 ${
-                            selectedSales.includes(sale.id) ? "bg-emerald-50 hover:bg-emerald-100" : "hover:bg-gray-50"
-                          }`}
+                          className={`cursor-pointer transition-colors border-b border-gray-100 ${selectedSales.includes(sale.id) ? "bg-emerald-50 hover:bg-emerald-100" : "hover:bg-gray-50"
+                            }`}
                           onClick={() => handleRowSelect(sale.id)}
                         >
                           {columnVisibility.find((col) => col.key === "tax_month")?.visible && (
@@ -560,50 +646,16 @@ export default function SecretaryCommissionPage() {
                               </div>
                             </TableCell>
                           )}
-                          {columnVisibility.find((col) => col.key === "files")?.visible && (
+                          {columnVisibility.find((col) => col.key === "recent_remark")?.visible && (
                             <TableCell>
-                              <div className="flex flex-wrap gap-1">
-                                {sale.cheque && sale.cheque.length > 0 && (
-                                  <Badge
-                                    variant="outline"
-                                    className="text-xs font-semibold bg-blue-50 text-blue-800 border border-blue-200 px-2 py-1 rounded-lg shadow-sm"
-                                  >
-                                    Cheque ({sale.cheque.length})
-                                  </Badge>
-                                )}
-                                {sale.voucher && sale.voucher.length > 0 && (
-                                  <Badge
-                                    variant="outline"
-                                    className="text-xs font-semibold bg-green-50 text-green-800 border border-green-200 px-2 py-1 rounded-lg shadow-sm"
-                                  >
-                                    Voucher ({sale.voucher.length})
-                                  </Badge>
-                                )}
-                                {sale.invoice && sale.invoice.length > 0 && (
-                                  <Badge
-                                    variant="outline"
-                                    className="text-xs font-semibold bg-green-50 text-green-800 border border-green-200 px-2 py-1 rounded-lg shadow-sm"
-                                  >
-                                    Invoice ({sale.invoice.length})
-                                  </Badge>
-                                )}
-                                {sale.doc_2307 && sale.doc_2307.length > 0 && (
-                                  <Badge
-                                    variant="outline"
-                                    className="text-xs font-semibold bg-gray-50 text-gray-800 border border-gray-200 px-2 py-1 rounded-lg shadow-sm"
-                                  >
-                                    2307 ({sale.doc_2307.length})
-                                  </Badge>
-                                )}
-                                {sale.deposit_slip && sale.deposit_slip.length > 0 && (
-                                  <Badge
-                                    variant="outline"
-                                    className="text-xs font-semibold bg-green-50 text-green-800 border border-green-200 px-2 py-1 rounded-lg shadow-sm"
-                                  >
-                                    Deposit ({sale.deposit_slip.length})
-                                  </Badge>
-                                )}
-                              </div>
+                              <RecentRemarkDisplay
+                                remark={getMostRecentRemark(sale.remarks)}
+                                commission={saleIdToCommission[sale.id]}
+                                onCommissionClick={commission => {
+                                  setSelectedCommission(commission);
+                                  setCommissionModalOpen(true);
+                                }}
+                              />
                             </TableCell>
                           )}
                         </TableRow>
@@ -697,6 +749,37 @@ export default function SecretaryCommissionPage() {
         userArea={profile?.assigned_area}
         userFullName={profile?.full_name}
       />
+
+      {commissionModalOpen && selectedCommission && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+          <div className="bg-white rounded-lg shadow-lg p-6 min-w-[320px] max-w-[90vw]">
+            <h2 className="text-[#001f3f] text-xl font-bold mb-2">
+              Commission Report #{selectedCommission.report_number}
+            </h2>
+            <div className="text-[#001f3f] mb-2">
+              <span className="font-semibold">Created by:</span>{" "}
+              {selectedCommission.created_by}
+            </div>
+            <div className="text-[#001f3f] mb-2">
+              <span className="font-semibold">Date:</span>{" "}
+              {format(new Date(selectedCommission.created_at), "MMM dd, yyyy HH:mm")}
+            </div>
+            <div className="text-[#001f3f] mb-2 flex items-center gap-2">
+              <span className="font-semibold">Status:</span>
+              {selectedCommission.deleted_at ? (
+                <span className="bg-red-100 text-red-700 px-2 py-1 rounded font-semibold text-xs">Deleted</span>
+              ) : (
+                <span className="bg-green-100 text-green-700 px-2 py-1 rounded font-semibold text-xs capitalize">
+                  {selectedCommission.status || "N/A"}
+                </span>
+              )}
+            </div>
+            <div className="flex justify-end mt-4">
+              <Button onClick={() => setCommissionModalOpen(false)}>Close</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </ProtectedRoute>
   )
 }
