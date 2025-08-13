@@ -78,7 +78,6 @@ export default function SecretarySalesPage() {
     { key: "invoice_number", label: "Invoice #", visible: true },
     { key: "pickup_date", label: "Pickup Date", visible: true },
     { key: "recent_remark", label: "Recent Remark", visible: true },
-    { key: "files", label: "Files", visible: true },
     { key: "actions", label: "Actions", visible: true },
   ])
 
@@ -586,21 +585,22 @@ export default function SecretarySalesPage() {
   const totalAmount = sales.reduce((sum, sale) => sum + (sale.gross_taxable || 0), 0)
   const totalActualAmount = sales.reduce((sum, sale) => sum + (sale.total_actual_amount || 0), 0)
 
-  const getMostRecentRemark = (remarksJson: string | null) => {
-    if (!remarksJson) return null
-
-    try {
-      const remarks = JSON.parse(remarksJson)
-      if (!Array.isArray(remarks) || remarks.length === 0) return null
-
-      // Sort by date descending and get the most recent
-      const sortedRemarks = remarks.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-      return sortedRemarks[0]
-    } catch (error) {
-      console.error("Error parsing remarks JSON:", error)
-      return null
+  const getMostRecentRemark = (remarks: string | any[] | null) => {
+    if (!remarks) return null;
+    let remarksArr: any[] = [];
+    if (typeof remarks === "string") {
+      try {
+        remarksArr = JSON.parse(remarks);
+      } catch {
+        return null;
+      }
+    } else if (Array.isArray(remarks)) {
+      remarksArr = remarks;
     }
-  }
+    if (!Array.isArray(remarksArr) || remarksArr.length === 0) return null;
+    const sortedRemarks = remarksArr.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    return sortedRemarks[0];
+  };
 
   const RecentRemarkDisplay = ({
     remark,
@@ -881,11 +881,6 @@ export default function SecretarySalesPage() {
                           Recent Remark
                         </TableHead>
                       )}
-                      {columnVisibility.find((col) => col.key === "files")?.visible && (
-                        <TableHead className="min-w-[150px] font-semibold" style={{ color: "#001f3f" }}>
-                          Files
-                        </TableHead>
-                      )}
                       {columnVisibility.find((col) => col.key === "actions")?.visible && (
                         <TableHead className="min-w-[120px] font-semibold" style={{ color: "#001f3f" }}>
                           Actions
@@ -1006,57 +1001,6 @@ export default function SecretarySalesPage() {
                                   setCommissionModalOpen(true);
                                 }}
                               />
-                            </TableCell>
-                          )}
-                          {columnVisibility.find((col) => col.key === "files")?.visible && (
-                            <TableCell>
-                              <div className="flex flex-wrap gap-1">
-                                {sale.cheque && sale.cheque.length > 0 && (
-                                  <Badge
-                                    variant="outline"
-                                    style={{ background: "#f9f9f9", color: "#001f3f", border: "1px solid #e0e0e0" }}
-                                    className="text-xs font-semibold px-2 py-1 rounded-lg shadow-sm"
-                                  >
-                                    Cheque ( {sale.cheque.length})
-                                  </Badge>
-                                )}
-                                {sale.voucher && sale.voucher.length > 0 && (
-                                  <Badge
-                                    variant="outline"
-                                    style={{ background: "#f9f9f9", color: "#001f3f", border: "1px solid #e0e0e0" }}
-                                    className="text-xs font-semibold px-2 py-1 rounded-lg shadow-sm"
-                                  >
-                                    Voucher ({sale.voucher.length})
-                                  </Badge>
-                                )}
-                                {sale.invoice && sale.invoice.length > 0 && (
-                                  <Badge
-                                    variant="outline"
-                                    style={{ background: "#f9f9f9", color: "#001f3f", border: "1px solid #e0e0e0" }}
-                                    className="text-xs font-semibold px-2 py-1 rounded-lg shadow-sm"
-                                  >
-                                    Invoice ({sale.invoice.length})
-                                  </Badge>
-                                )}
-                                {sale.doc_2307 && sale.doc_2307.length > 0 && (
-                                  <Badge
-                                    variant="outline"
-                                    style={{ background: "#fffbe6", color: "#001f3f", border: "1px solid #e0e0e0" }}
-                                    className="text-xs font-semibold px-2 py-1 rounded-lg shadow-sm"
-                                  >
-                                    2307 ({sale.doc_2307.length})
-                                  </Badge>
-                                )}
-                                {sale.deposit_slip && sale.deposit_slip.length > 0 && (
-                                  <Badge
-                                    variant="outline"
-                                    style={{ background: "#f9f9f9", color: "#001f3f", border: "1px solid #e0e0e0" }}
-                                    className="text-xs font-semibold px-2 py-1 rounded-lg shadow-sm"
-                                  >
-                                    Deposit ({sale.deposit_slip.length})
-                                  </Badge>
-                                )}
-                              </div>
                             </TableCell>
                           )}
                           {columnVisibility.find((col) => col.key === "actions")?.visible && (
