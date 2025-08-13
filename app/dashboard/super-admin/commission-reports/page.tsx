@@ -616,6 +616,7 @@ export default function CommissionReportsPage() {
   }, [currentPage, recordsPerPage, searchTerm, statusFilter, assignedAreaFilter]);
 
   // Status badge helper (updated for new statuses)
+
   const getStatusBadge = (status: string) => {
     const colorMap: Record<
       string,
@@ -647,6 +648,8 @@ export default function CommissionReportsPage() {
           padding: "2px 10px",
           fontWeight: 500,
           fontSize: 13,
+          whiteSpace: "nowrap", // <-- Add this line
+          display: "inline-block", // <-- Add this line for extra safety
         }}
       >
         {config.label}
@@ -847,7 +850,7 @@ export default function CommissionReportsPage() {
                               Created Date
                             </div>
                           </TableHead>
-                          <TableHead className="text-blue-700 font-semibold border-b border-blue-200">
+                          <TableHead className="text-purple-700 font-semibold border-b border-blue-200">
                             Status
                           </TableHead>
                           <TableHead className="text-blue-700 font-semibold border-b border-blue-200">
@@ -968,8 +971,43 @@ export default function CommissionReportsPage() {
                                     )}
                                   </div>
                                 </TableCell>
-                                <TableCell className="max-w-xs truncate text-[#001f3f]">
-                                  {report.remarks || "No remarks"}
+                                <TableCell className="text-[#001f3f] max-w-md whitespace-pre-line">
+                                  {Array.isArray(report.history) && report.history.length > 0 ? (() => {
+                                    // Filter out 'created' actions and remarks with empty text
+                                    const filtered = report.history
+                                      .filter(h => h.action !== "created" && h.remarks && h.remarks.trim() !== "");
+                                    if (filtered.length === 0) {
+                                      return <span className="text-gray-400 italic">No remarks</span>;
+                                    }
+                                    // Sort by timestamp descending and get the most recent
+                                    const mostRecent = filtered.sort((a, b) =>
+                                      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+                                    )[0];
+                                    return (
+                                      <div className="p-2 rounded bg-blue-50 border border-blue-100">
+                                        <div className="text-sm text-gray-800 whitespace-pre-line">{mostRecent.remarks}</div>
+                                        <div className="flex items-center justify-between mt-1 text-xs text-gray-500">
+                                          <span>
+                                            <User className="inline h-3 w-3 mr-1" />
+                                            {mostRecent.user_name || "Unknown"}
+                                          </span>
+                                          <span>
+                                            {mostRecent.timestamp
+                                              ? new Date(mostRecent.timestamp).toLocaleString("en-US", {
+                                                year: "numeric",
+                                                month: "short",
+                                                day: "numeric",
+                                                hour: "2-digit",
+                                                minute: "2-digit",
+                                              })
+                                              : ""}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    );
+                                  })() : (
+                                    <span className="text-gray-400 italic">No remarks</span>
+                                  )}
                                 </TableCell>
                                 <TableCell className="text-right">
                                   <div className="flex gap-1 justify-end flex-wrap">
