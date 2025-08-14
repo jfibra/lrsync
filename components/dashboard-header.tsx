@@ -7,7 +7,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
   BookText,
-  PhilippinePeso,
+  PoundSterlingIcon as PhilippinePeso,
   Menu,
   User,
   LogOut,
@@ -15,7 +15,6 @@ import {
   UserCog,
   BarChart3,
   Bell,
-  Activity,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
