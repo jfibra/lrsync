@@ -122,8 +122,6 @@ export default function CommissionAgentBreakdownPage() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [formData, setFormData] = useState<Partial<CommissionAgentBreakdown>>({})
-  const [totalRecords, setTotalRecords] = useState(0)
-  const [totalPagesState, setTotalPages] = useState(1)
 
   const fetchReportNumbers = async () => {
     try {
@@ -193,8 +191,7 @@ export default function CommissionAgentBreakdownPage() {
       }
 
       setRecords(data || [])
-      setTotalRecords(count || 0)
-      setTotalPages(Math.ceil((count || 0) / pageSize))
+      setTotalCount(count || 0)
     } catch (error) {
       console.error("Error:", error)
       toast({
@@ -676,7 +673,7 @@ export default function CommissionAgentBreakdownPage() {
                     size="sm"
                     onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
                     disabled={currentPage === 1}
-                    className="border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                    className="bg-[#001f3f] text-white hover:bg-[#001f3f]/90 border-[#001f3f] disabled:opacity-50 disabled:bg-[#001f3f]/50"
                   >
                     <ChevronLeft className="h-4 w-4 mr-1" />
                     Previous
@@ -704,8 +701,8 @@ export default function CommissionAgentBreakdownPage() {
                           className={cn(
                             "w-8 h-8 p-0 font-medium",
                             currentPage === pageNum
-                              ? "bg-[#001f3f] text-white hover:bg-[#001f3f]/90 border-[#001f3f]"
-                              : "border-gray-300 text-gray-700 hover:bg-gray-50",
+                              ? "bg-white text-[#001f3f] hover:bg-white/90 border-[#001f3f]"
+                              : "bg-[#001f3f] text-white hover:bg-[#001f3f]/90 border-[#001f3f]",
                           )}
                         >
                           {pageNum}
@@ -719,7 +716,7 @@ export default function CommissionAgentBreakdownPage() {
                     size="sm"
                     onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
                     disabled={currentPage === totalPages}
-                    className="border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                    className="bg-[#001f3f] text-white hover:bg-[#001f3f]/90 border-[#001f3f] disabled:opacity-50 disabled:bg-[#001f3f]/50"
                   >
                     Next
                     <ChevronRight className="h-4 w-4 ml-1" />
