@@ -38,6 +38,8 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
+import { MultiSelect } from "@/components/ui/multi-select"
+
 interface CommissionAgentBreakdown {
   uuid: string
   commission_report_uuid: string
@@ -463,30 +465,25 @@ export default function CommissionAgentBreakdownPage() {
               </div>
             </CardHeader>
             <CardContent className="p-6">
+              {/* Report Number Filter */}
               <div className="mb-6">
                 <label className="block text-sm font-medium text-[#001f3f] mb-2">Filter by Report Number(s)</label>
-                <div className="flex flex-wrap gap-2">
-                  {reportNumbers.map((reportNum) => (
-                    <button
-                      key={reportNum}
-                      onClick={() => {
-                        if (selectedReportNumbers.includes(reportNum)) {
-                          setSelectedReportNumbers((prev) => prev.filter((num) => num !== reportNum))
-                        } else {
-                          setSelectedReportNumbers((prev) => [...prev, reportNum])
-                        }
-                        setCurrentPage(1)
-                      }}
-                      className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
-                        selectedReportNumbers.includes(reportNum)
-                          ? "bg-[#001f3f] text-white"
-                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                      }`}
-                    >
-                      Report #{reportNum}
-                    </button>
-                  ))}
-                </div>
+                <MultiSelect
+                  options={reportNumbers.map((reportNum) => ({
+                    label: `Report #${reportNum}`,
+                    value: reportNum.toString(),
+                  }))}
+                  onValueChange={(values) => {
+                    setSelectedReportNumbers(values.map(Number))
+                    setCurrentPage(1)
+                  }}
+                  defaultValue={selectedReportNumbers.map(String)}
+                  placeholder="Select report numbers..."
+                  variant="inverted"
+                  animation={2}
+                  maxCount={3}
+                  className="bg-white border-gray-300"
+                />
                 {selectedReportNumbers.length > 0 && (
                   <div className="mt-2 flex items-center gap-2">
                     <span className="text-sm text-gray-600">Selected: {selectedReportNumbers.length} report(s)</span>
@@ -669,69 +666,66 @@ export default function CommissionAgentBreakdownPage() {
                 </Table>
               </div>
 
-              {/* Pagination */}
-              {totalPages > 1 && (
-                <div className="flex items-center justify-between mt-6">
-                  <div className="text-sm text-gray-700">
-                    Showing {startRecord} to {endRecord} of {totalCount} results
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-                      disabled={currentPage === 1}
-                      className="border-gray-300 text-gray-700 hover:bg-gray-50"
-                    >
-                      <ChevronLeft className="h-4 w-4 mr-1" />
-                      Previous
-                    </Button>
-
-                    <div className="flex items-center gap-1">
-                      {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                        let pageNum
-                        if (totalPages <= 5) {
-                          pageNum = i + 1
-                        } else if (currentPage <= 3) {
-                          pageNum = i + 1
-                        } else if (currentPage >= totalPages - 2) {
-                          pageNum = totalPages - 4 + i
-                        } else {
-                          pageNum = currentPage - 2 + i
-                        }
-
-                        return (
-                          <Button
-                            key={pageNum}
-                            variant={currentPage === pageNum ? "default" : "outline"}
-                            size="sm"
-                            onClick={() => setCurrentPage(pageNum)}
-                            className={cn(
-                              "w-8 h-8 p-0",
-                              currentPage === pageNum
-                                ? "bg-[#001f3f] text-white hover:bg-[#001f3f]/90"
-                                : "border-gray-300 text-gray-700 hover:bg-gray-50",
-                            )}
-                          >
-                            {pageNum}
-                          </Button>
-                        )
-                      })}
-                    </div>
-
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
-                      disabled={currentPage === totalPages}
-                      className="border-gray-300 text-gray-700 hover:bg-gray-50"
-                    >
-                      Next
-                      <ChevronRight className="h-4 w-4 ml-1" />
-                    </Button>
-                  </div>
+              <div className="flex items-center justify-between mt-6 pt-4 border-t border-gray-200">
+                <div className="text-sm text-gray-700 font-medium">
+                  Showing {startRecord} to {endRecord} of {totalCount} results
                 </div>
-              )}
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                    className="border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    <ChevronLeft className="h-4 w-4 mr-1" />
+                    Previous
+                  </Button>
+
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      let pageNum
+                      if (totalPages <= 5) {
+                        pageNum = i + 1
+                      } else if (currentPage <= 3) {
+                        pageNum = i + 1
+                      } else if (currentPage >= totalPages - 2) {
+                        pageNum = totalPages - 4 + i
+                      } else {
+                        pageNum = currentPage - 2 + i
+                      }
+
+                      return (
+                        <Button
+                          key={pageNum}
+                          variant={currentPage === pageNum ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => setCurrentPage(pageNum)}
+                          className={cn(
+                            "w-8 h-8 p-0 font-medium",
+                            currentPage === pageNum
+                              ? "bg-[#001f3f] text-white hover:bg-[#001f3f]/90 border-[#001f3f]"
+                              : "border-gray-300 text-gray-700 hover:bg-gray-50",
+                          )}
+                        >
+                          {pageNum}
+                        </Button>
+                      )
+                    })}
+                  </div>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                    disabled={currentPage === totalPages}
+                    className="border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    Next
+                    <ChevronRight className="h-4 w-4 ml-1" />
+                  </Button>
+                </div>
+              </div>
             </CardContent>
           </Card>
 
