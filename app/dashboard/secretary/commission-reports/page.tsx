@@ -1,28 +1,17 @@
-"use client";
+"use client"
 
-import { useState, useEffect } from "react";
-import { supabase } from "@/lib/supabase/client";
-import { ProtectedRoute } from "@/components/protected-route";
-import { DashboardHeader } from "@/components/dashboard-header";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import type React from "react"
+
+import { useState, useEffect } from "react"
+import { supabase } from "@/lib/supabase/client"
+import { ProtectedRoute } from "@/components/protected-route"
+import { DashboardHeader } from "@/components/dashboard-header"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Pagination,
   PaginationContent,
@@ -30,56 +19,60 @@ import {
   PaginationLink,
   PaginationNext,
   PaginationPrevious,
-} from "@/components/ui/pagination";
-import { Search, Eye, FileText, Calendar, User, Hash, CheckCircle, X, Upload } from 'lucide-react';
-import { CommissionReportViewModal } from "@/components/commission-report-view-modal";
-import { useAuth } from "@/contexts/auth-context";
-import { logNotification } from "@/utils/logNotification";
+} from "@/components/ui/pagination"
+import { Search, Eye, FileText, Calendar, User, Hash, CheckCircle, X, Upload } from "lucide-react"
+import { CommissionReportViewModal } from "@/components/commission-report-view-modal"
+import { CommissionEditModal } from "@/components/commission-edit-modal"
+import { useAuth } from "@/contexts/auth-context"
+import { logNotification } from "@/utils/logNotification"
+import { Edit } from "lucide-react" // Import Edit icon
 
 interface CommissionReport {
-  uuid: string;
-  report_number: number;
-  sales_uuids: string[];
-  created_by: string;
-  created_at: string;
-  updated_at: string;
-  deleted_at: string;
-  remarks: string;
-  status: string;
-  accounting_pot: string | null;
+  uuid: string
+  report_number: number
+  sales_uuids: string[]
+  created_by: string
+  created_at: string
+  updated_at: string
+  deleted_at: string
+  remarks: string
+  status: string
+  accounting_pot: string | null
+  secretary_pot: string | null
   history: Array<{
-    action: string;
-    remarks: string;
-    user_id: string;
-    timestamp: string;
-    user_name: string;
-  }>;
+    action: string
+    remarks: string
+    user_id: string
+    timestamp: string
+    user_name: string
+  }>
   user_profiles?: {
-    full_name: string;
-    assigned_area: string;
-  };
+    full_name: string
+    assigned_area: string
+  }
   _attachmentType?: "secretary" | "accounting"
 }
 
 export default function SecretaryCommissionReportsPage() {
-  const { profile } = useAuth();
-  const [reports, setReports] = useState<CommissionReport[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [currentPage, setCurrentPage] = useState(1);
-  const [recordsPerPage, setRecordsPerPage] = useState(10);
-  const [totalRecords, setTotalRecords] = useState(0);
-  const [selectedReport, setSelectedReport] = useState<CommissionReport | null>(null);
-  const [viewModalOpen, setViewModalOpen] = useState(false);
-  // Add here:
-  const [attachmentsModalOpen, setAttachmentsModalOpen] = useState(false);
-  const [selectedAttachmentsReport, setSelectedAttachmentsReport] = useState<CommissionReport | null>(null);
-  const [uploadModalOpen, setUploadModalOpen] = useState(false);
-  const [uploadReport, setUploadReport] = useState<CommissionReport | null>(null);
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-  const [uploadError, setUploadError] = useState<string | null>(null);
-  const [uploading, setUploading] = useState(false);
+  const { profile } = useAuth()
+  const [reports, setReports] = useState<CommissionReport[]>([])
+  const [loading, setLoading] = useState(false)
+  const [searchTerm, setSearchTerm] = useState("")
+  const [statusFilter, setStatusFilter] = useState("all")
+  const [currentPage, setCurrentPage] = useState(1)
+  const [recordsPerPage, setRecordsPerPage] = useState(10)
+  const [totalRecords, setTotalRecords] = useState(0)
+  const [selectedReport, setSelectedReport] = useState<CommissionReport | null>(null)
+  const [viewModalOpen, setViewModalOpen] = useState(false)
+  const [attachmentsModalOpen, setAttachmentsModalOpen] = useState(false)
+  const [selectedAttachmentsReport, setSelectedAttachmentsReport] = useState<CommissionReport | null>(null)
+  const [uploadModalOpen, setUploadModalOpen] = useState(false)
+  const [uploadReport, setUploadReport] = useState<CommissionReport | null>(null)
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([])
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const [editModalOpen, setEditModalOpen] = useState(false)
+  const [editReport, setEditReport] = useState<CommissionReport | null>(null)
 
   const statusOptions = [
     { value: "new", label: "New" },
@@ -88,85 +81,75 @@ export default function SecretaryCommissionReportsPage() {
     { value: "approved", label: "Approved" },
     { value: "cancelled", label: "Cancelled" },
     { value: "for_testing", label: "For Testing" },
-  ];
+  ]
 
-  // Fetch commission reports from Supabase - filtered by secretary's assigned area
   useEffect(() => {
     const fetchReports = async () => {
       if (!profile?.assigned_area) {
-        setReports([]);
-        setTotalRecords(0);
-        setLoading(false);
-        return;
+        setReports([])
+        setTotalRecords(0)
+        setLoading(false)
+        return
       }
 
-      setLoading(true);
+      setLoading(true)
 
       try {
-        // First, get all reports with user profiles
-        let query = supabase
+        const query = supabase
           .from("commission_report")
           .select("*, user_profiles:created_by(full_name,assigned_area)", { count: "exact" })
           .is("deleted_at", null)
-          .order("created_at", { ascending: false });
+          .order("created_at", { ascending: false })
 
-        const { data: allReports, error, count } = await query;
+        const { data: allReports, error, count } = await query
 
         if (error) {
-          console.error("Error fetching reports:", error);
-          setReports([]);
-          setTotalRecords(0);
-          setLoading(false);
-          return;
+          console.error("Error fetching reports:", error)
+          setReports([])
+          setTotalRecords(0)
+          setLoading(false)
+          return
         }
 
-        // Filter reports by secretary's assigned area
-        let filteredReports = (allReports || []).filter(report =>
-          report.user_profiles?.assigned_area === profile.assigned_area
-        );
+        let filteredReports = (allReports || []).filter(
+          (report) => report.user_profiles?.assigned_area === profile.assigned_area,
+        )
 
-        // Apply search filter if search term exists
         if (searchTerm) {
-          filteredReports = filteredReports.filter(report =>
-            report.report_number?.toString().includes(searchTerm) ||
-            report.remarks?.toLowerCase().includes(searchTerm.toLowerCase())
-          );
+          filteredReports = filteredReports.filter(
+            (report) =>
+              report.report_number?.toString().includes(searchTerm) ||
+              report.remarks?.toLowerCase().includes(searchTerm.toLowerCase()),
+          )
         }
 
-        // Apply status filter
         if (statusFilter !== "all") {
-          filteredReports = filteredReports.filter(report => report.status === statusFilter);
+          filteredReports = filteredReports.filter((report) => report.status === statusFilter)
         }
 
-        // Apply pagination
-        const totalFilteredRecords = filteredReports.length;
-        const from = (currentPage - 1) * recordsPerPage;
-        const to = from + recordsPerPage;
-        const paginatedReports = filteredReports.slice(from, to);
+        const totalFilteredRecords = filteredReports.length
+        const from = (currentPage - 1) * recordsPerPage
+        const to = from + recordsPerPage
+        const paginatedReports = filteredReports.slice(from, to)
 
-        setTotalRecords(totalFilteredRecords);
-        setReports(paginatedReports);
-
+        setTotalRecords(totalFilteredRecords)
+        setReports(paginatedReports)
       } catch (error) {
-        console.error("Error in fetchReports:", error);
-        setReports([]);
-        setTotalRecords(0);
+        console.error("Error in fetchReports:", error)
+        setReports([])
+        setTotalRecords(0)
       } finally {
-        setLoading(false);
+        setLoading(false)
       }
-    };
+    }
 
     if (profile) {
-      fetchReports();
+      fetchReports()
     }
-  }, [currentPage, recordsPerPage, searchTerm, statusFilter, profile]);
+  }, [currentPage, recordsPerPage, searchTerm, statusFilter, profile])
 
-  // Status badge helper
   const getStatusBadge = (status: string) => {
-    const colorMap: Record<
-      string,
-      { color: string; bg: string; label: string }
-    > = {
+    const colorMap: Record<string, { color: string; bg: string; label: string }> = {
       new: { color: "#fff", bg: "#6c757d", label: "New" },
       ongoing_verification: {
         color: "#fff",
@@ -177,13 +160,13 @@ export default function SecretaryCommissionReportsPage() {
       approved: { color: "#fff", bg: "#2ecc40", label: "Approved" },
       cancelled: { color: "#fff", bg: "#ee3433", label: "Cancelled" },
       for_testing: { color: "#fff", bg: "#b10dc9", label: "For Testing" },
-    };
-    const key = (status || "").toLowerCase().replace(/ /g, "_");
+    }
+    const key = (status || "").toLowerCase().replace(/ /g, "_")
     const config = colorMap[key] || {
       color: "#fff",
       bg: "#6c757d",
       label: status,
-    };
+    }
     return (
       <span
         style={{
@@ -193,57 +176,59 @@ export default function SecretaryCommissionReportsPage() {
           padding: "2px 10px",
           fontWeight: 500,
           fontSize: 13,
-          whiteSpace: "nowrap", // <-- Add this line
-          display: "inline-block", // <-- Add this line for extra safety
+          whiteSpace: "nowrap",
+          display: "inline-block",
         }}
       >
         {config.label}
       </span>
-    );
-  };
+    )
+  }
 
   function AttachmentsModal({ report, onClose }) {
-    const [page, setPage] = useState(1);
-    const [perPage, setPerPage] = useState(5);
+    const [page, setPage] = useState(1)
+    const [perPage, setPerPage] = useState(5)
 
-    // Support both accounting and secretary attachments
-    const attachments = report._attachmentType === "secretary"
-      ? (report.secretary_pot ? JSON.parse(report.secretary_pot) : [])
-      : (report.accounting_pot ? JSON.parse(report.accounting_pot) : []);
+    const attachments =
+      report._attachmentType === "secretary"
+        ? report.secretary_pot
+          ? JSON.parse(report.secretary_pot)
+          : []
+        : report.accounting_pot
+          ? JSON.parse(report.accounting_pot)
+          : []
 
-    const total = attachments.length;
-    const totalPages = Math.max(1, Math.ceil(total / perPage));
-    const paged = attachments.slice((page - 1) * perPage, page * perPage);
+    const total = attachments.length
+    const totalPages = Math.max(1, Math.ceil(total / perPage))
+    const paged = attachments.slice((page - 1) * perPage, page * perPage)
 
     async function handleDeleteAttachment(globalIdx: number) {
-      if (!report || !report.uuid) return;
-      if (!window.confirm("Are you sure you want to delete this attachment?")) return;
+      if (!report || !report.uuid) return
+      if (!window.confirm("Are you sure you want to delete this attachment?")) return
 
-      const fileToDelete = attachments[globalIdx];
+      const fileToDelete = attachments[globalIdx]
       if (!fileToDelete?.url) {
-        alert("File URL missing.");
-        return;
+        alert("File URL missing.")
+        return
       }
 
-      // 1. Delete from S3 via your API route
       try {
-        const res = await fetch('/api/delete-from-s3-secretary', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+        const res = await fetch("/api/delete-from-s3-secretary", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ url: fileToDelete.url }),
-        });
-        const result = await res.json();
+        })
+        const result = await res.json()
         if (!res.ok) {
-          throw new Error(result.error || "Failed to delete file from S3.");
+          throw new Error(result.error || "Failed to delete file from S3.")
         }
       } catch (err) {
-        alert("Failed to delete file from S3.");
-        return;
+        alert("Failed to delete file from S3.")
+        return
       }
 
-      // 2. Remove from secretary_pot in the database
-      const updated = [...attachments];
-      updated.splice(globalIdx, 1);
+      const updated = [...attachments]
+      updated.splice(globalIdx, 1)
 
       const { error } = await supabase
         .from("commission_report")
@@ -251,11 +236,11 @@ export default function SecretaryCommissionReportsPage() {
           secretary_pot: JSON.stringify(updated),
           updated_at: new Date().toISOString(),
         })
-        .eq("uuid", report.uuid);
+        .eq("uuid", report.uuid)
 
       if (error) {
-        alert("Failed to update database after S3 delete.");
-        return;
+        alert("Failed to update database after S3 delete.")
+        return
       }
 
       await logNotification(supabase, {
@@ -274,19 +259,15 @@ export default function SecretaryCommissionReportsPage() {
         user_email: profile?.email,
         user_name: profile?.full_name || profile?.first_name || profile?.id,
         user_uuid: profile?.id,
-      });
+      })
 
-      // Optionally, update the UI or close the modal
-      onClose();
+      onClose()
     }
 
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
         <div className="bg-white rounded-lg shadow-lg max-w-2xl w-full p-6 relative max-h-[90vh] overflow-y-auto border-2 border-purple-200">
-          <button
-            className="absolute top-3 right-3 text-gray-400 hover:text-red-500"
-            onClick={onClose}
-          >
+          <button className="absolute top-3 right-3 text-gray-400 hover:text-red-500" onClick={onClose}>
             <X className="h-5 w-5" />
           </button>
           <h2 className="text-lg text-[#001f3f] font-semibold mb-4">
@@ -294,17 +275,24 @@ export default function SecretaryCommissionReportsPage() {
           </h2>
           <div className="mb-4 flex justify-between items-center">
             <span className="text-sm text-gray-700">
-              Showing <span className="font-semibold text-[#001f3f]">{Math.min((page - 1) * perPage + 1, total)}</span> to <span className="font-semibold text-[#001f3f]">{Math.min(page * perPage, total)}</span> of <span className="font-semibold text-[#001f3f]">{total}</span> files
+              Showing <span className="font-semibold text-[#001f3f]">{Math.min((page - 1) * perPage + 1, total)}</span>{" "}
+              to <span className="font-semibold text-[#001f3f]">{Math.min(page * perPage, total)}</span> of{" "}
+              <span className="font-semibold text-[#001f3f]">{total}</span> files
             </span>
             <div>
               <label className="mr-2 text-sm text-[#001f3f]">Show</label>
               <select
                 value={perPage}
-                onChange={e => { setPerPage(Number(e.target.value)); setPage(1); }}
+                onChange={(e) => {
+                  setPerPage(Number(e.target.value))
+                  setPage(1)
+                }}
                 className="border border-purple-200 rounded px-2 py-1 text-sm text-[#001f3f] bg-white"
               >
-                {[5, 10, 25, 50].map(n => (
-                  <option key={n} value={n}>{n}</option>
+                {[5, 10, 25, 50].map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
                 ))}
               </select>
               <span className="ml-2 text-sm text-[#001f3f]">per page</span>
@@ -328,16 +316,11 @@ export default function SecretaryCommissionReportsPage() {
                 </TableRow>
               ) : (
                 paged.map((file, idx) => (
-                  <TableRow
-                    key={idx}
-                    className="hover:bg-purple-50 transition-colors"
-                  >
+                  <TableRow key={idx} className="hover:bg-purple-50 transition-colors">
                     <TableCell className="text-[#001f3f] font-medium">{(page - 1) * perPage + idx + 1}</TableCell>
                     <TableCell className="truncate max-w-xs text-[#001f3f]">{file.name}</TableCell>
                     <TableCell className="text-[#001f3f]">
-                      {file.uploadedAt
-                        ? new Date(file.uploadedAt).toLocaleString()
-                        : ""}
+                      {file.uploadedAt ? new Date(file.uploadedAt).toLocaleString() : ""}
                     </TableCell>
                     <TableCell className="text-center">
                       <Button
@@ -372,7 +355,7 @@ export default function SecretaryCommissionReportsPage() {
               <Button
                 size="sm"
                 variant="outline"
-                className="border-purple-400 text-purple-700"
+                className="border-purple-400 text-purple-700 bg-transparent"
                 disabled={page === 1}
                 onClick={() => setPage(page - 1)}
               >
@@ -381,7 +364,7 @@ export default function SecretaryCommissionReportsPage() {
               <Button
                 size="sm"
                 variant="outline"
-                className="border-purple-400 text-purple-700"
+                className="border-purple-400 text-purple-700 bg-transparent"
                 disabled={page === totalPages || totalPages === 0}
                 onClick={() => setPage(page + 1)}
               >
@@ -391,84 +374,78 @@ export default function SecretaryCommissionReportsPage() {
           </div>
         </div>
       </div>
-    );
+    )
   }
 
-  // Handler for opening the modal
   const handleOpenUploadModal = (report: CommissionReport) => {
-    setUploadReport(report);
-    setSelectedFiles([]);
-    setUploadError(null);
-    setUploadModalOpen(true);
-  };
+    setUploadReport(report)
+    setSelectedFiles([])
+    setUploadError(null)
+    setUploadModalOpen(true)
+  }
 
-  // Dropzone handlers
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (uploading) return;
-    const files = Array.from(e.dataTransfer.files);
-    handleFiles(files);
-  };
+    e.preventDefault()
+    e.stopPropagation()
+    if (uploading) return
+    const files = Array.from(e.dataTransfer.files)
+    handleFiles(files)
+  }
 
   const handleFiles = (files: File[]) => {
-    const allowed = files.filter(
-      (file) =>
-        file.type.startsWith("image/") || file.type === "application/pdf"
-    );
+    const allowed = files.filter((file) => file.type.startsWith("image/") || file.type === "application/pdf")
     if (allowed.length !== files.length) {
-      setUploadError("Only image and PDF files are allowed.");
+      setUploadError("Only image and PDF files are allowed.")
     } else {
-      setUploadError(null);
+      setUploadError(null)
     }
-    setSelectedFiles((prev) => [...prev, ...allowed]);
-  };
+    setSelectedFiles((prev) => [...prev, ...allowed])
+  }
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      handleFiles(Array.from(e.target.files));
+      handleFiles(Array.from(e.target.files))
     }
-  };
+  }
 
   const handleRemoveFile = (idx: number) => {
-    setSelectedFiles((prev) => prev.filter((_, i) => i !== idx));
-  };
+    setSelectedFiles((prev) => prev.filter((_, i) => i !== idx))
+  }
 
-  // Upload handler
   const handleUpload = async () => {
-    if (!uploadReport || selectedFiles.length === 0) return;
+    if (!uploadReport || selectedFiles.length === 0) return
 
-    setUploading(true);
-    setUploadError(null);
+    setUploading(true)
+    setUploadError(null)
 
     try {
-      const formData = new FormData();
+      const formData = new FormData()
       selectedFiles.forEach((file) => {
-        formData.append('files', file);
-      });
-      formData.append('reportId', uploadReport.uuid);
-      formData.append('assigned_area', uploadReport.user_profiles?.assigned_area || 'Unknown');
-      formData.append('created_date', uploadReport.created_at);
-      formData.append('report_number', uploadReport.report_number?.toString() || '');
-      const existingData = uploadReport.secretary_pot ? JSON.parse(uploadReport.secretary_pot) : [];
-      formData.append('existing_count', Array.isArray(existingData) ? existingData.length.toString() : '0');
+        formData.append("files", file)
+      })
+      formData.append("reportId", uploadReport.uuid)
+      formData.append("assigned_area", uploadReport.user_profiles?.assigned_area || "Unknown")
+      formData.append("created_date", uploadReport.created_at)
+      formData.append("report_number", uploadReport.report_number?.toString() || "")
+      const existingData = uploadReport.secretary_pot ? JSON.parse(uploadReport.secretary_pot) : []
+      formData.append("existing_count", Array.isArray(existingData) ? existingData.length.toString() : "0")
 
-      const response = await fetch('/api/upload-to-s3-secretary', {
-        method: 'POST',
+      const response = await fetch("/api/upload-to-s3-secretary", {
+        method: "POST",
         body: formData,
-      });
+      })
 
-      const result = await response.json();
+      const result = await response.json()
 
       if (!response.ok) {
-        throw new Error(result.error || 'Upload failed');
+        throw new Error(result.error || "Upload failed")
       }
 
-      const successfulUploads = result.files.filter((file: any) => file.url);
-      const failedUploads = result.files.filter((file: any) => !file.url);
+      const successfulUploads = result.files.filter((file: any) => file.url)
+      const failedUploads = result.files.filter((file: any) => !file.url)
 
       if (failedUploads.length > 0) {
-        setUploadError(`${failedUploads.length} file(s) failed to upload.`);
+        setUploadError(`${failedUploads.length} file(s) failed to upload.`)
       }
 
       if (successfulUploads.length > 0) {
@@ -476,33 +453,29 @@ export default function SecretaryCommissionReportsPage() {
           name: file.name,
           url: file.url,
           uploadedAt: new Date().toISOString(),
-        }));
+        }))
 
-        const existingData = uploadReport.secretary_pot
-          ? JSON.parse(uploadReport.secretary_pot)
-          : [];
+        const existingData = uploadReport.secretary_pot ? JSON.parse(uploadReport.secretary_pot) : []
 
-        const updatedData = Array.isArray(existingData)
-          ? [...existingData, ...fileData]
-          : fileData;
+        const updatedData = Array.isArray(existingData) ? [...existingData, ...fileData] : fileData
 
         const { error: dbError } = await supabase
-          .from('commission_report')
+          .from("commission_report")
           .update({
             secretary_pot: JSON.stringify(updatedData),
-            updated_at: new Date().toISOString()
+            updated_at: new Date().toISOString(),
           })
-          .eq('uuid', uploadReport.uuid);
+          .eq("uuid", uploadReport.uuid)
 
         if (dbError) {
-          throw new Error(`Database update failed: ${dbError.message}`);
+          throw new Error(`Database update failed: ${dbError.message}`)
         }
 
-        setReports(prev => prev.map(report =>
-          report.uuid === uploadReport.uuid
-            ? { ...report, secretary_pot: JSON.stringify(updatedData) }
-            : report
-        ));
+        setReports((prev) =>
+          prev.map((report) =>
+            report.uuid === uploadReport.uuid ? { ...report, secretary_pot: JSON.stringify(updatedData) } : report,
+          ),
+        )
 
         await logNotification(supabase, {
           action: "commission_report_attachments_uploaded",
@@ -521,29 +494,34 @@ export default function SecretaryCommissionReportsPage() {
           user_email: profile?.email,
           user_name: profile?.full_name || profile?.first_name || profile?.id,
           user_uuid: profile?.id,
-        });
+        })
 
-        setUploadModalOpen(false);
-        setSelectedFiles([]);
-        setUploadReport(null);
+        setUploadModalOpen(false)
+        setSelectedFiles([])
+        setUploadReport(null)
       } else {
-        throw new Error('All files failed to upload');
+        throw new Error("All files failed to upload")
       }
     } catch (error) {
-      setUploadError(error instanceof Error ? error.message : 'Upload failed');
+      setUploadError(error instanceof Error ? error.message : "Upload failed")
     } finally {
-      setUploading(false);
+      setUploading(false)
     }
-  };
+  }
 
   const handleViewReport = (report: CommissionReport) => {
-    setSelectedReport(report);
-    setViewModalOpen(true);
-  };
+    setSelectedReport(report)
+    setViewModalOpen(true)
+  }
 
-  const totalPages = Math.ceil(totalRecords / recordsPerPage);
-  const startRecord = (currentPage - 1) * recordsPerPage + 1;
-  const endRecord = Math.min(currentPage * recordsPerPage, totalRecords);
+  const handleEditReport = (report: CommissionReport) => {
+    setEditReport(report)
+    setEditModalOpen(true)
+  }
+
+  const totalPages = Math.ceil(totalRecords / recordsPerPage)
+  const startRecord = (currentPage - 1) * recordsPerPage + 1
+  const endRecord = Math.min(currentPage * recordsPerPage, totalRecords)
 
   return (
     <ProtectedRoute allowedRoles={["secretary"]}>
@@ -551,7 +529,6 @@ export default function SecretaryCommissionReportsPage() {
         <DashboardHeader />
 
         <div className="pt-20 px-4 sm:px-6 lg:px-8 py-8">
-          {/* Header */}
           <div className="mb-8">
             <div className="flex items-center gap-3 mb-2">
               <div className="bg-gradient-to-r from-purple-500 to-purple-600 p-2 rounded-lg">
@@ -561,14 +538,11 @@ export default function SecretaryCommissionReportsPage() {
                 <h1 className="text-3xl font-bold text-[#001f3f]">
                   Commission Reports - {profile?.assigned_area || "No Area"}
                 </h1>
-                <p className="text-gray-600">
-                  View commission reports from your assigned area
-                </p>
+                <p className="text-gray-600">View commission reports from your assigned area</p>
               </div>
             </div>
           </div>
 
-          {/* Filters and Search */}
           <Card className="mb-6 bg-white border-2 border-purple-200">
             <CardContent className="p-6">
               <div className="flex flex-col sm:flex-row gap-4">
@@ -590,9 +564,7 @@ export default function SecretaryCommissionReportsPage() {
                   <SelectContent className="bg-white border-purple-200 text-[#001f3f]">
                     <SelectItem value="all">All Status</SelectItem>
                     <SelectItem value="new">New</SelectItem>
-                    <SelectItem value="ongoing_verification">
-                      Ongoing Verification
-                    </SelectItem>
+                    <SelectItem value="ongoing_verification">Ongoing Verification</SelectItem>
                     <SelectItem value="for_approval">For Approval</SelectItem>
                     <SelectItem value="approved">Approved</SelectItem>
                     <SelectItem value="cancelled">Cancelled</SelectItem>
@@ -603,21 +575,16 @@ export default function SecretaryCommissionReportsPage() {
             </CardContent>
           </Card>
 
-          {/* Data Table */}
           <Card className="bg-white border-2 border-purple-200">
             <CardHeader>
               <div className="flex justify-between items-center">
-                <CardTitle className="text-[#001f3f]">
-                  Commission Reports
-                </CardTitle>
+                <CardTitle className="text-[#001f3f]">Commission Reports</CardTitle>
                 <div className="flex items-center gap-4">
                   <div className="flex items-center gap-2">
                     <span className="text-sm text-gray-600">Show</span>
                     <Select
                       value={recordsPerPage.toString()}
-                      onValueChange={(value) =>
-                        setRecordsPerPage(Number(value))
-                      }
+                      onValueChange={(value) => setRecordsPerPage(Number(value))}
                     >
                       <SelectTrigger className="w-20 border-purple-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 bg-white text-[#001f3f]">
                         <SelectValue />
@@ -643,9 +610,7 @@ export default function SecretaryCommissionReportsPage() {
                 <div className="text-center py-8">
                   <FileText className="h-16 w-16 text-gray-300 mx-auto mb-4" />
                   <h3 className="text-lg font-medium text-gray-900 mb-2">No assigned area</h3>
-                  <p className="text-gray-500">
-                    Please contact your administrator to assign an area to your account.
-                  </p>
+                  <p className="text-gray-500">Please contact your administrator to assign an area to your account.</p>
                 </div>
               ) : (
                 <>
@@ -694,52 +659,40 @@ export default function SecretaryCommissionReportsPage() {
                       <TableBody>
                         {reports.length === 0 ? (
                           <TableRow>
-                            <TableCell
-                              colSpan={7}
-                              className="text-center py-8 text-gray-400"
-                            >
+                            <TableCell colSpan={7} className="text-center py-8 text-gray-400">
                               No commission reports found for your assigned area: {profile?.assigned_area}
                             </TableCell>
                           </TableRow>
                         ) : (
                           reports.map((report) => {
-                            const attachments = report.accounting_pot ? JSON.parse(report.accounting_pot) : [];
-                            const attachmentCount = Array.isArray(attachments) ? attachments.length : 0;
+                            const attachments = report.accounting_pot ? JSON.parse(report.accounting_pot) : []
+                            const attachmentCount = Array.isArray(attachments) ? attachments.length : 0
 
-                            const secretaryAttachments = report.secretary_pot ? JSON.parse(report.secretary_pot) : [];
-                            const secretaryAttachmentCount = Array.isArray(secretaryAttachments) ? secretaryAttachments.length : 0;
+                            const secretaryAttachments = report.secretary_pot ? JSON.parse(report.secretary_pot) : []
+                            const secretaryAttachmentCount = Array.isArray(secretaryAttachments)
+                              ? secretaryAttachments.length
+                              : 0
 
                             return (
-                              <TableRow
-                                key={report.uuid}
-                                className="hover:bg-purple-50 border-b border-purple-200"
-                              >
-                                <TableCell className="text-[#001f3f] font-medium">
-                                  #{report.report_number}
-                                </TableCell>
+                              <TableRow key={report.uuid} className="hover:bg-purple-50 border-b border-purple-200">
+                                <TableCell className="text-[#001f3f] font-medium">#{report.report_number}</TableCell>
                                 <TableCell className="text-[#001f3f]">
-                                  {report.user_profiles?.full_name || <span className="text-gray-400">Unknown User</span>}
-                                </TableCell>
-                                <TableCell className="text-[#001f3f]">
-                                  {new Date(report.created_at).toLocaleDateString(
-                                    "en-US",
-                                    {
-                                      year: "numeric",
-                                      month: "short",
-                                      day: "numeric",
-                                      hour: "2-digit",
-                                      minute: "2-digit",
-                                    }
+                                  {report.user_profiles?.full_name || (
+                                    <span className="text-gray-400">Unknown User</span>
                                   )}
                                 </TableCell>
-                                <TableCell>
-                                  {getStatusBadge(report.status)}
+                                <TableCell className="text-[#001f3f]">
+                                  {new Date(report.created_at).toLocaleDateString("en-US", {
+                                    year: "numeric",
+                                    month: "short",
+                                    day: "numeric",
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })}
                                 </TableCell>
+                                <TableCell>{getStatusBadge(report.status)}</TableCell>
                                 <TableCell>
-                                  <Badge
-                                    className="text-[#001f3f]"
-                                    variant="outline"
-                                  >
+                                  <Badge className="text-[#001f3f]" variant="outline">
                                     {report.sales_uuids?.length || 0} sales
                                   </Badge>
                                 </TableCell>
@@ -747,84 +700,88 @@ export default function SecretaryCommissionReportsPage() {
                                   <div className="flex items-center gap-2">
                                     <Badge
                                       variant={attachmentCount > 0 ? "default" : "secondary"}
-                                      className={attachmentCount > 0 ? "bg-green-600 cursor-pointer hover:bg-green-700" : ""}
+                                      className={
+                                        attachmentCount > 0 ? "bg-green-600 cursor-pointer hover:bg-green-700" : ""
+                                      }
                                       onClick={() => {
                                         if (attachmentCount > 0) {
                                           setSelectedAttachmentsReport({
                                             ...report,
-                                            _attachmentType: "accounting"
-                                          });
-                                          setAttachmentsModalOpen(true);
+                                            _attachmentType: "accounting",
+                                          })
+                                          setAttachmentsModalOpen(true)
                                         }
                                       }}
                                       style={{ pointerEvents: attachmentCount > 0 ? "auto" : "none" }}
                                     >
                                       {attachmentCount} files
                                     </Badge>
-                                    {attachmentCount > 0 && (
-                                      <CheckCircle className="h-4 w-4 text-green-600" />
-                                    )}
+                                    {attachmentCount > 0 && <CheckCircle className="h-4 w-4 text-green-600" />}
                                   </div>
                                 </TableCell>
                                 <TableCell>
                                   <div className="flex items-center gap-2">
                                     <Badge
                                       variant={secretaryAttachmentCount > 0 ? "default" : "secondary"}
-                                      className={secretaryAttachmentCount > 0 ? "bg-blue-600 cursor-pointer hover:bg-blue-700" : ""}
+                                      className={
+                                        secretaryAttachmentCount > 0
+                                          ? "bg-blue-600 cursor-pointer hover:bg-blue-700"
+                                          : ""
+                                      }
                                       onClick={() => {
                                         if (secretaryAttachmentCount > 0) {
                                           setSelectedAttachmentsReport({
                                             ...report,
-                                            _attachmentType: "secretary"
-                                          });
-                                          setAttachmentsModalOpen(true);
+                                            _attachmentType: "secretary",
+                                          })
+                                          setAttachmentsModalOpen(true)
                                         }
                                       }}
                                       style={{ pointerEvents: secretaryAttachmentCount > 0 ? "auto" : "none" }}
                                     >
                                       {secretaryAttachmentCount} files
                                     </Badge>
-                                    {secretaryAttachmentCount > 0 && (
-                                      <CheckCircle className="h-4 w-4 text-blue-600" />
-                                    )}
+                                    {secretaryAttachmentCount > 0 && <CheckCircle className="h-4 w-4 text-blue-600" />}
                                   </div>
                                 </TableCell>
-
                                 <TableCell className="text-[#001f3f] max-w-md whitespace-pre-line">
-                                  {Array.isArray(report.history) && report.history.length > 0 ? (() => {
-                                    // Filter out 'created' actions and remarks with empty text
-                                    const filtered = report.history
-                                      .filter(h => h.action !== "created" && h.remarks && h.remarks.trim() !== "");
-                                    if (filtered.length === 0) {
-                                      return <span className="text-gray-400 italic">No remarks</span>;
-                                    }
-                                    // Sort by timestamp descending and get the most recent
-                                    const mostRecent = filtered.sort((a, b) =>
-                                      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-                                    )[0];
-                                    return (
-                                      <div className="p-2 rounded bg-blue-50 border border-blue-100">
-                                        <div className="text-sm text-gray-800 whitespace-pre-line">{mostRecent.remarks}</div>
-                                        <div className="flex items-center justify-between mt-1 text-xs text-gray-500">
-                                          <span>
-                                            <User className="inline h-3 w-3 mr-1" />
-                                            {mostRecent.user_name || "Unknown"}
-                                          </span>
-                                          <span>
-                                            {mostRecent.timestamp
-                                              ? new Date(mostRecent.timestamp).toLocaleString("en-US", {
-                                                year: "numeric",
-                                                month: "short",
-                                                day: "numeric",
-                                                hour: "2-digit",
-                                                minute: "2-digit",
-                                              })
-                                              : ""}
-                                          </span>
+                                  {Array.isArray(report.history) && report.history.length > 0 ? (
+                                    (() => {
+                                      const filtered = report.history.filter(
+                                        (h) => h.action !== "created" && h.remarks && h.remarks.trim() !== "",
+                                      )
+                                      if (filtered.length === 0) {
+                                        return <span className="text-gray-400 italic">No remarks</span>
+                                      }
+                                      const mostRecent = filtered.sort(
+                                        (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
+                                      )[0]
+                                      return (
+                                        <div className="p-2 rounded bg-blue-50 border border-blue-100">
+                                          <div className="text-sm text-gray-800 whitespace-pre-line">
+                                            {mostRecent.remarks}
+                                          </div>
+                                          <div className="flex items-center justify-between mt-1 text-xs text-gray-500">
+                                            <span>
+                                              <User className="inline h-3 w-3 mr-1" />
+                                              {mostRecent.user_name || "Unknown"}
+                                            </span>
+                                            <span>
+                                              {mostRecent.timestamp
+                                                ? new Date(mostRecent.timestamp).toLocaleString("en-US", {
+                                                    year: "numeric",
+                                                    month: "short",
+                                                    day: "numeric",
+                                                    hour: "2-digit",
+                                                    minute: "2-digit",
+                                                  })
+                                                : ""}
+                                            </span>
+                                          </div>
                                         </div>
-                                      </div>
-                                    );
-                                  })() : (
+                                      )
+                                    })()
+                                  ) : (
                                     <span className="text-gray-400 italic">No remarks</span>
                                   )}
                                 </TableCell>
@@ -839,13 +796,24 @@ export default function SecretaryCommissionReportsPage() {
                                       <Eye className="h-3 w-3" />
                                       View
                                     </Button>
+                                    {report.created_by === profile?.id && (
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handleEditReport(report)}
+                                        className="gap-1 bg-white border-blue-500 text-blue-700 hover:bg-blue-100 hover:border-blue-600 hover:text-blue-900 text-xs px-2 py-1"
+                                      >
+                                        <Edit className="h-3 w-3" />
+                                        Edit
+                                      </Button>
+                                    )}
                                     <Button
                                       variant="outline"
                                       size="sm"
                                       className="gap-1 bg-white border-green-500 text-green-700 hover:bg-green-100 hover:border-green-600 hover:text-green-900 text-xs px-2 py-1"
                                       onClick={() => {
-                                        setUploadReport(report);
-                                        setUploadModalOpen(true);
+                                        setUploadReport(report)
+                                        setUploadModalOpen(true)
                                       }}
                                     >
                                       <Upload className="h-3 w-3" />
@@ -854,18 +822,16 @@ export default function SecretaryCommissionReportsPage() {
                                   </div>
                                 </TableCell>
                               </TableRow>
-                            );
+                            )
                           })
                         )}
                       </TableBody>
                     </Table>
                   </div>
 
-                  {/* Pagination and Record Info */}
                   <div className="flex flex-col sm:flex-row justify-between items-center mt-6 gap-4">
                     <div className="text-sm text-gray-600">
-                      Showing {startRecord} to {endRecord} of {totalRecords}{" "}
-                      records
+                      Showing {startRecord} to {endRecord} of {totalRecords} records
                     </div>
 
                     {totalPages > 1 && (
@@ -873,9 +839,7 @@ export default function SecretaryCommissionReportsPage() {
                         <PaginationContent>
                           <PaginationItem>
                             <PaginationPrevious
-                              onClick={() =>
-                                setCurrentPage(Math.max(1, currentPage - 1))
-                              }
+                              onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
                               className={
                                 currentPage === 1
                                   ? "pointer-events-none opacity-50"
@@ -884,7 +848,6 @@ export default function SecretaryCommissionReportsPage() {
                             />
                           </PaginationItem>
 
-                          {/* First page */}
                           {currentPage > 2 && (
                             <>
                               <PaginationItem>
@@ -895,47 +858,34 @@ export default function SecretaryCommissionReportsPage() {
                                   1
                                 </PaginationLink>
                               </PaginationItem>
-                              {currentPage > 3 && (
-                                <span className="px-2">...</span>
-                              )}
+                              {currentPage > 3 && <span className="px-2">...</span>}
                             </>
                           )}
 
-                          {/* Current page and neighbors */}
-                          {Array.from(
-                            { length: Math.min(3, totalPages) },
-                            (_, i) => {
-                              const pageNum =
-                                Math.max(
-                                  1,
-                                  Math.min(totalPages - 2, currentPage - 1)
-                                ) + i;
-                              if (pageNum > totalPages) return null;
+                          {Array.from({ length: Math.min(3, totalPages) }, (_, i) => {
+                            const pageNum = Math.max(1, Math.min(totalPages - 2, currentPage - 1)) + i
+                            if (pageNum > totalPages) return null
 
-                              return (
-                                <PaginationItem key={pageNum}>
-                                  <PaginationLink
-                                    onClick={() => setCurrentPage(pageNum)}
-                                    isActive={pageNum === currentPage}
-                                    className={
-                                      pageNum === currentPage
-                                        ? "cursor-pointer text-purple-900 font-bold"
-                                        : "cursor-pointer text-purple-700 hover:text-purple-900"
-                                    }
-                                  >
-                                    {pageNum}
-                                  </PaginationLink>
-                                </PaginationItem>
-                              );
-                            }
-                          )}
+                            return (
+                              <PaginationItem key={pageNum}>
+                                <PaginationLink
+                                  onClick={() => setCurrentPage(pageNum)}
+                                  isActive={pageNum === currentPage}
+                                  className={
+                                    pageNum === currentPage
+                                      ? "cursor-pointer text-purple-900 font-bold"
+                                      : "cursor-pointer text-purple-700 hover:text-purple-900"
+                                  }
+                                >
+                                  {pageNum}
+                                </PaginationLink>
+                              </PaginationItem>
+                            )
+                          })}
 
-                          {/* Last page */}
                           {currentPage < totalPages - 1 && (
                             <>
-                              {currentPage < totalPages - 2 && (
-                                <span className="px-2">...</span>
-                              )}
+                              {currentPage < totalPages - 2 && <span className="px-2">...</span>}
                               <PaginationItem>
                                 <PaginationLink
                                   onClick={() => setCurrentPage(totalPages)}
@@ -949,11 +899,7 @@ export default function SecretaryCommissionReportsPage() {
 
                           <PaginationItem>
                             <PaginationNext
-                              onClick={() =>
-                                setCurrentPage(
-                                  Math.min(totalPages, currentPage + 1)
-                                )
-                              }
+                              onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
                               className={
                                 currentPage === totalPages
                                   ? "pointer-events-none opacity-50"
@@ -972,22 +918,18 @@ export default function SecretaryCommissionReportsPage() {
         </div>
       </div>
 
-      {/* View Modal */}
       {selectedReport && (
         <CommissionReportViewModal
           isOpen={viewModalOpen}
           onClose={() => {
-            setViewModalOpen(false);
-            setSelectedReport(null);
+            setViewModalOpen(false)
+            setSelectedReport(null)
           }}
           report={selectedReport}
         />
       )}
       {attachmentsModalOpen && selectedAttachmentsReport && (
-        <AttachmentsModal
-          report={selectedAttachmentsReport}
-          onClose={() => setAttachmentsModalOpen(false)}
-        />
+        <AttachmentsModal report={selectedAttachmentsReport} onClose={() => setAttachmentsModalOpen(false)} />
       )}
       {uploadModalOpen && uploadReport && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
@@ -999,35 +941,28 @@ export default function SecretaryCommissionReportsPage() {
             >
               <X className="h-5 w-5" />
             </button>
-            <h2 className="text-lg text-[#001f3f] font-semibold mb-4">
-              Upload Attachments
-            </h2>
+            <h2 className="text-lg text-[#001f3f] font-semibold mb-4">Upload Attachments</h2>
             <div className="mb-4 p-3 bg-purple-50 rounded-lg">
               <p className="text-sm text-[#001f3f]">
                 <strong>Report #{uploadReport?.report_number}</strong>
               </p>
-              <p className="text-xs text-gray-600">
-                Files will be uploaded to our server and made publicly viewable
-              </p>
+              <p className="text-xs text-gray-600">Files will be uploaded to our server and made publicly viewable</p>
             </div>
             <div
-              className={`flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-6 mb-4 transition cursor-pointer ${uploading
-                ? 'border-gray-300 bg-gray-50 cursor-not-allowed'
-                : 'border-purple-400 bg-purple-50 hover:bg-purple-100'
-                }`}
+              className={`flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-6 mb-4 transition cursor-pointer ${
+                uploading
+                  ? "border-gray-300 bg-gray-50 cursor-not-allowed"
+                  : "border-purple-400 bg-purple-50 hover:bg-purple-100"
+              }`}
               onDrop={uploading ? undefined : handleDrop}
               onDragOver={uploading ? undefined : (e) => e.preventDefault()}
-              onClick={uploading ? undefined : () =>
-                document.getElementById("file-upload-input")?.click()
-              }
+              onClick={uploading ? undefined : () => document.getElementById("file-upload-input")?.click()}
             >
-              <Upload className={`h-10 w-10 mb-2 ${uploading ? 'text-gray-400' : 'text-purple-400'}`} />
-              <p className={`font-medium mb-1 ${uploading ? 'text-gray-500' : 'text-[#001f3f]'}`}>
-                {uploading ? 'Uploading...' : 'Click to select files or drag and drop here'}
+              <Upload className={`h-10 w-10 mb-2 ${uploading ? "text-gray-400" : "text-purple-400"}`} />
+              <p className={`font-medium mb-1 ${uploading ? "text-gray-500" : "text-[#001f3f]"}`}>
+                {uploading ? "Uploading..." : "Click to select files or drag and drop here"}
               </p>
-              <p className="text-xs text-gray-500">
-                Only image or PDF files are allowed.
-              </p>
+              <p className="text-xs text-gray-500">Only image or PDF files are allowed.</p>
               <input
                 id="file-upload-input"
                 type="file"
@@ -1038,28 +973,17 @@ export default function SecretaryCommissionReportsPage() {
                 disabled={uploading}
               />
             </div>
-            {uploadError && (
-              <div className="text-red-600 text-sm mb-4 p-3 bg-red-50 rounded-lg">
-                {uploadError}
-              </div>
-            )}
+            {uploadError && <div className="text-red-600 text-sm mb-4 p-3 bg-red-50 rounded-lg">{uploadError}</div>}
             {selectedFiles.length > 0 && (
               <div className="mb-4">
-                <p className="text-sm text-[#001f3f] font-medium mb-2">
-                  Selected Files ({selectedFiles.length}):
-                </p>
+                <p className="text-sm text-[#001f3f] font-medium mb-2">Selected Files ({selectedFiles.length}):</p>
                 <div className="max-h-32 overflow-y-auto">
                   <ul className="space-y-1">
                     {selectedFiles.map((file, idx) => (
-                      <li
-                        key={idx}
-                        className="flex items-center justify-between bg-purple-100 rounded px-3 py-2"
-                      >
+                      <li key={idx} className="flex items-center justify-between bg-purple-100 rounded px-3 py-2">
                         <div className="flex items-center gap-2 flex-1 min-w-0">
                           <FileText className="h-4 w-4 text-purple-600 flex-shrink-0" />
-                          <span className="truncate text-sm text-[#001f3f]">
-                            {file.name}
-                          </span>
+                          <span className="truncate text-sm text-[#001f3f]">{file.name}</span>
                           <span className="text-xs text-gray-500 flex-shrink-0">
                             ({(file.size / 1024 / 1024).toFixed(2)} MB)
                           </span>
@@ -1108,6 +1032,18 @@ export default function SecretaryCommissionReportsPage() {
           </div>
         </div>
       )}
+      {editReport && (
+        <CommissionEditModal
+          isOpen={editModalOpen}
+          onClose={() => {
+            setEditModalOpen(false)
+            setEditReport(null)
+          }}
+          reportData={editReport}
+          userArea={profile?.assigned_area}
+          userFullName={profile?.full_name}
+        />
+      )}
     </ProtectedRoute>
-  );
+  )
 }
