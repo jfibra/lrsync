@@ -3,7 +3,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Users, TrendingUp, Building2, Calculator, ClipboardList, Eye } from "lucide-react"
+import { Users, Banknote, Building2, Calculator, ClipboardList, Eye, ShoppingCart } from "lucide-react"
 import Link from "next/link"
 import type { UserRole } from "@/types/auth"
 
@@ -19,12 +19,22 @@ export function DashboardMenuCards({ userRole }: DashboardMenuCardsProps) {
           {
             title: "Sales Records",
             description: "View and manage all sales data",
-            icon: TrendingUp,
+            icon: Banknote,
             href: "/dashboard/super-admin/sales",
             color: "from-green-500 to-green-600",
             bgColor: "bg-green-50/80 border-green-200",
             badge: "All Areas",
             badgeColor: "bg-green-100 text-green-800",
+          },
+          {
+            title: "Purchases Records",
+            description: "View and manage all purchase data",
+            icon: ShoppingCart,
+            href: "/dashboard/super-admin/purchases",
+            color: "from-red-500 to-red-600",
+            bgColor: "bg-red-50/80 border-red-200",
+            badge: "All Areas",
+            badgeColor: "bg-red-100 text-red-800",
           },
           {
             title: "TIN Library",
@@ -103,7 +113,7 @@ export function DashboardMenuCards({ userRole }: DashboardMenuCardsProps) {
           {
             title: "Sales Records",
             description: "View and manage sales data",
-            icon: TrendingUp,
+            icon: Banknote,
             href: "/dashboard/admin/sales",
             color: "from-green-500 to-green-600",
             bgColor: "bg-green-50/80 border-green-200",
@@ -137,7 +147,7 @@ export function DashboardMenuCards({ userRole }: DashboardMenuCardsProps) {
           {
             title: "Sales Records",
             description: "View and manage sales data",
-            icon: TrendingUp,
+            icon: Banknote,
             href: "/dashboard/secretary/sales",
             color: "from-green-500 to-green-600",
             bgColor: "bg-green-50/80 border-green-200",
