@@ -7,16 +7,17 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { BarChart3, Calendar, Edit, Eye, MapPin, Plus, Search, Trash2 } from "lucide-react"
+import { BarChart3, Calendar, Edit, Eye, MapPin, MessageSquarePlus, Plus, Search, Trash2 } from "lucide-react"
 import { format } from "date-fns"
 import { useAuth } from "@/contexts/auth-context"
 import { supabase } from "@/lib/supabase/client"
 import { logNotification } from "@/utils/logNotification"
 
-// Import modals (we'll create these)
+// Import modals
 import { AddPurchasesModal } from "@/components/add-purchases-modal"
 import { ViewPurchasesModal } from "@/components/view-purchases-modal"
 import { EditPurchasesModal } from "@/components/edit-purchases-modal"
+import { AddPurchasesRemarkModal } from "@/components/add-purchases-remark-modal"
 
 interface Purchase {
   id: string
@@ -59,6 +60,7 @@ export default function SuperAdminPurchasesPage() {
   const [addModalOpen, setAddModalOpen] = useState(false)
   const [viewModalOpen, setViewModalOpen] = useState(false)
   const [editModalOpen, setEditModalOpen] = useState(false)
+  const [remarkModalOpen, setRemarkModalOpen] = useState(false)
   const [selectedPurchase, setSelectedPurchase] = useState<Purchase | null>(null)
 
   const [sortField, setSortField] = useState<string>("created_at")
@@ -69,6 +71,19 @@ export default function SuperAdminPurchasesPage() {
   const totalGrossTaxable = purchases.reduce((sum, purchase) => sum + (purchase.gross_taxable || 0), 0)
   const vatPurchases = purchases.filter((p) => p.tax_type === "vat").length
   const nonVatPurchases = purchases.filter((p) => p.tax_type === "non-vat").length
+
+  const getMostRecentRemark = (remarksJson: string | null) => {
+    if (!remarksJson) return null
+    try {
+      const remarks = JSON.parse(remarksJson)
+      if (Array.isArray(remarks) && remarks.length > 0) {
+        return remarks[remarks.length - 1]
+      }
+    } catch {
+      return null
+    }
+    return null
+  }
 
   // Fetch available areas
   const fetchAvailableAreas = async () => {
@@ -236,6 +251,11 @@ export default function SuperAdminPurchasesPage() {
   const handleEditPurchase = (purchase: Purchase) => {
     setSelectedPurchase(purchase)
     setEditModalOpen(true)
+  }
+
+  const handleAddRemark = (purchase: Purchase) => {
+    setSelectedPurchase(purchase)
+    setRemarkModalOpen(true)
   }
 
   const handleSoftDelete = async (purchase: Purchase) => {
@@ -472,14 +492,15 @@ export default function SuperAdminPurchasesPage() {
                   </TableHead>
                   <TableHead className="min-w-[120px] font-semibold text-[#001f3f]">Invoice #</TableHead>
                   <TableHead className="min-w-[120px] font-semibold text-[#001f3f]">Official Receipt</TableHead>
+                  <TableHead className="min-w-[200px] font-semibold text-[#001f3f]">Remark</TableHead>
                   <TableHead className="min-w-[150px] font-semibold text-[#001f3f]">Area</TableHead>
-                  <TableHead className="min-w-[120px] font-semibold text-[#001f3f]">Actions</TableHead>
+                  <TableHead className="min-w-[150px] font-semibold text-[#001f3f]">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-12">
+                    <TableCell colSpan={10} className="text-center py-12">
                       <div className="flex flex-col items-center justify-center">
                         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#001f3f] mb-4"></div>
                         <span className="text-[#001f3f] font-medium">Loading purchase records...</span>
@@ -488,135 +509,162 @@ export default function SuperAdminPurchasesPage() {
                   </TableRow>
                 ) : purchases.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-12">
+                    <TableCell colSpan={10} className="text-center py-12">
                       <BarChart3 className="h-16 w-16 text-[#001f3f]/30 mx-auto mb-4" />
                       <h3 className="text-lg font-medium text-[#001f3f] mb-2">No purchase records found</h3>
                       <p className="text-[#001f3f]/70">Create your first purchase record to get started!</p>
                     </TableCell>
                   </TableRow>
                 ) : (
-                  paginatedPurchases.map((purchase) => (
-                    <TableRow
-                      key={purchase.id}
-                      className="hover:bg-[#001f3f]/5 transition-colors border-b border-[#001f3f]/10"
-                    >
-                      <TableCell className="text-[#001f3f] font-medium">
-                        <div className="flex items-center gap-2">
-                          <Calendar className="h-4 w-4 text-[#3c8dbc]" />
-                          {format(new Date(purchase.tax_month), "MMM yyyy")}
-                        </div>
-                      </TableCell>
-                      <TableCell className="font-mono text-[#001f3f]">
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 bg-[#3c8dbc] rounded-full"></div>
-                          {formatTin(purchase.tin)}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-[#001f3f]">
-                        <div>
-                          <div className="font-medium">{purchase.name}</div>
-                          {purchase.substreet_street_brgy && (
-                            <div className="text-sm text-[#001f3f]/70 flex items-center gap-1">
-                              <MapPin className="h-3 w-3" />
-                              {purchase.substreet_street_brgy}
-                            </div>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge className={getTaxTypeBadgeColor(purchase.tax_type)}>
-                          {purchase.tax_type?.toUpperCase()}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-[#001f3f] font-semibold">
-                        {formatCurrency(purchase.gross_taxable || 0)}
-                      </TableCell>
-                      <TableCell className="text-[#001f3f]/70">{purchase.invoice_number || "-"}</TableCell>
-                      <TableCell className="text-[#001f3f]/70">
-                        {(() => {
-                          let files: string[] = [];
-                          try {
-                            if (purchase.official_receipt) {
-                              const parsed = JSON.parse(purchase.official_receipt);
-                              files = Array.isArray(parsed) ? parsed : [];
+                  paginatedPurchases.map((purchase) => {
+                    const recentRemark = getMostRecentRemark(purchase.remarks)
+
+                    return (
+                      <TableRow
+                        key={purchase.id}
+                        className="hover:bg-[#001f3f]/5 transition-colors border-b border-[#001f3f]/10"
+                      >
+                        <TableCell className="text-[#001f3f] font-medium">
+                          <div className="flex items-center gap-2">
+                            <Calendar className="h-4 w-4 text-[#3c8dbc]" />
+                            {format(new Date(purchase.tax_month), "MMM yyyy")}
+                          </div>
+                        </TableCell>
+                        <TableCell className="font-mono text-[#001f3f]">
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 bg-[#3c8dbc] rounded-full"></div>
+                            {formatTin(purchase.tin)}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-[#001f3f]">
+                          <div>
+                            <div className="font-medium">{purchase.name}</div>
+                            {purchase.substreet_street_brgy && (
+                              <div className="text-sm text-[#001f3f]/70 flex items-center gap-1">
+                                <MapPin className="h-3 w-3" />
+                                {purchase.substreet_street_brgy}
+                              </div>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge className={getTaxTypeBadgeColor(purchase.tax_type)}>
+                            {purchase.tax_type?.toUpperCase()}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-[#001f3f] font-semibold">
+                          {formatCurrency(purchase.gross_taxable || 0)}
+                        </TableCell>
+                        <TableCell className="text-[#001f3f]/70">{purchase.invoice_number || "-"}</TableCell>
+                        <TableCell className="text-[#001f3f]/70">
+                          {(() => {
+                            let files: string[] = []
+                            try {
+                              if (purchase.official_receipt) {
+                                const parsed = JSON.parse(purchase.official_receipt)
+                                files = Array.isArray(parsed) ? parsed : []
+                              }
+                            } catch {
+                              if (
+                                typeof purchase.official_receipt === "string" &&
+                                purchase.official_receipt.startsWith("http")
+                              ) {
+                                files = [purchase.official_receipt]
+                              }
                             }
-                          } catch {
-                            if (
-                              typeof purchase.official_receipt === "string" &&
-                              purchase.official_receipt.startsWith("http")
-                            ) {
-                              files = [purchase.official_receipt];
-                            }
-                          }
-                          if (!files.length) return <span>-</span>;
-                          return (
-                            <div className="flex flex-col gap-1">
-                              {files.map((url, idx) => {
-                                // Fix: encode with encodeURIComponent, then replace %20 with +
-                                const fixedUrl = url
-                                  .split("/")
-                                  .map((part, i, arr) =>
-                                    i === arr.length - 1
-                                      ? encodeURIComponent(part).replace(/%20/g, "+")
-                                      : part
+                            if (!files.length) return <span>-</span>
+                            return (
+                              <div className="flex flex-col gap-1">
+                                {files.map((url, idx) => {
+                                  // Fix: encode with encodeURIComponent, then replace %20 with +
+                                  const fixedUrl = url
+                                    .split("/")
+                                    .map((part, i, arr) =>
+                                      i === arr.length - 1 ? encodeURIComponent(part).replace(/%20/g, "+") : part,
+                                    )
+                                    .join("/")
+                                  const fileName = decodeURIComponent(url.split("/").pop() || `Receipt ${idx + 1}`)
+                                  return (
+                                    <Button
+                                      key={url}
+                                      variant="outline"
+                                      size="sm"
+                                      className="w-full justify-start bg-white text-[#3c8dbc] border-[#3c8dbc] hover:bg-[#3c8dbc]/10 hover:text-[#001f3f] px-2 py-1 text-xs font-medium"
+                                      onClick={() => window.open(fixedUrl, "_blank", "noopener,noreferrer")}
+                                      title={fileName}
+                                    >
+                                      {fileName}
+                                    </Button>
                                   )
-                                  .join("/");
-                                const fileName = decodeURIComponent(url.split("/").pop() || `Receipt ${idx + 1}`);
-                                return (
-                                  <Button
-                                    key={url}
-                                    variant="outline"
-                                    size="sm"
-                                    className="w-full justify-start bg-white text-[#3c8dbc] border-[#3c8dbc] hover:bg-[#3c8dbc]/10 hover:text-[#001f3f] px-2 py-1 text-xs font-medium"
-                                    onClick={() => window.open(fixedUrl, "_blank", "noopener,noreferrer")}
-                                    title={fileName}
-                                  >
-                                    {fileName}
-                                  </Button>
-                                );
-                              })}
+                                })}
+                              </div>
+                            )
+                          })()}
+                        </TableCell>
+                        <TableCell className="text-[#001f3f]/70">
+                          {recentRemark ? (
+                            <div className="max-w-[200px]">
+                              <div className="text-sm bg-[#001f3f]/10 p-2 rounded border-l-4 border-[#3c8dbc]">
+                                <div className="font-medium text-[#001f3f] truncate" title={recentRemark.remark}>
+                                  {recentRemark.remark}
+                                </div>
+                                <div className="text-xs text-[#001f3f]/60 mt-1">
+                                  by {recentRemark.name} • {format(new Date(recentRemark.date), "MMM dd, yyyy")}
+                                </div>
+                              </div>
                             </div>
-                          );
-                        })()}
-                      </TableCell>
-                      <TableCell className="text-[#001f3f]/70">
-                        <div className="flex items-center gap-1">
-                          <MapPin className="h-3 w-3 text-[#001f3f]/50" />
-                          <span className="text-sm bg-[#001f3f]/10 px-2 py-1 rounded text-[#001f3f]">
-                            {purchase.user_assigned_area || "N/A"}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleViewPurchase(purchase)}
-                            className="h-8 w-8 p-0 hover:bg-[#3c8dbc]/20"
-                          >
-                            <Eye className="h-4 w-4 text-[#3c8dbc]" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleEditPurchase(purchase)}
-                            className="h-8 w-8 p-0 hover:bg-[#ffc107]/20"
-                          >
-                            <Edit className="h-4 w-4 text-[#ffc107]" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleSoftDelete(purchase)}
-                            className="h-8 w-8 p-0 hover:bg-[#dc3545]/20"
-                          >
-                            <Trash2 className="h-4 w-4 text-[#dc3545]" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
+                          ) : (
+                            <span className="text-[#001f3f]/40 italic">No remarks</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-[#001f3f]/70">
+                          <div className="flex items-center gap-1">
+                            <MapPin className="h-3 w-3 text-[#001f3f]/50" />
+                            <span className="text-sm bg-[#001f3f]/10 px-2 py-1 rounded text-[#001f3f]">
+                              {purchase.user_assigned_area || "N/A"}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleViewPurchase(purchase)}
+                              className="h-8 w-8 p-0 hover:bg-[#3c8dbc]/20"
+                            >
+                              <Eye className="h-4 w-4 text-[#3c8dbc]" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEditPurchase(purchase)}
+                              className="h-8 w-8 p-0 hover:bg-[#ffc107]/20"
+                            >
+                              <Edit className="h-4 w-4 text-[#ffc107]" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleAddRemark(purchase)}
+                              className="h-8 w-8 p-0 hover:bg-[#3c8dbc]/20"
+                              title="Add Remark"
+                            >
+                              <MessageSquarePlus className="h-4 w-4 text-[#3c8dbc]" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleSoftDelete(purchase)}
+                              className="h-8 w-8 p-0 hover:bg-[#dc3545]/20"
+                            >
+                              <Trash2 className="h-4 w-4 text-[#dc3545]" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })
                 )}
               </TableBody>
             </Table>
@@ -705,6 +753,13 @@ export default function SuperAdminPurchasesPage() {
         onOpenChange={setEditModalOpen}
         purchase={selectedPurchase}
         onPurchaseUpdated={fetchPurchases}
+      />
+
+      <AddPurchasesRemarkModal
+        open={remarkModalOpen}
+        onOpenChange={setRemarkModalOpen}
+        purchaseId={selectedPurchase?.id || ""}
+        onRemarkAdded={fetchPurchases}
       />
     </div>
   )
