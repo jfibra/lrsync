@@ -62,6 +62,8 @@ export function EditPurchasesModal({ open, onOpenChange, purchase, onPurchaseUpd
   const [officialReceiptFiles, setOfficialReceiptFiles] = useState<{ name: string; url: string }[]>([]);
   const [officialReceiptUploading, setOfficialReceiptUploading] = useState(false);
 
+  const [totalActualAmount, setTotalActualAmount] = useState("");
+
   const isFileUploadDisabled =
     !taxMonth ||
     !tinSearch ||
@@ -81,8 +83,13 @@ export function EditPurchasesModal({ open, onOpenChange, purchase, onPurchaseUpd
       setTaxType(purchase.tax_type)
       setOfficialReceipt(purchase.official_receipt || "")
       setRemarks(purchase.remarks || "")
+      setTotalActualAmount(
+        purchase.total_actual_amount !== undefined && purchase.total_actual_amount !== null
+          ? Number(purchase.total_actual_amount).toLocaleString()
+          : ""
+      );
     }
-  }, [purchase, open])
+  }, [purchase, open]);
 
   useEffect(() => {
     if (open && purchase) {
@@ -229,6 +236,7 @@ export function EditPurchasesModal({ open, onOpenChange, purchase, onPurchaseUpd
         substreet_street_brgy: substreetStreetBrgy || null,
         district_city_zip: districtCityZip || null,
         gross_taxable: Number.parseFloat(grossTaxable.replace(/,/g, "")) || 0,
+        total_actual_amount: Number.parseFloat(totalActualAmount.replace(/,/g, "")) || 0, // <-- add this
         invoice_number: invoiceNumber || null,
         tax_type: taxType,
         official_receipt: JSON.stringify(officialReceiptFiles.map(f => f.url)),
@@ -287,7 +295,7 @@ export function EditPurchasesModal({ open, onOpenChange, purchase, onPurchaseUpd
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* First Row */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Tax Month */}
             <div className="space-y-2">
               <Label htmlFor="tax-month" className="text-sm font-medium text-[#001f3f]">
@@ -321,6 +329,19 @@ export function EditPurchasesModal({ open, onOpenChange, purchase, onPurchaseUpd
                   <SelectItem value="non-vat">Non-VAT</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="invoice-number" className="text-sm font-medium text-[#001f3f]">
+                Invoice Number
+              </Label>
+              <Input
+                id="invoice-number"
+                value={invoiceNumber}
+                onChange={(e) => setInvoiceNumber(e.target.value)}
+                placeholder="Invoice number"
+                className="border-[#001f3f] focus:border-[#3c8dbc] focus:ring-[#3c8dbc] text-[#001f3f] bg-white"
+              />
             </div>
           </div>
 
@@ -377,19 +398,6 @@ export function EditPurchasesModal({ open, onOpenChange, purchase, onPurchaseUpd
 
           {/* Third Row - Editable Fields */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="invoice-number" className="text-sm font-medium text-[#001f3f]">
-                Invoice Number
-              </Label>
-              <Input
-                id="invoice-number"
-                value={invoiceNumber}
-                onChange={(e) => setInvoiceNumber(e.target.value)}
-                placeholder="Invoice number"
-                className="border-[#001f3f] focus:border-[#3c8dbc] focus:ring-[#3c8dbc] text-[#001f3f] bg-white"
-              />
-            </div>
-
             {/* Gross Taxable */}
             <div className="space-y-2">
               <Label htmlFor="gross-taxable" className="text-sm font-medium text-[#001f3f]">
@@ -401,6 +409,25 @@ export function EditPurchasesModal({ open, onOpenChange, purchase, onPurchaseUpd
                 onChange={handleGrossTaxableChange}
                 placeholder="0"
                 className="border-[#001f3f] focus:border-[#3c8dbc] focus:ring-[#3c8dbc] text-[#001f3f] bg-white"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="total-actual-amount" className="text-sm font-medium text-[#001f3f]">
+                Total Actual Amount
+              </Label>
+              <Input
+                id="total-actual-amount"
+                value={totalActualAmount}
+                onChange={(e) => {
+                  const rawValue = e.target.value.replace(/,/g, "")
+                  if (rawValue === "" || /^\d*\.?\d*$/.test(rawValue)) {
+                    const formatted = formatNumberWithCommas(rawValue)
+                    setTotalActualAmount(formatted)
+                  }
+                }}
+                placeholder="0"
+                className="bg-white text-[#001f3f] border-[#001f3f]"
                 required
               />
             </div>

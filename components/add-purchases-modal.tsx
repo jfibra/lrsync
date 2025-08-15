@@ -44,6 +44,7 @@ export function AddPurchasesModal({ open, onOpenChange, onPurchaseAdded }: AddPu
     district_city_zip: "",
     tax_type: "",
     gross_taxable: "",
+    total_actual_amount: "", // <-- add this
     invoice_number: "",
     official_receipt: "",
     tax_month: "",
@@ -323,6 +324,7 @@ export function AddPurchasesModal({ open, onOpenChange, onPurchaseAdded }: AddPu
       district_city_zip: "",
       tax_type: "",
       gross_taxable: "",
+      total_actual_amount: "", // <-- add this
       invoice_number: "",
       official_receipt: "",
       tax_month: "",
@@ -358,13 +360,14 @@ export function AddPurchasesModal({ open, onOpenChange, onPurchaseAdded }: AddPu
         substreet_street_brgy: formData.substreet_street_brgy || null,
         district_city_zip: formData.district_city_zip || null,
         gross_taxable: Number.parseFloat(formData.gross_taxable.replace(/,/g, "")) || 0,
+        total_actual_amount: Number.parseFloat(formData.total_actual_amount.replace(/,/g, "")) || 0, // <-- add this
         invoice_number: formData.invoice_number || null,
         tax_type: formData.tax_type,
         official_receipt: JSON.stringify(officialReceiptFiles.map(f => f.url)),
         date_added: format(new Date(), "yyyy-MM-dd"),
         user_uuid: profile?.auth_user_id || null,
         user_full_name: profile?.full_name || null,
-      }
+      };
 
       const { error } = await supabase.from("purchases").insert([purchaseData])
 
@@ -425,7 +428,7 @@ export function AddPurchasesModal({ open, onOpenChange, onPurchaseAdded }: AddPu
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* First Row */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Tax Month */}
             <div className="space-y-2">
               <Label htmlFor="tax-month" className="text-sm font-medium text-[#001f3f]">
@@ -468,104 +471,118 @@ export function AddPurchasesModal({ open, onOpenChange, onPurchaseAdded }: AddPu
                 </SelectContent>
               </Select>
             </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="invoice-number" className="text-sm font-medium text-[#001f3f]">
+                Invoice Number
+              </Label>
+              <Input
+                id="invoice-number"
+                value={formData.invoice_number}
+                onChange={(e) => setFormData({ ...formData, invoice_number: e.target.value })}
+                placeholder="Invoice number"
+                className="bg-white text-[#001f3f] border-[#001f3f]"
+              />
+            </div>
           </div>
 
-          {/* TIN Search */}
-          <div className="space-y-2 relative">
-            <Label htmlFor="tin" className="text-sm font-medium text-[#001f3f]">
-              TIN *
-            </Label>
-            <Input
-              id="tin"
-              name="tin_random_1"
-              value={formData.tin}
-              onChange={(e) => handleTinChange(e.target.value)}
-              placeholder="000-000-000-000..."
-              required
-              className="bg-white text-[#001f3f] border-[#001f3f]"
-              autoComplete="new-password"
-              onFocus={() => {
-                if (taxpayerSuggestions.length > 0) {
-                  setShowSuggestions(true)
-                }
-              }}
-              onBlur={() => {
-                setTimeout(() => setShowSuggestions(false), 200)
-              }}
-            />
-            {showSuggestions && taxpayerSuggestions.length > 0 && (
-              <div className="absolute top-full left-0 right-0 z-50 bg-white border border-[#001f3f] rounded-md shadow-lg max-h-48 overflow-y-auto">
-                {taxpayerSuggestions.map((suggestion, index) => (
-                  <div
-                    key={index}
-                    className="p-3 hover:bg-[#e6f0ff] cursor-pointer border-b border-gray-100 last:border-b-0"
-                    onClick={() => handleSuggestionSelect(suggestion)}
-                  >
-                    <div className="font-medium text-[#001f3f]">{formatTinDisplay(suggestion.tin)}</div>
-                    <div className="text-sm text-[#001f3f]/80">{suggestion.registered_name}</div>
-                    <div className="text-xs text-[#001f3f]/60">
-                      {suggestion.substreet_street_brgy}, {suggestion.district_city_zip}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Name Search */}
-          <div className="space-y-2 relative">
-            <Label htmlFor="name" className="text-sm font-medium text-[#001f3f]">
-              Name *
-            </Label>
-            <Input
-              id="name"
-              name="name_random_2"
-              value={formData.name}
-              onChange={(e) => {
-                setFormData({ ...formData, name: e.target.value })
-                // Trigger name search
-                const value = e.target.value
-                if (value.length >= 3) {
-                  searchTaxpayersByName(value)
-                } else {
-                  setNameSuggestions([])
-                  setShowNameSuggestions(false)
-                }
-              }}
-              placeholder="Company/Individual name"
-              required
-              className="bg-white text-[#001f3f] border-[#001f3f]"
-              autoComplete="new-password"
-              onFocus={() => {
-                if (nameSuggestions.length > 0) {
-                  setShowNameSuggestions(true)
-                }
-              }}
-              onBlur={() => {
-                setTimeout(() => setShowNameSuggestions(false), 200)
-              }}
-            />
-            {showNameSuggestions && nameSuggestions.length > 0 && (
-              <div className="absolute top-full left-0 right-0 z-50 bg-white border border-[#001f3f] rounded-md shadow-lg max-h-48 overflow-y-auto">
-                {nameSuggestions.map((suggestion, index) => (
-                  <div
-                    key={index}
-                    className="p-3 hover:bg-[#e6f0ff] cursor-pointer border-b border-gray-100 last:border-b-0"
-                    onClick={() => handleNameSuggestionSelect(suggestion)}
-                  >
-                    <div className="font-medium text-[#001f3f]">{suggestion.registered_name}</div>
-                    <div className="text-sm text-[#001f3f]/80">{formatTinDisplay(suggestion.tin)}</div>
-                    <div className="text-xs text-[#001f3f]/60">
-                      {suggestion.substreet_street_brgy}, {suggestion.district_city_zip}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Address Fields */}
+          {/* First Row */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+            {/* TIN Search */}
+            <div className="space-y-2 relative">
+              <Label htmlFor="tin" className="text-sm font-medium text-[#001f3f]">
+                TIN *
+              </Label>
+              <Input
+                id="tin"
+                name="tin_random_1"
+                value={formData.tin}
+                onChange={(e) => handleTinChange(e.target.value)}
+                placeholder="000-000-000-000..."
+                required
+                className="bg-white text-[#001f3f] border-[#001f3f]"
+                autoComplete="new-password"
+                onFocus={() => {
+                  if (taxpayerSuggestions.length > 0) {
+                    setShowSuggestions(true)
+                  }
+                }}
+                onBlur={() => {
+                  setTimeout(() => setShowSuggestions(false), 200)
+                }}
+              />
+              {showSuggestions && taxpayerSuggestions.length > 0 && (
+                <div className="absolute top-full left-0 right-0 z-50 bg-white border border-[#001f3f] rounded-md shadow-lg max-h-48 overflow-y-auto">
+                  {taxpayerSuggestions.map((suggestion, index) => (
+                    <div
+                      key={index}
+                      className="p-3 hover:bg-[#e6f0ff] cursor-pointer border-b border-gray-100 last:border-b-0"
+                      onClick={() => handleSuggestionSelect(suggestion)}
+                    >
+                      <div className="font-medium text-[#001f3f]">{formatTinDisplay(suggestion.tin)}</div>
+                      <div className="text-sm text-[#001f3f]/80">{suggestion.registered_name}</div>
+                      <div className="text-xs text-[#001f3f]/60">
+                        {suggestion.substreet_street_brgy}, {suggestion.district_city_zip}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Name Search */}
+            <div className="space-y-2 relative">
+              <Label htmlFor="name" className="text-sm font-medium text-[#001f3f]">
+                Name *
+              </Label>
+              <Input
+                id="name"
+                name="name_random_2"
+                value={formData.name}
+                onChange={(e) => {
+                  setFormData({ ...formData, name: e.target.value })
+                  // Trigger name search
+                  const value = e.target.value
+                  if (value.length >= 3) {
+                    searchTaxpayersByName(value)
+                  } else {
+                    setNameSuggestions([])
+                    setShowNameSuggestions(false)
+                  }
+                }}
+                placeholder="Company/Individual name"
+                required
+                className="bg-white text-[#001f3f] border-[#001f3f]"
+                autoComplete="new-password"
+                onFocus={() => {
+                  if (nameSuggestions.length > 0) {
+                    setShowNameSuggestions(true)
+                  }
+                }}
+                onBlur={() => {
+                  setTimeout(() => setShowNameSuggestions(false), 200)
+                }}
+              />
+              {showNameSuggestions && nameSuggestions.length > 0 && (
+                <div className="absolute top-full left-0 right-0 z-50 bg-white border border-[#001f3f] rounded-md shadow-lg max-h-48 overflow-y-auto">
+                  {nameSuggestions.map((suggestion, index) => (
+                    <div
+                      key={index}
+                      className="p-3 hover:bg-[#e6f0ff] cursor-pointer border-b border-gray-100 last:border-b-0"
+                      onClick={() => handleNameSuggestionSelect(suggestion)}
+                    >
+                      <div className="font-medium text-[#001f3f]">{suggestion.registered_name}</div>
+                      <div className="text-sm text-[#001f3f]/80">{formatTinDisplay(suggestion.tin)}</div>
+                      <div className="text-xs text-[#001f3f]/60">
+                        {suggestion.substreet_street_brgy}, {suggestion.district_city_zip}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="substreet" className="text-sm font-medium text-[#001f3f]">
                 Substreet/Street/Barangay *
@@ -597,19 +614,6 @@ export function AddPurchasesModal({ open, onOpenChange, onPurchaseAdded }: AddPu
 
           {/* Optional fields */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="invoice-number" className="text-sm font-medium text-[#001f3f]">
-                Invoice Number
-              </Label>
-              <Input
-                id="invoice-number"
-                value={formData.invoice_number}
-                onChange={(e) => setFormData({ ...formData, invoice_number: e.target.value })}
-                placeholder="Invoice number"
-                className="bg-white text-[#001f3f] border-[#001f3f]"
-              />
-            </div>
-
             {/* Gross Taxable */}
             <div className="space-y-2">
               <Label htmlFor="gross-taxable" className="text-sm font-medium text-[#001f3f]">
@@ -623,6 +627,25 @@ export function AddPurchasesModal({ open, onOpenChange, onPurchaseAdded }: AddPu
                   if (rawValue === "" || /^\d*\.?\d*$/.test(rawValue)) {
                     const formatted = formatNumberWithCommas(rawValue)
                     setFormData({ ...formData, gross_taxable: formatted })
+                  }
+                }}
+                placeholder="0"
+                className="bg-white text-[#001f3f] border-[#001f3f]"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="total-actual-amount" className="text-sm font-medium text-[#001f3f]">
+                Total Actual Amount
+              </Label>
+              <Input
+                id="total-actual-amount"
+                value={formData.total_actual_amount}
+                onChange={(e) => {
+                  const rawValue = e.target.value.replace(/,/g, "")
+                  if (rawValue === "" || /^\d*\.?\d*$/.test(rawValue)) {
+                    const formatted = formatNumberWithCommas(rawValue)
+                    setFormData({ ...formData, total_actual_amount: formatted })
                   }
                 }}
                 placeholder="0"
