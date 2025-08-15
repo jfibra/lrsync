@@ -489,20 +489,6 @@ export function EditPurchasesModal({ open, onOpenChange, purchase, onPurchaseUpd
             </div>
           </div>
 
-          {/* Remarks */}
-          <div className="space-y-2">
-            <Label htmlFor="remarks" className="text-sm font-medium text-[#001f3f]">
-              Remarks
-            </Label>
-            <Input
-              id="remarks"
-              value={remarks}
-              onChange={(e) => setRemarks(e.target.value)}
-              placeholder="Additional remarks..."
-              className="border-[#001f3f] focus:border-[#3c8dbc] focus:ring-[#3c8dbc] text-[#001f3f] bg-white"
-            />
-          </div>
-
           {/* Form Actions */}
           <div className="flex justify-end space-x-4 pt-6 border-t border-[#001f3f]/20">
             <Button
