@@ -238,7 +238,7 @@ export function AddPurchasesModal({ open, onOpenChange, onPurchaseAdded }: AddPu
             district_city_zip: tinData.district_city_zip,
             type: "purchases", // Set type to purchases
             date_added: format(new Date(), "yyyy-MM-dd"),
-            user_uuid: profile?.id || null,
+            user_uuid: profile?.auth_user_id || null,
           },
         ])
         .select("id")
