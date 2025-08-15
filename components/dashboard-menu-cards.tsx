@@ -155,6 +155,16 @@ export function DashboardMenuCards({ userRole }: DashboardMenuCardsProps) {
             badgeColor: "bg-green-100 text-green-800",
           },
           {
+            title: "Purchases Records",
+            description: "View and manage purchase data",
+            icon: ShoppingCart,
+            href: "/dashboard/secretary/purchases",
+            color: "from-red-500 to-red-600",
+            bgColor: "bg-red-50/80 border-red-200",
+            badge: "Your Area",
+            badgeColor: "bg-red-100 text-red-800",
+          },
+          {
             title: "Commission Generator",
             description: "Track sales and calculate commissions",
             icon: Calculator,

@@ -73,7 +73,7 @@ export function DashboardHeader() {
         label: "Purchases",
         href: (role: string) => `/dashboard/${role.replace("_", "-")}/purchases`,
         icon: BookText,
-        roles: ["super_admin"],
+        roles: ["super_admin", "secretary"],
       },
       {
         label: "TIN Library",
