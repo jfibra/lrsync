@@ -580,13 +580,13 @@ export default function SecretaryCommissionReportsPage() {
               <div className="flex justify-between items-center">
                 <CardTitle className="text-[#001f3f]">Commission Reports</CardTitle>
                 <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-600">Show</span>
+                  <div className="flex items-center gap-2 bg-purple-50 px-3 py-2 rounded-lg border border-purple-200">
+                    <span className="text-sm font-medium text-[#001f3f]">Show</span>
                     <Select
                       value={recordsPerPage.toString()}
                       onValueChange={(value) => setRecordsPerPage(Number(value))}
                     >
-                      <SelectTrigger className="w-20 border-purple-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 bg-white text-[#001f3f]">
+                      <SelectTrigger className="w-20 border-purple-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 bg-white text-[#001f3f] font-medium">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent className="bg-white border-purple-200 text-[#001f3f]">
@@ -596,7 +596,7 @@ export default function SecretaryCommissionReportsPage() {
                         <SelectItem value="100">100</SelectItem>
                       </SelectContent>
                     </Select>
-                    <span className="text-sm text-gray-600">entries</span>
+                    <span className="text-sm font-medium text-[#001f3f]">entries</span>
                   </div>
                 </div>
               </div>
@@ -829,21 +829,23 @@ export default function SecretaryCommissionReportsPage() {
                     </Table>
                   </div>
 
-                  <div className="flex flex-col sm:flex-row justify-between items-center mt-6 gap-4">
-                    <div className="text-sm text-gray-600">
-                      Showing {startRecord} to {endRecord} of {totalRecords} records
+                  <div className="flex flex-col sm:flex-row justify-between items-center mt-6 gap-4 p-4 bg-purple-50 rounded-lg border border-purple-200">
+                    <div className="text-sm font-medium text-[#001f3f] bg-white px-4 py-2 rounded-md border border-purple-200">
+                      Showing <span className="font-bold text-purple-700">{startRecord}</span> to{" "}
+                      <span className="font-bold text-purple-700">{endRecord}</span> of{" "}
+                      <span className="font-bold text-purple-700">{totalRecords}</span> records
                     </div>
 
                     {totalPages > 1 && (
                       <Pagination>
-                        <PaginationContent>
+                        <PaginationContent className="gap-1">
                           <PaginationItem>
                             <PaginationPrevious
                               onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
                               className={
                                 currentPage === 1
-                                  ? "pointer-events-none opacity-50"
-                                  : "cursor-pointer text-purple-700 hover:text-purple-900"
+                                  ? "pointer-events-none opacity-50 bg-gray-100"
+                                  : "cursor-pointer bg-white text-purple-700 hover:bg-purple-100 hover:text-purple-900 border border-purple-300"
                               }
                             />
                           </PaginationItem>
@@ -853,12 +855,12 @@ export default function SecretaryCommissionReportsPage() {
                               <PaginationItem>
                                 <PaginationLink
                                   onClick={() => setCurrentPage(1)}
-                                  className="cursor-pointer text-purple-700 hover:text-purple-900"
+                                  className="cursor-pointer bg-white text-purple-700 hover:bg-purple-100 hover:text-purple-900 border border-purple-300"
                                 >
                                   1
                                 </PaginationLink>
                               </PaginationItem>
-                              {currentPage > 3 && <span className="px-2">...</span>}
+                              {currentPage > 3 && <span className="px-2 text-purple-600">...</span>}
                             </>
                           )}
 
@@ -873,8 +875,8 @@ export default function SecretaryCommissionReportsPage() {
                                   isActive={pageNum === currentPage}
                                   className={
                                     pageNum === currentPage
-                                      ? "cursor-pointer text-purple-900 font-bold"
-                                      : "cursor-pointer text-purple-700 hover:text-purple-900"
+                                      ? "cursor-pointer bg-purple-700 text-white font-bold border border-purple-700"
+                                      : "cursor-pointer bg-white text-purple-700 hover:bg-purple-100 hover:text-purple-900 border border-purple-300"
                                   }
                                 >
                                   {pageNum}
@@ -885,11 +887,11 @@ export default function SecretaryCommissionReportsPage() {
 
                           {currentPage < totalPages - 1 && (
                             <>
-                              {currentPage < totalPages - 2 && <span className="px-2">...</span>}
+                              {currentPage < totalPages - 2 && <span className="px-2 text-purple-600">...</span>}
                               <PaginationItem>
                                 <PaginationLink
                                   onClick={() => setCurrentPage(totalPages)}
-                                  className="cursor-pointer text-purple-700 hover:text-purple-900"
+                                  className="cursor-pointer bg-white text-purple-700 hover:bg-purple-100 hover:text-purple-900 border border-purple-300"
                                 >
                                   {totalPages}
                                 </PaginationLink>
@@ -902,8 +904,8 @@ export default function SecretaryCommissionReportsPage() {
                               onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
                               className={
                                 currentPage === totalPages
-                                  ? "pointer-events-none opacity-50"
-                                  : "cursor-pointer text-purple-700 hover:text-purple-900"
+                                  ? "pointer-events-none opacity-50 bg-gray-100"
+                                  : "cursor-pointer bg-white text-purple-700 hover:bg-purple-100 hover:text-purple-900 border border-purple-300"
                               }
                             />
                           </PaginationItem>
