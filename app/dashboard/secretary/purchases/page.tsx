@@ -7,13 +7,28 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { BarChart3, Calendar, Edit, Eye, MapPin, MessageSquarePlus, Plus, Search, Trash2 } from "lucide-react"
+import {
+  BarChart3,
+  Calendar,
+  Edit,
+  Eye,
+  MapPin,
+  MessageSquarePlus,
+  Plus,
+  Search,
+  Trash2,
+  Download,
+  FileSpreadsheet,
+} from "lucide-react"
 import { format } from "date-fns"
 import { useAuth } from "@/contexts/auth-context"
 import { supabase } from "@/lib/supabase/client"
 import { logNotification } from "@/utils/logNotification"
 import { ProtectedRoute } from "@/components/protected-route"
 import { DashboardHeader } from "@/components/dashboard-header"
+import { PurchasesExportModal } from "@/components/purchases-export-modal"
+import { ColumnVisibilityControl } from "@/components/column-visibility-control"
+import * as XLSX from "xlsx"
 
 // Import modals
 import { AddPurchasesModal } from "@/components/add-purchases-modal"
@@ -71,6 +86,19 @@ export default function SecretaryPurchasesPage() {
   const totalGrossTaxable = purchases.reduce((sum, purchase) => sum + (purchase.gross_taxable || 0), 0)
   const vatPurchases = purchases.filter((p) => p.tax_type === "vat").length
   const nonVatPurchases = purchases.filter((p) => p.tax_type === "non-vat").length
+
+  const [exportModalOpen, setExportModalOpen] = useState(false)
+  const [columnVisibility, setColumnVisibility] = useState({
+    tax_month: true,
+    tin: true,
+    name: true,
+    tax_type: true,
+    gross_taxable: true,
+    invoice_number: true,
+    official_receipt: true,
+    remark: true,
+    actions: true,
+  })
 
   const getMostRecentRemark = (remarksJson: string | null) => {
     if (!remarksJson) return null
@@ -304,6 +332,59 @@ export default function SecretaryPurchasesPage() {
     setCurrentPage(1)
   }
 
+  const handleStandardExport = async () => {
+    try {
+      const exportData = purchases.map((purchase) => ({
+        "Tax Month": format(new Date(purchase.tax_month), "MMMM yyyy"),
+        TIN: formatTin(purchase.tin),
+        Name: purchase.name,
+        "Address (Street/Brgy)": purchase.substreet_street_brgy || "",
+        "Address (City/District)": purchase.district_city_zip || "",
+        "Tax Type": purchase.tax_type?.toUpperCase() || "",
+        "Gross Taxable Amount": purchase.gross_taxable || 0,
+        "Invoice Number": purchase.invoice_number || "",
+        "Date Created": format(new Date(purchase.created_at), "MMM dd, yyyy HH:mm"),
+      }))
+
+      const wb = XLSX.utils.book_new()
+      const ws = XLSX.utils.json_to_sheet(exportData)
+
+      const colWidths = Object.keys(exportData[0] || {}).map((key) => ({
+        wch: Math.max(key.length, 15),
+      }))
+      ws["!cols"] = colWidths
+
+      XLSX.utils.book_append_sheet(wb, ws, "Purchases")
+
+      const timestamp = format(new Date(), "yyyy-MM-dd_HH-mm")
+      const filename = `purchases_${profile?.assigned_area}_${timestamp}.xlsx`
+      XLSX.writeFile(wb, filename)
+
+      if (profile?.id) {
+        await logNotification(supabase, {
+          action: "purchases_exported",
+          description: `Purchases data exported to Excel (${purchases.length} records) for ${profile?.assigned_area}`,
+          ip_address: null,
+          location: null,
+          meta: JSON.stringify({
+            recordCount: purchases.length,
+            filename,
+            role: "secretary",
+            area: profile?.assigned_area,
+            exportedBy: profile?.full_name || "",
+          }),
+          user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+          user_email: profile.email,
+          user_name: profile.full_name || profile.first_name || profile.id,
+          user_uuid: profile.id,
+        })
+      }
+    } catch (error) {
+      console.error("Error exporting purchases:", error)
+      alert("Error exporting data. Please try again.")
+    }
+  }
+
   return (
     <ProtectedRoute allowedRoles={["secretary"]}>
       <div style={{ background: "#fff" }} className="min-h-screen">
@@ -462,6 +543,42 @@ export default function SecretaryPurchasesPage() {
                       : `${purchases.length} records found in ${profile?.assigned_area || "your area"}`}
                   </CardDescription>
                 </div>
+                <div className="flex items-center gap-2">
+                  <ColumnVisibilityControl
+                    columns={[
+                      { key: "tax_month", label: "Tax Month" },
+                      { key: "tin", label: "TIN" },
+                      { key: "name", label: "Name" },
+                      { key: "tax_type", label: "Tax Type" },
+                      { key: "gross_taxable", label: "Gross Taxable" },
+                      { key: "invoice_number", label: "Invoice #" },
+                      { key: "official_receipt", label: "Official Receipt" },
+                      { key: "remark", label: "Remark" },
+                      { key: "actions", label: "Actions" },
+                    ]}
+                    visibility={columnVisibility}
+                    onVisibilityChange={setColumnVisibility}
+                    role="secretary"
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleStandardExport}
+                    className="bg-white border-indigo-300 text-indigo-600 hover:bg-indigo-50"
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Export
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setExportModalOpen(true)}
+                    className="bg-white border-indigo-300 text-indigo-600 hover:bg-indigo-50"
+                  >
+                    <FileSpreadsheet className="h-4 w-4 mr-2" />
+                    Custom Export
+                  </Button>
+                </div>
               </div>
             </CardHeader>
             <CardContent className="p-0">
@@ -469,52 +586,70 @@ export default function SecretaryPurchasesPage() {
                 <Table>
                   <TableHeader>
                     <TableRow style={{ background: "#fff", borderBottom: "1px solid #e0e0e0" }}>
-                      <TableHead
-                        className="min-w-[120px] font-semibold cursor-pointer select-none"
-                        style={{ color: "#001f3f" }}
-                        onClick={() => handleSort("tax_month")}
-                      >
-                        Tax Month
-                        {sortField === "tax_month" && (
-                          <span className="ml-1">{sortDirection === "asc" ? "▲" : "▼"}</span>
-                        )}
-                      </TableHead>
-                      <TableHead
-                        className="min-w-[120px] font-semibold cursor-pointer select-none"
-                        style={{ color: "#001f3f" }}
-                        onClick={() => handleSort("tin")}
-                      >
-                        TIN
-                        {sortField === "tin" && <span className="ml-1">{sortDirection === "asc" ? "▲" : "▼"}</span>}
-                      </TableHead>
-                      <TableHead className="min-w-[180px] font-semibold" style={{ color: "#001f3f" }}>
-                        Name
-                      </TableHead>
-                      <TableHead className="min-w-[100px] font-semibold" style={{ color: "#001f3f" }}>
-                        Tax Type
-                      </TableHead>
-                      <TableHead
-                        className="min-w-[120px] font-semibold cursor-pointer select-none"
-                        style={{ color: "#001f3f" }}
-                        onClick={() => handleSort("gross_taxable")}
-                      >
-                        Gross Taxable
-                        {sortField === "gross_taxable" && (
-                          <span className="ml-1">{sortDirection === "asc" ? "▲" : "▼"}</span>
-                        )}
-                      </TableHead>
-                      <TableHead className="min-w-[120px] font-semibold" style={{ color: "#001f3f" }}>
-                        Invoice #
-                      </TableHead>
-                      <TableHead className="min-w-[120px] font-semibold" style={{ color: "#001f3f" }}>
-                        Official Receipt
-                      </TableHead>
-                      <TableHead className="min-w-[200px] font-semibold" style={{ color: "#001f3f" }}>
-                        Remark
-                      </TableHead>
-                      <TableHead className="min-w-[150px] font-semibold" style={{ color: "#001f3f" }}>
-                        Actions
-                      </TableHead>
+                      {columnVisibility.tax_month && (
+                        <TableHead
+                          className="min-w-[120px] font-semibold cursor-pointer select-none"
+                          style={{ color: "#001f3f" }}
+                          onClick={() => handleSort("tax_month")}
+                        >
+                          Tax Month
+                          {sortField === "tax_month" && (
+                            <span className="ml-1">{sortDirection === "asc" ? "▲" : "▼"}</span>
+                          )}
+                        </TableHead>
+                      )}
+                      {columnVisibility.tin && (
+                        <TableHead
+                          className="min-w-[120px] font-semibold cursor-pointer select-none"
+                          style={{ color: "#001f3f" }}
+                          onClick={() => handleSort("tin")}
+                        >
+                          TIN
+                          {sortField === "tin" && <span className="ml-1">{sortDirection === "asc" ? "▲" : "▼"}</span>}
+                        </TableHead>
+                      )}
+                      {columnVisibility.name && (
+                        <TableHead className="min-w-[180px] font-semibold" style={{ color: "#001f3f" }}>
+                          Name
+                        </TableHead>
+                      )}
+                      {columnVisibility.tax_type && (
+                        <TableHead className="min-w-[100px] font-semibold" style={{ color: "#001f3f" }}>
+                          Tax Type
+                        </TableHead>
+                      )}
+                      {columnVisibility.gross_taxable && (
+                        <TableHead
+                          className="min-w-[120px] font-semibold cursor-pointer select-none"
+                          style={{ color: "#001f3f" }}
+                          onClick={() => handleSort("gross_taxable")}
+                        >
+                          Gross Taxable
+                          {sortField === "gross_taxable" && (
+                            <span className="ml-1">{sortDirection === "asc" ? "▲" : "▼"}</span>
+                          )}
+                        </TableHead>
+                      )}
+                      {columnVisibility.invoice_number && (
+                        <TableHead className="min-w-[120px] font-semibold" style={{ color: "#001f3f" }}>
+                          Invoice #
+                        </TableHead>
+                      )}
+                      {columnVisibility.official_receipt && (
+                        <TableHead className="min-w-[120px] font-semibold" style={{ color: "#001f3f" }}>
+                          Official Receipt
+                        </TableHead>
+                      )}
+                      {columnVisibility.remark && (
+                        <TableHead className="min-w-[200px] font-semibold" style={{ color: "#001f3f" }}>
+                          Remark
+                        </TableHead>
+                      )}
+                      {columnVisibility.actions && (
+                        <TableHead className="min-w-[150px] font-semibold" style={{ color: "#001f3f" }}>
+                          Actions
+                        </TableHead>
+                      )}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -551,135 +686,155 @@ export default function SecretaryPurchasesPage() {
                             key={purchase.id}
                             className="hover:bg-[#001f3f]/5 transition-colors border-b border-[#001f3f]/10"
                           >
-                            <TableCell className="text-[#001f3f] font-medium">
-                              <div className="flex items-center gap-2">
-                                <Calendar className="h-4 w-4 text-[#3c8dbc]" />
-                                {format(new Date(purchase.tax_month), "MMM yyyy")}
-                              </div>
-                            </TableCell>
-                            <TableCell className="font-mono text-[#001f3f]">
-                              <div className="flex items-center gap-2">
-                                <div className="w-2 h-2 bg-[#3c8dbc] rounded-full"></div>
-                                {formatTin(purchase.tin)}
-                              </div>
-                            </TableCell>
-                            <TableCell className="text-[#001f3f]">
-                              <div>
-                                <div className="font-medium">{purchase.name}</div>
-                                {purchase.substreet_street_brgy && (
-                                  <div className="text-sm text-[#001f3f]/70 flex items-center gap-1">
-                                    <MapPin className="h-3 w-3" />
-                                    {purchase.substreet_street_brgy}
-                                  </div>
-                                )}
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <Badge className={getTaxTypeBadgeColor(purchase.tax_type)}>
-                                {purchase.tax_type?.toUpperCase()}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="text-[#001f3f] font-semibold">
-                              {formatCurrency(purchase.gross_taxable || 0)}
-                            </TableCell>
-                            <TableCell className="text-[#001f3f]/70">{purchase.invoice_number || "-"}</TableCell>
-                            <TableCell className="text-[#001f3f]/70">
-                              {(() => {
-                                let files: string[] = []
-                                try {
-                                  if (purchase.official_receipt) {
-                                    const parsed = JSON.parse(purchase.official_receipt)
-                                    files = Array.isArray(parsed) ? parsed : []
-                                  }
-                                } catch {
-                                  if (
-                                    typeof purchase.official_receipt === "string" &&
-                                    purchase.official_receipt.startsWith("http")
-                                  ) {
-                                    files = [purchase.official_receipt]
-                                  }
-                                }
-                                if (!files.length) return <span>-</span>
-                                return (
-                                  <div className="flex flex-col gap-1">
-                                    {files.map((url, idx) => {
-                                      const fixedUrl = url
-                                        .split("/")
-                                        .map((part, i, arr) =>
-                                          i === arr.length - 1 ? encodeURIComponent(part).replace(/%20/g, "+") : part,
-                                        )
-                                        .join("/")
-                                      const fileName = decodeURIComponent(url.split("/").pop() || `Receipt ${idx + 1}`)
-                                      return (
-                                        <Button
-                                          key={url}
-                                          variant="outline"
-                                          size="sm"
-                                          className="w-full justify-start bg-white text-[#3c8dbc] border-[#3c8dbc] hover:bg-[#3c8dbc]/10 hover:text-[#001f3f] px-2 py-1 text-xs font-medium"
-                                          onClick={() => window.open(fixedUrl, "_blank", "noopener,noreferrer")}
-                                          title={fileName}
-                                        >
-                                          {fileName}
-                                        </Button>
-                                      )
-                                    })}
-                                  </div>
-                                )
-                              })()}
-                            </TableCell>
-                            <TableCell className="text-[#001f3f]/70">
-                              {recentRemark ? (
-                                <div className="max-w-[200px]">
-                                  <div className="text-sm bg-[#001f3f]/10 p-2 rounded border-l-4 border-[#3c8dbc]">
-                                    <div className="font-medium text-[#001f3f] truncate" title={recentRemark.remark}>
-                                      {recentRemark.remark}
-                                    </div>
-                                    <div className="text-xs text-[#001f3f]/60 mt-1">
-                                      by {recentRemark.name} • {format(new Date(recentRemark.date), "MMM dd, yyyy")}
-                                    </div>
-                                  </div>
+                            {columnVisibility.tax_month && (
+                              <TableCell className="text-[#001f3f] font-medium">
+                                <div className="flex items-center gap-2">
+                                  <Calendar className="h-4 w-4 text-[#3c8dbc]" />
+                                  {format(new Date(purchase.tax_month), "MMM yyyy")}
                                 </div>
-                              ) : (
-                                <span className="text-[#001f3f]/40 italic">No remarks</span>
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex items-center gap-2">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleViewPurchase(purchase)}
-                                  className="h-8 w-8 p-0 hover:bg-[#3c8dbc]/20"
-                                >
-                                  <Eye className="h-4 w-4 text-[#3c8dbc]" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleEditPurchase(purchase)}
-                                  className="h-8 w-8 p-0 hover:bg-[#ffc107]/20"
-                                >
-                                  <Edit className="h-4 w-4 text-[#ffc107]" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleAddRemark(purchase)}
-                                  className="h-8 w-8 p-0 hover:bg-[#3c8dbc]/20"
-                                  title="Add Remark"
-                                >
-                                  <MessageSquarePlus className="h-4 w-4 text-[#3c8dbc]" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleSoftDelete(purchase)}
-                                  className="h-8 w-8 p-0 hover:bg-[#dc3545]/20"
-                                >
-                                  <Trash2 className="h-4 w-4 text-[#dc3545]" />
-                                </Button>
-                              </div>
-                            </TableCell>
+                              </TableCell>
+                            )}
+                            {columnVisibility.tin && (
+                              <TableCell className="font-mono text-[#001f3f]">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-2 h-2 bg-[#3c8dbc] rounded-full"></div>
+                                  {formatTin(purchase.tin)}
+                                </div>
+                              </TableCell>
+                            )}
+                            {columnVisibility.name && (
+                              <TableCell className="text-[#001f3f]">
+                                <div>
+                                  <div className="font-medium">{purchase.name}</div>
+                                  {purchase.substreet_street_brgy && (
+                                    <div className="text-sm text-[#001f3f]/70 flex items-center gap-1">
+                                      <MapPin className="h-3 w-3" />
+                                      {purchase.substreet_street_brgy}
+                                    </div>
+                                  )}
+                                </div>
+                              </TableCell>
+                            )}
+                            {columnVisibility.tax_type && (
+                              <TableCell>
+                                <Badge className={getTaxTypeBadgeColor(purchase.tax_type)}>
+                                  {purchase.tax_type?.toUpperCase()}
+                                </Badge>
+                              </TableCell>
+                            )}
+                            {columnVisibility.gross_taxable && (
+                              <TableCell className="text-[#001f3f] font-semibold">
+                                {formatCurrency(purchase.gross_taxable || 0)}
+                              </TableCell>
+                            )}
+                            {columnVisibility.invoice_number && (
+                              <TableCell className="text-[#001f3f]/70">{purchase.invoice_number || "-"}</TableCell>
+                            )}
+                            {columnVisibility.official_receipt && (
+                              <TableCell className="text-[#001f3f]/70">
+                                {(() => {
+                                  let files: string[] = []
+                                  try {
+                                    if (purchase.official_receipt) {
+                                      const parsed = JSON.parse(purchase.official_receipt)
+                                      files = Array.isArray(parsed) ? parsed : []
+                                    }
+                                  } catch {
+                                    if (
+                                      typeof purchase.official_receipt === "string" &&
+                                      purchase.official_receipt.startsWith("http")
+                                    ) {
+                                      files = [purchase.official_receipt]
+                                    }
+                                  }
+                                  if (!files.length) return <span>-</span>
+                                  return (
+                                    <div className="flex flex-col gap-1">
+                                      {files.map((url, idx) => {
+                                        const fixedUrl = url
+                                          .split("/")
+                                          .map((part, i, arr) =>
+                                            i === arr.length - 1 ? encodeURIComponent(part).replace(/%20/g, "+") : part,
+                                          )
+                                          .join("/")
+                                        const fileName = decodeURIComponent(
+                                          url.split("/").pop() || `Receipt ${idx + 1}`,
+                                        )
+                                        return (
+                                          <Button
+                                            key={url}
+                                            variant="outline"
+                                            size="sm"
+                                            className="w-full justify-start bg-white text-[#3c8dbc] border-[#3c8dbc] hover:bg-[#3c8dbc]/10 hover:text-[#001f3f] px-2 py-1 text-xs font-medium"
+                                            onClick={() => window.open(fixedUrl, "_blank", "noopener,noreferrer")}
+                                            title={fileName}
+                                          >
+                                            {fileName}
+                                          </Button>
+                                        )
+                                      })}
+                                    </div>
+                                  )
+                                })()}
+                              </TableCell>
+                            )}
+                            {columnVisibility.remark && (
+                              <TableCell className="text-[#001f3f]/70">
+                                {recentRemark ? (
+                                  <div className="max-w-[200px]">
+                                    <div className="text-sm bg-[#001f3f]/10 p-2 rounded border-l-4 border-[#3c8dbc]">
+                                      <div className="font-medium text-[#001f3f] truncate" title={recentRemark.remark}>
+                                        {recentRemark.remark}
+                                      </div>
+                                      <div className="text-xs text-[#001f3f]/60 mt-1">
+                                        by {recentRemark.name} • {format(new Date(recentRemark.date), "MMM dd, yyyy")}
+                                      </div>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <span className="text-[#001f3f]/40 italic">No remarks</span>
+                                )}
+                              </TableCell>
+                            )}
+                            {columnVisibility.actions && (
+                              <TableCell>
+                                <div className="flex items-center gap-2">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleViewPurchase(purchase)}
+                                    className="h-8 w-8 p-0 hover:bg-[#3c8dbc]/20"
+                                  >
+                                    <Eye className="h-4 w-4 text-[#3c8dbc]" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleEditPurchase(purchase)}
+                                    className="h-8 w-8 p-0 hover:bg-[#ffc107]/20"
+                                  >
+                                    <Edit className="h-4 w-4 text-[#ffc107]" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleAddRemark(purchase)}
+                                    className="h-8 w-8 p-0 hover:bg-[#3c8dbc]/20"
+                                    title="Add Remark"
+                                  >
+                                    <MessageSquarePlus className="h-4 w-4 text-[#3c8dbc]" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleSoftDelete(purchase)}
+                                    className="h-8 w-8 p-0 hover:bg-[#dc3545]/20"
+                                  >
+                                    <Trash2 className="h-4 w-4 text-[#dc3545]" />
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            )}
                           </TableRow>
                         )
                       })
@@ -778,6 +933,13 @@ export default function SecretaryPurchasesPage() {
             onOpenChange={setRemarkModalOpen}
             purchaseId={selectedPurchase?.id || ""}
             onRemarkAdded={fetchPurchases}
+          />
+
+          <PurchasesExportModal
+            open={exportModalOpen}
+            onOpenChange={setExportModalOpen}
+            purchases={purchases}
+            role="secretary"
           />
         </div>
       </div>

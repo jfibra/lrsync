@@ -21,10 +21,14 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination"
-import { Search, Eye, FileText, Calendar, User, Hash, Upload, X, CheckCircle } from "lucide-react"
+import { Search, Eye, FileText, Calendar, User, Hash, Upload, X, CheckCircle, Download } from "lucide-react"
 import { CommissionReportViewModal } from "@/components/commission-report-view-modal"
 import { logNotification } from "@/utils/logNotification"
 import { useAuth } from "@/contexts/auth-context" // If not already imported
+import { CommissionReportsExportModal } from "@/components/commission-reports-export-modal"
+import { ColumnVisibilityControl } from "@/components/column-visibility-control"
+import * as XLSX from "xlsx"
+import { format } from "date-fns"
 
 interface CommissionReport {
   uuid: string
@@ -45,6 +49,11 @@ interface CommissionReport {
     user_name: string
   }>
   creator_name?: string
+  user_profiles?: {
+    full_name?: string
+    assigned_area?: string
+  }
+  _attachmentType?: string
 }
 
 interface UploadedFile {
@@ -56,7 +65,7 @@ interface UploadedFile {
   error?: string
 }
 
-export default function CommissionReportsPage() {
+export default function SuperAdminCommissionReportsPage() {
   const [reports, setReports] = useState<CommissionReport[]>([])
   const [loading, setLoading] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
@@ -86,6 +95,130 @@ export default function CommissionReportsPage() {
   const [assignedAreaFilter, setAssignedAreaFilter] = useState("all")
   const [attachmentsModalOpen, setAttachmentsModalOpen] = useState(false)
   const [selectedAttachmentsReport, setSelectedAttachmentsReport] = useState<CommissionReport | null>(null)
+
+  const [columnVisibility, setColumnVisibility] = useState([
+    { key: "report_number", label: "Report #", visible: true },
+    { key: "created_by", label: "Created By", visible: true },
+    { key: "assigned_area", label: "Assigned Area", visible: true },
+    { key: "created_date", label: "Created Date", visible: true },
+    { key: "status", label: "Status", visible: true },
+    { key: "sales_count", label: "Sales Count", visible: true },
+    { key: "accounting_attachments", label: "Accounting Attachments", visible: true },
+    { key: "secretary_attachments", label: "Secretary Attachments", visible: true },
+    { key: "remarks", label: "Remarks", visible: true },
+    { key: "actions", label: "Actions", visible: true },
+  ])
+
+  const toggleColumnVisibility = (key: string) => {
+    setColumnVisibility((prev) => prev.map((col) => (col.key === key ? { ...col, visible: !col.visible } : col)))
+  }
+
+  const exportToExcel = () => {
+    // Create workbook
+    const wb = XLSX.utils.book_new()
+
+    // Calculate statistics
+    const totalReports = reports.length
+    const newReports = reports.filter((r) => r.status === "new").length
+    const approvedReports = reports.filter((r) => r.status === "approved").length
+    const rejectedReports = reports.filter((r) => r.status === "rejected").length
+
+    // Create summary data
+    const summaryData = [
+      ["COMMISSION REPORTS MANAGEMENT REPORT - Super Admin"],
+      [
+        "Generated on:",
+        new Date().toLocaleDateString("en-PH", {
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+      ],
+      [""],
+      ["SUMMARY STATISTICS"],
+      ["Total Reports", totalReports, "Total commission reports"],
+      ["New Reports", newReports, "Pending approval"],
+      ["Approved Reports", approvedReports, "Approved reports"],
+      ["Rejected Reports", rejectedReports, "Rejected reports"],
+      [""],
+      ["DETAILED COMMISSION REPORTS"],
+      [
+        "Report #",
+        "Created By",
+        "Assigned Area",
+        "Created Date",
+        "Status",
+        "Sales Count",
+        "Accounting Attachments",
+        "Secretary Attachments",
+        "Remarks",
+      ],
+    ]
+
+    // Add report data
+    reports.forEach((report) => {
+      const accountingAttachments = report.accounting_pot ? JSON.parse(report.accounting_pot) : []
+      const secretaryAttachments = report.secretary_pot ? JSON.parse(report.secretary_pot) : []
+
+      summaryData.push([
+        `#${report.report_number}`,
+        report.user_profiles?.full_name || "Unknown User",
+        report.user_profiles?.assigned_area || "N/A",
+        format(new Date(report.created_at), "MMM dd, yyyy HH:mm"),
+        report.status?.toUpperCase() || "UNKNOWN",
+        report.sales_uuids?.length || 0,
+        Array.isArray(accountingAttachments) ? accountingAttachments.length : 0,
+        Array.isArray(secretaryAttachments) ? secretaryAttachments.length : 0,
+        report.remarks || "",
+      ])
+    })
+
+    // Create worksheet
+    const ws = XLSX.utils.aoa_to_sheet(summaryData)
+
+    // Set column widths
+    ws["!cols"] = [
+      { width: 15 }, // Report #
+      { width: 25 }, // Created By
+      { width: 20 }, // Assigned Area
+      { width: 20 }, // Created Date
+      { width: 12 }, // Status
+      { width: 12 }, // Sales Count
+      { width: 20 }, // Accounting Attachments
+      { width: 20 }, // Secretary Attachments
+      { width: 30 }, // Remarks
+    ]
+
+    // Add worksheet to workbook
+    XLSX.utils.book_append_sheet(wb, ws, "Commission Reports")
+
+    // Generate filename
+    const filename = `Commission_Reports_${new Date().toISOString().split("T")[0]}.xlsx`
+
+    // Download file
+    XLSX.writeFile(wb, filename)
+
+    // Log export action
+    if (profile?.id) {
+      logNotification(supabase, {
+        action: "export_commission_reports",
+        user_uuid: profile.id,
+        user_name: profile.full_name || profile.first_name || profile.id,
+        user_email: profile.email,
+        description: `Exported commission reports to Excel (${reports.length} records)`,
+        user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+        meta: JSON.stringify({
+          user_id: profile.id,
+          role: profile.role || "unknown",
+          dashboard: "super_admin_commission_reports",
+          export_type: "standard",
+          record_count: reports.length,
+        }),
+      })
+    }
+  }
 
   const statusOptions = [
     { value: "new", label: "New" },
@@ -197,7 +330,9 @@ export default function CommissionReportsPage() {
 
         await Swal.fire({
           title: "Success!",
-          text: `${successfulUploads.length} file(s) uploaded successfully${failedUploads.length > 0 ? `. ${failedUploads.length} file(s) failed.` : "."}`,
+          text: `${successfulUploads.length} file(s) uploaded successfully${
+            failedUploads.length > 0 ? `. ${failedUploads.length} file(s) failed.` : "."
+          }`,
           icon: "success",
           confirmButtonColor: "#4284f2",
         })
@@ -754,6 +889,40 @@ export default function CommissionReportsPage() {
               <div className="flex justify-between items-center">
                 <CardTitle className="text-[#001f3f]">Commission Reports</CardTitle>
                 <div className="flex items-center gap-4">
+                  <div className="flex gap-2">
+                    <ColumnVisibilityControl columns={columnVisibility} onColumnToggle={toggleColumnVisibility} />
+                    <CommissionReportsExportModal
+                      reports={reports}
+                      onExport={(exportedCount) => {
+                        if (profile?.id) {
+                          logNotification(supabase, {
+                            action: "export_custom_commission_reports",
+                            user_uuid: profile.id,
+                            user_name: profile.full_name || profile.first_name || profile.id,
+                            user_email: profile.email,
+                            description: `Exported custom commission reports to Excel (${exportedCount} records)`,
+                            user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+                            meta: JSON.stringify({
+                              user_id: profile.id,
+                              role: profile.role || "unknown",
+                              dashboard: "super_admin_commission_reports",
+                              export_type: "custom",
+                              record_count: exportedCount,
+                            }),
+                          })
+                        }
+                      }}
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={exportToExcel}
+                      className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white border-0 shadow-lg"
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Export Excel
+                    </Button>
+                  </div>
                   <div className="flex items-center gap-2 bg-blue-50 px-3 py-2 rounded-lg border border-blue-200">
                     <span className="text-sm font-medium text-[#001f3f]">Show</span>
                     <Select
@@ -786,45 +955,65 @@ export default function CommissionReportsPage() {
                     <Table>
                       <TableHeader>
                         <TableRow className="bg-blue-50 border-b border-blue-200">
-                          <TableHead className="text-blue-700 font-semibold border-b border-blue-200">
-                            <div className="flex items-center gap-2">
-                              <Hash className="h-4 w-4" />
-                              Report #
-                            </div>
-                          </TableHead>
-                          <TableHead className="text-blue-700 font-semibold border-b border-blue-200">
-                            <div className="flex items-center gap-2">
-                              <User className="h-4 w-4" />
-                              Created By
-                            </div>
-                          </TableHead>
-                          <TableHead className="text-blue-700 font-semibold border-b border-blue-200">
-                            Assigned Area
-                          </TableHead>
-                          <TableHead className="text-blue-700 font-semibold border-b border-blue-200">
-                            <div className="flex items-center gap-2">
-                              <Calendar className="h-4 w-4" />
-                              Created Date
-                            </div>
-                          </TableHead>
-                          <TableHead className="text-purple-700 font-semibold border-b border-blue-200">
-                            Status
-                          </TableHead>
-                          <TableHead className="text-blue-700 font-semibold border-b border-blue-200">
-                            Sales Count
-                          </TableHead>
-                          <TableHead className="text-blue-700 font-semibold border-b border-blue-200">
-                            Attachments (Accounting)
-                          </TableHead>
-                          <TableHead className="text-blue-700 font-semibold border-b border-blue-200">
-                            Attachments (Secretary)
-                          </TableHead>
-                          <TableHead className="text-blue-700 font-semibold border-b border-blue-200">
-                            Remarks
-                          </TableHead>
-                          <TableHead className="text-center text-blue-700 font-semibold border-b border-blue-200">
-                            Actions
-                          </TableHead>
+                          {columnVisibility.find((col) => col.key === "report_number")?.visible && (
+                            <TableHead className="text-blue-700 font-semibold border-b border-blue-200">
+                              <div className="flex items-center gap-2">
+                                <Hash className="h-4 w-4" />
+                                Report #
+                              </div>
+                            </TableHead>
+                          )}
+                          {columnVisibility.find((col) => col.key === "created_by")?.visible && (
+                            <TableHead className="text-blue-700 font-semibold border-b border-blue-200">
+                              <div className="flex items-center gap-2">
+                                <User className="h-4 w-4" />
+                                Created By
+                              </div>
+                            </TableHead>
+                          )}
+                          {columnVisibility.find((col) => col.key === "assigned_area")?.visible && (
+                            <TableHead className="text-blue-700 font-semibold border-b border-blue-200">
+                              Assigned Area
+                            </TableHead>
+                          )}
+                          {columnVisibility.find((col) => col.key === "created_date")?.visible && (
+                            <TableHead className="text-blue-700 font-semibold border-b border-blue-200">
+                              <div className="flex items-center gap-2">
+                                <Calendar className="h-4 w-4" />
+                                Created Date
+                              </div>
+                            </TableHead>
+                          )}
+                          {columnVisibility.find((col) => col.key === "status")?.visible && (
+                            <TableHead className="text-purple-700 font-semibold border-b border-blue-200">
+                              Status
+                            </TableHead>
+                          )}
+                          {columnVisibility.find((col) => col.key === "sales_count")?.visible && (
+                            <TableHead className="text-blue-700 font-semibold border-b border-blue-200">
+                              Sales Count
+                            </TableHead>
+                          )}
+                          {columnVisibility.find((col) => col.key === "accounting_attachments")?.visible && (
+                            <TableHead className="text-blue-700 font-semibold border-b border-blue-200">
+                              Attachments (Accounting)
+                            </TableHead>
+                          )}
+                          {columnVisibility.find((col) => col.key === "secretary_attachments")?.visible && (
+                            <TableHead className="text-blue-700 font-semibold border-b border-blue-200">
+                              Attachments (Secretary)
+                            </TableHead>
+                          )}
+                          {columnVisibility.find((col) => col.key === "remarks")?.visible && (
+                            <TableHead className="text-blue-700 font-semibold border-b border-blue-200">
+                              Remarks
+                            </TableHead>
+                          )}
+                          {columnVisibility.find((col) => col.key === "actions")?.visible && (
+                            <TableHead className="text-center text-blue-700 font-semibold border-b border-blue-200">
+                              Actions
+                            </TableHead>
+                          )}
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -847,154 +1036,178 @@ export default function CommissionReportsPage() {
 
                             return (
                               <TableRow key={report.uuid} className="hover:bg-blue-50 border-b border-blue-200">
-                                <TableCell className="text-[#001f3f] font-medium">#{report.report_number}</TableCell>
-                                <TableCell className="text-[#001f3f]">{report.creator_name}</TableCell>
-                                <TableCell className="text-[#001f3f]">
-                                  {report.user_profiles?.assigned_area || <span className="text-gray-400">N/A</span>}
-                                </TableCell>
-                                <TableCell className="text-[#001f3f]">
-                                  {new Date(report.created_at).toLocaleDateString("en-US", {
-                                    year: "numeric",
-                                    month: "short",
-                                    day: "numeric",
-                                    hour: "2-digit",
-                                    minute: "2-digit",
-                                  })}
-                                </TableCell>
-                                <TableCell>{getStatusBadge(report.status)}</TableCell>
-                                <TableCell>
-                                  <Badge className="text-[#001f3f]" variant="outline">
-                                    {report.sales_uuids?.length || 0} sales
-                                  </Badge>
-                                </TableCell>
-                                <TableCell>
-                                  <div className="flex items-center gap-2">
-                                    <Badge
-                                      variant={attachmentCount > 0 ? "default" : "secondary"}
-                                      className={
-                                        attachmentCount > 0 ? "bg-green-600 cursor-pointer hover:bg-green-700" : ""
-                                      }
-                                      onClick={() => {
-                                        if (attachmentCount > 0) {
-                                          setSelectedAttachmentsReport(report)
-                                          setAttachmentsModalOpen(true)
-                                        }
-                                      }}
-                                      style={{ pointerEvents: attachmentCount > 0 ? "auto" : "none" }}
-                                    >
-                                      {attachmentCount} files
-                                    </Badge>
-                                    {attachmentCount > 0 && <CheckCircle className="h-4 w-4 text-green-600" />}
-                                  </div>
-                                </TableCell>
-                                <TableCell>
-                                  <div className="flex items-center gap-2">
-                                    <Badge
-                                      variant={secretaryAttachmentCount > 0 ? "default" : "secondary"}
-                                      className={
-                                        secretaryAttachmentCount > 0
-                                          ? "bg-purple-600 cursor-pointer hover:bg-purple-700"
-                                          : ""
-                                      }
-                                      onClick={() => {
-                                        if (secretaryAttachmentCount > 0) {
-                                          setSelectedAttachmentsReport({
-                                            ...report,
-                                            _attachmentType: "secretary",
-                                          })
-                                          setAttachmentsModalOpen(true)
-                                        }
-                                      }}
-                                      style={{ pointerEvents: secretaryAttachmentCount > 0 ? "auto" : "none" }}
-                                    >
-                                      {secretaryAttachmentCount} files
-                                    </Badge>
-                                    {secretaryAttachmentCount > 0 && (
-                                      <CheckCircle className="h-4 w-4 text-purple-600" />
+                                {columnVisibility.find((col) => col.key === "report_number")?.visible && (
+                                  <TableCell className="text-[#001f3f] font-medium">#{report.report_number}</TableCell>
+                                )}
+                                {columnVisibility.find((col) => col.key === "created_by")?.visible && (
+                                  <TableCell className="text-[#001f3f]">
+                                    {report.user_profiles?.full_name || (
+                                      <span className="text-gray-400">Unknown User</span>
                                     )}
-                                  </div>
-                                </TableCell>
-                                <TableCell className="text-[#001f3f] max-w-md whitespace-pre-line">
-                                  {Array.isArray(report.history) && report.history.length > 0 ? (
-                                    (() => {
-                                      // Filter out 'created' actions and remarks with empty text
-                                      const filtered = report.history.filter(
-                                        (h) => h.action !== "created" && h.remarks && h.remarks.trim() !== "",
-                                      )
-                                      if (filtered.length === 0) {
-                                        return <span className="text-gray-400 italic">No remarks</span>
-                                      }
-                                      // Sort by timestamp descending and get the most recent
-                                      const mostRecent = filtered.sort(
-                                        (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
-                                      )[0]
-                                      return (
-                                        <div className="p-2 rounded bg-blue-50 border border-blue-100">
-                                          <div className="text-sm text-gray-800 whitespace-pre-line">
-                                            {mostRecent.remarks}
+                                  </TableCell>
+                                )}
+                                {columnVisibility.find((col) => col.key === "assigned_area")?.visible && (
+                                  <TableCell className="text-[#001f3f]">
+                                    {report.user_profiles?.assigned_area || "N/A"}
+                                  </TableCell>
+                                )}
+                                {columnVisibility.find((col) => col.key === "created_date")?.visible && (
+                                  <TableCell className="text-[#001f3f]">
+                                    {new Date(report.created_at).toLocaleDateString("en-US", {
+                                      year: "numeric",
+                                      month: "short",
+                                      day: "numeric",
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                    })}
+                                  </TableCell>
+                                )}
+                                {columnVisibility.find((col) => col.key === "status")?.visible && (
+                                  <TableCell>{getStatusBadge(report.status)}</TableCell>
+                                )}
+                                {columnVisibility.find((col) => col.key === "sales_count")?.visible && (
+                                  <TableCell>
+                                    <Badge className="text-[#001f3f]" variant="outline">
+                                      {report.sales_uuids?.length || 0} sales
+                                    </Badge>
+                                  </TableCell>
+                                )}
+                                {columnVisibility.find((col) => col.key === "accounting_attachments")?.visible && (
+                                  <TableCell>
+                                    <div className="flex items-center gap-2">
+                                      <Badge
+                                        variant={attachmentCount > 0 ? "default" : "secondary"}
+                                        className={
+                                          attachmentCount > 0 ? "bg-green-600 cursor-pointer hover:bg-green-700" : ""
+                                        }
+                                        onClick={() => {
+                                          if (attachmentCount > 0) {
+                                            setSelectedAttachmentsReport(report)
+                                            setAttachmentsModalOpen(true)
+                                          }
+                                        }}
+                                        style={{ pointerEvents: attachmentCount > 0 ? "auto" : "none" }}
+                                      >
+                                        {attachmentCount} files
+                                      </Badge>
+                                      {attachmentCount > 0 && <CheckCircle className="h-4 w-4 text-green-600" />}
+                                    </div>
+                                  </TableCell>
+                                )}
+                                {columnVisibility.find((col) => col.key === "secretary_attachments")?.visible && (
+                                  <TableCell>
+                                    <div className="flex items-center gap-2">
+                                      <Badge
+                                        variant={secretaryAttachmentCount > 0 ? "default" : "secondary"}
+                                        className={
+                                          secretaryAttachmentCount > 0
+                                            ? "bg-purple-600 cursor-pointer hover:bg-purple-700"
+                                            : ""
+                                        }
+                                        onClick={() => {
+                                          if (secretaryAttachmentCount > 0) {
+                                            setSelectedAttachmentsReport({
+                                              ...report,
+                                              _attachmentType: "secretary",
+                                            })
+                                            setAttachmentsModalOpen(true)
+                                          }
+                                        }}
+                                        style={{ pointerEvents: secretaryAttachmentCount > 0 ? "auto" : "none" }}
+                                      >
+                                        {secretaryAttachmentCount} files
+                                      </Badge>
+                                      {secretaryAttachmentCount > 0 && (
+                                        <CheckCircle className="h-4 w-4 text-purple-600" />
+                                      )}
+                                    </div>
+                                  </TableCell>
+                                )}
+                                {columnVisibility.find((col) => col.key === "remarks")?.visible && (
+                                  <TableCell className="text-[#001f3f] max-w-xs">
+                                    {Array.isArray(report.history) && report.history.length > 0 ? (
+                                      (() => {
+                                        // Filter out 'created' actions and remarks with empty text
+                                        const filtered = report.history.filter(
+                                          (h) => h.action !== "created" && h.remarks && h.remarks.trim() !== "",
+                                        )
+                                        if (filtered.length === 0) {
+                                          return <span className="text-gray-400 italic">No remarks</span>
+                                        }
+                                        // Sort by timestamp descending and get the most recent
+                                        const mostRecent = filtered.sort(
+                                          (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
+                                        )[0]
+                                        return (
+                                          <div className="p-2 rounded bg-blue-50 border border-blue-100">
+                                            <div className="text-sm text-gray-800 whitespace-pre-line">
+                                              {mostRecent.remarks}
+                                            </div>
+                                            <div className="flex items-center justify-between mt-1 text-xs text-gray-500">
+                                              <span>
+                                                <User className="inline h-3 w-3 mr-1" />
+                                                {mostRecent.user_name || "Unknown"}
+                                              </span>
+                                              <span>
+                                                {mostRecent.timestamp
+                                                  ? new Date(mostRecent.timestamp).toLocaleString("en-US", {
+                                                      year: "numeric",
+                                                      month: "short",
+                                                      day: "numeric",
+                                                      hour: "2-digit",
+                                                      minute: "2-digit",
+                                                    })
+                                                  : ""}
+                                              </span>
+                                            </div>
                                           </div>
-                                          <div className="flex items-center justify-between mt-1 text-xs text-gray-500">
-                                            <span>
-                                              <User className="inline h-3 w-3 mr-1" />
-                                              {mostRecent.user_name || "Unknown"}
-                                            </span>
-                                            <span>
-                                              {mostRecent.timestamp
-                                                ? new Date(mostRecent.timestamp).toLocaleString("en-US", {
-                                                    year: "numeric",
-                                                    month: "short",
-                                                    day: "numeric",
-                                                    hour: "2-digit",
-                                                    minute: "2-digit",
-                                                  })
-                                                : ""}
-                                            </span>
-                                          </div>
-                                        </div>
-                                      )
-                                    })()
-                                  ) : (
-                                    <span className="text-gray-400 italic">No remarks</span>
-                                  )}
-                                </TableCell>
-                                <TableCell className="text-right">
-                                  <div className="flex gap-1 justify-end flex-wrap">
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => handleViewReport(report)}
-                                      className="gap-1 bg-white border-blue-500 text-blue-700 hover:bg-blue-100 hover:border-blue-600 hover:text-blue-900 text-xs px-2 py-1"
-                                    >
-                                      <Eye className="h-3 w-3" />
-                                      View
-                                    </Button>
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      className="gap-1 bg-white border-blue-500 text-blue-700 hover:bg-blue-100 hover:border-blue-600 hover:text-blue-900 text-xs px-2 py-1"
-                                      onClick={() => handleOpenStatusModal(report)}
-                                    >
-                                      Status
-                                    </Button>
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      className="gap-1 bg-white border-green-500 text-green-700 hover:bg-green-100 hover:border-green-600 hover:text-green-900 text-xs px-2 py-1"
-                                      onClick={() => handleOpenUploadModal(report)}
-                                    >
-                                      <Upload className="h-3 w-3" />
-                                      Upload
-                                    </Button>
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => handleDeleteReport(report.uuid)}
-                                      className="gap-1 bg-white border-red-400 text-red-600 hover:bg-red-50 hover:border-red-600 hover:text-red-800 text-xs px-2 py-1"
-                                    >
-                                      Delete
-                                    </Button>
-                                  </div>
-                                </TableCell>
+                                        )
+                                      })()
+                                    ) : (
+                                      <span className="text-gray-400 italic">No remarks</span>
+                                    )}
+                                  </TableCell>
+                                )}
+                                {columnVisibility.find((col) => col.key === "actions")?.visible && (
+                                  <TableCell className="text-center">
+                                    <div className="flex gap-1 justify-end flex-wrap">
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handleViewReport(report)}
+                                        className="gap-1 bg-white border-blue-500 text-blue-700 hover:bg-blue-100 hover:border-blue-600 hover:text-blue-900 text-xs px-2 py-1"
+                                      >
+                                        <Eye className="h-3 w-3" />
+                                        View
+                                      </Button>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="gap-1 bg-white border-blue-500 text-blue-700 hover:bg-blue-100 hover:border-blue-600 hover:text-blue-900 text-xs px-2 py-1"
+                                        onClick={() => handleOpenStatusModal(report)}
+                                      >
+                                        Status
+                                      </Button>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="gap-1 bg-white border-green-500 text-green-700 hover:bg-green-100 hover:border-green-600 hover:text-green-900 text-xs px-2 py-1"
+                                        onClick={() => handleOpenUploadModal(report)}
+                                      >
+                                        <Upload className="h-3 w-3" />
+                                        Upload
+                                      </Button>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handleDeleteReport(report.uuid)}
+                                        className="gap-1 bg-white border-red-400 text-red-600 hover:bg-red-50 hover:border-red-600 hover:text-red-800 text-xs px-2 py-1"
+                                      >
+                                        Delete
+                                      </Button>
+                                    </div>
+                                  </TableCell>
+                                )}
                               </TableRow>
                             )
                           })
