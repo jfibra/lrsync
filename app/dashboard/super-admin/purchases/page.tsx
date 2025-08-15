@@ -362,13 +362,13 @@ export default function SuperAdminPurchasesPage() {
                 placeholder="Search by name, TIN, or invoice..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 border-[#001f3f]/30 focus:border-[#001f3f] text-[#001f3f]"
+                className="pl-10 bg-white border-[#001f3f]/30 focus:border-[#001f3f] text-[#001f3f]"
               />
             </div>
 
             {/* Tax Type Filter */}
             <Select value={filterTaxType} onValueChange={setFilterTaxType}>
-              <SelectTrigger className="border-[#001f3f]/30 focus:border-[#001f3f] text-[#001f3f]">
+              <SelectTrigger className="bg-white border-[#001f3f]/30 focus:border-[#001f3f] text-[#001f3f]">
                 <SelectValue placeholder="Tax Type" />
               </SelectTrigger>
               <SelectContent>
@@ -380,7 +380,7 @@ export default function SuperAdminPurchasesPage() {
 
             {/* Month Filter */}
             <Select value={filterMonth} onValueChange={setFilterMonth}>
-              <SelectTrigger className="border-[#001f3f]/30 focus:border-[#001f3f] text-[#001f3f]">
+              <SelectTrigger className="bg-white border-[#001f3f]/30 focus:border-[#001f3f] text-[#001f3f]">
                 <SelectValue placeholder="Tax Month" />
               </SelectTrigger>
               <SelectContent>
@@ -395,7 +395,7 @@ export default function SuperAdminPurchasesPage() {
 
             {/* Area Filter */}
             <Select value={filterArea} onValueChange={setFilterArea}>
-              <SelectTrigger className="border-[#001f3f]/30 focus:border-[#001f3f] text-[#001f3f]">
+              <SelectTrigger className="bg-white border-[#001f3f]/30 focus:border-[#001f3f] text-[#001f3f]">
                 <SelectValue placeholder="Area" />
               </SelectTrigger>
               <SelectContent>
@@ -417,7 +417,7 @@ export default function SuperAdminPurchasesPage() {
                 setFilterMonth("all")
                 setFilterArea("all")
               }}
-              className="border-[#001f3f]/30 text-[#001f3f] hover:bg-[#001f3f]/10"
+              className="bg-white border-[#001f3f]/30 text-[#001f3f] hover:bg-[#001f3f]/10"
             >
               Clear Filters
             </Button>
@@ -586,7 +586,7 @@ export default function SuperAdminPurchasesPage() {
               <div className="flex items-center gap-2">
                 <span className="text-sm text-[#001f3f]">Show</span>
                 <Select value={pageSize.toString()} onValueChange={handlePageSizeChange}>
-                  <SelectTrigger className="w-20 border-[#001f3f]/30 text-[#001f3f]">
+                  <SelectTrigger className="bg-white w-20 border-[#001f3f]/30 text-[#001f3f]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
