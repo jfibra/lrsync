@@ -532,7 +532,53 @@ export default function SuperAdminPurchasesPage() {
                         {formatCurrency(purchase.gross_taxable || 0)}
                       </TableCell>
                       <TableCell className="text-[#001f3f]/70">{purchase.invoice_number || "-"}</TableCell>
-                      <TableCell className="text-[#001f3f]/70">{purchase.official_receipt || "-"}</TableCell>
+                      <TableCell className="text-[#001f3f]/70">
+                        {(() => {
+                          let files: string[] = [];
+                          try {
+                            if (purchase.official_receipt) {
+                              const parsed = JSON.parse(purchase.official_receipt);
+                              files = Array.isArray(parsed) ? parsed : [];
+                            }
+                          } catch {
+                            if (
+                              typeof purchase.official_receipt === "string" &&
+                              purchase.official_receipt.startsWith("http")
+                            ) {
+                              files = [purchase.official_receipt];
+                            }
+                          }
+                          if (!files.length) return <span>-</span>;
+                          return (
+                            <div className="flex flex-col gap-1">
+                              {files.map((url, idx) => {
+                                // Fix: encode with encodeURIComponent, then replace %20 with +
+                                const fixedUrl = url
+                                  .split("/")
+                                  .map((part, i, arr) =>
+                                    i === arr.length - 1
+                                      ? encodeURIComponent(part).replace(/%20/g, "+")
+                                      : part
+                                  )
+                                  .join("/");
+                                const fileName = decodeURIComponent(url.split("/").pop() || `Receipt ${idx + 1}`);
+                                return (
+                                  <Button
+                                    key={url}
+                                    variant="outline"
+                                    size="sm"
+                                    className="w-full justify-start bg-white text-[#3c8dbc] border-[#3c8dbc] hover:bg-[#3c8dbc]/10 hover:text-[#001f3f] px-2 py-1 text-xs font-medium"
+                                    onClick={() => window.open(fixedUrl, "_blank", "noopener,noreferrer")}
+                                    title={fileName}
+                                  >
+                                    {fileName}
+                                  </Button>
+                                );
+                              })}
+                            </div>
+                          );
+                        })()}
+                      </TableCell>
                       <TableCell className="text-[#001f3f]/70">
                         <div className="flex items-center gap-1">
                           <MapPin className="h-3 w-3 text-[#001f3f]/50" />
@@ -609,7 +655,7 @@ export default function SuperAdminPurchasesPage() {
                 size="sm"
                 onClick={() => handlePageChange(currentPage - 1)}
                 disabled={currentPage === 1}
-                className="border-[#001f3f]/30 text-[#001f3f] hover:bg-[#001f3f]/10"
+                className="bg-white border-[#001f3f]/30 text-[#001f3f] hover:bg-[#001f3f]/10"
               >
                 Previous
               </Button>
@@ -640,7 +686,7 @@ export default function SuperAdminPurchasesPage() {
                 size="sm"
                 onClick={() => handlePageChange(currentPage + 1)}
                 disabled={currentPage === totalPages}
-                className="border-[#001f3f]/30 text-[#001f3f] hover:bg-[#001f3f]/10"
+                className="bg-white border-[#001f3f]/30 text-[#001f3f] hover:bg-[#001f3f]/10"
               >
                 Next
               </Button>

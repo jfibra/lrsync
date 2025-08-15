@@ -11,6 +11,7 @@ import { format } from "date-fns"
 import { useAuth } from "@/contexts/auth-context"
 import { supabase } from "@/lib/supabase/client"
 import { logNotification } from "@/utils/logNotification"
+import { Upload, X } from "lucide-react";
 
 interface AddPurchasesModalProps {
   open: boolean
@@ -54,6 +55,16 @@ export function AddPurchasesModal({ open, onOpenChange, onPurchaseAdded }: AddPu
   // Name search suggestions
   const [nameSuggestions, setNameSuggestions] = useState<TaxpayerSuggestion[]>([])
   const [showNameSuggestions, setShowNameSuggestions] = useState(false)
+
+  const [officialReceiptFiles, setOfficialReceiptFiles] = useState<{ name: string; url: string }[]>([]);
+  const [officialReceiptUploading, setOfficialReceiptUploading] = useState(false);
+  const [officialReceiptUrl, setOfficialReceiptUrl] = useState<string | null>(null);
+
+  const isFileUploadDisabled =
+    !formData.tax_month ||
+    !formData.tin ||
+    !formData.name ||
+    !formData.invoice_number;
 
   // Generate tax month options
   const generateTaxMonthOptions = (): TaxMonthOption[] => {
@@ -253,6 +264,56 @@ export function AddPurchasesModal({ open, onOpenChange, onPurchaseAdded }: AddPu
     }
   }
 
+  const handleOfficialReceiptUpload = async (files: FileList | null) => {
+    if (
+      isFileUploadDisabled ||
+      !files ||
+      files.length === 0
+    ) {
+      alert("Please fill in Tax Month, TIN #, Name, and Invoice # before uploading files.");
+      return;
+    }
+    if (!files || files.length === 0) return;
+    setOfficialReceiptUploading(true);
+    try {
+      // Prepare FormData for S3 API
+      const uploadFormData = new FormData();
+      Array.from(files).forEach(file => uploadFormData.append("files", file));
+      uploadFormData.append("tin_name", formData.name || "");
+      uploadFormData.append("tin_number", formData.tin.replace(/[^0-9]/g, "") || "");
+      uploadFormData.append("assigned_area", profile?.assigned_area || "");
+      uploadFormData.append("user_full_name", profile?.full_name || "");
+
+      const res = await fetch("/api/upload-official-receipt-purchases", {
+        method: "POST",
+        body: uploadFormData,
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to upload file(s) to S3.");
+      }
+
+      const data = await res.json();
+      setOfficialReceiptFiles(prev => [
+        ...prev,
+        ...data.files.map((f: { name: string; url: string }) => ({
+          name: f.name,
+          url: f.url,
+        })),
+      ]);
+    } catch (error) {
+      alert("Error uploading official receipt.");
+    } finally {
+      setOfficialReceiptUploading(false);
+    }
+  };
+
+  function getS3KeyFromUrl(url: string) {
+    // Example: https://your-bucket.s3.amazonaws.com/lrsync/purchases/2025/08/16/OR # 12345678 - Name - TIN (Area - User).pdf
+    const match = url.match(/\/(lrsync\/purchases\/.+)$/);
+    return match ? match[1] : null;
+  }
+
   // Reset form
   const resetForm = () => {
     setFormData({
@@ -265,12 +326,13 @@ export function AddPurchasesModal({ open, onOpenChange, onPurchaseAdded }: AddPu
       invoice_number: "",
       official_receipt: "",
       tax_month: "",
-    })
-    setTaxpayerSuggestions([])
-    setShowSuggestions(false)
-    setNameSuggestions([])
-    setShowNameSuggestions(false)
-  }
+    });
+    setTaxpayerSuggestions([]);
+    setShowSuggestions(false);
+    setNameSuggestions([]);
+    setShowNameSuggestions(false);
+    setOfficialReceiptFiles([]); // <-- Add this line to clear attachments
+  };
 
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
@@ -298,7 +360,7 @@ export function AddPurchasesModal({ open, onOpenChange, onPurchaseAdded }: AddPu
         gross_taxable: Number.parseFloat(formData.gross_taxable.replace(/,/g, "")) || 0,
         invoice_number: formData.invoice_number || null,
         tax_type: formData.tax_type,
-        official_receipt: formData.official_receipt || null,
+        official_receipt: JSON.stringify(officialReceiptFiles.map(f => f.url)),
         date_added: format(new Date(), "yyyy-MM-dd"),
         user_uuid: profile?.auth_user_id || null,
         user_full_name: profile?.full_name || null,
@@ -347,7 +409,15 @@ export function AddPurchasesModal({ open, onOpenChange, onPurchaseAdded }: AddPu
   }, [open])
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        // Only allow closing if no attachments
+        if (!nextOpen && officialReceiptFiles.length === 0) {
+          onOpenChange(false);
+        }
+      }}
+    >
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-white text-[#001f3f]">
         <DialogHeader>
           <DialogTitle className="text-2xl font-bold text-[#001f3f]">Add Purchase Record</DialogTitle>
@@ -355,7 +425,7 @@ export function AddPurchasesModal({ open, onOpenChange, onPurchaseAdded }: AddPu
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* First Row */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Tax Month */}
             <div className="space-y-2">
               <Label htmlFor="tax-month" className="text-sm font-medium text-[#001f3f]">
@@ -397,27 +467,6 @@ export function AddPurchasesModal({ open, onOpenChange, onPurchaseAdded }: AddPu
                   <SelectItem value="non-vat">Non-VAT</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
-
-            {/* Gross Taxable */}
-            <div className="space-y-2">
-              <Label htmlFor="gross-taxable" className="text-sm font-medium text-[#001f3f]">
-                Gross Taxable *
-              </Label>
-              <Input
-                id="gross-taxable"
-                value={formData.gross_taxable}
-                onChange={(e) => {
-                  const rawValue = e.target.value.replace(/,/g, "")
-                  if (rawValue === "" || /^\d*\.?\d*$/.test(rawValue)) {
-                    const formatted = formatNumberWithCommas(rawValue)
-                    setFormData({ ...formData, gross_taxable: formatted })
-                  }
-                }}
-                placeholder="0"
-                className="bg-white text-[#001f3f] border-[#001f3f]"
-                required
-              />
             </div>
           </div>
 
@@ -561,17 +610,130 @@ export function AddPurchasesModal({ open, onOpenChange, onPurchaseAdded }: AddPu
               />
             </div>
 
+            {/* Gross Taxable */}
             <div className="space-y-2">
-              <Label htmlFor="official-receipt" className="text-sm font-medium text-[#001f3f]">
-                Official Receipt
+              <Label htmlFor="gross-taxable" className="text-sm font-medium text-[#001f3f]">
+                Gross Taxable *
               </Label>
               <Input
-                id="official-receipt"
-                value={formData.official_receipt}
-                onChange={(e) => setFormData({ ...formData, official_receipt: e.target.value })}
-                placeholder="Official receipt number"
+                id="gross-taxable"
+                value={formData.gross_taxable}
+                onChange={(e) => {
+                  const rawValue = e.target.value.replace(/,/g, "")
+                  if (rawValue === "" || /^\d*\.?\d*$/.test(rawValue)) {
+                    const formatted = formatNumberWithCommas(rawValue)
+                    setFormData({ ...formData, gross_taxable: formatted })
+                  }
+                }}
+                placeholder="0"
                 className="bg-white text-[#001f3f] border-[#001f3f]"
+                required
               />
+            </div>
+          </div>
+
+
+          {/* Optional fields */}
+          <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-[#001f3f]">
+                Official Receipt (Image or PDF)
+              </Label>
+              {/* Uploaded Files Preview */}
+              {officialReceiptFiles.length > 0 && (
+                <div className="space-y-1 mb-2">
+                  {officialReceiptFiles.map((file, idx) => (
+                    <div key={idx} className="flex items-center justify-between bg-green-50 p-2 rounded text-xs">
+                      <a
+                        href={file.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="truncate flex-1 text-[#001f3f] underline"
+                      >
+                        {file.name}
+                      </a>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={async () => {
+                          const key = getS3KeyFromUrl(file.url);
+                          if (!key) {
+                            alert("Could not determine S3 key for this file.");
+                            return;
+                          }
+                          try {
+                            const res = await fetch("/api/delete-from-s3", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ key }),
+                            });
+                            if (!res.ok) throw new Error("Failed to delete file from S3.");
+                            setOfficialReceiptFiles(files => files.filter((_, i) => i !== idx));
+                          } catch (err) {
+                            alert("Error deleting file from S3.");
+                          }
+                        }}
+                        className="h-6 w-6 p-0 hover:bg-red-100"
+                        disabled={officialReceiptUploading}
+                      >
+                        <X className="h-3 w-3 text-red-500" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {/* Upload Area */}
+              <div
+                className={`border-2 border-dashed border-[#001f3f] rounded-lg p-4 text-center hover:border-blue-400 transition-colors
+                  ${(officialReceiptUploading || isFileUploadDisabled) ? "opacity-50 cursor-not-allowed" : ""}
+                `}
+                onDrop={e => {
+                  e.preventDefault();
+                  if (officialReceiptUploading || isFileUploadDisabled) return;
+                  handleOfficialReceiptUpload(e.dataTransfer.files);
+                }}
+                onDragOver={e => {
+                  e.preventDefault();
+                  if (!(officialReceiptUploading || isFileUploadDisabled)) e.currentTarget.classList.add("border-blue-400");
+                }}
+                onDragLeave={e => {
+                  e.preventDefault();
+                  e.currentTarget.classList.remove("border-blue-400");
+                }}
+              >
+                <input
+                  type="file"
+                  accept="image/*,application/pdf"
+                  multiple
+                  onChange={(e) => handleOfficialReceiptUpload(e.target.files)}
+                  className="hidden"
+                  id="official-receipt-upload"
+                  disabled={officialReceiptUploading || isFileUploadDisabled}
+                />
+                <label
+                  htmlFor="official-receipt-upload"
+                  className={`cursor-pointer ${officialReceiptUploading || isFileUploadDisabled ? "opacity-50 cursor-not-allowed" : ""}`}
+                  style={{ display: "block" }}
+                >
+                  {officialReceiptUploading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-2"></div>
+                      <p className="text-sm text-blue-600">Uploading...</p>
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="mx-auto h-8 w-8 text-[#001f3f] mb-2" />
+                      <p className="text-sm text-[#001f3f]/60">
+                        Click or drag to upload Official Receipt(s)<br />
+                        <span className="block mt-1">
+                          Accepted: <span className="font-semibold">Image</span> or <span className="font-semibold">PDF</span>
+                        </span>
+                      </p>
+                    </>
+                  )}
+                </label>
+              </div>
             </div>
           </div>
 
@@ -580,13 +742,27 @@ export function AddPurchasesModal({ open, onOpenChange, onPurchaseAdded }: AddPu
             <Button
               type="button"
               variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={loading}
-              className="border-[#001f3f] hover:bg-[#001f3f]/10 text-[#001f3f]"
+              onClick={() => {
+                if (officialReceiptFiles.length === 0) {
+                  onOpenChange(false);
+                }
+              }}
+              disabled={loading || officialReceiptFiles.length > 0}
+              className="border-[#001f3f] bg-white hover:bg-[#001f3f]/10 text-[#001f3f]"
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={loading} className="bg-[#001f3f] hover:bg-[#001f3f]/90 text-white">
+            <Button
+              type="submit"
+              disabled={
+                loading ||
+                !formData.tax_month ||
+                !formData.tin ||
+                !formData.name ||
+                !formData.invoice_number
+              }
+              className="bg-[#001f3f] hover:bg-[#001f3f]/90 text-white"
+            >
               {loading ? (
                 <>
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
@@ -599,6 +775,6 @@ export function AddPurchasesModal({ open, onOpenChange, onPurchaseAdded }: AddPu
           </div>
         </form>
       </DialogContent>
-    </Dialog>
+    </Dialog >
   )
 }
