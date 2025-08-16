@@ -30,6 +30,7 @@ import { CommissionReportsExportModal } from "@/components/commission-reports-ex
 import { ColumnVisibilityControl } from "@/components/column-visibility-control"
 import * as XLSX from "xlsx"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { useRouter } from "next/navigation"
 
 interface CommissionReport {
   uuid: string
@@ -77,6 +78,7 @@ interface SalesData {
 
 export default function SecretaryCommissionReportsPage() {
   const { profile } = useAuth()
+  const router = useRouter()
   const [reports, setReports] = useState<CommissionReport[]>([])
   const [loading, setLoading] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
@@ -905,7 +907,16 @@ export default function SecretaryCommissionReportsPage() {
                             return (
                               <TableRow key={report.uuid} className="hover:bg-purple-50 border-b border-purple-200">
                                 {columnVisibility.find((col) => col.key === "report_number")?.visible && (
-                                  <TableCell className="text-[#001f3f] font-medium">#{report.report_number}</TableCell>
+                                  <TableCell className="text-[#001f3f] font-medium">
+                                    <button
+                                      onClick={() =>
+                                        router.push(`/dashboard/commission-report/${report.report_number}`)
+                                      }
+                                      className="hover:underline hover:text-purple-600 transition-colors"
+                                    >
+                                      #{report.report_number}
+                                    </button>
+                                  </TableCell>
                                 )}
                                 {columnVisibility.find((col) => col.key === "created_by")?.visible && (
                                   <TableCell className="text-[#001f3f]">
