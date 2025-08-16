@@ -1174,15 +1174,6 @@ export default function SuperAdminCommissionReportsPage() {
                                       <Button
                                         variant="outline"
                                         size="sm"
-                                        onClick={() => handleViewReport(report)}
-                                        className="gap-1 bg-white border-blue-500 text-blue-700 hover:bg-blue-100 hover:border-blue-600 hover:text-blue-900 text-xs px-2 py-1"
-                                      >
-                                        <Eye className="h-3 w-3" />
-                                        View
-                                      </Button>
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
                                         className="gap-1 bg-white border-blue-500 text-blue-700 hover:bg-blue-100 hover:border-blue-600 hover:text-blue-900 text-xs px-2 py-1"
                                         onClick={() => handleOpenStatusModal(report)}
                                       >

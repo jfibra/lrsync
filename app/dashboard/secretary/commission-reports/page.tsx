@@ -987,26 +987,6 @@ export default function SecretaryCommissionReportsPage() {
                                       <Button
                                         variant="outline"
                                         size="sm"
-                                        onClick={() => handleViewReport(report)}
-                                        className="gap-1 bg-white border-purple-500 text-purple-700 hover:bg-purple-100 hover:border-purple-600 hover:text-purple-900 text-xs px-2 py-1"
-                                      >
-                                        <Eye className="h-3 w-3" />
-                                        View
-                                      </Button>
-                                      {report.created_by === profile?.id && (
-                                        <Button
-                                          variant="outline"
-                                          size="sm"
-                                          onClick={() => handleEditReport(report)}
-                                          className="gap-1 bg-white border-blue-500 text-blue-700 hover:bg-blue-100 hover:border-blue-600 hover:text-blue-900 text-xs px-2 py-1"
-                                        >
-                                          <Edit className="h-3 w-3" />
-                                          Edit
-                                        </Button>
-                                      )}
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
                                         className="gap-1 bg-white border-green-500 text-green-700 hover:bg-green-100 hover:border-green-600 hover:text-green-900 text-xs px-2 py-1"
                                         onClick={() => {
                                           setUploadReport(report)

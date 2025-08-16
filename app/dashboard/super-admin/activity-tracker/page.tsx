@@ -83,23 +83,15 @@ export default function ActivityTrackerPage() {
         try {
             setLoading(true)
 
-            // Fetch all notifications for statistics
-            const { data: allData, error: allError } = await supabase
+            // Fetch total count of notifications for statistics
+            const { count: totalActivities, error: countError } = await supabase
                 .from("notifications")
-                .select(`
-          *,
-          user_profiles!inner(role, assigned_area, full_name)
-        `)
-                .order("created_at", { ascending: false })
+                .select("*", { count: "exact", head: true });
 
-            if (allError) {
-                console.error("Error fetching all notifications:", allError)
+            if (countError) {
+                console.error("Error fetching notifications count:", countError);
             } else {
-                const processedAllData = (allData || []).map((item) => ({
-                    ...item,
-                    user_profile: item.user_profiles,
-                }))
-                setAllNotifications(processedAllData)
+                setTotalCount(totalActivities || 0);
             }
 
             // Build query for paginated data
@@ -163,9 +155,9 @@ export default function ActivityTrackerPage() {
 
     // Statistics calculations
     const statistics = useMemo(() => {
-        if (!allNotifications.length) return null
+        if (!allNotifications.length) return null;
 
-        const totalActivities = allNotifications.length
+        const totalActivities = totalCount;
         const uniqueUsers = new Set(allNotifications.filter((n) => n.user_uuid).map((n) => n.user_uuid)).size
 
         // Action breakdown
