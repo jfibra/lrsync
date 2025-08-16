@@ -20,16 +20,16 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination"
-import { Search, Eye, FileText, Calendar, User, Hash, CheckCircle, X, Upload, Download } from "lucide-react"
+import { Search, FileText, Calendar, User, Hash, CheckCircle, X, Upload, Download } from "lucide-react"
 import { CommissionReportViewModal } from "@/components/commission-report-view-modal"
 import { CommissionEditModal } from "@/components/commission-edit-modal"
 import { useAuth } from "@/contexts/auth-context"
 import { logNotification } from "@/utils/logNotification"
-import { Edit } from "lucide-react" // Import Edit icon
 import { format } from "date-fns"
 import { CommissionReportsExportModal } from "@/components/commission-reports-export-modal"
 import { ColumnVisibilityControl } from "@/components/column-visibility-control"
 import * as XLSX from "xlsx"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
 interface CommissionReport {
   uuid: string
@@ -55,6 +55,24 @@ interface CommissionReport {
     assigned_area: string
   }
   _attachmentType?: "secretary" | "accounting"
+}
+
+interface SalesData {
+  id: string
+  tax_month: string
+  tin: string
+  name: string
+  type: string
+  substreet_street_brgy: string
+  district_city_zip: string
+  gross_taxable: number
+  invoice_number: string
+  tax_type: string
+  pickup_date: string
+  total_actual_amount: number
+  sale_type: string
+  remarks: string
+  created_at: string
 }
 
 export default function SecretaryCommissionReportsPage() {
@@ -88,6 +106,10 @@ export default function SecretaryCommissionReportsPage() {
     { key: "remarks", label: "Remarks", visible: true },
     { key: "actions", label: "Actions", visible: true },
   ])
+  const [salesBreakdownOpen, setSalesBreakdownOpen] = useState(false)
+  const [selectedSalesData, setSelectedSalesData] = useState<SalesData[]>([])
+  const [loadingSalesData, setLoadingSalesData] = useState(false)
+  const [selectedReportForSales, setSelectedReportForSales] = useState<CommissionReport | null>(null)
 
   const statusOptions = [
     { value: "new", label: "New" },
@@ -647,6 +669,35 @@ export default function SecretaryCommissionReportsPage() {
   const startRecord = (currentPage - 1) * recordsPerPage + 1
   const endRecord = Math.min(currentPage * recordsPerPage, totalRecords)
 
+  const handleSalesCountClick = async (report: CommissionReport) => {
+    if (!report.sales_uuids || report.sales_uuids.length === 0) {
+      alert("No sales data available for this report.")
+      return
+    }
+
+    setSelectedReportForSales(report)
+    setLoadingSalesData(true)
+    setSalesBreakdownOpen(true)
+
+    try {
+      const { data, error } = await supabase
+        .from("sales")
+        .select("*")
+        .in("id", report.sales_uuids)
+        .eq("is_deleted", false)
+        .order("created_at", { ascending: false })
+
+      if (error) throw error
+
+      setSelectedSalesData(data || [])
+    } catch (error) {
+      console.error("Error fetching sales data:", error)
+      alert("Error loading sales data. Please try again.")
+    } finally {
+      setLoadingSalesData(false)
+    }
+  }
+
   return (
     <ProtectedRoute allowedRoles={["secretary"]}>
       <div className="min-h-screen bg-white">
@@ -879,9 +930,18 @@ export default function SecretaryCommissionReportsPage() {
                                 )}
                                 {columnVisibility.find((col) => col.key === "sales_count")?.visible && (
                                   <TableCell>
-                                    <Badge className="text-[#001f3f]" variant="outline">
-                                      {report.sales_uuids?.length || 0} sales
-                                    </Badge>
+                                    <button
+                                      onClick={() => handleSalesCountClick(report)}
+                                      className="text-[#001f3f] hover:bg-purple-50 transition-colors duration-200 rounded-md p-1"
+                                      title="Click to view sales breakdown"
+                                    >
+                                      <Badge
+                                        className="text-[#001f3f] cursor-pointer hover:bg-purple-100"
+                                        variant="outline"
+                                      >
+                                        {report.sales_uuids?.length || 0} sales
+                                      </Badge>
+                                    </button>
                                   </TableCell>
                                 )}
                                 {columnVisibility.find((col) => col.key === "accounting_attachments")?.visible && (
@@ -1224,6 +1284,129 @@ export default function SecretaryCommissionReportsPage() {
           userFullName={profile?.full_name}
         />
       )}
+      <Dialog open={salesBreakdownOpen} onOpenChange={setSalesBreakdownOpen}>
+        <DialogContent className="max-w-7xl max-h-[90vh] overflow-y-auto bg-white">
+          <DialogHeader>
+            <div className="flex items-center justify-between" style={{ color: "#001f3f" }}>
+              <div className="flex items-center gap-3">
+                <div className="bg-gradient-to-r from-purple-600 to-pink-600 p-2 rounded-lg">
+                  <FileText className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <DialogTitle className="text-xl" style={{ color: "#001f3f" }}>
+                    Sales Breakdown - Report #{selectedReportForSales?.report_number}
+                  </DialogTitle>
+                  <p className="text-sm" style={{ color: "#001f3f", opacity: 0.7 }}>
+                    Detailed breakdown of {selectedSalesData.length} sales records
+                  </p>
+                </div>
+              </div>
+            </div>
+          </DialogHeader>
+
+          {loadingSalesData ? (
+            <div className="flex justify-center items-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow style={{ backgroundColor: "#001f3f" }}>
+                      <TableHead style={{ color: "white", textAlign: "center" }}>TIN</TableHead>
+                      <TableHead style={{ color: "white", textAlign: "center" }}>Taxpayer Name</TableHead>
+                      <TableHead style={{ color: "white", textAlign: "center" }}>Tax Month</TableHead>
+                      <TableHead style={{ color: "white", textAlign: "center" }}>Type</TableHead>
+                      <TableHead style={{ color: "white", textAlign: "center" }}>Gross Taxable</TableHead>
+                      <TableHead style={{ color: "white", textAlign: "center" }}>Total Amount</TableHead>
+                      <TableHead style={{ color: "white", textAlign: "center" }}>Invoice #</TableHead>
+                      <TableHead style={{ color: "white", textAlign: "center" }}>Pickup Date</TableHead>
+                      <TableHead style={{ color: "white", textAlign: "center" }}>Sale Type</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {selectedSalesData.map((sale) => (
+                      <TableRow key={sale.id}>
+                        <TableCell className="font-medium" style={{ color: "#001f3f" }}>
+                          {sale.tin}
+                        </TableCell>
+                        <TableCell style={{ color: "#001f3f" }}>{sale.name}</TableCell>
+                        <TableCell style={{ color: "#001f3f" }}>
+                          {sale.tax_month
+                            ? new Date(sale.tax_month).toLocaleDateString("en-US", {
+                                year: "numeric",
+                                month: "short",
+                                day: "numeric",
+                              })
+                            : "N/A"}
+                        </TableCell>
+                        <TableCell style={{ color: "#001f3f" }}>
+                          <Badge variant="outline" style={{ color: "#001f3f" }}>
+                            {sale.tax_type?.toUpperCase() || "N/A"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell style={{ color: "#001f3f" }}>
+                          {sale.gross_taxable
+                            ? new Intl.NumberFormat("en-PH", {
+                                style: "currency",
+                                currency: "PHP",
+                              }).format(sale.gross_taxable)
+                            : "N/A"}
+                        </TableCell>
+                        <TableCell style={{ color: "#001f3f" }}>
+                          {sale.total_actual_amount
+                            ? new Intl.NumberFormat("en-PH", {
+                                style: "currency",
+                                currency: "PHP",
+                              }).format(sale.total_actual_amount)
+                            : "N/A"}
+                        </TableCell>
+                        <TableCell style={{ color: "#001f3f" }}>{sale.invoice_number || "N/A"}</TableCell>
+                        <TableCell style={{ color: "#001f3f" }}>
+                          {sale.pickup_date
+                            ? new Date(sale.pickup_date).toLocaleDateString("en-US", {
+                                year: "numeric",
+                                month: "short",
+                                day: "numeric",
+                              })
+                            : "N/A"}
+                        </TableCell>
+                        <TableCell style={{ color: "#001f3f" }}>
+                          <Badge variant="outline" style={{ color: "#001f3f" }}>
+                            {sale.sale_type?.toUpperCase() || "N/A"}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {selectedSalesData.length === 0 && !loadingSalesData && (
+                <div className="text-center py-8" style={{ color: "#001f3f" }}>
+                  <p>No sales data found for this commission report.</p>
+                </div>
+              )}
+
+              <div className="flex justify-between items-center pt-4 border-t">
+                <div style={{ color: "#001f3f" }}>
+                  <strong>Total Records: {selectedSalesData.length}</strong>
+                </div>
+                <div style={{ color: "#001f3f" }}>
+                  <strong>
+                    Total Amount:{" "}
+                    {new Intl.NumberFormat("en-PH", {
+                      style: "currency",
+                      currency: "PHP",
+                    }).format(selectedSalesData.reduce((sum, sale) => sum + (sale.total_actual_amount || 0), 0))}
+                  </strong>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </ProtectedRoute>
   )
 }
