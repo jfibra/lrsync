@@ -1,5 +1,7 @@
 "use client"
 
+import * as XLSX from "xlsx";
+import { format } from "date-fns";
 import { useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
@@ -7,8 +9,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { ArrowLeft, User, Calendar, Hash, FileText, DollarSign, Users, Building2, MapPin } from "lucide-react"
+import { ArrowLeft, User, Calendar, Hash, FileText, PhilippinePeso, Users, Building2, MapPin } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
+import { AgentEditModal } from "@/components/agent-edit-modal";
 
 interface CommissionReport {
   uuid: string
@@ -38,6 +41,34 @@ interface AgentBreakdown {
   agents_rate: number
   agent_net_comm: number
   status: string
+  secretary_remarks: string
+  accounting_remarks: string
+
+  // Additional fields for full Excel export:
+  reservation_date?: string
+  type?: string
+  bdo_account?: string
+  net_of_vat?: number
+  agent?: number
+  vat?: number
+  ewt?: number
+  net_comm?: number
+  um_name?: string
+  um_bdo_account?: string
+  um_rate?: number
+  um_amount?: number
+  um_vat?: number
+  um_ewt?: number
+  um_net_comm?: number
+  tl_name?: string
+  tl_bdo_account?: string
+  tl_rate?: number
+  tl_amount?: number
+  tl_vat?: number
+  tl_ewt?: number
+  tl_net_comm?: number
+  remarks?: string
+  invoice_number?: string
 }
 
 interface SalesData {
@@ -70,19 +101,310 @@ export default function CommissionReportViewer() {
   const [salesData, setSalesData] = useState<SalesData[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [attachmentsModalOpen, setAttachmentsModalOpen] = useState(false);
+
+  const [selectedAgent, setSelectedAgent] = useState<any>(null);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+
+  const handleAgentRowClick = (agent: any) => {
+    setSelectedAgent(agent);
+    setEditModalOpen(true);
+  };
+
+  const handleAgentModalClose = () => {
+    setEditModalOpen(false);
+    setSelectedAgent(null);
+  };
+
+  const handleAgentSave = (updatedAgent: any) => {
+    // TODO: Save to backend here if needed
+    setAgentBreakdown((prev) =>
+      prev.map((a) => (a.uuid === updatedAgent.uuid ? { ...a, ...updatedAgent } : a))
+    );
+    setEditModalOpen(false);
+    setSelectedAgent(null);
+  };
 
   const supabase = createClient()
 
   useEffect(() => {
+    const fetchUserProfiles = async () => {
+      if (!salesData.length) return;
+      const userUuids = Array.from(new Set(salesData.map(sale => sale.user_uuid).filter(Boolean)));
+      if (userUuids.length === 0) return;
+      const { data, error } = await supabase
+        .from("user_profiles")
+        .select("auth_user_id, full_name")
+        .in("auth_user_id", userUuids);
+      if (!error && data) {
+        const profiles: { [key: string]: string } = {};
+        data.forEach((profile: any) => {
+          profiles[profile.auth_user_id] = profile.full_name;
+        });
+        setUserProfiles(profiles);
+      }
+    };
+    fetchUserProfiles();
+  }, [salesData]);
+
+  useEffect(() => {
+    console.log("reportNumber:", reportNumber);
     if (reportNumber) {
       fetchReportData()
     }
   }, [reportNumber])
 
+  const [userProfiles, setUserProfiles] = useState<{ [key: string]: string }>({})
+
+  // Helper functions (copy from modal)
+  function formatTaxMonth(taxMonth: string) {
+    if (!taxMonth) return "N/A";
+    const date = new Date(taxMonth);
+    return date.toLocaleString("en-US", { month: "short", year: "numeric" });
+  }
+  function formatTin(tin: string) {
+    if (!tin) return "N/A";
+    return tin.replace(/\D/g, "").replace(/(\d{3})(?=\d)/g, "$1-");
+  }
+  function formatCurrency(amount: number | null | undefined) {
+    if (amount === null || amount === undefined || isNaN(amount)) {
+      return "₱0.00";
+    }
+    return new Intl.NumberFormat("en-PH", {
+      style: "currency",
+      currency: "PHP",
+    }).format(amount);
+  }
+  function formatPercentage(rate: number) {
+    return `${Number(rate).toFixed(2)}%`;
+  }
+
+  const handleExportToExcel = () => {
+    try {
+      const workbook = XLSX.utils.book_new();
+      const worksheetData: any[][] = [];
+
+      // Title
+      worksheetData.push([
+        `Commission Report #${report.report_number} - ${report.user_profiles?.full_name || "User"} - ${format(new Date(), "yyyy-MM-dd HH-mm")}`,
+      ]);
+      worksheetData.push([]);
+
+      // Report Info Section
+      worksheetData.push(["Report Number:", report.report_number]);
+      worksheetData.push(["Created By:", report.user_profiles?.full_name || ""]);
+      worksheetData.push(["Area:", report.user_profiles?.assigned_area || ""]);
+      worksheetData.push(["Status:", report.status]);
+      worksheetData.push(["Created At:", report.created_at ? format(new Date(report.created_at), "MMM dd, yyyy") : ""]);
+      worksheetData.push([]);
+
+      // Loop through each sale
+      salesData.forEach((sale) => {
+        worksheetData.push([`Sale Record Details - Invoice # ${sale.invoice_number || "N/A"}`]);
+        worksheetData.push([
+          "Tax Month:",
+          formatTaxMonth(sale.tax_month),
+          "",
+          "",
+          "Tax Type:",
+          sale.tax_type?.toUpperCase(),
+          "",
+          "",
+          "Total Actual Amount:",
+          formatCurrency(Number(sale.total_actual_amount) || 0),
+        ]);
+        worksheetData.push([
+          "TIN:",
+          formatTin(sale.tin),
+          "",
+          "",
+          "Sale Type:",
+          sale.sale_type?.toUpperCase() || "INVOICE",
+          "",
+          "",
+          "Invoice #:",
+          sale.invoice_number || "N/A",
+        ]);
+        worksheetData.push([
+          "Name:",
+          sale.name,
+          "",
+          "",
+          "Gross Taxable:",
+          formatCurrency(Number(sale.gross_taxable) || 0),
+          "",
+          "",
+          "Pickup Date:",
+          sale.pickup_date ? format(new Date(sale.pickup_date), "MMM dd, yyyy") : "N/A",
+        ]);
+        worksheetData.push(["Area:", report.user_profiles?.assigned_area || "N/A"]);
+        worksheetData.push([]);
+
+        // Agent Breakdown Table Header
+        worksheetData.push([
+          "RESERVATION DATE",
+          "DEVELOPER",
+          "AGENT NAME",
+          "CLIENT",
+          "TYPE",
+          "BDO ACCOUNT #",
+          "COMM",
+          "NET OF VAT",
+          "STATUS",
+          "AGENT'S RATE",
+          "AGENT",
+          "VAT",
+          "EWT",
+          "NET COMM",
+          "UM NAME",
+          "UM BDO ACCOUNT #",
+          "UM RATE",
+          "UM AMOUNT",
+          "UM VAT",
+          "UM EWT",
+          "UM NET COMM",
+          "TL NAME",
+          "TL BDO ACCOUNT #",
+          "TL RATE",
+          "TL AMOUNT",
+          "TL VAT",
+          "TL EWT",
+          "TL NET COMM",
+          "REMARKS",
+        ]);
+
+        // Agent Breakdown Rows for this sale
+        const saleAgents = agentBreakdown.filter(
+          (agent) =>
+            String(agent.commission_report_number) === String(report.report_number) &&
+            String(agent.invoice_number) === String(sale.invoice_number)
+        );
+        console.log("sale.invoice_number:", sale.invoice_number, "saleAgents:", saleAgents);
+
+        if (saleAgents.length > 0) {
+          saleAgents.forEach((agent) => {
+            worksheetData.push([
+              agent.reservation_date ? format(new Date(agent.reservation_date), "MMM dd, yyyy") : "",
+              agent.developer,
+              agent.agent_name,
+              agent.client,
+              agent.type || "COMM",
+              agent.bdo_account || "",
+              formatCurrency(Number(agent.comm) || 0),
+              formatCurrency(Number(agent.net_of_vat) || 0),
+              agent.status,
+              formatPercentage(agent.agents_rate),
+              formatCurrency(Number(agent.agent) || 0),
+              formatCurrency(Number(agent.vat) || 0),
+              formatCurrency(Number(agent.ewt) || 0),
+              formatCurrency(Number(agent.net_comm) || 0),
+              agent.um_name,
+              agent.um_bdo_account || "",
+              formatPercentage(agent.um_rate),
+              formatCurrency(Number(agent.um_amount) || 0),
+              formatCurrency(Number(agent.um_vat) || 0),
+              formatCurrency(Number(agent.um_ewt) || 0),
+              formatCurrency(Number(agent.um_net_comm) || 0),
+              agent.tl_name,
+              agent.tl_bdo_account || "",
+              formatPercentage(agent.tl_rate),
+              formatCurrency(Number(agent.tl_amount) || 0),
+              formatCurrency(Number(agent.tl_vat) || 0),
+              formatCurrency(Number(agent.tl_ewt) || 0),
+              formatCurrency(Number(agent.tl_net_comm) || 0),
+              agent.remarks || "",
+            ]);
+          });
+
+          // Totals row for this sale
+          worksheetData.push([
+            "",
+            "",
+            "",
+            "Totals:",
+            "",
+            "",
+            formatCurrency(saleAgents.reduce((sum, r) => sum + (Number(r.comm) || 0), 0)),
+            formatCurrency(saleAgents.reduce((sum, r) => sum + (Number(r.net_of_vat) || 0), 0)),
+            "",
+            "",
+            formatCurrency(saleAgents.reduce((sum, r) => sum + (Number(r.agent) || 0), 0)),
+            formatCurrency(saleAgents.reduce((sum, r) => sum + (Number(r.vat) || 0), 0)),
+            formatCurrency(saleAgents.reduce((sum, r) => sum + (Number(r.ewt) || 0), 0)),
+            formatCurrency(saleAgents.reduce((sum, r) => sum + (Number(r.net_comm) || 0), 0)),
+            "",
+            "",
+            formatPercentage(saleAgents.reduce((sum, r) => sum + (Number(r.um_rate) || 0), 0)),
+            formatCurrency(saleAgents.reduce((sum, r) => sum + (Number(r.um_amount) || 0), 0)),
+            formatCurrency(saleAgents.reduce((sum, r) => sum + (Number(r.um_vat) || 0), 0)),
+            formatCurrency(saleAgents.reduce((sum, r) => sum + (Number(r.um_ewt) || 0), 0)),
+            formatCurrency(saleAgents.reduce((sum, r) => sum + (Number(r.um_net_comm) || 0), 0)),
+            "",
+            "",
+            formatPercentage(saleAgents.reduce((sum, r) => sum + (Number(r.tl_rate) || 0), 0)),
+            formatCurrency(saleAgents.reduce((sum, r) => sum + (Number(r.tl_amount) || 0), 0)),
+            formatCurrency(saleAgents.reduce((sum, r) => sum + (Number(r.tl_vat) || 0), 0)),
+            formatCurrency(saleAgents.reduce((sum, r) => sum + (Number(r.tl_ewt) || 0), 0)),
+            formatCurrency(saleAgents.reduce((sum, r) => sum + (Number(r.tl_net_comm) || 0), 0)),
+          ]);
+        } else {
+          worksheetData.push(["No commission records added yet."]);
+        }
+
+        worksheetData.push([]);
+        worksheetData.push([]);
+      });
+
+      // Create worksheet from data
+      const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
+
+      // Set column widths for readability (optional)
+      worksheet["!cols"] = [
+        { wch: 18 }, // RESERVATION DATE
+        { wch: 15 }, // DEVELOPER
+        { wch: 20 }, // AGENT NAME
+        { wch: 20 }, // CLIENT
+        { wch: 10 }, // TYPE
+        { wch: 18 }, // BDO ACCOUNT #
+        { wch: 15 }, // COMM
+        { wch: 15 }, // NET OF VAT
+        { wch: 12 }, // STATUS
+        { wch: 15 }, // AGENT'S RATE
+        { wch: 15 }, // AGENT
+        { wch: 15 }, // VAT
+        { wch: 15 }, // EWT
+        { wch: 15 }, // NET COMM
+        { wch: 15 }, // UM NAME
+        { wch: 18 }, // UM BDO ACCOUNT #
+        { wch: 12 }, // UM RATE
+        { wch: 15 }, // UM AMOUNT
+        { wch: 15 }, // UM VAT
+        { wch: 15 }, // UM EWT
+        { wch: 15 }, // UM NET COMM
+        { wch: 15 }, // TL NAME
+        { wch: 18 }, // TL BDO ACCOUNT #
+        { wch: 12 }, // TL RATE
+        { wch: 15 }, // TL AMOUNT
+        { wch: 15 }, // TL VAT
+        { wch: 15 }, // TL EWT
+        { wch: 15 }, // TL NET COMM
+        { wch: 20 }, // REMARKS
+      ];
+
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Commission Report");
+      const fileName = `Commission Report #${report.report_number} - ${report.user_profiles?.full_name || "User"} - ${format(new Date(), "yyyy-MM-dd HH-mm")}.xlsx`;
+      XLSX.writeFile(workbook, fileName);
+    } catch (error) {
+      console.error("Error generating Excel:", error);
+      alert("Failed to generate Excel report. Please try again.");
+    }
+  };
+
   const fetchReportData = async () => {
     try {
       setLoading(true)
       setError(null)
+      console.log("Fetching report data for", reportNumber);
 
       // Fetch commission report
       const { data: reportData, error: reportError } = await supabase
@@ -97,8 +419,9 @@ export default function CommissionReportViewer() {
         .eq("report_number", reportNumber)
         .single()
 
-      if (reportError) throw reportError
+      if (reportError || !reportData) throw reportError || new Error("Report not found")
       setReport(reportData)
+      console.log("Report data:", reportData);
 
       // Fetch agent breakdown
       const { data: agentData, error: agentError } = await supabase
@@ -108,6 +431,10 @@ export default function CommissionReportViewer() {
 
       if (agentError) throw agentError
       setAgentBreakdown(agentData || [])
+
+      console.log("Report data:", reportData);
+      console.log("Agent breakdown:", agentData);
+      console.log("Sales data:", salesData);
 
       // Fetch sales data
       if (reportData?.sales_uuids && reportData.sales_uuids.length > 0) {
@@ -130,6 +457,7 @@ export default function CommissionReportViewer() {
             is_complete,
             remarks,
             user_full_name,
+            user_uuid,  
             created_at
           `)
           .in("id", reportData.sales_uuids)
@@ -137,6 +465,8 @@ export default function CommissionReportViewer() {
 
         if (salesError) throw salesError
         setSalesData(salesData || [])
+      } else {
+        setSalesData([]) // <-- ADD THIS LINE
       }
     } catch (err: any) {
       console.error("Error fetching report data:", err)
@@ -144,20 +474,6 @@ export default function CommissionReportViewer() {
     } finally {
       setLoading(false)
     }
-  }
-
-  const formatCurrency = (amount: number | null | undefined) => {
-    if (amount === null || amount === undefined || isNaN(amount)) {
-      return "₱0.00"
-    }
-    return new Intl.NumberFormat("en-PH", {
-      style: "currency",
-      currency: "PHP",
-    }).format(amount)
-  }
-
-  const formatPercentage = (rate: number) => {
-    return `${(rate * 100).toFixed(2)}%`
   }
 
   if (loading) {
@@ -211,19 +527,30 @@ export default function CommissionReportViewer() {
     <div className="min-h-screen bg-white">
       <div className="container mx-auto p-6 space-y-6">
         {/* Header */}
-        <div className="flex items-center gap-4">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <Button
+              variant="outline"
+              onClick={() => router.back()}
+              className="bg-white border-[#3c8dbc] text-[#3c8dbc] hover:bg-[#3c8dbc] hover:text-white"
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back
+            </Button>
+            <div>
+              <h1 className="text-2xl font-bold text-[#001f3f]">
+                Commission Report #{report.report_number}
+              </h1>
+              <p className="text-gray-600">Detailed breakdown and sales information</p>
+            </div>
+          </div>
           <Button
             variant="outline"
-            onClick={() => router.back()}
-            className="border-[#3c8dbc] text-[#3c8dbc] hover:bg-[#3c8dbc] hover:text-white"
+            className="bg-[#001f3f] border-[#001f3f] text-white hover:bg-white hover:text-[#001f3f]"
+            onClick={handleExportToExcel}
           >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back
+            Generate Commission Report To Excel
           </Button>
-          <div>
-            <h1 className="text-2xl font-bold text-[#001f3f]">Commission Report #{report.report_number}</h1>
-            <p className="text-gray-600">Detailed breakdown and sales information</p>
-          </div>
         </div>
 
         {/* Report Summary Cards */}
@@ -251,7 +578,7 @@ export default function CommissionReportViewer() {
           <Card className="bg-white border-gray-200">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-[#001f3f]">Total Commission</CardTitle>
-              <DollarSign className="h-4 w-4 text-[#28a745]" />
+              <PhilippinePeso className="h-4 w-4 text-[#28a745]" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-[#28a745]">{formatCurrency(totalCommission)}</div>
@@ -261,7 +588,7 @@ export default function CommissionReportViewer() {
           <Card className="bg-white border-gray-200">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-[#001f3f]">Net Commission</CardTitle>
-              <DollarSign className="h-4 w-4 text-[#01ff70]" />
+              <PhilippinePeso className="h-4 w-4 text-[#01ff70]" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-[#01ff70]">{formatCurrency(totalNetCommission)}</div>
@@ -340,39 +667,35 @@ export default function CommissionReportViewer() {
                     <TableHead className="text-[#001f3f] font-semibold">Agent Rate</TableHead>
                     <TableHead className="text-[#001f3f] font-semibold">Net Commission</TableHead>
                     <TableHead className="text-[#001f3f] font-semibold">Status</TableHead>
+                    <TableHead className="text-[#001f3f] font-semibold">Remarks (Secretary)</TableHead>
+                    <TableHead className="text-[#001f3f] font-semibold">Remarks (Accounting)</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {agentBreakdown.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-8 text-gray-400">
+                      <TableCell colSpan={9} className="text-center py-8 text-gray-400">
                         No agent breakdown data found
                       </TableCell>
                     </TableRow>
                   ) : (
                     agentBreakdown.map((agent) => (
-                      <TableRow key={agent.uuid} className="border-gray-100">
+                      <TableRow
+                        key={agent.uuid}
+                        className="border-gray-100 cursor-pointer hover:bg-blue-50"
+                        onClick={() => handleAgentRowClick(agent)}
+                      >
                         <TableCell className="font-medium text-gray-900">{agent.agent_name}</TableCell>
                         <TableCell className="text-gray-700">{agent.developer || "N/A"}</TableCell>
                         <TableCell className="text-gray-700">{agent.client || "N/A"}</TableCell>
-                        <TableCell className="text-[#28a745] font-medium">{formatCurrency(agent.comm)}</TableCell>
+                        <TableCell className="text-[#001f3f] font-medium">{formatCurrency(agent.comm)}</TableCell>
                         <TableCell className="text-gray-700">{formatPercentage(agent.agents_rate)}</TableCell>
-                        <TableCell className="text-[#01ff70] font-medium">
+                        <TableCell className="text-[#001f3f] font-medium">
                           {formatCurrency(agent.agent_net_comm)}
                         </TableCell>
-                        <TableCell>
-                          <Badge
-                            className={
-                              agent.status.toLowerCase() === "active"
-                                ? "bg-[#28a745] text-white hover:bg-[#28a745]/90"
-                                : agent.status.toLowerCase() === "pending"
-                                  ? "bg-[#ffc107] text-[#001f3f] hover:bg-[#ffc107]/90"
-                                  : "bg-[#3c8dbc] text-white hover:bg-[#3c8dbc]/90"
-                            }
-                          >
-                            {agent.status}
-                          </Badge>
-                        </TableCell>
+                        <TableCell className="text-[#001f3f] font-medium">{agent.status}</TableCell>
+                        <TableCell className="text-[#001f3f] font-medium">{agent.secretary_remarks}</TableCell>
+                        <TableCell className="text-[#001f3f] font-medium">{agent.accounting_remarks}</TableCell>
                       </TableRow>
                     ))
                   )}
@@ -395,36 +718,30 @@ export default function CommissionReportViewer() {
               <Table>
                 <TableHeader>
                   <TableRow className="border-gray-200">
+                    <TableHead className="text-[#001f3f] font-semibold">Tax Month</TableHead>
                     <TableHead className="text-[#001f3f] font-semibold">TIN</TableHead>
                     <TableHead className="text-[#001f3f] font-semibold">Taxpayer Name</TableHead>
-                    <TableHead className="text-[#001f3f] font-semibold">Tax Month</TableHead>
-                    <TableHead className="text-[#001f3f] font-semibold">Type</TableHead>
                     <TableHead className="text-[#001f3f] font-semibold">Address</TableHead>
                     <TableHead className="text-[#001f3f] font-semibold">Gross Taxable</TableHead>
                     <TableHead className="text-[#001f3f] font-semibold">Tax Type</TableHead>
                     <TableHead className="text-[#001f3f] font-semibold">Invoice Number</TableHead>
                     <TableHead className="text-[#001f3f] font-semibold">Actual Amount</TableHead>
-                    <TableHead className="text-[#001f3f] font-semibold">Sale Type</TableHead>
-                    <TableHead className="text-[#001f3f] font-semibold">Status</TableHead>
-                    <TableHead className="text-[#001f3f] font-semibold">Agent</TableHead>
+                    <TableHead className="text-[#001f3f] font-semibold">Created By</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {salesData.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={12} className="text-center py-8 text-gray-400">
+                      <TableCell colSpan={9} className="text-center py-8 text-gray-400">
                         No sales data found
                       </TableCell>
                     </TableRow>
                   ) : (
                     salesData.map((sale) => (
                       <TableRow key={sale.id} className="border-gray-100">
-                        <TableCell className="font-mono text-gray-900">{sale.tin || "N/A"}</TableCell>
+                        <TableCell className="text-gray-700">{formatTaxMonth(sale.tax_month)}</TableCell>
+                        <TableCell className="font-mono text-gray-900">{formatTin(sale.tin)}</TableCell>
                         <TableCell className="font-medium text-gray-900">{sale.name || "N/A"}</TableCell>
-                        <TableCell className="text-gray-700">
-                          {sale.tax_month ? new Date(sale.tax_month).toLocaleDateString() : "N/A"}
-                        </TableCell>
-                        <TableCell className="text-gray-700">{sale.type || "N/A"}</TableCell>
                         <TableCell className="text-gray-700 max-w-xs truncate">
                           {`${sale.substreet_street_brgy || ""} ${sale.district_city_zip || ""}`.trim() || "N/A"}
                         </TableCell>
@@ -446,29 +763,9 @@ export default function CommissionReportViewer() {
                         <TableCell className="text-[#01ff70] font-medium">
                           {formatCurrency(sale.total_actual_amount)}
                         </TableCell>
-                        <TableCell>
-                          <Badge
-                            className={
-                              sale.sale_type?.toLowerCase() === "invoice"
-                                ? "bg-[#28a745] text-white hover:bg-[#28a745]/90"
-                                : "bg-[#ff851b] text-white hover:bg-[#ff851b]/90"
-                            }
-                          >
-                            {sale.sale_type?.toUpperCase() || "N/A"}
-                          </Badge>
+                        <TableCell className="text-gray-700">
+                          {userProfiles[sale.user_uuid] || "N/A"}
                         </TableCell>
-                        <TableCell>
-                          <Badge
-                            className={
-                              sale.is_complete
-                                ? "bg-[#28a745] text-white hover:bg-[#28a745]/90"
-                                : "bg-[#ffc107] text-[#001f3f] hover:bg-[#ffc107]/90"
-                            }
-                          >
-                            {sale.is_complete ? "COMPLETE" : "PENDING"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-gray-700">{sale.user_full_name || "N/A"}</TableCell>
                       </TableRow>
                     ))
                   )}
@@ -478,6 +775,12 @@ export default function CommissionReportViewer() {
           </CardContent>
         </Card>
       </div>
+      <AgentEditModal
+        open={editModalOpen}
+        agent={selectedAgent}
+        onClose={handleAgentModalClose}
+        onSave={handleAgentSave}
+      />
     </div>
   )
 }
