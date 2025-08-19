@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -41,248 +41,255 @@ function formatCurrency(amount: number | null | undefined) {
   }).format(amount)
 }
 
-function formatNumberWithCommas(value: string) {
-  const num = value.replace(/,/g, "")
-  if (!num) return ""
-  const parts = num.split(".")
-  parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",")
+function formatCurrencyInput(value: string) {
+  // Remove all non-numeric characters except decimal point
+  const cleanValue = value.replace(/[^\d.]/g, "")
+
+  // Handle multiple decimal points
+  const parts = cleanValue.split(".")
+  if (parts.length > 2) {
+    return parts[0] + "." + parts.slice(1).join("")
+  }
+
+  // Add commas for thousands
+  if (parts[0]) {
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",")
+  }
+
   return parts.join(".")
 }
 
 export function AgentEditModal({ open, agent, onClose, onSave }: AgentEditModalProps) {
   const [form, setForm] = useState(agent || {})
-  const [calcTimer, setCalcTimer] = useState<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
     setForm(agent || {})
   }, [agent])
 
-  const doCalculation = (formData: any) => {
-    const calcType = formData.calculation_type
-    const comm = Number.parseFloat(formData.comm?.toString().replace(/,/g, "") || "0")
-    const agentsRate = Number.parseFloat(formData.agents_rate || "0")
-    const developersRate = Number.parseFloat(formData.developers_rate || "5")
+  const doCalculation = useMemo(() => {
+    return (formData: any) => {
+      const calcType = formData.calculation_type
+      const comm = Number.parseFloat(formData.comm?.toString().replace(/,/g, "") || "0")
+      const agentsRate = Number.parseFloat(formData.agents_rate || "0")
+      const developersRate = Number.parseFloat(formData.developers_rate || "5")
 
-    let netOfVat = ""
-    let agent = ""
-    let vat = ""
-    let ewt = ""
-    let netComm = ""
+      let netOfVat = ""
+      let agent = ""
+      let vat = ""
+      let ewt = ""
+      let netComm = ""
 
-    if (agentsRate === 0) {
-      agent = ""
-      vat = ""
-      ewt = ""
-      netComm = ""
-    } else {
-      if (calcType === "vat deduction") {
-        agent = comm && agentsRate && developersRate ? String((comm * agentsRate) / developersRate) : ""
-        netComm = agent ? String(Number(agent) / 1.12) : ""
-        vat = netComm ? String(Number(netComm) * 0.12) : ""
-        ewt = ""
-        netOfVat = ""
-      } else if (calcType === "nonvat with invoice") {
-        netOfVat = comm ? String(comm / 1.02) : ""
-        agent =
-          netOfVat && agentsRate && developersRate
-            ? String((Number.parseFloat(netOfVat) * agentsRate) / developersRate)
-            : ""
-        const agentEwtRate = Number(formData.agent_ewt_rate || "5") / 100
-        ewt = agent ? String(Number.parseFloat(agent) * agentEwtRate) : ""
-        netComm = agent && ewt ? String(Number.parseFloat(agent) - Number.parseFloat(ewt)) : ""
-        vat = ""
-      } else if (calcType === "nonvat without invoice") {
-        netOfVat = ""
+      if (agentsRate === 0) {
         agent = ""
         vat = ""
         ewt = ""
-        netComm = comm && agentsRate && developersRate ? String((comm * agentsRate) / developersRate) : ""
-      } else if (calcType === "vat with invoice") {
-        netOfVat = comm ? String(comm / 1.02) : ""
-        agent =
-          netOfVat && agentsRate && developersRate
-            ? String((Number.parseFloat(netOfVat) * agentsRate) / developersRate)
-            : ""
-        vat = agent ? String(Number.parseFloat(agent) * 0.12) : ""
-        const agentEwtRate = Number(formData.agent_ewt_rate || "5") / 100
-        ewt = agent ? String(Number.parseFloat(agent) * agentEwtRate) : ""
-        netComm =
-          agent && vat && ewt ? String(Number.parseFloat(agent) + Number.parseFloat(vat) - Number.parseFloat(ewt)) : ""
-      }
-    }
-
-    // UM calculations
-    let umAmount = ""
-    let umVat = ""
-    let umEwt = ""
-    let umNetComm = ""
-
-    if (formData.um_calculation_type && formData.um_rate && formData.um_developers_rate) {
-      const umCalcType = formData.um_calculation_type
-      const umRate = Number.parseFloat(formData.um_rate || "0")
-      const umDevelopersRate = Number.parseFloat(formData.um_developers_rate || "5")
-
-      if (umRate === 0) {
-        umAmount = ""
-        umVat = ""
-        umEwt = ""
-        umNetComm = ""
+        netComm = ""
       } else {
-        if (calcType === "nonvat without invoice" || calcType === "vat deduction") {
-          umAmount = comm && umRate && umDevelopersRate ? String((comm * umRate) / umDevelopersRate) : ""
-        } else if (umCalcType === "nonvat with invoice" || umCalcType === "vat with invoice") {
-          umAmount =
-            netOfVat && umRate && umDevelopersRate
-              ? String((Number.parseFloat(netOfVat) * umRate) / umDevelopersRate)
+        if (calcType === "vat deduction") {
+          agent = comm && agentsRate && developersRate ? String((comm * agentsRate) / developersRate) : ""
+          netComm = agent ? String(Number(agent) / 1.12) : ""
+          vat = netComm ? String(Number(netComm) * 0.12) : ""
+          ewt = ""
+          netOfVat = ""
+        } else if (calcType === "nonvat with invoice") {
+          netOfVat = comm ? String(comm / 1.02) : ""
+          agent =
+            netOfVat && agentsRate && developersRate
+              ? String((Number.parseFloat(netOfVat) * agentsRate) / developersRate)
               : ""
-        } else {
-          umAmount = comm && umRate && umDevelopersRate ? String((comm * umRate) / umDevelopersRate) : ""
+          const agentEwtRate = Number(formData.agent_ewt_rate || "5") / 100
+          ewt = agent ? String(Number.parseFloat(agent) * agentEwtRate) : ""
+          netComm = agent && ewt ? String(Number.parseFloat(agent) - Number.parseFloat(ewt)) : ""
+          vat = ""
+        } else if (calcType === "nonvat without invoice") {
+          netOfVat = ""
+          agent = ""
+          vat = ""
+          ewt = ""
+          netComm = comm && agentsRate && developersRate ? String((comm * agentsRate) / developersRate) : ""
+        } else if (calcType === "vat with invoice") {
+          netOfVat = comm ? String(comm / 1.02) : ""
+          agent =
+            netOfVat && agentsRate && developersRate
+              ? String((Number.parseFloat(netOfVat) * agentsRate) / developersRate)
+              : ""
+          vat = agent ? String(Number.parseFloat(agent) * 0.12) : ""
+          const agentEwtRate = Number(formData.agent_ewt_rate || "5") / 100
+          ewt = agent ? String(Number.parseFloat(agent) * agentEwtRate) : ""
+          netComm =
+            agent && vat && ewt
+              ? String(Number.parseFloat(agent) + Number.parseFloat(vat) - Number.parseFloat(ewt))
+              : ""
         }
+      }
 
-        if (umCalcType === "nonvat with invoice") {
-          const umEwtRate = Number(formData.um_ewt_rate || "5") / 100
-          umEwt = umAmount ? String(Number.parseFloat(umAmount) * umEwtRate) : ""
-          umNetComm = umAmount && umEwt ? String(Number.parseFloat(umAmount) - Number.parseFloat(umEwt)) : ""
-          umVat = ""
-        } else if (umCalcType === "vat with invoice") {
-          umVat = umAmount ? String(Number.parseFloat(umAmount) * 0.12) : ""
-          const umEwtRate = Number(formData.um_ewt_rate || "5") / 100
-          umEwt = umAmount ? String(Number.parseFloat(umAmount) * umEwtRate) : ""
-          umNetComm =
-            umAmount && umVat && umEwt
-              ? String(Number.parseFloat(umAmount) + Number.parseFloat(umVat) - Number.parseFloat(umEwt))
-              : ""
-        } else if (umCalcType === "vat deduction") {
-          umNetComm = umAmount ? String(Number(umAmount) / 1.12) : ""
-          umVat = umNetComm ? String(Number(umNetComm) * 0.12) : ""
-          umEwt = ""
-        } else {
+      // UM calculations
+      let umAmount = ""
+      let umVat = ""
+      let umEwt = ""
+      let umNetComm = ""
+
+      if (formData.um_calculation_type && formData.um_rate && formData.um_developers_rate) {
+        const umCalcType = formData.um_calculation_type
+        const umRate = Number.parseFloat(formData.um_rate || "0")
+        const umDevelopersRate = Number.parseFloat(formData.um_developers_rate || "5")
+
+        if (umRate === 0) {
+          umAmount = ""
           umVat = ""
           umEwt = ""
-          umNetComm = umAmount || ""
+          umNetComm = ""
+        } else {
+          if (calcType === "nonvat without invoice" || calcType === "vat deduction") {
+            umAmount = comm && umRate && umDevelopersRate ? String((comm * umRate) / umDevelopersRate) : ""
+          } else if (umCalcType === "nonvat with invoice" || umCalcType === "vat with invoice") {
+            umAmount =
+              netOfVat && umRate && umDevelopersRate
+                ? String((Number.parseFloat(netOfVat) * umRate) / umDevelopersRate)
+                : ""
+          } else {
+            umAmount = comm && umRate && umDevelopersRate ? String((comm * umRate) / umDevelopersRate) : ""
+          }
+
+          if (umCalcType === "nonvat with invoice") {
+            const umEwtRate = Number(formData.um_ewt_rate || "5") / 100
+            umEwt = umAmount ? String(Number.parseFloat(umAmount) * umEwtRate) : ""
+            umNetComm = umAmount && umEwt ? String(Number.parseFloat(umAmount) - Number.parseFloat(umEwt)) : ""
+            umVat = ""
+          } else if (umCalcType === "vat with invoice") {
+            umVat = umAmount ? String(Number.parseFloat(umAmount) * 0.12) : ""
+            const umEwtRate = Number(formData.um_ewt_rate || "5") / 100
+            umEwt = umAmount ? String(Number.parseFloat(umAmount) * umEwtRate) : ""
+            umNetComm =
+              umAmount && umVat && umEwt
+                ? String(Number.parseFloat(umAmount) + Number.parseFloat(umVat) - Number.parseFloat(umEwt))
+                : ""
+          } else if (umCalcType === "vat deduction") {
+            umNetComm = umAmount ? String(Number(umAmount) / 1.12) : ""
+            umVat = umNetComm ? String(Number(umNetComm) * 0.12) : ""
+            umEwt = ""
+          } else {
+            umVat = ""
+            umEwt = ""
+            umNetComm = umAmount || ""
+          }
         }
       }
+
+      // TL calculations
+      let tlAmount = ""
+      let tlVat = ""
+      let tlEwt = ""
+      let tlNetComm = ""
+
+      if (formData.tl_calculation_type && formData.tl_rate && formData.tl_developers_rate) {
+        const tlCalcType = formData.tl_calculation_type
+        const tlRate = Number.parseFloat(formData.tl_rate || "0")
+        const tlDevelopersRate = Number.parseFloat(formData.tl_developers_rate || "5")
+
+        if (tlRate === 0) {
+          tlAmount = ""
+          tlVat = ""
+          tlEwt = ""
+          tlNetComm = ""
+        } else {
+          if (calcType === "nonvat without invoice" || calcType === "vat deduction") {
+            tlAmount = comm && tlRate && tlDevelopersRate ? String((comm * tlRate) / tlDevelopersRate) : ""
+          } else if (tlCalcType === "nonvat with invoice" || tlCalcType === "vat with invoice") {
+            tlAmount =
+              netOfVat && tlRate && tlDevelopersRate
+                ? String((Number.parseFloat(netOfVat) * tlRate) / tlDevelopersRate)
+                : ""
+          } else {
+            tlAmount = comm && tlRate && tlDevelopersRate ? String((comm * tlRate) / tlDevelopersRate) : ""
+          }
+
+          if (tlCalcType === "nonvat with invoice") {
+            const tlEwtRate = Number(formData.tl_ewt_rate || "5") / 100
+            tlEwt = tlAmount ? String(Number.parseFloat(tlAmount) * tlEwtRate) : ""
+            tlNetComm = tlAmount && tlEwt ? String(Number.parseFloat(tlAmount) - Number.parseFloat(tlEwt)) : ""
+            tlVat = ""
+          } else if (tlCalcType === "vat with invoice") {
+            tlVat = tlAmount ? String(Number.parseFloat(tlAmount) * 0.12) : ""
+            const tlEwtRate = Number(formData.tl_ewt_rate || "5") / 100
+            tlEwt = tlAmount ? String(Number.parseFloat(tlAmount) * tlEwtRate) : ""
+            tlNetComm =
+              tlAmount && tlVat && tlEwt
+                ? String(Number.parseFloat(tlAmount) + Number.parseFloat(tlVat) - Number.parseFloat(tlEwt))
+                : ""
+          } else if (tlCalcType === "vat deduction") {
+            tlNetComm = tlAmount ? String(Number(tlAmount) / 1.12) : ""
+            tlVat = tlNetComm ? String(Number(tlNetComm) * 0.12) : ""
+            tlEwt = ""
+          } else {
+            tlVat = ""
+            tlEwt = ""
+            tlNetComm = tlAmount || ""
+          }
+        }
+      }
+
+      return {
+        ...formData,
+        net_of_vat: netOfVat,
+        agent_amount: agent,
+        agent_vat: vat,
+        agent_ewt: ewt,
+        agent_net_comm: netComm,
+        um_amount: umAmount,
+        um_vat: umVat,
+        um_ewt: umEwt,
+        um_net_comm: umNetComm,
+        tl_amount: tlAmount,
+        tl_vat: tlVat,
+        tl_ewt: tlEwt,
+        tl_net_comm: tlNetComm,
+      }
     }
+  }, [])
 
-    // TL calculations
-    let tlAmount = ""
-    let tlVat = ""
-    let tlEwt = ""
-    let tlNetComm = ""
+  const handleChange = useCallback(
+    (name: string, value: string) => {
+      if (name === "comm") {
+        const formattedValue = formatCurrencyInput(value)
+        setForm((prevForm) => ({ ...prevForm, [name]: formattedValue }))
 
-    if (formData.tl_calculation_type && formData.tl_rate && formData.tl_developers_rate) {
-      const tlCalcType = formData.tl_calculation_type
-      const tlRate = Number.parseFloat(formData.tl_rate || "0")
-      const tlDevelopersRate = Number.parseFloat(formData.tl_developers_rate || "5")
+        // Debounced calculation for commission field
+        const timeoutId = setTimeout(() => {
+          setForm((currentForm) => doCalculation({ ...currentForm, [name]: formattedValue }))
+        }, 500)
 
-      if (tlRate === 0) {
-        tlAmount = ""
-        tlVat = ""
-        tlEwt = ""
-        tlNetComm = ""
+        return () => clearTimeout(timeoutId)
       } else {
-        if (calcType === "nonvat without invoice" || calcType === "vat deduction") {
-          tlAmount = comm && tlRate && tlDevelopersRate ? String((comm * tlRate) / tlDevelopersRate) : ""
-        } else if (tlCalcType === "nonvat with invoice" || tlCalcType === "vat with invoice") {
-          tlAmount =
-            netOfVat && tlRate && tlDevelopersRate
-              ? String((Number.parseFloat(netOfVat) * tlRate) / tlDevelopersRate)
-              : ""
-        } else {
-          tlAmount = comm && tlRate && tlDevelopersRate ? String((comm * tlRate) / tlDevelopersRate) : ""
-        }
+        setForm((prevForm) => {
+          const newForm = { ...prevForm, [name]: value }
 
-        if (tlCalcType === "nonvat with invoice") {
-          const tlEwtRate = Number(formData.tl_ewt_rate || "5") / 100
-          tlEwt = tlAmount ? String(Number.parseFloat(tlAmount) * tlEwtRate) : ""
-          tlNetComm = tlAmount && tlEwt ? String(Number.parseFloat(tlAmount) - Number.parseFloat(tlEwt)) : ""
-          tlVat = ""
-        } else if (tlCalcType === "vat with invoice") {
-          tlVat = tlAmount ? String(Number.parseFloat(tlAmount) * 0.12) : ""
-          const tlEwtRate = Number(formData.tl_ewt_rate || "5") / 100
-          tlEwt = tlAmount ? String(Number.parseFloat(tlAmount) * tlEwtRate) : ""
-          tlNetComm =
-            tlAmount && tlVat && tlEwt
-              ? String(Number.parseFloat(tlAmount) + Number.parseFloat(tlVat) - Number.parseFloat(tlEwt))
-              : ""
-        } else if (tlCalcType === "vat deduction") {
-          tlNetComm = tlAmount ? String(Number(tlAmount) / 1.12) : ""
-          tlVat = tlNetComm ? String(Number(tlNetComm) * 0.12) : ""
-          tlEwt = ""
-        } else {
-          tlVat = ""
-          tlEwt = ""
-          tlNetComm = tlAmount || ""
-        }
+          // Immediate calculation for rate/type changes
+          if (
+            [
+              "calculation_type",
+              "agents_rate",
+              "developers_rate",
+              "agent_ewt_rate",
+              "um_calculation_type",
+              "um_rate",
+              "um_developers_rate",
+              "um_ewt_rate",
+              "tl_calculation_type",
+              "tl_rate",
+              "tl_developers_rate",
+              "tl_ewt_rate",
+            ].includes(name)
+          ) {
+            return doCalculation(newForm)
+          }
+
+          return newForm
+        })
       }
-    }
-
-    return {
-      ...formData,
-      net_of_vat: netOfVat,
-      agent_amount: agent,
-      agent_vat: vat,
-      agent_ewt: ewt,
-      agent_net_comm: netComm,
-      um_amount: umAmount,
-      um_vat: umVat,
-      um_ewt: umEwt,
-      um_net_comm: umNetComm,
-      tl_amount: tlAmount,
-      tl_vat: tlVat,
-      tl_ewt: tlEwt,
-      tl_net_comm: tlNetComm,
-    }
-  }
-
-  const handleChange = (name: string, value: string) => {
-    const newForm = { ...form }
-
-    if (name === "comm") {
-      const formattedValue = formatNumberWithCommas(value)
-      newForm[name] = formattedValue
-      setForm(newForm)
-
-      // Clear previous timer
-      if (calcTimer) {
-        clearTimeout(calcTimer)
-      }
-
-      // Set new timer for calculation
-      const timer = setTimeout(() => {
-        const calculatedForm = doCalculation(newForm)
-        setForm(calculatedForm)
-      }, 700)
-
-      setCalcTimer(timer)
-      return
-    } else {
-      newForm[name] = value
-      setForm(newForm)
-    }
-
-    if (
-      [
-        "calculation_type",
-        "agents_rate",
-        "developers_rate",
-        "agent_ewt_rate",
-        "um_calculation_type",
-        "um_rate",
-        "um_developers_rate",
-        "um_ewt_rate",
-        "tl_calculation_type",
-        "tl_rate",
-        "tl_developers_rate",
-        "tl_ewt_rate",
-      ].includes(name)
-    ) {
-      setTimeout(() => {
-        const calculatedForm = doCalculation(newForm)
-        setForm(calculatedForm)
-      }, 0)
-    }
-  }
+    },
+    [doCalculation],
+  )
 
   const handleSave = () => {
     onSave(form)
@@ -304,6 +311,7 @@ export function AgentEditModal({ open, agent, onClose, onSave }: AgentEditModalP
     type = "text",
     disabled = false,
     children,
+    isDisplayOnly = false,
     ...props
   }: {
     label: string
@@ -311,12 +319,20 @@ export function AgentEditModal({ open, agent, onClose, onSave }: AgentEditModalP
     type?: string
     disabled?: boolean
     children?: React.ReactNode
+    isDisplayOnly?: boolean
     [key: string]: any
   }) => (
     <div>
       <label className="block text-sm font-semibold text-[#001f3f] mb-2">{label}</label>
       {children ? (
         children
+      ) : isDisplayOnly ? (
+        <div>
+          <div className="px-3 py-2 border border-[#3c8dbc] rounded-md bg-gray-50 text-[#001f3f] font-medium">
+            ₱{form[name] ? formatCurrency(Number.parseFloat(form[name])) : "0.00"}
+          </div>
+          <input type="hidden" name={name} value={form[name] || ""} />
+        </div>
       ) : (
         <Input
           className={`border-[#3c8dbc] focus:border-[#001f3f] focus:ring-[#001f3f] text-[#001f3f] bg-white
@@ -346,7 +362,7 @@ export function AgentEditModal({ open, agent, onClose, onSave }: AgentEditModalP
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
             <SectionHeading bgColor="#001f3f">Commission Sale Details</SectionHeading>
 
-            <InputField label="Developer" name="developer" />
+            <InputField label="Developer" name="developer" disabled />
             <InputField label="Client" name="client" disabled />
             <InputField label="Commission" name="comm" type="text" placeholder="0.00" />
             <InputField label="Commission Type" name="comm_type">
@@ -364,19 +380,13 @@ export function AgentEditModal({ open, agent, onClose, onSave }: AgentEditModalP
               </Select>
             </InputField>
             <InputField label="BDO Account #" name="bdo_account" />
-            <InputField
-              label="Net of VAT"
-              name="net_of_vat"
-              type="text"
-              disabled
-              value={form.net_of_vat ? formatCurrency(Number.parseFloat(form.net_of_vat)) : ""}
-            />
+            <InputField label="Net of VAT" name="net_of_vat" isDisplayOnly />
             <InputField label="Status" name="status" />
             <InputField label="Invoice Number" name="invoice_number" />
 
             <SectionHeading bgColor="#3c8dbc">Agent Details</SectionHeading>
 
-            <InputField label="Agent Name" name="agent_name" />
+            <InputField label="Agent Name" name="agent_name" disabled />
             <InputField label="Calculation Type" name="calculation_type">
               <Select
                 value={form.calculation_type || ""}
@@ -425,24 +435,9 @@ export function AgentEditModal({ open, agent, onClose, onSave }: AgentEditModalP
                 </SelectContent>
               </Select>
             </InputField>
-            <InputField
-              label="Agent Amount"
-              name="agent_amount"
-              disabled
-              value={form.agent_amount ? formatCurrency(Number.parseFloat(form.agent_amount)) : ""}
-            />
-            <InputField
-              label="Agent VAT"
-              name="agent_vat"
-              disabled
-              value={form.agent_vat ? formatCurrency(Number.parseFloat(form.agent_vat)) : ""}
-            />
-            <InputField
-              label="Agent EWT"
-              name="agent_ewt"
-              disabled
-              value={form.agent_ewt ? formatCurrency(Number.parseFloat(form.agent_ewt)) : ""}
-            />
+            <InputField label="Agent Amount" name="agent_amount" isDisplayOnly />
+            <InputField label="Agent VAT" name="agent_vat" isDisplayOnly />
+            <InputField label="Agent EWT" name="agent_ewt" isDisplayOnly />
             <InputField label="Agent EWT Rate (%)" name="agent_ewt_rate">
               <Select
                 value={form.agent_ewt_rate || "5"}
@@ -461,12 +456,7 @@ export function AgentEditModal({ open, agent, onClose, onSave }: AgentEditModalP
                 </SelectContent>
               </Select>
             </InputField>
-            <InputField
-              label="Agent Net Commission"
-              name="agent_net_comm"
-              disabled
-              value={form.agent_net_comm ? formatCurrency(Number.parseFloat(form.agent_net_comm)) : ""}
-            />
+            <InputField label="Agent Net Commission" name="agent_net_comm" isDisplayOnly />
 
             <SectionHeading bgColor="#ff851b">UM Details</SectionHeading>
 
@@ -520,24 +510,9 @@ export function AgentEditModal({ open, agent, onClose, onSave }: AgentEditModalP
                 </SelectContent>
               </Select>
             </InputField>
-            <InputField
-              label="UM Amount"
-              name="um_amount"
-              disabled
-              value={form.um_amount ? formatCurrency(Number.parseFloat(form.um_amount)) : ""}
-            />
-            <InputField
-              label="UM VAT"
-              name="um_vat"
-              disabled
-              value={form.um_vat ? formatCurrency(Number.parseFloat(form.um_vat)) : ""}
-            />
-            <InputField
-              label="UM EWT"
-              name="um_ewt"
-              disabled
-              value={form.um_ewt ? formatCurrency(Number.parseFloat(form.um_ewt)) : ""}
-            />
+            <InputField label="UM Amount" name="um_amount" isDisplayOnly />
+            <InputField label="UM VAT" name="um_vat" isDisplayOnly />
+            <InputField label="UM EWT" name="um_ewt" isDisplayOnly />
             <InputField label="UM EWT Rate (%)" name="um_ewt_rate">
               <Select value={form.um_ewt_rate || "5"} onValueChange={(value) => handleChange("um_ewt_rate", value)}>
                 <SelectTrigger className="border-[#3c8dbc] focus:border-[#001f3f] text-[#001f3f] bg-white">
@@ -553,12 +528,7 @@ export function AgentEditModal({ open, agent, onClose, onSave }: AgentEditModalP
                 </SelectContent>
               </Select>
             </InputField>
-            <InputField
-              label="UM Net Commission"
-              name="um_net_comm"
-              disabled
-              value={form.um_net_comm ? formatCurrency(Number.parseFloat(form.um_net_comm)) : ""}
-            />
+            <InputField label="UM Net Commission" name="um_net_comm" isDisplayOnly />
 
             <SectionHeading bgColor="#ffc107">TL Details</SectionHeading>
 
@@ -612,24 +582,9 @@ export function AgentEditModal({ open, agent, onClose, onSave }: AgentEditModalP
                 </SelectContent>
               </Select>
             </InputField>
-            <InputField
-              label="TL Amount"
-              name="tl_amount"
-              disabled
-              value={form.tl_amount ? formatCurrency(Number.parseFloat(form.tl_amount)) : ""}
-            />
-            <InputField
-              label="TL VAT"
-              name="tl_vat"
-              disabled
-              value={form.tl_vat ? formatCurrency(Number.parseFloat(form.tl_vat)) : ""}
-            />
-            <InputField
-              label="TL EWT"
-              name="tl_ewt"
-              disabled
-              value={form.tl_ewt ? formatCurrency(Number.parseFloat(form.tl_ewt)) : ""}
-            />
+            <InputField label="TL Amount" name="tl_amount" isDisplayOnly />
+            <InputField label="TL VAT" name="tl_vat" isDisplayOnly />
+            <InputField label="TL EWT" name="tl_ewt" isDisplayOnly />
             <InputField label="TL EWT Rate (%)" name="tl_ewt_rate">
               <Select value={form.tl_ewt_rate || "5"} onValueChange={(value) => handleChange("tl_ewt_rate", value)}>
                 <SelectTrigger className="border-[#3c8dbc] focus:border-[#001f3f] text-[#001f3f] bg-white">
@@ -645,12 +600,7 @@ export function AgentEditModal({ open, agent, onClose, onSave }: AgentEditModalP
                 </SelectContent>
               </Select>
             </InputField>
-            <InputField
-              label="TL Net Commission"
-              name="tl_net_comm"
-              disabled
-              value={form.tl_net_comm ? formatCurrency(Number.parseFloat(form.tl_net_comm)) : ""}
-            />
+            <InputField label="TL Net Commission" name="tl_net_comm" isDisplayOnly />
 
             <SectionHeading bgColor="#28a745">Remarks</SectionHeading>
 
