@@ -5,9 +5,9 @@ export async function POST(request: NextRequest) {
   try {
     const supabase = await createServerClient()
     const body = await request.json()
-    const { id, ...updateData } = body
+    const { uuid, ...updateData } = body
 
-    const { data, error } = await supabase.from("commission_agent_breakdown").update(updateData).eq("id", id).select()
+    const { data, error } = await supabase.from("commission_agent_breakdown").update(updateData).eq("uuid", uuid).select()
 
     if (error) {
       console.error("Database error:", error)
