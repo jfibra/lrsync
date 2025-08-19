@@ -191,13 +191,15 @@ export function CommissionGenerationModal({
   const groupedByDeveloperAndInvoice = selectedSales.reduce(
     (acc, sale) => {
       const developerId = sale.user_uuid
+      const saleId = sale.id
       const developerName = sale.name || "Unknown Developer"
       const invoiceNumber = sale.invoice_number || "N/A"
-      const key = `${developerId}-${invoiceNumber}`
+      const key = `${developerId}-${invoiceNumber}-${saleId}`
 
       if (!acc[key]) {
         acc[key] = {
           developerId,
+          saleId,
           developerName,
           invoiceNumber,
           sales: [],
@@ -1003,6 +1005,8 @@ export function CommissionGenerationModal({
             tl_bdo_account: record.tlBdoAccount || null,
             secretary_remarks: record.remarks || null, // or record.secretaryRemarks if you have it
             accounting_remarks: null, // or record.accountingRemarks if you have it
+            sales_uuid: groupedByDeveloperAndInvoice[tabKey]?.saleId ?? null,
+            invoice_number: groupedByDeveloperAndInvoice[tabKey]?.invoiceNumber ?? null,
           })
         })
       })
@@ -1204,7 +1208,7 @@ export function CommissionGenerationModal({
                                   className="bg-[#001f3f] text-white hover:bg-[#001f3f]/90"
                                 >
                                   <Plus className="h-3 w-3 mr-1" />
-                                  Add to {groupedByDeveloperAndInvoice[tabKey].invoiceNumber}
+                                  Add to {groupedByDeveloperAndInvoice[tabKey].invoiceNumber}({groupedByDeveloperAndInvoice[tabKey].developerName})
                                 </Button>
                               ))}
                             </div>
@@ -2061,6 +2065,8 @@ export function CommissionGenerationModal({
                                         {/* Hidden fields */}
                                         <input type="hidden" name={`commissionRecords[${key}][${index}][lrsalesId]`} value={record.lrsalesId ?? ""} />
                                         <input type="hidden" name={`commissionRecords[${key}][${index}][memberid]`} value={record.memberid ?? ""} />
+                                        <input type="hidden" name={`commissionRecords[${key}][${index}][saleId]`} value={group.saleId ?? ""} />
+                                        <input type="hidden" name={`commissionRecords[${key}][${index}][invoiceNumber]`} value={group.invoiceNumber ?? ""} />
                                       </TableRow>
                                     ))}
                                     {/* Combined Totals Row */}
