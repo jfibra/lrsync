@@ -74,7 +74,39 @@ export function AgentEditModal({ open, agent, onClose, onSave }: AgentEditModalP
   const [currentStep, setCurrentStep] = useState(1)
 
   useEffect(() => {
-    setForm(agent || {})
+    const processedAgent = { ...agent }
+
+    // Set default values for NULL dropdown fields
+    if (processedAgent.agents_rate === null || processedAgent.agents_rate === undefined) {
+      processedAgent.agents_rate = "0"
+    }
+    if (processedAgent.developers_rate === null || processedAgent.developers_rate === undefined) {
+      processedAgent.developers_rate = "5"
+    }
+    if (processedAgent.um_rate === null || processedAgent.um_rate === undefined) {
+      processedAgent.um_rate = "0"
+    }
+    if (processedAgent.um_developers_rate === null || processedAgent.um_developers_rate === undefined) {
+      processedAgent.um_developers_rate = "5"
+    }
+    if (processedAgent.tl_rate === null || processedAgent.tl_rate === undefined) {
+      processedAgent.tl_rate = "0"
+    }
+    if (processedAgent.tl_developers_rate === null || processedAgent.tl_developers_rate === undefined) {
+      processedAgent.tl_developers_rate = "5"
+    }
+
+    if (processedAgent.developers_rate) {
+      processedAgent.developers_rate = String(Number(processedAgent.developers_rate))
+    }
+    if (processedAgent.um_developers_rate) {
+      processedAgent.um_developers_rate = String(Number(processedAgent.um_developers_rate))
+    }
+    if (processedAgent.tl_developers_rate) {
+      processedAgent.tl_developers_rate = String(Number(processedAgent.tl_developers_rate))
+    }
+
+    setForm(processedAgent)
     setCurrentStep(1)
   }, [agent])
 
@@ -266,11 +298,10 @@ export function AgentEditModal({ open, agent, onClose, onSave }: AgentEditModalP
         const formattedValue = formatCurrencyInput(value)
         setForm((prevForm) => ({ ...prevForm, [name]: formattedValue }))
 
-        // Debounced calculation for commission field
         if (commTimeout.current) clearTimeout(commTimeout.current)
         commTimeout.current = setTimeout(() => {
           setForm((currentForm) => doCalculation({ ...currentForm, [name]: formattedValue }))
-        }, 500)
+        }, 1000) // Increased to 1 second for better user experience
       } else {
         setForm((prevForm) => {
           const newForm = { ...prevForm, [name]: value }
@@ -301,6 +332,10 @@ export function AgentEditModal({ open, agent, onClose, onSave }: AgentEditModalP
     },
     [doCalculation],
   )
+
+  const handleSimpleChange = useCallback((name: string, value: string) => {
+    setForm((prevForm) => ({ ...prevForm, [name]: value }))
+  }, [])
 
   const handleSave = async () => {
     try {
@@ -358,6 +393,7 @@ export function AgentEditModal({ open, agent, onClose, onSave }: AgentEditModalP
     disabled = false,
     children,
     isDisplayOnly = false,
+    unrestricted = false,
     ...props
   }: {
     label: string
@@ -366,6 +402,7 @@ export function AgentEditModal({ open, agent, onClose, onSave }: AgentEditModalP
     disabled?: boolean
     children?: React.ReactNode
     isDisplayOnly?: boolean
+    unrestricted?: boolean
     [key: string]: any
   }) => (
     <div>
@@ -387,7 +424,9 @@ export function AgentEditModal({ open, agent, onClose, onSave }: AgentEditModalP
           name={name}
           type={type}
           value={form[name] || ""}
-          onChange={(e) => handleChange(name, e.target.value)}
+          onChange={(e) =>
+            unrestricted ? handleSimpleChange(name, e.target.value) : handleChange(name, e.target.value)
+          }
           disabled={disabled}
           {...props}
         />
@@ -418,10 +457,10 @@ export function AgentEditModal({ open, agent, onClose, onSave }: AgentEditModalP
                 </SelectContent>
               </Select>
             </InputField>
-            <InputField label="BDO Account #" name="bdo_account" />
+            <InputField label="BDO Account #" name="bdo_account" unrestricted />
             <InputField label="Net of VAT" name="net_of_vat" isDisplayOnly />
-            <InputField label="Status" name="status" />
-            <InputField label="Invoice Number" name="invoice_number" />
+            <InputField label="Status" name="status" unrestricted />
+            <InputField label="Invoice Number" name="invoice_number" unrestricted />
           </div>
         )
       case 2:
@@ -447,7 +486,7 @@ export function AgentEditModal({ open, agent, onClose, onSave }: AgentEditModalP
               </Select>
             </InputField>
             <InputField label="Agent's Rate (%)" name="agents_rate">
-              <Select value={form.agents_rate || ""} onValueChange={(value) => handleChange("agents_rate", value)}>
+              <Select value={form.agents_rate || "0"} onValueChange={(value) => handleChange("agents_rate", value)}>
                 <SelectTrigger className="border-[#3c8dbc] focus:border-[#001f3f] text-[#001f3f] bg-white">
                   <SelectValue placeholder="Select rate" />
                 </SelectTrigger>
@@ -462,7 +501,7 @@ export function AgentEditModal({ open, agent, onClose, onSave }: AgentEditModalP
             </InputField>
             <InputField label="Developer's Rate (%)" name="developers_rate">
               <Select
-                value={form.developers_rate || ""}
+                value={form.developers_rate || "5"}
                 onValueChange={(value) => handleChange("developers_rate", value)}
               >
                 <SelectTrigger className="border-[#3c8dbc] focus:border-[#001f3f] text-[#001f3f] bg-white">
@@ -505,8 +544,8 @@ export function AgentEditModal({ open, agent, onClose, onSave }: AgentEditModalP
         return (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
             <SectionHeading bgColor="#ff851b">UM Details</SectionHeading>
-            <InputField label="UM Name" name="um_name" />
-            <InputField label="UM BDO Account #" name="um_bdo_account" />
+            <InputField label="UM Name" name="um_name" unrestricted />
+            <InputField label="UM BDO Account #" name="um_bdo_account" unrestricted />
             <InputField label="UM Calculation Type" name="um_calculation_type">
               <Select
                 value={form.um_calculation_type || ""}
@@ -525,7 +564,7 @@ export function AgentEditModal({ open, agent, onClose, onSave }: AgentEditModalP
               </Select>
             </InputField>
             <InputField label="UM Rate (%)" name="um_rate">
-              <Select value={form.um_rate || ""} onValueChange={(value) => handleChange("um_rate", value)}>
+              <Select value={form.um_rate || "0"} onValueChange={(value) => handleChange("um_rate", value)}>
                 <SelectTrigger className="border-[#3c8dbc] focus:border-[#001f3f] text-[#001f3f] bg-white">
                   <SelectValue placeholder="Select rate" />
                 </SelectTrigger>
@@ -540,7 +579,7 @@ export function AgentEditModal({ open, agent, onClose, onSave }: AgentEditModalP
             </InputField>
             <InputField label="UM Developer's Rate (%)" name="um_developers_rate">
               <Select
-                value={form.um_developers_rate || ""}
+                value={form.um_developers_rate || "5"}
                 onValueChange={(value) => handleChange("um_developers_rate", value)}
               >
                 <SelectTrigger className="border-[#3c8dbc] focus:border-[#001f3f] text-[#001f3f] bg-white">
@@ -580,8 +619,8 @@ export function AgentEditModal({ open, agent, onClose, onSave }: AgentEditModalP
         return (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
             <SectionHeading bgColor="#ffc107">TL Details</SectionHeading>
-            <InputField label="TL Name" name="tl_name" />
-            <InputField label="TL BDO Account #" name="tl_bdo_account" />
+            <InputField label="TL Name" name="tl_name" unrestricted />
+            <InputField label="TL BDO Account #" name="tl_bdo_account" unrestricted />
             <InputField label="TL Calculation Type" name="tl_calculation_type">
               <Select
                 value={form.tl_calculation_type || ""}
@@ -600,7 +639,7 @@ export function AgentEditModal({ open, agent, onClose, onSave }: AgentEditModalP
               </Select>
             </InputField>
             <InputField label="TL Rate (%)" name="tl_rate">
-              <Select value={form.tl_rate || ""} onValueChange={(value) => handleChange("tl_rate", value)}>
+              <Select value={form.tl_rate || "0"} onValueChange={(value) => handleChange("tl_rate", value)}>
                 <SelectTrigger className="border-[#3c8dbc] focus:border-[#001f3f] text-[#001f3f] bg-white">
                   <SelectValue placeholder="Select rate" />
                 </SelectTrigger>
@@ -615,7 +654,7 @@ export function AgentEditModal({ open, agent, onClose, onSave }: AgentEditModalP
             </InputField>
             <InputField label="TL Developer's Rate (%)" name="tl_developers_rate">
               <Select
-                value={form.tl_developers_rate || ""}
+                value={form.tl_developers_rate || "5"}
                 onValueChange={(value) => handleChange("tl_developers_rate", value)}
               >
                 <SelectTrigger className="border-[#3c8dbc] focus:border-[#001f3f] text-[#001f3f] bg-white">
@@ -655,8 +694,8 @@ export function AgentEditModal({ open, agent, onClose, onSave }: AgentEditModalP
         return (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
             <SectionHeading bgColor="#28a745">Remarks</SectionHeading>
-            <InputField label="Secretary Remarks" name="secretary_remarks" />
-            <InputField label="Accounting Remarks" name="accounting_remarks" />
+            <InputField label="Secretary Remarks" name="secretary_remarks" unrestricted />
+            <InputField label="Accounting Remarks" name="accounting_remarks" unrestricted />
           </div>
         )
       default:
