@@ -718,6 +718,7 @@ export default function CommissionReportViewer() {
               <Table>
                 <TableHeader>
                   <TableRow className="border-gray-200">
+                    <TableHead className="text-[#001f3f] font-semibold">Sale ID</TableHead>
                     <TableHead className="text-[#001f3f] font-semibold">Tax Month</TableHead>
                     <TableHead className="text-[#001f3f] font-semibold">TIN</TableHead>
                     <TableHead className="text-[#001f3f] font-semibold">Taxpayer Name</TableHead>
@@ -739,6 +740,7 @@ export default function CommissionReportViewer() {
                   ) : (
                     salesData.map((sale) => (
                       <TableRow key={sale.id} className="border-gray-100">
+                        <TableCell className="text-gray-700">{sale.id}</TableCell>
                         <TableCell className="text-gray-700">{formatTaxMonth(sale.tax_month)}</TableCell>
                         <TableCell className="font-mono text-gray-900">{formatTin(sale.tin)}</TableCell>
                         <TableCell className="font-medium text-gray-900">{sale.name || "N/A"}</TableCell>
