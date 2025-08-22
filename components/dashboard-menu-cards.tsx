@@ -175,6 +175,16 @@ export function DashboardMenuCards({ userRole }: DashboardMenuCardsProps) {
             badgeColor: "bg-red-100 text-red-800",
           },
           {
+            title: "TIN Library",
+            description: "Browse taxpayer identification numbers",
+            icon: Building2,
+            href: "/dashboard/secretary/tin-library",
+            color: "from-orange-500 to-orange-600",
+            bgColor: "bg-orange-50/80 border-orange-200",
+            badge: "Reference",
+            badgeColor: "bg-orange-100 text-orange-800",
+          },
+          {
             title: "Commission Generator",
             description: "Track sales and calculate commissions",
             icon: Calculator,
@@ -193,16 +203,6 @@ export function DashboardMenuCards({ userRole }: DashboardMenuCardsProps) {
             bgColor: "bg-indigo-50/80 border-indigo-200",
             badge: "View Only",
             badgeColor: "bg-indigo-100 text-indigo-800",
-          },
-          {
-            title: "TIN Library",
-            description: "Browse taxpayer identification numbers",
-            icon: Building2,
-            href: "/dashboard/secretary/tin-library",
-            color: "from-orange-500 to-orange-600",
-            bgColor: "bg-orange-50/80 border-orange-200",
-            badge: "Reference",
-            badgeColor: "bg-orange-100 text-orange-800",
           },
         ]
 

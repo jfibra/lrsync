@@ -754,10 +754,10 @@ export default function SecretaryCommissionReportsPage() {
 
           <Card className="bg-white border-2 border-purple-200">
             <CardHeader>
-              <div className="flex justify-between items-center">
-                <CardTitle className="text-[#001f3f]">Commission Reports</CardTitle>
-                <div className="flex items-center gap-4">
-                  <div className="flex gap-2">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <CardTitle className="text-[#001f3f] text-lg sm:text-2xl">Commission Reports</CardTitle>
+                <div className="flex flex-col gap-2 w-full sm:w-auto sm:flex-row sm:items-center sm:gap-4">
+                  <div className="flex flex-col gap-2 w-full sm:w-auto sm:flex-row sm:items-center">
                     <ColumnVisibilityControl columns={columnVisibility} onColumnToggle={toggleColumnVisibility} />
                     <CommissionReportsExportModal
                       reports={reports}
@@ -787,19 +787,20 @@ export default function SecretaryCommissionReportsPage() {
                       variant="outline"
                       size="sm"
                       onClick={exportToExcel}
-                      className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white border-0 shadow-lg"
+                      className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white border-0 shadow-lg w-full sm:w-auto flex items-center justify-center"
                     >
                       <Download className="h-4 w-4 mr-2" />
-                      Export Excel
+                      <span className="hidden xs:inline">Export Excel</span>
+                      <span className="inline xs:hidden">Export</span>
                     </Button>
                   </div>
-                  <div className="flex items-center gap-2 bg-purple-50 px-3 py-2 rounded-lg border border-purple-200">
+                  <div className="flex items-center gap-2 bg-purple-50 px-3 py-2 rounded-lg border border-purple-200 w-full sm:w-auto">
                     <span className="text-sm font-medium text-[#001f3f]">Show</span>
                     <Select
                       value={recordsPerPage.toString()}
                       onValueChange={(value) => setRecordsPerPage(Number(value))}
                     >
-                      <SelectTrigger className="w-20 border-purple-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 bg-white text-[#001f3f] font-medium">
+                      <SelectTrigger className="w-full sm:w-20 border-purple-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 bg-white text-[#001f3f] font-medium">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent className="bg-white border-purple-200 text-[#001f3f]">
@@ -1035,12 +1036,12 @@ export default function SecretaryCommissionReportsPage() {
                                               <span>
                                                 {mostRecent.timestamp
                                                   ? new Date(mostRecent.timestamp).toLocaleString("en-US", {
-                                                      year: "numeric",
-                                                      month: "short",
-                                                      day: "numeric",
-                                                      hour: "2-digit",
-                                                      minute: "2-digit",
-                                                    })
+                                                    year: "numeric",
+                                                    month: "short",
+                                                    day: "numeric",
+                                                    hour: "2-digit",
+                                                    minute: "2-digit",
+                                                  })
                                                   : ""}
                                               </span>
                                             </div>
@@ -1200,11 +1201,10 @@ export default function SecretaryCommissionReportsPage() {
               <p className="text-xs text-gray-600">Files will be uploaded to our server and made publicly viewable</p>
             </div>
             <div
-              className={`flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-6 mb-4 transition cursor-pointer ${
-                uploading
+              className={`flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-6 mb-4 transition cursor-pointer ${uploading
                   ? "border-gray-300 bg-gray-50 cursor-not-allowed"
                   : "border-purple-400 bg-purple-50 hover:bg-purple-100"
-              }`}
+                }`}
               onDrop={uploading ? undefined : handleDrop}
               onDragOver={uploading ? undefined : (e) => e.preventDefault()}
               onClick={uploading ? undefined : () => document.getElementById("file-upload-input")?.click()}
@@ -1346,10 +1346,10 @@ export default function SecretaryCommissionReportsPage() {
                         <TableCell style={{ color: "#001f3f" }}>
                           {sale.tax_month
                             ? new Date(sale.tax_month).toLocaleDateString("en-US", {
-                                year: "numeric",
-                                month: "short",
-                                day: "numeric",
-                              })
+                              year: "numeric",
+                              month: "short",
+                              day: "numeric",
+                            })
                             : "N/A"}
                         </TableCell>
                         <TableCell style={{ color: "#001f3f" }}>
@@ -1360,27 +1360,27 @@ export default function SecretaryCommissionReportsPage() {
                         <TableCell style={{ color: "#001f3f" }}>
                           {sale.gross_taxable
                             ? new Intl.NumberFormat("en-PH", {
-                                style: "currency",
-                                currency: "PHP",
-                              }).format(sale.gross_taxable)
+                              style: "currency",
+                              currency: "PHP",
+                            }).format(sale.gross_taxable)
                             : "N/A"}
                         </TableCell>
                         <TableCell style={{ color: "#001f3f" }}>
                           {sale.total_actual_amount
                             ? new Intl.NumberFormat("en-PH", {
-                                style: "currency",
-                                currency: "PHP",
-                              }).format(sale.total_actual_amount)
+                              style: "currency",
+                              currency: "PHP",
+                            }).format(sale.total_actual_amount)
                             : "N/A"}
                         </TableCell>
                         <TableCell style={{ color: "#001f3f" }}>{sale.invoice_number || "N/A"}</TableCell>
                         <TableCell style={{ color: "#001f3f" }}>
                           {sale.pickup_date
                             ? new Date(sale.pickup_date).toLocaleDateString("en-US", {
-                                year: "numeric",
-                                month: "short",
-                                day: "numeric",
-                              })
+                              year: "numeric",
+                              month: "short",
+                              day: "numeric",
+                            })
                             : "N/A"}
                         </TableCell>
                         <TableCell style={{ color: "#001f3f" }}>

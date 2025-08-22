@@ -897,19 +897,22 @@ export default function SecretarySalesPage() {
           {/* Sales Table */}
           <Card style={{ background: "#f9f9f9", border: "1px solid #e0e0e0" }} className="shadow-lg">
             <CardHeader style={{ background: "#fff", borderBottom: "1px solid #e0e0e0" }}>
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <CardTitle className="text-2xl font-bold flex items-center gap-2" style={{ color: "#001f3f" }}>
-                    <BarChart3 className="h-6 w-6" style={{ color: "#001f3f" }} />
+                  <CardTitle
+                    className="text-xl sm:text-2xl font-bold flex items-center gap-2"
+                    style={{ color: "#001f3f" }}
+                  >
+                    <BarChart3 className="h-5 w-5 sm:h-6 sm:w-6" style={{ color: "#001f3f" }} />
                     Sales Records
                   </CardTitle>
-                  <CardDescription style={{ color: "#555" }} className="mt-1">
+                  <CardDescription style={{ color: "#555" }} className="mt-1 text-sm sm:text-base">
                     {loading
                       ? "Loading..."
                       : `${sales.length} records found in ${profile?.assigned_area || "your area"}`}
                   </CardDescription>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-col gap-2 w-full sm:w-auto sm:flex-row sm:items-center sm:gap-2">
                   <ColumnVisibilityControl columns={columnVisibility} onColumnToggle={toggleColumnVisibility} />
                   <CustomExportModal sales={sales} />
                   <Button
@@ -917,10 +920,11 @@ export default function SecretarySalesPage() {
                     size="sm"
                     onClick={exportToExcel}
                     style={{ background: "#001f3f", color: "#fff", border: "none" }}
-                    className="shadow-lg hover:bg-[#ee3433] bg-transparent"
+                    className="shadow-lg hover:bg-[#ee3433] bg-transparent w-full sm:w-auto flex items-center justify-center"
                   >
                     <Download className="h-4 w-4 mr-2" style={{ color: "#fff" }} />
-                    Export (Invoice Only)
+                    <span className="hidden xs:inline">Export (Invoice Only)</span>
+                    <span className="inline xs:hidden">Export</span>
                   </Button>
                 </div>
               </div>

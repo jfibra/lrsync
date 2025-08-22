@@ -740,45 +740,46 @@ const AgentEditModal = ({ open, agent, onClose, onSave }: AgentEditModalProps) =
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="bg-white text-[#001f3f] max-w-6xl w-full max-h-[90vh] overflow-y-auto rounded-xl shadow-lg border-2 border-[#3c8dbc]">
+      <DialogContent className="bg-white text-[#001f3f] max-w-6xl w-full max-h-[90vh] overflow-y-auto rounded-xl shadow-lg border-2 border-[#3c8dbc] p-2 sm:p-6">
         <DialogHeader className="border-b border-[#3c8dbc] pb-4">
-          <DialogTitle className="text-2xl text-[#001f3f] font-bold">
+          <DialogTitle className="text-lg sm:text-2xl text-[#001f3f] font-bold text-center sm:text-left">
             Edit Agent Commission: {agent.agent_name}
           </DialogTitle>
 
-          <div className="flex items-center justify-center mt-4 space-x-2">
+          {/* Stepper: stack on mobile, row on desktop */}
+          <div className="flex flex-col sm:flex-row items-center justify-center mt-4 gap-2 sm:space-x-2">
             {steps.map((step, index) => (
               <div key={step.id} className="flex items-center">
                 <button
                   onClick={() => goToStep(step.id)}
-                  className={`flex items-center justify-center w-10 h-10 rounded-full border-2 font-semibold text-sm transition-all
-                                        ${
-                                          currentStep === step.id
-                                            ? "border-[#001f3f] bg-[#001f3f] text-white"
-                                            : "border-[#3c8dbc] bg-white text-[#3c8dbc] hover:bg-[#3c8dbc] hover:text-white"
-                                        }`}
+                  className={`flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 font-semibold text-xs sm:text-sm transition-all
+                ${currentStep === step.id
+                      ? "border-[#001f3f] bg-[#001f3f] text-white"
+                      : "border-[#3c8dbc] bg-white text-[#3c8dbc] hover:bg-[#3c8dbc] hover:text-white"
+                    }`}
                 >
-                  {currentStep > step.id ? <Check size={16} /> : step.id}
+                  {currentStep > step.id ? <Check size={14} /> : step.id}
                 </button>
                 <span
-                  className={`ml-2 text-sm font-medium ${currentStep === step.id ? "text-[#001f3f]" : "text-[#3c8dbc]"}`}
+                  className={`ml-2 text-xs sm:text-sm font-medium ${currentStep === step.id ? "text-[#001f3f]" : "text-[#3c8dbc]"}`}
                 >
                   {step.title}
                 </span>
-                {index < steps.length - 1 && <div className="w-8 h-0.5 bg-[#3c8dbc] mx-4"></div>}
+                {index < steps.length - 1 && <div className="hidden sm:block w-8 h-0.5 bg-[#3c8dbc] mx-4"></div>}
               </div>
             ))}
           </div>
         </DialogHeader>
 
-        <div className="py-6">{renderStepContent()}</div>
+        <div className="py-4 sm:py-6">{renderStepContent()}</div>
 
         <DialogFooter className="border-t border-[#3c8dbc] pt-4">
-          <div className="flex justify-between w-full">
-            <div className="flex space-x-2">
+          {/* Buttons: stack on mobile, row on desktop */}
+          <div className="flex flex-col sm:flex-row justify-between w-full gap-2">
+            <div className="flex flex-row gap-2 w-full sm:w-auto">
               <Button
                 variant="outline"
-                className="bg-white text-[#3c8dbc] border-[#3c8dbc] hover:bg-[#3c8dbc] hover:text-white"
+                className="bg-white text-[#3c8dbc] border-[#3c8dbc] hover:bg-[#3c8dbc] hover:text-white w-full sm:w-auto"
                 onClick={prevStep}
                 disabled={currentStep === 1}
               >
@@ -787,7 +788,7 @@ const AgentEditModal = ({ open, agent, onClose, onSave }: AgentEditModalProps) =
               </Button>
               <Button
                 variant="outline"
-                className="bg-white text-[#3c8dbc] border-[#3c8dbc] hover:bg-[#3c8dbc] hover:text-white"
+                className="bg-white text-[#3c8dbc] border-[#3c8dbc] hover:bg-[#3c8dbc] hover:text-white w-full sm:w-auto"
                 onClick={nextStep}
                 disabled={currentStep === steps.length}
               >
@@ -796,15 +797,15 @@ const AgentEditModal = ({ open, agent, onClose, onSave }: AgentEditModalProps) =
               </Button>
             </div>
 
-            <div className="flex space-x-2">
+            <div className="flex flex-row gap-2 w-full sm:w-auto">
               <Button
                 variant="outline"
-                className="bg-white text-[#3c8dbc] border-[#3c8dbc] hover:bg-[#3c8dbc] hover:text-white"
+                className="bg-white text-[#3c8dbc] border-[#3c8dbc] hover:bg-[#3c8dbc] hover:text-white w-full sm:w-auto"
                 onClick={onClose}
               >
                 Cancel
               </Button>
-              <Button className="bg-[#001f3f] text-white hover:bg-[#3c8dbc]" onClick={handleSave}>
+              <Button className="bg-[#001f3f] text-white hover:bg-[#3c8dbc] w-full sm:w-auto" onClick={handleSave}>
                 Save Changes
               </Button>
             </div>

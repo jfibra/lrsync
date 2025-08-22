@@ -460,14 +460,15 @@ export default function SecretaryCommissionPage() {
 
           {/* Generate Commission Button */}
           {selectedSales.length > 0 && (
-            <div className="mb-6">
+            <div className="mb-6 flex flex-col items-center sm:items-start w-full">
               <Button
                 onClick={() => setShowCommissionModal(true)}
-                className="bg-[#001f3f] text-white hover:bg-[#001f3f]/90 font-semibold shadow-lg"
+                className="w-full sm:w-auto bg-[#001f3f] text-white hover:bg-[#001f3f]/90 font-semibold shadow-lg flex items-center justify-center text-base sm:text-lg"
               >
                 <Users className="h-4 w-4 mr-2" />
-                Generate Commission For Highlighted Developers ({selectedSales.length}) -{" "}
-                {profile?.assigned_area || "No Area"}
+                <span className="truncate">
+                  Generate Commission For Highlighted Developers ({selectedSales.length}) - {profile?.assigned_area || "No Area"}
+                </span>
               </Button>
             </div>
           )}
@@ -475,18 +476,18 @@ export default function SecretaryCommissionPage() {
           {/* Sales Table */}
           <Card className="shadow-lg border border-gray-200 bg-white">
             <CardHeader className="bg-gray-50 border-b border-gray-200">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <CardTitle className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                    <Users className="h-6 w-6 text-emerald-600" />
+                  <CardTitle className="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
+                    <Users className="h-5 w-5 sm:h-6 sm:w-6 text-emerald-600" />
                     Commission Records - {profile?.assigned_area || "No Area"}
                   </CardTitle>
-                  <CardDescription className="text-gray-600 mt-1">
+                  <CardDescription className="text-gray-600 mt-1 text-sm sm:text-base">
                     {loading ? "Loading..." : `${sales.length} records found`}
                     {selectedSales.length > 0 && ` • ${selectedSales.length} selected`}
                   </CardDescription>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-col gap-2 w-full sm:w-auto sm:flex-row sm:items-center sm:gap-2">
                   <ColumnVisibilityControl columns={columnVisibility} onColumnToggle={toggleColumnVisibility} />
                 </div>
               </div>
@@ -665,9 +666,9 @@ export default function SecretaryCommissionPage() {
                 </Table>
               </div>
             </CardContent>
-            <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 bg-gray-50">
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between px-6 py-4 border-t border-gray-200 bg-gray-50 w-full">
+              <div className="flex flex-col gap-2 w-full sm:w-auto sm:flex-row sm:items-center sm:gap-4">
+                <div className="flex flex-wrap items-center gap-2">
                   <span className="text-sm text-gray-700">Show</span>
                   <Select value={recordsPerPage.toString()} onValueChange={(value) => setRecordsPerPage(Number(value))}>
                     <SelectTrigger className="w-20 h-8">
@@ -687,54 +688,53 @@ export default function SecretaryCommissionPage() {
                   Showing {startIndex + 1} to {Math.min(endIndex, sales.length)} of {sales.length} records
                 </div>
               </div>
+              <div className="flex flex-col gap-2 w-full sm:w-auto sm:flex-row sm:items-center sm:justify-end">
+                <div className="flex items-center gap-2 justify-center w-full">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                    disabled={currentPage === 1}
+                    className="h-8 px-3"
+                  >
+                    Previous
+                  </Button>
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      let pageNum
+                      if (totalPages <= 5) {
+                        pageNum = i + 1
+                      } else if (currentPage <= 3) {
+                        pageNum = i + 1
+                      } else if (currentPage >= totalPages - 2) {
+                        pageNum = totalPages - 4 + i
+                      } else {
+                        pageNum = currentPage - 2 + i
+                      }
 
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                  disabled={currentPage === 1}
-                  className="h-8 px-3"
-                >
-                  Previous
-                </Button>
-
-                <div className="flex items-center gap-1">
-                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                    let pageNum
-                    if (totalPages <= 5) {
-                      pageNum = i + 1
-                    } else if (currentPage <= 3) {
-                      pageNum = i + 1
-                    } else if (currentPage >= totalPages - 2) {
-                      pageNum = totalPages - 4 + i
-                    } else {
-                      pageNum = currentPage - 2 + i
-                    }
-
-                    return (
-                      <Button
-                        key={pageNum}
-                        variant={currentPage === pageNum ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => setCurrentPage(pageNum)}
-                        className="h-8 w-8 p-0"
-                      >
-                        {pageNum}
-                      </Button>
-                    )
-                  })}
+                      return (
+                        <Button
+                          key={pageNum}
+                          variant={currentPage === pageNum ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => setCurrentPage(pageNum)}
+                          className="h-8 w-8 p-0"
+                        >
+                          {pageNum}
+                        </Button>
+                      )
+                    })}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                    disabled={currentPage === totalPages}
+                    className="h-8 px-3"
+                  >
+                    Next
+                  </Button>
                 </div>
-
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                  disabled={currentPage === totalPages}
-                  className="h-8 px-3"
-                >
-                  Next
-                </Button>
               </div>
             </div>
           </Card>
