@@ -356,9 +356,8 @@ export default function SuperAdminCommissionReportsPage() {
 
         await Swal.fire({
           title: "Success!",
-          text: `${successfulUploads.length} file(s) uploaded successfully${
-            failedUploads.length > 0 ? `. ${failedUploads.length} file(s) failed.` : "."
-          }`,
+          text: `${successfulUploads.length} file(s) uploaded successfully${failedUploads.length > 0 ? `. ${failedUploads.length} file(s) failed.` : "."
+            }`,
           icon: "success",
           confirmButtonColor: "#4284f2",
         })
@@ -602,11 +601,11 @@ export default function SuperAdminCommissionReportsPage() {
         prev.map((r) =>
           r.uuid === statusUpdateReport.uuid
             ? {
-                ...r,
-                status: dbStatus,
-                remarks: statusRemark,
-                history: newHistory,
-              }
+              ...r,
+              status: dbStatus,
+              remarks: statusRemark,
+              history: newHistory,
+            }
             : r,
         ),
       )
@@ -942,11 +941,14 @@ export default function SuperAdminCommissionReportsPage() {
           {/* Data Table */}
           <Card className="bg-white border-2 border-blue-200">
             <CardHeader>
-              <div className="flex justify-between items-center">
-                <CardTitle className="text-[#001f3f]">Commission Reports</CardTitle>
-                <div className="flex items-center gap-4">
-                  <div className="flex gap-2">
-                    <ColumnVisibilityControl columns={columnVisibility} onColumnToggle={toggleColumnVisibility} />
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <CardTitle className="text-[#001f3f] text-lg sm:text-2xl">Commission Reports</CardTitle>
+                <div className="flex flex-col gap-2 w-full sm:w-auto sm:flex-row sm:items-center sm:gap-4">
+                  <div className="flex flex-col gap-2 w-full sm:w-auto sm:flex-row sm:items-center">
+                    <ColumnVisibilityControl
+                      columns={columnVisibility}
+                      onColumnToggle={toggleColumnVisibility}
+                    />
                     <CommissionReportsExportModal
                       reports={reports}
                       onExport={(exportedCount) => {
@@ -973,19 +975,20 @@ export default function SuperAdminCommissionReportsPage() {
                       variant="outline"
                       size="sm"
                       onClick={exportToExcel}
-                      className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white border-0 shadow-lg"
+                      className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white border-0 shadow-lg flex items-center justify-center w-full sm:w-auto"
                     >
                       <Download className="h-4 w-4 mr-2" />
-                      Export Excel
+                      <span className="hidden xs:inline">Export Excel</span>
+                      <span className="inline xs:hidden">Export</span>
                     </Button>
                   </div>
-                  <div className="flex items-center gap-2 bg-blue-50 px-3 py-2 rounded-lg border border-blue-200">
+                  <div className="flex items-center gap-2 bg-blue-50 px-3 py-2 rounded-lg border border-blue-200 w-full sm:w-auto">
                     <span className="text-sm font-medium text-[#001f3f]">Show</span>
                     <Select
                       value={recordsPerPage.toString()}
                       onValueChange={(value) => setRecordsPerPage(Number(value))}
                     >
-                      <SelectTrigger className="w-20 border-blue-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 bg-white text-[#001f3f] font-medium">
+                      <SelectTrigger className="w-full sm:w-20 border-blue-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 bg-white text-[#001f3f] font-medium">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent className="bg-white border-blue-200 text-[#001f3f]">
@@ -1040,11 +1043,6 @@ export default function SuperAdminCommissionReportsPage() {
                               </div>
                             </TableHead>
                           )}
-                          {columnVisibility.find((col) => col.key === "status")?.visible && (
-                            <TableHead className="text-purple-700 font-semibold border-b border-blue-200">
-                              Status
-                            </TableHead>
-                          )}
                           {columnVisibility.find((col) => col.key === "sales_count")?.visible && (
                             <TableHead className="text-blue-700 font-semibold border-b border-blue-200">
                               Sales Count
@@ -1058,6 +1056,11 @@ export default function SuperAdminCommissionReportsPage() {
                           {columnVisibility.find((col) => col.key === "secretary_attachments")?.visible && (
                             <TableHead className="text-blue-700 font-semibold border-b border-blue-200">
                               Attachments (Secretary)
+                            </TableHead>
+                          )}
+                          {columnVisibility.find((col) => col.key === "status")?.visible && (
+                            <TableHead className="text-blue-700 font-semibold border-b border-blue-200">
+                              Status
                             </TableHead>
                           )}
                           {columnVisibility.find((col) => col.key === "remarks")?.visible && (
@@ -1127,9 +1130,6 @@ export default function SuperAdminCommissionReportsPage() {
                                     })}
                                   </TableCell>
                                 )}
-                                {columnVisibility.find((col) => col.key === "status")?.visible && (
-                                  <TableCell>{getStatusBadge(report.status)}</TableCell>
-                                )}
                                 {columnVisibility.find((col) => col.key === "sales_count")?.visible && (
                                   <TableCell>
                                     <button
@@ -1197,6 +1197,9 @@ export default function SuperAdminCommissionReportsPage() {
                                     </div>
                                   </TableCell>
                                 )}
+                                {columnVisibility.find((col) => col.key === "status")?.visible && (
+                                  <TableCell>{getStatusBadge(report.status)}</TableCell>
+                                )}
                                 {columnVisibility.find((col) => col.key === "remarks")?.visible && (
                                   <TableCell className="text-[#001f3f] max-w-xs">
                                     {Array.isArray(report.history) && report.history.length > 0 ? (
@@ -1225,12 +1228,12 @@ export default function SuperAdminCommissionReportsPage() {
                                               <span>
                                                 {mostRecent.timestamp
                                                   ? new Date(mostRecent.timestamp).toLocaleString("en-US", {
-                                                      year: "numeric",
-                                                      month: "short",
-                                                      day: "numeric",
-                                                      hour: "2-digit",
-                                                      minute: "2-digit",
-                                                    })
+                                                    year: "numeric",
+                                                    month: "short",
+                                                    day: "numeric",
+                                                    hour: "2-digit",
+                                                    minute: "2-digit",
+                                                  })
                                                   : ""}
                                               </span>
                                             </div>
@@ -1359,9 +1362,8 @@ export default function SuperAdminCommissionReportsPage() {
       {/* Update Status Modal */}
       {statusUpdateReport && (
         <div
-          className={`fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 ${
-            statusModalOpen ? "" : "hidden"
-          }`}
+          className={`fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 ${statusModalOpen ? "" : "hidden"
+            }`}
         >
           <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-6">
             <h2 className="text-lg text-[#001f3f] font-semibold mb-4">Update Status</h2>
@@ -1449,11 +1451,10 @@ export default function SuperAdminCommissionReportsPage() {
             </div>
 
             <div
-              className={`flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-6 mb-4 transition cursor-pointer ${
-                uploading
-                  ? "border-gray-300 bg-gray-50 cursor-not-allowed"
-                  : "border-blue-400 bg-blue-50 hover:bg-blue-100"
-              }`}
+              className={`flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-6 mb-4 transition cursor-pointer ${uploading
+                ? "border-gray-300 bg-gray-50 cursor-not-allowed"
+                : "border-blue-400 bg-blue-50 hover:bg-blue-100"
+                }`}
               onDrop={uploading ? undefined : handleDrop}
               onDragOver={uploading ? undefined : (e) => e.preventDefault()}
               onClick={uploading ? undefined : () => document.getElementById("file-upload-input")?.click()}
@@ -1594,22 +1595,22 @@ export default function SuperAdminCommissionReportsPage() {
                 prev.map((r) =>
                   r.uuid === selectedAttachmentsReport.uuid
                     ? {
-                        ...r,
-                        ...(isSecretary
-                          ? { secretary_pot: JSON.stringify(updated) }
-                          : { accounting_pot: JSON.stringify(updated) }),
-                      }
+                      ...r,
+                      ...(isSecretary
+                        ? { secretary_pot: JSON.stringify(updated) }
+                        : { accounting_pot: JSON.stringify(updated) }),
+                    }
                     : r,
                 ),
               )
               setSelectedAttachmentsReport((prev) =>
                 prev
                   ? {
-                      ...prev,
-                      ...(isSecretary
-                        ? { secretary_pot: JSON.stringify(updated) }
-                        : { accounting_pot: JSON.stringify(updated) }),
-                    }
+                    ...prev,
+                    ...(isSecretary
+                      ? { secretary_pot: JSON.stringify(updated) }
+                      : { accounting_pot: JSON.stringify(updated) }),
+                  }
                   : prev,
               )
             }
@@ -1667,10 +1668,10 @@ export default function SuperAdminCommissionReportsPage() {
                         <TableCell style={{ color: "#001f3f" }}>
                           {sale.tax_month
                             ? new Date(sale.tax_month).toLocaleDateString("en-US", {
-                                year: "numeric",
-                                month: "short",
-                                day: "numeric",
-                              })
+                              year: "numeric",
+                              month: "short",
+                              day: "numeric",
+                            })
                             : "N/A"}
                         </TableCell>
                         <TableCell style={{ color: "#001f3f" }}>
@@ -1681,27 +1682,27 @@ export default function SuperAdminCommissionReportsPage() {
                         <TableCell style={{ color: "#001f3f" }}>
                           {sale.gross_taxable
                             ? new Intl.NumberFormat("en-PH", {
-                                style: "currency",
-                                currency: "PHP",
-                              }).format(sale.gross_taxable)
+                              style: "currency",
+                              currency: "PHP",
+                            }).format(sale.gross_taxable)
                             : "N/A"}
                         </TableCell>
                         <TableCell style={{ color: "#001f3f" }}>
                           {sale.total_actual_amount
                             ? new Intl.NumberFormat("en-PH", {
-                                style: "currency",
-                                currency: "PHP",
-                              }).format(sale.total_actual_amount)
+                              style: "currency",
+                              currency: "PHP",
+                            }).format(sale.total_actual_amount)
                             : "N/A"}
                         </TableCell>
                         <TableCell style={{ color: "#001f3f" }}>{sale.invoice_number || "N/A"}</TableCell>
                         <TableCell style={{ color: "#001f3f" }}>
                           {sale.pickup_date
                             ? new Date(sale.pickup_date).toLocaleDateString("en-US", {
-                                year: "numeric",
-                                month: "short",
-                                day: "numeric",
-                              })
+                              year: "numeric",
+                              month: "short",
+                              day: "numeric",
+                            })
                             : "N/A"}
                         </TableCell>
                         <TableCell style={{ color: "#001f3f" }}>

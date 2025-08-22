@@ -39,6 +39,7 @@ interface AgentBreakdown {
   client: string
   comm: number
   agents_rate: number
+  calculationType: string
   agent_net_comm: number
   status: string
   secretary_remarks: string
@@ -55,12 +56,14 @@ interface AgentBreakdown {
   net_comm?: number
   um_name?: string
   um_bdo_account?: string
+  umCalculationType: string
   um_rate?: number
   um_amount?: number
   um_vat?: number
   um_ewt?: number
   um_net_comm?: number
   tl_name?: string
+  tlCalculationType: string
   tl_bdo_account?: string
   tl_rate?: number
   tl_amount?: number
@@ -251,6 +254,7 @@ export default function CommissionReportViewer() {
           "COMM",
           "NET OF VAT",
           "STATUS",
+          "AGENT CALC TYPE", // <-- Added
           "AGENT'S RATE",
           "AGENT",
           "VAT",
@@ -258,6 +262,7 @@ export default function CommissionReportViewer() {
           "NET COMM",
           "UM NAME",
           "UM BDO ACCOUNT #",
+          "UM CALC TYPE", // <-- Added
           "UM RATE",
           "UM AMOUNT",
           "UM VAT",
@@ -265,6 +270,7 @@ export default function CommissionReportViewer() {
           "UM NET COMM",
           "TL NAME",
           "TL BDO ACCOUNT #",
+          "TL CALC TYPE", // <-- Added
           "TL RATE",
           "TL AMOUNT",
           "TL VAT",
@@ -290,28 +296,31 @@ export default function CommissionReportViewer() {
               agent.client,
               agent.type || "COMM",
               agent.bdo_account || "",
-              formatCurrency(Number(agent.comm) || 0),
-              formatCurrency(Number(agent.net_of_vat) || 0),
+              Number(agent.comm) || 0, // raw number, no ₱
+              Number(agent.net_of_vat) || 0, // raw number, no ₱
               agent.status,
-              formatPercentage(agent.agents_rate),
-              formatCurrency(Number(agent.agent) || 0),
-              formatCurrency(Number(agent.vat) || 0),
-              formatCurrency(Number(agent.ewt) || 0),
-              formatCurrency(Number(agent.net_comm) || 0),
+              agent.calculationType || "", // Agent calc type
+              agent.agents_rate || "", // raw number, no %
+              Number(agent.agent) || 0,
+              Number(agent.vat) || 0,
+              Number(agent.ewt) || 0,
+              Number(agent.net_comm) || 0,
               agent.um_name,
               agent.um_bdo_account || "",
-              formatPercentage(agent.um_rate),
-              formatCurrency(Number(agent.um_amount) || 0),
-              formatCurrency(Number(agent.um_vat) || 0),
-              formatCurrency(Number(agent.um_ewt) || 0),
-              formatCurrency(Number(agent.um_net_comm) || 0),
+              agent.umCalculationType || "", // UM calc type
+              agent.um_rate || "", // raw number, no %
+              Number(agent.um_amount) || 0,
+              Number(agent.um_vat) || 0,
+              Number(agent.um_ewt) || 0,
+              Number(agent.um_net_comm) || 0,
               agent.tl_name,
               agent.tl_bdo_account || "",
-              formatPercentage(agent.tl_rate),
-              formatCurrency(Number(agent.tl_amount) || 0),
-              formatCurrency(Number(agent.tl_vat) || 0),
-              formatCurrency(Number(agent.tl_ewt) || 0),
-              formatCurrency(Number(agent.tl_net_comm) || 0),
+              agent.tlCalculationType || "", // TL calc type
+              agent.tl_rate || "", // raw number, no %
+              Number(agent.tl_amount) || 0,
+              Number(agent.tl_vat) || 0,
+              Number(agent.tl_ewt) || 0,
+              Number(agent.tl_net_comm) || 0,
               agent.remarks || "",
             ]);
           });
@@ -324,28 +333,28 @@ export default function CommissionReportViewer() {
             "Totals:",
             "",
             "",
-            formatCurrency(saleAgents.reduce((sum, r) => sum + (Number(r.comm) || 0), 0)),
-            formatCurrency(saleAgents.reduce((sum, r) => sum + (Number(r.net_of_vat) || 0), 0)),
+            saleAgents.reduce((sum, r) => sum + (Number(r.comm) || 0), 0),
+            saleAgents.reduce((sum, r) => sum + (Number(r.net_of_vat) || 0), 0),
             "",
             "",
-            formatCurrency(saleAgents.reduce((sum, r) => sum + (Number(r.agent) || 0), 0)),
-            formatCurrency(saleAgents.reduce((sum, r) => sum + (Number(r.vat) || 0), 0)),
-            formatCurrency(saleAgents.reduce((sum, r) => sum + (Number(r.ewt) || 0), 0)),
-            formatCurrency(saleAgents.reduce((sum, r) => sum + (Number(r.net_comm) || 0), 0)),
+            saleAgents.reduce((sum, r) => sum + (Number(r.agent) || 0), 0),
+            saleAgents.reduce((sum, r) => sum + (Number(r.vat) || 0), 0),
+            saleAgents.reduce((sum, r) => sum + (Number(r.ewt) || 0), 0),
+            saleAgents.reduce((sum, r) => sum + (Number(r.net_comm) || 0), 0),
             "",
             "",
-            formatPercentage(saleAgents.reduce((sum, r) => sum + (Number(r.um_rate) || 0), 0)),
-            formatCurrency(saleAgents.reduce((sum, r) => sum + (Number(r.um_amount) || 0), 0)),
-            formatCurrency(saleAgents.reduce((sum, r) => sum + (Number(r.um_vat) || 0), 0)),
-            formatCurrency(saleAgents.reduce((sum, r) => sum + (Number(r.um_ewt) || 0), 0)),
-            formatCurrency(saleAgents.reduce((sum, r) => sum + (Number(r.um_net_comm) || 0), 0)),
+            saleAgents.reduce((sum, r) => sum + (Number(r.um_rate) || 0), 0),
+            saleAgents.reduce((sum, r) => sum + (Number(r.um_amount) || 0), 0),
+            saleAgents.reduce((sum, r) => sum + (Number(r.um_vat) || 0), 0),
+            saleAgents.reduce((sum, r) => sum + (Number(r.um_ewt) || 0), 0),
+            saleAgents.reduce((sum, r) => sum + (Number(r.um_net_comm) || 0), 0),
             "",
             "",
-            formatPercentage(saleAgents.reduce((sum, r) => sum + (Number(r.tl_rate) || 0), 0)),
-            formatCurrency(saleAgents.reduce((sum, r) => sum + (Number(r.tl_amount) || 0), 0)),
-            formatCurrency(saleAgents.reduce((sum, r) => sum + (Number(r.tl_vat) || 0), 0)),
-            formatCurrency(saleAgents.reduce((sum, r) => sum + (Number(r.tl_ewt) || 0), 0)),
-            formatCurrency(saleAgents.reduce((sum, r) => sum + (Number(r.tl_net_comm) || 0), 0)),
+            saleAgents.reduce((sum, r) => sum + (Number(r.tl_rate) || 0), 0),
+            saleAgents.reduce((sum, r) => sum + (Number(r.tl_amount) || 0), 0),
+            saleAgents.reduce((sum, r) => sum + (Number(r.tl_vat) || 0), 0),
+            saleAgents.reduce((sum, r) => sum + (Number(r.tl_ewt) || 0), 0),
+            saleAgents.reduce((sum, r) => sum + (Number(r.tl_net_comm) || 0), 0),
           ]);
         } else {
           worksheetData.push(["No commission records added yet."]);

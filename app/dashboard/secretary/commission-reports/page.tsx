@@ -855,11 +855,6 @@ export default function SecretaryCommissionReportsPage() {
                               </div>
                             </TableHead>
                           )}
-                          {columnVisibility.find((col) => col.key === "status")?.visible && (
-                            <TableHead className="text-purple-700 font-semibold border-b border-blue-200">
-                              Status
-                            </TableHead>
-                          )}
                           {columnVisibility.find((col) => col.key === "sales_count")?.visible && (
                             <TableHead className="text-purple-700 font-semibold border-b border-purple-200">
                               Sales Count
@@ -873,6 +868,11 @@ export default function SecretaryCommissionReportsPage() {
                           {columnVisibility.find((col) => col.key === "secretary_attachments")?.visible && (
                             <TableHead className="text-purple-700 font-semibold border-b border-purple-200">
                               Attachments (Secretary)
+                            </TableHead>
+                          )}
+                          {columnVisibility.find((col) => col.key === "status")?.visible && (
+                            <TableHead className="text-purple-700 font-semibold border-b border-blue-200">
+                              Status
                             </TableHead>
                           )}
                           {columnVisibility.find((col) => col.key === "remarks")?.visible && (
@@ -935,9 +935,6 @@ export default function SecretaryCommissionReportsPage() {
                                       minute: "2-digit",
                                     })}
                                   </TableCell>
-                                )}
-                                {columnVisibility.find((col) => col.key === "status")?.visible && (
-                                  <TableCell>{getStatusBadge(report.status)}</TableCell>
                                 )}
                                 {columnVisibility.find((col) => col.key === "sales_count")?.visible && (
                                   <TableCell>
@@ -1008,6 +1005,9 @@ export default function SecretaryCommissionReportsPage() {
                                       )}
                                     </div>
                                   </TableCell>
+                                )}
+                                {columnVisibility.find((col) => col.key === "status")?.visible && (
+                                  <TableCell>{getStatusBadge(report.status)}</TableCell>
                                 )}
                                 {columnVisibility.find((col) => col.key === "remarks")?.visible && (
                                   <TableCell className="text-[#001f3f] max-w-xs">

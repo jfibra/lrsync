@@ -99,9 +99,9 @@ export default function ActivityTrackerPage() {
                 .from("notifications")
                 .select(
                     `
-          *,
-          user_profiles(role, assigned_area, full_name)
-        `,
+                    *,
+                    user_profiles(role, assigned_area, full_name)
+                    `,
                     { count: "exact" },
                 )
                 .order("created_at", { ascending: false })

@@ -532,18 +532,18 @@ export default function SuperAdminPurchasesPage() {
       {/* Purchases Table */}
       <Card className="border-[#001f3f]/20 shadow-lg bg-white">
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <CardTitle className="flex items-center gap-2 text-[#001f3f]">
-                <BarChart3 className="h-6 w-6 text-[#001f3f]" />
+              <CardTitle className="flex items-center gap-2 text-[#001f3f] text-lg sm:text-2xl">
+                <BarChart3 className="h-5 w-5 sm:h-6 sm:w-6 text-[#001f3f]" />
                 Purchase Records
               </CardTitle>
-              <CardDescription className="text-[#001f3f]/70 mt-1">
+              <CardDescription className="text-[#001f3f]/70 mt-1 text-sm sm:text-base">
                 {loading ? "Loading..." : `${purchases.length} records found`}
               </CardDescription>
             </div>
             {/* Export and column visibility controls */}
-            <div className="flex items-center gap-2">
+            <div className="flex flex-col gap-2 w-full sm:w-auto sm:flex-row sm:items-center sm:gap-2">
               <ColumnVisibilityControl
                 columns={[
                   { key: "tax_month", label: "Tax Month" },
@@ -565,19 +565,21 @@ export default function SuperAdminPurchasesPage() {
                 variant="outline"
                 size="sm"
                 onClick={handleStandardExport}
-                className="bg-white border-[#001f3f]/30 text-[#001f3f] hover:bg-[#001f3f]/10"
+                className="bg-white border-[#001f3f]/30 text-[#001f3f] hover:bg-[#001f3f]/10 flex items-center justify-center"
               >
                 <Download className="h-4 w-4 mr-2" />
-                Export
+                <span className="hidden xs:inline">Export</span>
+                <span className="inline xs:hidden">Export</span>
               </Button>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setExportModalOpen(true)}
-                className="bg-white border-[#001f3f]/30 text-[#001f3f] hover:bg-[#001f3f]/10"
+                className="bg-white border-[#001f3f]/30 text-[#001f3f] hover:bg-[#001f3f]/10 flex items-center justify-center"
               >
                 <FileSpreadsheet className="h-4 w-4 mr-2" />
-                Custom Export
+                <span className="hidden xs:inline">Custom Export</span>
+                <span className="inline xs:hidden">Custom</span>
               </Button>
             </div>
           </div>

@@ -363,7 +363,7 @@ export default function SuperAdminCommissionPage() {
                   <Users className="h-8 w-8 text-white" />
                 </div>
                 <div>
-                  <h1 className="text-4xl font-bold text-gray-900">Commission Management</h1>
+                  <h1 className="text-4xl font-bold text-gray-900">Commission Generator</h1>
                   <p className="text-gray-600 mt-1">Track and manage sales records for commission calculations</p>
                 </div>
               </div>
@@ -700,9 +700,9 @@ export default function SuperAdminCommissionPage() {
                 </Table>
               </div>
             </CardContent>
-            <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 bg-gray-50">
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between px-6 py-4 border-t border-gray-200 bg-gray-50 w-full">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
+                <div className="flex flex-wrap items-center gap-2">
                   <span className="text-sm text-gray-700">Show</span>
                   <Select value={recordsPerPage.toString()} onValueChange={(value) => setRecordsPerPage(Number(value))}>
                     <SelectTrigger className="w-20 h-8">
@@ -722,8 +722,7 @@ export default function SuperAdminCommissionPage() {
                   Showing {startIndex + 1} to {Math.min(endIndex, sales.length)} of {sales.length} records
                 </div>
               </div>
-
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-center sm:justify-end">
                 <Button
                   variant="outline"
                   size="sm"
@@ -733,7 +732,6 @@ export default function SuperAdminCommissionPage() {
                 >
                   Previous
                 </Button>
-
                 <div className="flex items-center gap-1">
                   {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                     let pageNum
@@ -746,7 +744,6 @@ export default function SuperAdminCommissionPage() {
                     } else {
                       pageNum = currentPage - 2 + i
                     }
-
                     return (
                       <Button
                         key={pageNum}
@@ -760,7 +757,6 @@ export default function SuperAdminCommissionPage() {
                     )
                   })}
                 </div>
-
                 <Button
                   variant="outline"
                   size="sm"

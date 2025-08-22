@@ -54,7 +54,7 @@ export default function SuperAdminSalesPage() {
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1)
-  const [pageSize, setPageSize] = useState(25)
+  const [pageSize, setPageSize] = useState(10)
 
   // Modal states
   const [viewModalOpen, setViewModalOpen] = useState(false)
@@ -145,7 +145,8 @@ export default function SuperAdminSalesPage() {
           `,
         )
         .eq("is_deleted", false)
-        .order(sortField, { ascending: sortDirection === "asc" });
+        .order(sortField, { ascending: sortDirection === "asc" })
+        .limit(1500)
 
       // Apply filters
       if (searchTerm) {
@@ -434,10 +435,46 @@ export default function SuperAdminSalesPage() {
     }
   }
 
+  // Add this helper function inside your component
+  const fetchAllSales = async () => {
+    const { data, error } = await supabase
+      .from("sales")
+      .select(
+        `
+        *,
+        taxpayer_listings (
+          registered_name,
+          substreet_street_brgy,
+          district_city_zip
+        )
+      `
+      )
+      .eq("is_deleted", false)
+      .order(sortField, { ascending: sortDirection === "asc" })
+      .limit(10000); // or use .range(0, 9999) for more than 1000 records
+
+    if (error) {
+      console.error("Error fetching all sales for export:", error);
+      return [];
+    }
+    return data || [];
+  };
+
   // Export to Excel function - exclude non-invoice sales
   const exportToExcel = async () => {
+    // Determine if any filter or search is active
+    const isFiltered =
+      !!searchTerm ||
+      filterTaxType !== "all" ||
+      filterMonth !== "all" ||
+      filterArea !== "all";
+
+    // If no filters/search, export all records (not just the current page)
+    // If filtered, export only the filtered records (those in the datatable)
+    const exportSales = isFiltered ? sales : await fetchAllSales();
+
     // Filter out non-invoice sales for export
-    const invoiceSales = sales.filter((sale) => sale.sale_type === "invoice")
+    const invoiceSales = exportSales.filter((sale) => sale.sale_type === "invoice");
 
     // Calculate statistics for invoice sales only
     const totalSales = invoiceSales.length
@@ -844,17 +881,17 @@ export default function SuperAdminSalesPage() {
           {/* Sales Table */}
           <Card className="shadow-lg border border-gray-200 bg-white">
             <CardHeader className="bg-gray-50 border-b border-gray-200">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <CardTitle className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                    <BarChart3 className="h-6 w-6 text-indigo-600" />
+                  <CardTitle className="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
+                    <BarChart3 className="h-5 w-5 sm:h-6 sm:w-6 text-indigo-600" />
                     Sales Records
                   </CardTitle>
-                  <CardDescription className="text-gray-600 mt-1">
+                  <CardDescription className="text-gray-600 mt-1 text-sm sm:text-base">
                     {loading ? "Loading..." : `${sales.length} records found`}
                   </CardDescription>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-col gap-2 sm:flex-row sm:gap-2 w-full sm:w-auto">
                   <ColumnVisibilityControl columns={columnVisibility} onColumnToggle={toggleColumnVisibility} />
                   <CustomExportModal
                     sales={sales}
@@ -885,10 +922,11 @@ export default function SuperAdminSalesPage() {
                     variant="outline"
                     size="sm"
                     onClick={exportToExcel}
-                    className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white border-0 shadow-lg"
+                    className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white border-0 shadow-lg flex items-center justify-center"
                   >
                     <Download className="h-4 w-4 mr-2" />
-                    Export (Invoice Only)
+                    <span className="hidden xs:inline">Export (Invoice Only)</span>
+                    <span className="inline xs:hidden">Export</span>
                   </Button>
                 </div>
               </div>

@@ -187,6 +187,22 @@ export function CommissionGenerationModal({
     return digits.replace(/(\d{3})(?=\d)/g, "$1-")
   }
 
+  // Utility function to determine EWT dropdown visibility and options
+  function getEwtDropdownProps(calcType: string) {
+    if (calcType === "nonvat without invoice") {
+      return { show: false, options: [0] }
+    }
+    if (calcType === "nonvat with invoice") {
+      return { show: true, options: [5] }
+    }
+    if (calcType === "vat with invoice") {
+      return { show: true, options: [10] }
+    }
+    if (calcType === "vat deduction") {
+      return { show: false, options: [0] }
+    }
+  }
+
   // Group selected sales by developer name and invoice number
   const groupedByDeveloperAndInvoice = selectedSales.reduce(
     (acc, sale) => {
@@ -697,6 +713,7 @@ export function CommissionGenerationModal({
           "COMM",
           "NET OF VAT",
           "STATUS",
+          "AGENT CALC TYPE", // <-- Added
           "AGENT'S RATE",
           "AGENT",
           "VAT",
@@ -704,6 +721,7 @@ export function CommissionGenerationModal({
           "NET COMM",
           "UM NAME",
           "UM BDO ACCOUNT #",
+          "UM CALC TYPE", // <-- Added
           "UM RATE",
           "UM AMOUNT",
           "UM VAT",
@@ -711,6 +729,7 @@ export function CommissionGenerationModal({
           "UM NET COMM",
           "TL NAME",
           "TL BDO ACCOUNT #",
+          "TL CALC TYPE", // <-- Added
           "TL RATE",
           "TL AMOUNT",
           "TL VAT",
@@ -732,21 +751,24 @@ export function CommissionGenerationModal({
               formatCurrency(Number(record.comm.replace(/,/g, "")) || 0),
               formatCurrency(Number(record.netOfVat) || 0),
               record.status,
-              `${record.agentsRate}%`,
+              record.calculationType || "", // <-- Agent calc type
+              `${record.agentsRate}`,
               formatCurrency(Number(record.agent) || 0),
               formatCurrency(Number(record.vat) || 0),
               formatCurrency(Number(record.ewt) || 0),
               formatCurrency(Number(record.netComm) || 0),
               record.umName,
               record.umBdoAccount || "",
-              `${record.umRate}%`,
+              record.umCalculationType || "", // <-- UM calc type
+              `${record.umRate}`,
               formatCurrency(Number(record.umAmount) || 0),
               formatCurrency(Number(record.umVat) || 0),
               formatCurrency(Number(record.umEwt) || 0),
               formatCurrency(Number(record.umNetComm) || 0),
               record.tlName,
               record.tlBdoAccount || "",
-              `${record.tlRate}%`,
+              record.tlCalculationType || "", // <-- TL calc type
+              `${record.tlRate}`,
               formatCurrency(Number(record.tlAmount) || 0),
               formatCurrency(Number(record.tlVat) || 0),
               formatCurrency(Number(record.tlEwt) || 0),
@@ -767,10 +789,12 @@ export function CommissionGenerationModal({
             formatCurrency(tabCommissionRecords.reduce((sum, r) => sum + (Number(r.netOfVat) || 0), 0)),
             "",
             "",
+            "",
             formatCurrency(tabCommissionRecords.reduce((sum, r) => sum + (Number(r.agent) || 0), 0)),
             formatCurrency(tabCommissionRecords.reduce((sum, r) => sum + (Number(r.vat) || 0), 0)),
             formatCurrency(tabCommissionRecords.reduce((sum, r) => sum + (Number(r.ewt) || 0), 0)),
             formatCurrency(tabCommissionRecords.reduce((sum, r) => sum + (Number(r.netComm) || 0), 0)),
+            "",
             "",
             "",
             `${tabCommissionRecords.reduce((sum, r) => sum + (Number(r.umRate) || 0), 0)}%`,
@@ -778,6 +802,7 @@ export function CommissionGenerationModal({
             formatCurrency(tabCommissionRecords.reduce((sum, r) => sum + (Number(r.umVat) || 0), 0)),
             formatCurrency(tabCommissionRecords.reduce((sum, r) => sum + (Number(r.umEwt) || 0), 0)),
             formatCurrency(tabCommissionRecords.reduce((sum, r) => sum + (Number(r.umNetComm) || 0), 0)),
+            "",
             "",
             "",
             `${tabCommissionRecords.reduce((sum, r) => sum + (Number(r.tlRate) || 0), 0)}%`,
@@ -1728,16 +1753,24 @@ export function CommissionGenerationModal({
                                         </TableCell>
                                         {/* EWT Rate Dropdown - Agent */}
                                         <TableCell className="text-center font-semibold bg-[#a0d9ef]">
-                                          <select
-                                            className="border border-gray-300 rounded px-2 py-1 text-[#001f3f] bg-white w-20"
-                                            value={record.ewtRate || "5"}
-                                            onChange={(e) => {
-                                              handleCommissionRecordChange(key, index, "ewtRate", e.target.value)
-                                            }}
-                                          >
-                                            <option value="5">5%</option>
-                                            <option value="10">10%</option>
-                                          </select>
+                                          {(() => {
+                                            const ewtProps = getEwtDropdownProps(record.calculationType)
+                                            if (!ewtProps.show) return null
+                                            return (
+                                              <select
+                                                className="border border-gray-300 rounded px-2 py-1 text-[#001f3f] bg-white w-20"
+                                                value={record.ewtRate || ewtProps.options[0].toString()}
+                                                onChange={(e) => {
+                                                  handleCommissionRecordChange(key, index, "ewtRate", e.target.value)
+                                                }}
+                                                disabled={ewtProps.options.length === 1}
+                                              >
+                                                {ewtProps.options.map((rate) => (
+                                                  <option key={rate} value={rate}>{rate}%</option>
+                                                ))}
+                                              </select>
+                                            )
+                                          })()}
                                         </TableCell>
                                         {/* Net Comm */}
                                         <TableCell className="text-right font-bold text-white bg-[#a0d9ef]">
@@ -1869,16 +1902,24 @@ export function CommissionGenerationModal({
                                           className="text-center font-semibold"
                                           style={{ background: "#E34A27" }}
                                         >
-                                          <select
-                                            className="border border-gray-300 rounded px-2 py-1 text-[#E34A27] bg-white font-bold w-20"
-                                            value={record.umEwtRate || "5"}
-                                            onChange={(e) => {
-                                              handleCommissionRecordChange(key, index, "umEwtRate", e.target.value)
-                                            }}
-                                          >
-                                            <option value="5">5%</option>
-                                            <option value="10">10%</option>
-                                          </select>
+                                          {(() => {
+                                            const ewtProps = getEwtDropdownProps(record.umCalculationType)
+                                            if (!ewtProps.show) return null
+                                            return (
+                                              <select
+                                                className="border border-gray-300 rounded px-2 py-1 text-[#E34A27] bg-white font-bold w-20"
+                                                value={record.umEwtRate || ewtProps.options[0].toString()}
+                                                onChange={(e) => {
+                                                  handleCommissionRecordChange(key, index, "umEwtRate", e.target.value)
+                                                }}
+                                                disabled={ewtProps.options.length === 1}
+                                              >
+                                                {ewtProps.options.map((rate) => (
+                                                  <option key={rate} value={rate}>{rate}%</option>
+                                                ))}
+                                              </select>
+                                            )
+                                          })()}
                                         </TableCell>
                                         <TableCell
                                           className="text-right font-bold"
@@ -2024,16 +2065,24 @@ export function CommissionGenerationModal({
                                           className="text-center font-semibold"
                                           style={{ background: "#FEEFC6" }}
                                         >
-                                          <select
-                                            className="border border-gray-300 rounded px-2 py-1 text-[#001f3f] bg-white font-bold w-20"
-                                            value={record.tlEwtRate || "5"}
-                                            onChange={(e) => {
-                                              handleCommissionRecordChange(key, index, "tlEwtRate", e.target.value)
-                                            }}
-                                          >
-                                            <option value="5">5%</option>
-                                            <option value="10">10%</option>
-                                          </select>
+                                          {(() => {
+                                            const ewtProps = getEwtDropdownProps(record.tlCalculationType)
+                                            if (!ewtProps.show) return null
+                                            return (
+                                              <select
+                                                className="border border-gray-300 rounded px-2 py-1 text-[#001f3f] bg-white font-bold w-20"
+                                                value={record.tlEwtRate || ewtProps.options[0].toString()}
+                                                onChange={(e) => {
+                                                  handleCommissionRecordChange(key, index, "tlEwtRate", e.target.value)
+                                                }}
+                                                disabled={ewtProps.options.length === 1}
+                                              >
+                                                {ewtProps.options.map((rate) => (
+                                                  <option key={rate} value={rate}>{rate}%</option>
+                                                ))}
+                                              </select>
+                                            )
+                                          })()}
                                         </TableCell>
                                         <TableCell
                                           className="text-right font-bold"

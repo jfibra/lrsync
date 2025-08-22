@@ -215,6 +215,7 @@ export default function SecretarySalesPage() {
         )
         .eq("is_deleted", false)
         .order("created_at", { ascending: false })
+        .limit(10000); // <-- Increase this as needed (max 10000 for Supabase)
 
       // Apply filters
       if (searchTerm) {
@@ -1271,8 +1272,8 @@ export default function SecretarySalesPage() {
                         size="sm"
                         onClick={() => setCurrentPage(pageNum)}
                         className={`h-8 px-3 min-w-[32px] ${currentPage === pageNum
-                            ? "bg-indigo-600 text-white hover:bg-indigo-700 border-indigo-600"
-                            : "border-gray-300 hover:bg-gray-50"
+                          ? "bg-indigo-600 text-white hover:bg-indigo-700 border-indigo-600"
+                          : "border-gray-300 hover:bg-gray-50"
                           }`}
                       >
                         {pageNum}

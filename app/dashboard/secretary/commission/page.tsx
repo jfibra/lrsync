@@ -329,7 +329,7 @@ export default function SecretaryCommissionPage() {
                   <Users className="h-8 w-8 text-white" />
                 </div>
                 <div>
-                  <h1 className="text-4xl font-bold text-gray-900">Commission Management</h1>
+                  <h1 className="text-4xl font-bold text-gray-900">Commission Generator</h1>
                   <p className="text-gray-600 mt-1">
                     Track and manage sales records for commission calculations - {profile?.assigned_area || "No Area"}
                   </p>

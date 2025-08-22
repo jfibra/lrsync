@@ -96,7 +96,7 @@ export function AddRemarkModal({ open, onOpenChange, saleId, onRemarkAdded }: Ad
               value={remarkInput}
               onChange={(e) => setRemarkInput(e.target.value)}
               rows={4}
-              className="w-full border-2 border-[#001f3f] focus:border-blue-500 focus:ring-blue-500 text-[#001f3f] bg-blue-50 rounded-lg p-3 shadow-sm resize-none"
+              className="w-full bg-white border-2 border-[#001f3f] focus:border-blue-500 focus:ring-blue-500 text-[#001f3f] bg-blue-50 rounded-lg p-3 shadow-sm resize-none"
               placeholder="Enter your remark..."
             />
           </div>
@@ -107,7 +107,7 @@ export function AddRemarkModal({ open, onOpenChange, saleId, onRemarkAdded }: Ad
               variant="outline"
               onClick={() => onOpenChange(false)}
               disabled={loading}
-              className="border-[#001f3f] text-[#001f3f] hover:bg-gray-50"
+              className="bg-white border-[#001f3f] text-[#001f3f] hover:bg-gray-50"
             >
               Cancel
             </Button>
