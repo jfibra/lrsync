@@ -1097,14 +1097,15 @@ export default function SuperAdminCommissionReportsPage() {
                               <TableRow key={report.uuid} className="hover:bg-blue-50 border-b border-blue-200">
                                 {columnVisibility.find((col) => col.key === "report_number")?.visible && (
                                   <TableCell className="text-[#001f3f] font-medium">
-                                    <button
-                                      onClick={() =>
-                                        router.push(`/dashboard/commission-report/${report.report_number}`)
-                                      }
-                                      className="hover:underline hover:text-blue-600 transition-colors"
+                                    <a
+                                      href={`/dashboard/commission-report/${report.report_number}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="hover:underline hover:text-purple-600 transition-colors cursor-pointer"
+                                      style={{ display: "inline-block", padding: "0.25rem 0.5rem" }}
                                     >
                                       #{report.report_number}
-                                    </button>
+                                    </a>
                                   </TableCell>
                                 )}
                                 {columnVisibility.find((col) => col.key === "created_by")?.visible && (

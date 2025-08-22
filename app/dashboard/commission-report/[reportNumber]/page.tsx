@@ -13,6 +13,7 @@ import { ArrowLeft, User, Calendar, Hash, FileText, PhilippinePeso, Users, Build
 import { Skeleton } from "@/components/ui/skeleton"
 import { AgentEditModal } from "@/components/agent-edit-modal";
 
+
 interface CommissionReport {
   uuid: string
   report_number: number
@@ -129,6 +130,15 @@ export default function CommissionReportViewer() {
   };
 
   const supabase = createClient()
+  const [authUserId, setAuthUserId] = useState<string | null>(null)
+
+  useEffect(() => {
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      setAuthUserId(user?.id || null)
+    }
+    getUser()
+  }, [supabase])
 
   useEffect(() => {
     const fetchUserProfiles = async () => {
@@ -791,6 +801,7 @@ export default function CommissionReportViewer() {
         agent={selectedAgent}
         onClose={handleAgentModalClose}
         onSave={handleAgentSave}
+        authUserId={authUserId ?? ""}
       />
     </div>
   )

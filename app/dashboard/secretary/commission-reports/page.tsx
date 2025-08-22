@@ -909,14 +909,15 @@ export default function SecretaryCommissionReportsPage() {
                               <TableRow key={report.uuid} className="hover:bg-purple-50 border-b border-purple-200">
                                 {columnVisibility.find((col) => col.key === "report_number")?.visible && (
                                   <TableCell className="text-[#001f3f] font-medium">
-                                    <button
-                                      onClick={() =>
-                                        router.push(`/dashboard/commission-report/${report.report_number}`)
-                                      }
-                                      className="hover:underline hover:text-purple-600 transition-colors"
+                                    <a
+                                      href={`/dashboard/commission-report/${report.report_number}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="hover:underline hover:text-purple-600 transition-colors cursor-pointer"
+                                      style={{ display: "inline-block", padding: "0.25rem 0.5rem" }}
                                     >
                                       #{report.report_number}
-                                    </button>
+                                    </a>
                                   </TableCell>
                                 )}
                                 {columnVisibility.find((col) => col.key === "created_by")?.visible && (
@@ -1202,8 +1203,8 @@ export default function SecretaryCommissionReportsPage() {
             </div>
             <div
               className={`flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-6 mb-4 transition cursor-pointer ${uploading
-                  ? "border-gray-300 bg-gray-50 cursor-not-allowed"
-                  : "border-purple-400 bg-purple-50 hover:bg-purple-100"
+                ? "border-gray-300 bg-gray-50 cursor-not-allowed"
+                : "border-purple-400 bg-purple-50 hover:bg-purple-100"
                 }`}
               onDrop={uploading ? undefined : handleDrop}
               onDragOver={uploading ? undefined : (e) => e.preventDefault()}

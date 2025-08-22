@@ -14,6 +14,7 @@ export interface AgentEditModalProps {
   agent: any
   onClose: () => void
   onSave: (updatedAgent: any) => void
+  authUserId?: string // <-- add this
 }
 
 const calculationTypes = ["nonvat with invoice", "nonvat without invoice", "vat with invoice", "vat deduction"]
@@ -68,130 +69,10 @@ const steps = [
   { id: 5, title: "Remarks", color: "#28a745" },
 ]
 
-const AgentEditModal = ({ open, agent, onClose, onSave }: AgentEditModalProps) => {
+const AgentEditModal = ({ open, agent, onClose, onSave, authUserId }: AgentEditModalProps) => {
   const [form, setForm] = useState(agent || {})
   const commTimeout = useRef<NodeJS.Timeout | null>(null)
   const [currentStep, setCurrentStep] = useState(1)
-
-  const handleChange = useCallback(
-    (name: string, value: string) => {
-      console.log("[v0] handleChange called:", name, value)
-
-      if (name === "comm") {
-        const formattedValue = formatCurrencyInput(value)
-        setForm((prevForm) => ({ ...prevForm, [name]: formattedValue }))
-
-        if (commTimeout.current) clearTimeout(commTimeout.current)
-        commTimeout.current = setTimeout(() => {
-          setForm((currentForm) => doCalculation({ ...currentForm, [name]: formattedValue }))
-        }, 1000)
-      } else {
-        setForm((prevForm) => {
-          const newForm = { ...prevForm, [name]: value }
-
-          // Immediate calculation for rate/type changes
-          if (
-            [
-              "calculation_type",
-              "agents_rate",
-              "developers_rate",
-              "agent_ewt_rate",
-              "um_calculation_type",
-              "um_rate",
-              "um_developers_rate",
-              "um_ewt_rate",
-              "tl_calculation_type",
-              "tl_rate",
-              "tl_developers_rate",
-              "tl_ewt_rate",
-            ].includes(name)
-          ) {
-            return doCalculation(newForm)
-          }
-
-          return newForm
-        })
-      }
-    },
-    [agent],
-  )
-
-  const handleSimpleChange = useCallback((name: string, value: string) => {
-    console.log("[v0] handleSimpleChange called:", name, value)
-    setForm((prevForm) => ({ ...prevForm, [name]: value }))
-  }, [])
-
-  const sanitizePayload = (data: any) => {
-    const numericFields = [
-      "comm",
-      "net_of_vat",
-      "agent_amount",
-      "agent_vat",
-      "agent_ewt",
-      "agent_ewt_rate",
-      "agent_net_comm",
-      "um_rate",
-      "um_developers_rate",
-      "um_amount",
-      "um_vat",
-      "um_ewt",
-      "um_ewt_rate",
-      "um_net_comm",
-      "tl_rate",
-      "tl_developers_rate",
-      "tl_amount",
-      "tl_vat",
-      "tl_ewt",
-      "tl_ewt_rate",
-      "tl_net_comm",
-      "agents_rate",
-      "developers_rate",
-    ]
-    const sanitized = { ...data }
-    for (const key of numericFields) {
-      if (sanitized[key] !== undefined) {
-        if (typeof sanitized[key] === "string") {
-          const cleaned = sanitized[key].replace(/,/g, "")
-          sanitized[key] = cleaned === "" ? null : Number(cleaned)
-        }
-      }
-    }
-    return sanitized
-  }
-
-  const handleSave = async () => {
-    try {
-      const payload = sanitizePayload(form)
-      const response = await fetch("/api/update-agent-commission", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ uuid: agent.uuid, ...payload }),
-      })
-      if (response.ok) {
-        onSave(form)
-      } else {
-        console.error("Failed to update agent commission")
-      }
-    } catch (error) {
-      console.error("Error updating agent commission:", error)
-    }
-  }
-
-  const nextStep = () => {
-    if (currentStep < steps.length) {
-      setCurrentStep(currentStep + 1)
-    }
-  }
-
-  const prevStep = () => {
-    if (currentStep > 1) {
-      setCurrentStep(currentStep - 1)
-    }
-  }
-
-  const goToStep = (stepId: number) => {
-    setCurrentStep(stepId)
-  }
 
   const doCalculation = useMemo(() => {
     return (formData: any) => {
@@ -375,6 +256,147 @@ const AgentEditModal = ({ open, agent, onClose, onSave }: AgentEditModalProps) =
     }
   }, [agent])
 
+  const handleChange = useCallback(
+    (name: string, value: string) => {
+      console.log("[v0] handleChange called:", name, value)
+
+      setForm((prevForm) => {
+        let newForm = { ...prevForm, [name]: value }
+
+        // Auto-set EWT rate based on calculation type changes
+        if (name === "calculation_type") {
+          if (value === "nonvat without invoice") {
+            newForm.agent_ewt_rate = "0"
+          } else if (value === "vat deduction") {
+            newForm.agent_ewt_rate = "0"
+          } else if (value === "nonvat with invoice") {
+            newForm.agent_ewt_rate = "5"
+          } else if (value === "vat with invoice") {
+            newForm.agent_ewt_rate = "10"
+          }
+        }
+        if (name === "um_calculation_type") {
+          if (value === "nonvat without invoice" || value === "vat deduction") {
+            newForm.um_ewt_rate = "0"
+          } else if (value === "nonvat with invoice") {
+            newForm.um_ewt_rate = "5"
+          } else if (value === "vat with invoice") {
+            newForm.um_ewt_rate = "10"
+          }
+        }
+        if (name === "tl_calculation_type") {
+          if (value === "nonvat without invoice" || value === "vat deduction") {
+            newForm.tl_ewt_rate = "0"
+          } else if (value === "nonvat with invoice") {
+            newForm.tl_ewt_rate = "5"
+          } else if (value === "vat with invoice") {
+            newForm.tl_ewt_rate = "10"
+          }
+        }
+
+        // Immediate calculation for rate/type changes
+        if (
+          [
+            "calculation_type",
+            "agents_rate",
+            "developers_rate",
+            "agent_ewt_rate",
+            "um_calculation_type",
+            "um_rate",
+            "um_developers_rate",
+            "um_ewt_rate",
+            "tl_calculation_type",
+            "tl_rate",
+            "tl_developers_rate",
+            "tl_ewt_rate",
+          ].includes(name)
+        ) {
+          return doCalculation(newForm)
+        }
+
+        return newForm
+      })
+    },
+    [agent, doCalculation],
+  )
+
+  const handleSimpleChange = useCallback((name: string, value: string) => {
+    console.log("[v0] handleSimpleChange called:", name, value)
+    setForm((prevForm) => ({ ...prevForm, [name]: value }))
+  }, [])
+
+  const sanitizePayload = (data: any) => {
+    const numericFields = [
+      "comm",
+      "net_of_vat",
+      "agent_amount",
+      "agent_vat",
+      "agent_ewt",
+      "agent_ewt_rate",
+      "agent_net_comm",
+      "um_rate",
+      "um_developers_rate",
+      "um_amount",
+      "um_vat",
+      "um_ewt",
+      "um_ewt_rate",
+      "um_net_comm",
+      "tl_rate",
+      "tl_developers_rate",
+      "tl_amount",
+      "tl_vat",
+      "tl_ewt",
+      "tl_ewt_rate",
+      "tl_net_comm",
+      "agents_rate",
+      "developers_rate",
+    ]
+    const sanitized = { ...data }
+    for (const key of numericFields) {
+      if (sanitized[key] !== undefined) {
+        if (typeof sanitized[key] === "string") {
+          const cleaned = sanitized[key].replace(/,/g, "")
+          sanitized[key] = cleaned === "" ? null : Number(cleaned)
+        }
+      }
+    }
+    return sanitized
+  }
+
+  const handleSave = async () => {
+    try {
+      const payload = sanitizePayload(form)
+      const response = await fetch("/api/update-agent-commission", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ uuid: agent.uuid, ...payload }),
+      })
+      if (response.ok) {
+        onSave(form)
+      } else {
+        console.error("Failed to update agent commission")
+      }
+    } catch (error) {
+      console.error("Error updating agent commission:", error)
+    }
+  }
+
+  const nextStep = () => {
+    if (currentStep < steps.length) {
+      setCurrentStep(currentStep + 1)
+    }
+  }
+
+  const prevStep = () => {
+    if (currentStep > 1) {
+      setCurrentStep(currentStep - 1)
+    }
+  }
+
+  const goToStep = (stepId: number) => {
+    setCurrentStep(stepId)
+  }
+
   useEffect(() => {
     if (!agent) return
 
@@ -382,7 +404,6 @@ const AgentEditModal = ({ open, agent, onClose, onSave }: AgentEditModalProps) =
 
     const normalizeRate = (val: any) => {
       if (val === null || val === undefined || val === "") return "0"
-      // Convert to number first, then to string to remove trailing zeros
       const numVal = Number(val)
       return isNaN(numVal) ? "0" : numVal.toString()
     }
@@ -394,22 +415,53 @@ const AgentEditModal = ({ open, agent, onClose, onSave }: AgentEditModalProps) =
     processedAgent.tl_rate = normalizeRate(processedAgent.tl_rate)
     processedAgent.tl_developers_rate = normalizeRate(processedAgent.tl_developers_rate)
 
-    processedAgent.agent_ewt_rate = normalizeRate(processedAgent.agent_ewt_rate) || "5"
-    processedAgent.um_ewt_rate = normalizeRate(processedAgent.um_ewt_rate) || "5"
-    processedAgent.tl_ewt_rate = normalizeRate(processedAgent.tl_ewt_rate) || "5"
+    // Set Agent EWT Rate based on calculation type
+    if (
+      processedAgent.calculation_type === "nonvat without invoice"
+    ) {
+      processedAgent.agent_ewt_rate = "0"
+    } else if (processedAgent.calculation_type === "vat deduction") {
+      processedAgent.agent_ewt_rate = "0"
+    } else if (processedAgent.calculation_type === "nonvat with invoice") {
+      processedAgent.agent_ewt_rate = "5"
+    } else if (processedAgent.calculation_type === "vat with invoice") {
+      processedAgent.agent_ewt_rate = "10"
+    } else {
+      processedAgent.agent_ewt_rate = normalizeRate(processedAgent.agent_ewt_rate) || "5"
+    }
 
-    console.log("[v0] Normalized rates:", {
-      agents_rate: processedAgent.agents_rate,
-      developers_rate: processedAgent.developers_rate,
-      um_rate: processedAgent.um_rate,
-      um_developers_rate: processedAgent.um_developers_rate,
-      tl_rate: processedAgent.tl_rate,
-      tl_developers_rate: processedAgent.tl_developers_rate,
-    })
+    // Set UM EWT Rate based on calculation type
+    if (
+      processedAgent.um_calculation_type === "nonvat without invoice" ||
+      processedAgent.um_calculation_type === "vat deduction"
+    ) {
+      processedAgent.um_ewt_rate = "0"
+    } else if (processedAgent.um_calculation_type === "nonvat with invoice") {
+      processedAgent.um_ewt_rate = "5"
+    } else if (processedAgent.um_calculation_type === "vat with invoice") {
+      processedAgent.um_ewt_rate = "10"
+    } else {
+      processedAgent.um_ewt_rate = normalizeRate(processedAgent.um_ewt_rate) || "5"
+    }
 
-    setForm(processedAgent)
+    // Set TL EWT Rate based on calculation type
+    if (
+      processedAgent.tl_calculation_type === "nonvat without invoice" ||
+      processedAgent.tl_calculation_type === "vat deduction"
+    ) {
+      processedAgent.tl_ewt_rate = "0"
+    } else if (processedAgent.tl_calculation_type === "nonvat with invoice") {
+      processedAgent.tl_ewt_rate = "5"
+    } else if (processedAgent.tl_calculation_type === "vat with invoice") {
+      processedAgent.tl_ewt_rate = "10"
+    } else {
+      processedAgent.tl_ewt_rate = normalizeRate(processedAgent.tl_ewt_rate) || "5"
+    }
+
+    // Calculate all derived fields immediately
+    setForm(doCalculation(processedAgent))
     setCurrentStep(1)
-  }, [agent])
+  }, [agent, doCalculation])
 
   const SectionHeading = ({ children, bgColor = "#3c8dbc" }: { children: React.ReactNode; bgColor?: string }) => (
     <div className="col-span-2 border-b-2 pb-2 mb-4 mt-6">
@@ -467,6 +519,8 @@ const AgentEditModal = ({ open, agent, onClose, onSave }: AgentEditModalProps) =
     </div>
   )
 
+  const ADMIN_ID = "cf82f7ac-8f88-4b93-8da4-d24db6b87984"
+
   const renderStepContent = () => {
     switch (currentStep) {
       case 1:
@@ -475,6 +529,21 @@ const AgentEditModal = ({ open, agent, onClose, onSave }: AgentEditModalProps) =
             <SectionHeading bgColor="#001f3f">Commission Sale Details</SectionHeading>
             <InputField label="Developer" name="developer" disabled />
             <InputField label="Client" name="client" disabled />
+            <InputField label="BDO Account #" name="bdo_account" unrestricted />
+            <InputField label="Status" name="status" unrestricted />
+            {authUserId === ADMIN_ID && (
+              <>
+                <InputField label="Sales UUID(For Admin Edit Only)" name="sales_uuid" unrestricted />
+                <InputField label="Invoice Number" name="invoice_number" unrestricted />
+              </>
+            )}
+          </div>
+        )
+      case 2:
+        return (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+            <SectionHeading bgColor="#3c8dbc">Agent Details</SectionHeading>
+            <InputField label="Agent Name" name="agent_name" disabled />
             <InputField label="Commission" name="comm" type="text" placeholder="0.00" />
             <InputField label="Commission Type" name="comm_type">
               <Select value={form.comm_type || ""} onValueChange={(value) => handleChange("comm_type", value)}>
@@ -490,17 +559,7 @@ const AgentEditModal = ({ open, agent, onClose, onSave }: AgentEditModalProps) =
                 </SelectContent>
               </Select>
             </InputField>
-            <InputField label="BDO Account #" name="bdo_account" unrestricted />
             <InputField label="Net of VAT" name="net_of_vat" isDisplayOnly />
-            <InputField label="Status" name="status" unrestricted />
-            <InputField label="Invoice Number" name="invoice_number" unrestricted />
-          </div>
-        )
-      case 2:
-        return (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
-            <SectionHeading bgColor="#3c8dbc">Agent Details</SectionHeading>
-            <InputField label="Agent Name" name="agent_name" disabled />
             <InputField label="Calculation Type" name="calculation_type">
               <Select
                 value={form.calculation_type || ""}
@@ -519,7 +578,18 @@ const AgentEditModal = ({ open, agent, onClose, onSave }: AgentEditModalProps) =
               </Select>
             </InputField>
             <InputField label="Agent's Rate (%)" name="agents_rate">
-              <Select value={form.agents_rate || "0"} onValueChange={(value) => handleChange("agents_rate", value)}>
+              <Select
+                value={
+                  form.agents_rate === null ||
+                    form.agents_rate === undefined ||
+                    form.agents_rate === "" ||
+                    form.agents_rate === 0 ||
+                    form.agents_rate === "0"
+                    ? "0.0"
+                    : String(Number(form.agents_rate).toFixed(1))
+                }
+                onValueChange={(value) => handleChange("agents_rate", value)}
+              >
                 <SelectTrigger className="border-[#3c8dbc] focus:border-[#001f3f] text-[#001f3f] bg-white">
                   <SelectValue placeholder="Select rate" />
                 </SelectTrigger>
@@ -534,7 +604,15 @@ const AgentEditModal = ({ open, agent, onClose, onSave }: AgentEditModalProps) =
             </InputField>
             <InputField label="Developer's Rate (%)" name="developers_rate">
               <Select
-                value={form.developers_rate || "5"}
+                value={
+                  form.developers_rate === null ||
+                    form.developers_rate === undefined ||
+                    form.developers_rate === "" ||
+                    form.developers_rate === 0 ||
+                    form.developers_rate === "0"
+                    ? "0.0"
+                    : String(Number(form.developers_rate).toFixed(1))
+                }
                 onValueChange={(value) => handleChange("developers_rate", value)}
               >
                 <SelectTrigger className="border-[#3c8dbc] focus:border-[#001f3f] text-[#001f3f] bg-white">
@@ -554,13 +632,22 @@ const AgentEditModal = ({ open, agent, onClose, onSave }: AgentEditModalProps) =
             <InputField label="Agent EWT" name="agent_ewt" isDisplayOnly />
             <InputField label="Agent EWT Rate (%)" name="agent_ewt_rate">
               <Select
-                value={form.agent_ewt_rate || "5"}
+                value={
+                  form.agent_ewt_rate === null ||
+                    form.agent_ewt_rate === undefined ||
+                    form.agent_ewt_rate === ""
+                    ? "5"
+                    : String(form.agent_ewt_rate)
+                }
                 onValueChange={(value) => handleChange("agent_ewt_rate", value)}
               >
                 <SelectTrigger className="border-[#3c8dbc] focus:border-[#001f3f] text-[#001f3f] bg-white">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-white">
+                  <SelectItem value="0" className="text-[#001f3f]">
+                    0%
+                  </SelectItem>
                   <SelectItem value="5" className="text-[#001f3f]">
                     5%
                   </SelectItem>
@@ -597,7 +684,18 @@ const AgentEditModal = ({ open, agent, onClose, onSave }: AgentEditModalProps) =
               </Select>
             </InputField>
             <InputField label="UM Rate (%)" name="um_rate">
-              <Select value={form.um_rate || "0"} onValueChange={(value) => handleChange("um_rate", value)}>
+              <Select
+                value={
+                  form.um_rate === null ||
+                    form.um_rate === undefined ||
+                    form.um_rate === "" ||
+                    form.um_rate === 0 ||
+                    form.um_rate === "0"
+                    ? "0.0"
+                    : String(Number(form.um_rate).toFixed(1))
+                }
+                onValueChange={(value) => handleChange("um_rate", value)}
+              >
                 <SelectTrigger className="border-[#3c8dbc] focus:border-[#001f3f] text-[#001f3f] bg-white">
                   <SelectValue placeholder="Select rate" />
                 </SelectTrigger>
@@ -612,7 +710,15 @@ const AgentEditModal = ({ open, agent, onClose, onSave }: AgentEditModalProps) =
             </InputField>
             <InputField label="UM Developer's Rate (%)" name="um_developers_rate">
               <Select
-                value={form.um_developers_rate || "5"}
+                value={
+                  form.um_developers_rate === null ||
+                    form.um_developers_rate === undefined ||
+                    form.um_developers_rate === "" ||
+                    form.um_developers_rate === 0 ||
+                    form.um_developers_rate === "0"
+                    ? "5.0"
+                    : String(Number(form.um_developers_rate).toFixed(1))
+                }
                 onValueChange={(value) => handleChange("um_developers_rate", value)}
               >
                 <SelectTrigger className="border-[#3c8dbc] focus:border-[#001f3f] text-[#001f3f] bg-white">
@@ -631,11 +737,23 @@ const AgentEditModal = ({ open, agent, onClose, onSave }: AgentEditModalProps) =
             <InputField label="UM VAT" name="um_vat" isDisplayOnly />
             <InputField label="UM EWT" name="um_ewt" isDisplayOnly />
             <InputField label="UM EWT Rate (%)" name="um_ewt_rate">
-              <Select value={form.um_ewt_rate || "5"} onValueChange={(value) => handleChange("um_ewt_rate", value)}>
+              <Select
+                value={
+                  form.um_ewt_rate === null ||
+                    form.um_ewt_rate === undefined ||
+                    form.um_ewt_rate === ""
+                    ? "5"
+                    : String(form.um_ewt_rate)
+                }
+                onValueChange={(value) => handleChange("um_ewt_rate", value)}
+              >
                 <SelectTrigger className="border-[#3c8dbc] focus:border-[#001f3f] text-[#001f3f] bg-white">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-white">
+                  <SelectItem value="0" className="text-[#001f3f]">
+                    0%
+                  </SelectItem>
                   <SelectItem value="5" className="text-[#001f3f]">
                     5%
                   </SelectItem>
@@ -672,7 +790,18 @@ const AgentEditModal = ({ open, agent, onClose, onSave }: AgentEditModalProps) =
               </Select>
             </InputField>
             <InputField label="TL Rate (%)" name="tl_rate">
-              <Select value={form.tl_rate || "0"} onValueChange={(value) => handleChange("tl_rate", value)}>
+              <Select
+                value={
+                  form.tl_rate === null ||
+                    form.tl_rate === undefined ||
+                    form.tl_rate === "" ||
+                    form.tl_rate === 0 ||
+                    form.tl_rate === "0"
+                    ? "0.0"
+                    : String(Number(form.tl_rate).toFixed(1))
+                }
+                onValueChange={(value) => handleChange("tl_rate", value)}
+              >
                 <SelectTrigger className="border-[#3c8dbc] focus:border-[#001f3f] text-[#001f3f] bg-white">
                   <SelectValue placeholder="Select rate" />
                 </SelectTrigger>
@@ -687,7 +816,15 @@ const AgentEditModal = ({ open, agent, onClose, onSave }: AgentEditModalProps) =
             </InputField>
             <InputField label="TL Developer's Rate (%)" name="tl_developers_rate">
               <Select
-                value={form.tl_developers_rate || "5"}
+                value={
+                  form.tl_developers_rate === null ||
+                    form.tl_developers_rate === undefined ||
+                    form.tl_developers_rate === "" ||
+                    form.tl_developers_rate === 0 ||
+                    form.tl_developers_rate === "0"
+                    ? "5.0"
+                    : String(Number(form.tl_developers_rate).toFixed(1))
+                }
                 onValueChange={(value) => handleChange("tl_developers_rate", value)}
               >
                 <SelectTrigger className="border-[#3c8dbc] focus:border-[#001f3f] text-[#001f3f] bg-white">
@@ -706,11 +843,23 @@ const AgentEditModal = ({ open, agent, onClose, onSave }: AgentEditModalProps) =
             <InputField label="TL VAT" name="tl_vat" isDisplayOnly />
             <InputField label="TL EWT" name="tl_ewt" isDisplayOnly />
             <InputField label="TL EWT Rate (%)" name="tl_ewt_rate">
-              <Select value={form.tl_ewt_rate || "5"} onValueChange={(value) => handleChange("tl_ewt_rate", value)}>
+              <Select
+                value={
+                  form.tl_ewt_rate === null ||
+                    form.tl_ewt_rate === undefined ||
+                    form.tl_ewt_rate === ""
+                    ? "5"
+                    : String(form.tl_ewt_rate)
+                }
+                onValueChange={(value) => handleChange("tl_ewt_rate", value)}
+              >
                 <SelectTrigger className="border-[#3c8dbc] focus:border-[#001f3f] text-[#001f3f] bg-white">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-white">
+                  <SelectItem value="0" className="text-[#001f3f]">
+                    0%
+                  </SelectItem>
                   <SelectItem value="5" className="text-[#001f3f]">
                     5%
                   </SelectItem>
