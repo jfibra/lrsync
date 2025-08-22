@@ -3,7 +3,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Users, Banknote, Building2, Calculator, ClipboardList, Eye, ShoppingCart } from "lucide-react"
+import { Users, Banknote, Building2, Calculator, ClipboardList, Eye, ShoppingCart, Contact } from "lucide-react"
 import Link from "next/link"
 import type { UserRole } from "@/types/auth"
 
@@ -85,6 +85,16 @@ export function DashboardMenuCards({ userRole }: DashboardMenuCardsProps) {
             bgColor: "bg-blue-50/80 border-blue-200",
             badge: "Admin Only",
             badgeColor: "bg-blue-100 text-blue-800",
+          },
+          {
+            title: "Activity Tracker",
+            description: "Monitor all system activities and user actions with comprehensive analytics",
+            icon: Contact,
+            href: "/dashboard/super-admin/activity-tracker",
+            color: "from-yellow-500 to-yellow-600",
+            bgColor: "bg-yellow-50/80 border-yellow-200",
+            badge: "Your Area",
+            badgeColor: "bg-yellow-100 text-yellow-800",
           },
           {
             title: "My Profile",

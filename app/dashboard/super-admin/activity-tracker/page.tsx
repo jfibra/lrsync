@@ -153,92 +153,134 @@ export default function ActivityTrackerPage() {
         fetchNotifications()
     }, [currentPage, pageSize, searchTerm, actionFilter])
 
+    useEffect(() => {
+        // Fetch all notifications for the current month for statistics/charts
+        const fetchAllNotifications = async () => {
+            const now = new Date();
+            const currentYear = now.getFullYear();
+            const currentMonth = now.getMonth();
+
+            // Get first and last day of current month
+            const firstDay = new Date(currentYear, currentMonth, 1).toISOString();
+            const lastDay = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59, 999).toISOString();
+
+            const { data, error } = await supabase
+                .from("notifications")
+                .select(
+                    `
+                *,
+                user_profiles(role, assigned_area, full_name)
+                `
+                )
+                .gte("created_at", firstDay)
+                .lte("created_at", lastDay)
+                .order("created_at", { ascending: false });
+
+            if (!error && data) {
+                const processedData = data.map((item) => ({
+                    ...item,
+                    user_profile: item.user_profiles,
+                }));
+                setAllNotifications(processedData);
+            }
+        };
+
+        fetchAllNotifications();
+    }, []);
+
+    // Get current year and month
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth(); // 0-indexed
+
+    const currentMonthNotifications = allNotifications.filter((n) => {
+        const date = new Date(n.created_at);
+        return date.getFullYear() === currentYear && date.getMonth() === currentMonth;
+    });
+
     // Statistics calculations
     const statistics = useMemo(() => {
-        if (!allNotifications.length) return null;
+        if (!currentMonthNotifications.length) return null;
 
-        const totalActivities = totalCount;
-        const uniqueUsers = new Set(allNotifications.filter((n) => n.user_uuid).map((n) => n.user_uuid)).size
+        const totalActivities = currentMonthNotifications.length;
+        const uniqueUsers = new Set(currentMonthNotifications.filter((n) => n.user_uuid).map((n) => n.user_uuid)).size;
 
         // Action breakdown
-        const actionStats = allNotifications.reduce(
+        const actionStats = currentMonthNotifications.reduce(
             (acc, notification) => {
-                acc[notification.action] = (acc[notification.action] || 0) + 1
-                return acc
+                acc[notification.action] = (acc[notification.action] || 0) + 1;
+                return acc;
             },
             {} as Record<string, number>,
-        )
+        );
 
         // Role breakdown
-        const roleStats = allNotifications.reduce(
+        const roleStats = currentMonthNotifications.reduce(
             (acc, notification) => {
-                const role = notification.user_profile?.role || "Unknown"
-                acc[role] = (acc[role] || 0) + 1
-                return acc
+                const role = notification.user_profile?.role || "Unknown";
+                acc[role] = (acc[role] || 0) + 1;
+                return acc;
             },
             {} as Record<string, number>,
-        )
+        );
 
         // Area breakdown
-        const areaStats = allNotifications.reduce(
+        const areaStats = currentMonthNotifications.reduce(
             (acc, notification) => {
-                const area = notification.user_profile?.assigned_area || "Unassigned"
-                acc[area] = (acc[area] || 0) + 1
-                return acc
+                const area = notification.user_profile?.assigned_area || "Unassigned";
+                acc[area] = (acc[area] || 0) + 1;
+                return acc;
             },
             {} as Record<string, number>,
-        )
+        );
 
-        // Daily activity (last 7 days)
-        const last7Days = Array.from({ length: 7 }, (_, i) => {
-            const date = new Date()
-            date.setDate(date.getDate() - i)
-            return date.toISOString().split("T")[0]
-        }).reverse()
-
-        const dailyStats = last7Days.map((date) => {
-            const count = allNotifications.filter((n) => n.created_at.startsWith(date)).length
+        // Daily activity (for current month)
+        const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+        const dailyStats = Array.from({ length: daysInMonth }, (_, i) => {
+            const date = new Date(currentYear, currentMonth, i + 1);
+            const dateString = date.toISOString().split("T")[0];
+            const count = currentMonthNotifications.filter((n) => n.created_at.startsWith(dateString)).length;
             return {
-                date: new Date(date).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+                date: date.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
                 activities: count,
-            }
-        })
+            };
+        });
 
         // Hourly distribution (24 hours)
         const hourlyStats = Array.from({ length: 24 }, (_, hour) => {
-            const count = allNotifications.filter((n) => {
-                const notificationHour = new Date(n.created_at).getHours()
-                return notificationHour === hour
-            }).length
+            const count = currentMonthNotifications.filter((n) => {
+                const notificationHour = new Date(n.created_at).getHours();
+                return notificationHour === hour;
+            }).length;
             return {
                 hour: `${hour.toString().padStart(2, "0")}:00`,
                 activities: count,
-            }
-        })
+            };
+        });
 
         // Top users by activity
-        const userActivityStats = allNotifications.reduce(
+        const userActivityStats = currentMonthNotifications.reduce(
             (acc, notification) => {
                 if (notification.user_uuid && notification.user_name) {
-                    const key = notification.user_uuid
+                    const key = notification.user_uuid;
                     if (!acc[key]) {
                         acc[key] = {
                             name: notification.user_name,
                             role: notification.user_profile?.role || "Unknown",
                             area: notification.user_profile?.assigned_area || "Unassigned",
                             count: 0,
-                        }
+                        };
                     }
-                    acc[key].count++
+                    acc[key].count++;
                 }
-                return acc
+                return acc;
             },
             {} as Record<string, any>,
-        )
+        );
 
         const topUsers = Object.values(userActivityStats)
             .sort((a: any, b: any) => b.count - a.count)
-            .slice(0, 5)
+            .slice(0, 5);
 
         return {
             totalActivities,
@@ -249,8 +291,8 @@ export default function ActivityTrackerPage() {
             dailyStats,
             hourlyStats,
             topUsers,
-        }
-    }, [allNotifications])
+        };
+    }, [currentMonthNotifications, currentYear, currentMonth]);
 
     const totalPages = Math.ceil(totalCount / pageSize)
     const startRecord = (currentPage - 1) * pageSize + 1
@@ -843,62 +885,62 @@ export default function ActivityTrackerPage() {
 
                             {/* Pagination */}
                             {totalPages > 1 && (
-                                <div className="flex items-center justify-between mt-6">
-                                    <div className="text-sm text-gray-600">
+                                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mt-6 w-full">
+                                    <div className="text-sm text-gray-600 text-center sm:text-left">
                                         Showing {startRecord} to {endRecord} of {totalCount} results
                                     </div>
-                                    <div className="flex items-center gap-2">
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-                                            disabled={currentPage === 1}
-                                            className="bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
-                                        >
-                                            <ChevronLeft className="h-4 w-4 mr-1" />
-                                            Previous
-                                        </Button>
+                                    <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto justify-center">
+                                        <div className="flex items-center gap-2 justify-center w-full">
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                                                disabled={currentPage === 1}
+                                                className="bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
+                                            >
+                                                <ChevronLeft className="h-4 w-4 mr-1" />
+                                                Previous
+                                            </Button>
+                                            <div className="flex items-center gap-1">
+                                                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                                                    let pageNum
+                                                    if (totalPages <= 5) {
+                                                        pageNum = i + 1
+                                                    } else if (currentPage <= 3) {
+                                                        pageNum = i + 1
+                                                    } else if (currentPage >= totalPages - 2) {
+                                                        pageNum = totalPages - 4 + i
+                                                    } else {
+                                                        pageNum = currentPage - 2 + i
+                                                    }
 
-                                        <div className="flex items-center gap-1">
-                                            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                                                let pageNum
-                                                if (totalPages <= 5) {
-                                                    pageNum = i + 1
-                                                } else if (currentPage <= 3) {
-                                                    pageNum = i + 1
-                                                } else if (currentPage >= totalPages - 2) {
-                                                    pageNum = totalPages - 4 + i
-                                                } else {
-                                                    pageNum = currentPage - 2 + i
-                                                }
-
-                                                return (
-                                                    <Button
-                                                        key={pageNum}
-                                                        variant={currentPage === pageNum ? "default" : "outline"}
-                                                        size="sm"
-                                                        onClick={() => setCurrentPage(pageNum)}
-                                                        className={cn(
-                                                            "w-8 h-8 p-0",
-                                                            currentPage !== pageNum && "bg-white border-gray-200 text-gray-700 hover:bg-gray-50",
-                                                        )}
-                                                    >
-                                                        {pageNum}
-                                                    </Button>
-                                                )
-                                            })}
+                                                    return (
+                                                        <Button
+                                                            key={pageNum}
+                                                            variant={currentPage === pageNum ? "default" : "outline"}
+                                                            size="sm"
+                                                            onClick={() => setCurrentPage(pageNum)}
+                                                            className={cn(
+                                                                "w-8 h-8 p-0",
+                                                                currentPage !== pageNum && "bg-white border-gray-200 text-gray-700 hover:bg-gray-50",
+                                                            )}
+                                                        >
+                                                            {pageNum}
+                                                        </Button>
+                                                    )
+                                                })}
+                                            </div>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                                                disabled={currentPage === totalPages}
+                                                className="bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
+                                            >
+                                                Next
+                                                <ChevronRight className="h-4 w-4 ml-1" />
+                                            </Button>
                                         </div>
-
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
-                                            disabled={currentPage === totalPages}
-                                            className="bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
-                                        >
-                                            Next
-                                            <ChevronRight className="h-4 w-4 ml-1" />
-                                        </Button>
                                     </div>
                                 </div>
                             )}
