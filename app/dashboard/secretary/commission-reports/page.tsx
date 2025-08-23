@@ -127,6 +127,8 @@ export default function SecretaryCommissionReportsPage() {
   const [lightboxOpen, setLightboxOpen] = useState(false)
   const [lightboxImages, setLightboxImages] = useState<Array<{ name: string; url: string }>>([])
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
+  const [zoom, setZoom] = useState(1)
+  const [rotation, setRotation] = useState(0)
 
   const statusOptions = [
     { value: "new", label: "New" },
@@ -257,6 +259,8 @@ export default function SecretaryCommissionReportsPage() {
   const openImageLightbox = (images: any[], startIndex = 0) => {
     setLightboxImages(images)
     setCurrentImageIndex(startIndex)
+    setZoom(1)
+    setRotation(0)
     setLightboxOpen(true)
   }
 
@@ -1115,12 +1119,12 @@ export default function SecretaryCommissionReportsPage() {
                                               <span>
                                                 {mostRecent.timestamp
                                                   ? new Date(mostRecent.timestamp).toLocaleString("en-US", {
-                                                      year: "numeric",
-                                                      month: "short",
-                                                      day: "numeric",
-                                                      hour: "2-digit",
-                                                      minute: "2-digit",
-                                                    })
+                                                    year: "numeric",
+                                                    month: "short",
+                                                    day: "numeric",
+                                                    hour: "2-digit",
+                                                    minute: "2-digit",
+                                                  })
                                                   : ""}
                                               </span>
                                             </div>
@@ -1258,6 +1262,50 @@ export default function SecretaryCommissionReportsPage() {
             <X className="h-8 w-8" />
           </button>
 
+          {/* Controls */}
+          <div className="absolute top-4 left-1/2 transform -translate-x-1/2 flex gap-4 z-20">
+            <button
+              onClick={() => setZoom((z) => Math.min(z + 0.2, 3))}
+              className="text-white bg-black/50 px-3 py-1 rounded"
+            >
+              Zoom In
+            </button>
+            <button
+              onClick={() => setZoom((z) => Math.max(z - 0.2, 0.5))}
+              className="text-white bg-black/50 px-3 py-1 rounded"
+            >
+              Zoom Out
+            </button>
+            <button
+              onClick={() => setRotation((r) => r - 90)}
+              className="text-white bg-black/50 px-3 py-1 rounded"
+            >
+              Rotate Left
+            </button>
+            <button
+              onClick={() => setRotation((r) => r + 90)}
+              className="text-white bg-black/50 px-3 py-1 rounded"
+            >
+              Rotate Right
+            </button>
+            <button
+              onClick={() => {
+                setZoom(1)
+                setRotation(0)
+              }}
+              className="text-white bg-black/50 px-3 py-1 rounded"
+            >
+              Reset
+            </button>
+            <a
+              href={lightboxImages[currentImageIndex]?.url}
+              download={lightboxImages[currentImageIndex]?.name}
+              className="text-white bg-black/50 px-3 py-1 rounded"
+            >
+              Download
+            </a>
+          </div>
+
           <div className="relative w-full h-full flex items-center justify-center p-4">
             {lightboxImages.length > 1 && (
               <button
@@ -1273,6 +1321,10 @@ export default function SecretaryCommissionReportsPage() {
                 src={lightboxImages[currentImageIndex]?.url || "/placeholder.svg"}
                 alt={lightboxImages[currentImageIndex]?.name}
                 className="max-w-full max-h-[80vh] object-contain"
+                style={{
+                  transform: `scale(${zoom || 1}) rotate(${rotation || 0}deg)`,
+                  transition: "transform 0.2s",
+                }}
               />
               <div className="mt-4 text-center">
                 <p className="text-white text-lg font-medium">{lightboxImages[currentImageIndex]?.name}</p>
@@ -1327,11 +1379,10 @@ export default function SecretaryCommissionReportsPage() {
               <p className="text-xs text-gray-600">Files will be uploaded to our server and made publicly viewable</p>
             </div>
             <div
-              className={`flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-6 mb-4 transition cursor-pointer ${
-                uploading
-                  ? "border-gray-300 bg-gray-50 cursor-not-allowed"
-                  : "border-purple-400 bg-purple-50 hover:bg-purple-100"
-              }`}
+              className={`flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-6 mb-4 transition cursor-pointer ${uploading
+                ? "border-gray-300 bg-gray-50 cursor-not-allowed"
+                : "border-purple-400 bg-purple-50 hover:bg-purple-100"
+                }`}
               onDrop={uploading ? undefined : handleDrop}
               onDragOver={uploading ? undefined : (e) => e.preventDefault()}
               onClick={uploading ? undefined : () => document.getElementById("file-upload-input")?.click()}
@@ -1473,10 +1524,10 @@ export default function SecretaryCommissionReportsPage() {
                         <TableCell style={{ color: "#001f3f" }}>
                           {sale.tax_month
                             ? new Date(sale.tax_month).toLocaleDateString("en-US", {
-                                year: "numeric",
-                                month: "short",
-                                day: "numeric",
-                              })
+                              year: "numeric",
+                              month: "short",
+                              day: "numeric",
+                            })
                             : "N/A"}
                         </TableCell>
                         <TableCell style={{ color: "#001f3f" }}>
@@ -1487,27 +1538,27 @@ export default function SecretaryCommissionReportsPage() {
                         <TableCell style={{ color: "#001f3f" }}>
                           {sale.gross_taxable
                             ? new Intl.NumberFormat("en-PH", {
-                                style: "currency",
-                                currency: "PHP",
-                              }).format(sale.gross_taxable)
+                              style: "currency",
+                              currency: "PHP",
+                            }).format(sale.gross_taxable)
                             : "N/A"}
                         </TableCell>
                         <TableCell style={{ color: "#001f3f" }}>
                           {sale.total_actual_amount
                             ? new Intl.NumberFormat("en-PH", {
-                                style: "currency",
-                                currency: "PHP",
-                              }).format(sale.total_actual_amount)
+                              style: "currency",
+                              currency: "PHP",
+                            }).format(sale.total_actual_amount)
                             : "N/A"}
                         </TableCell>
                         <TableCell style={{ color: "#001f3f" }}>{sale.invoice_number || "N/A"}</TableCell>
                         <TableCell style={{ color: "#001f3f" }}>
                           {sale.pickup_date
                             ? new Date(sale.pickup_date).toLocaleDateString("en-US", {
-                                year: "numeric",
-                                month: "short",
-                                day: "numeric",
-                              })
+                              year: "numeric",
+                              month: "short",
+                              day: "numeric",
+                            })
                             : "N/A"}
                         </TableCell>
                         <TableCell style={{ color: "#001f3f" }}>
