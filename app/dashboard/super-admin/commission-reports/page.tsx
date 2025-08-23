@@ -372,9 +372,8 @@ export default function SuperAdminCommissionReportsPage() {
 
         await Swal.fire({
           title: "Success!",
-          text: `${successfulUploads.length} file(s) uploaded successfully${
-            failedUploads.length > 0 ? `. ${failedUploads.length} file(s) failed.` : "."
-          }`,
+          text: `${successfulUploads.length} file(s) uploaded successfully${failedUploads.length > 0 ? `. ${failedUploads.length} file(s) failed.` : "."
+            }`,
           icon: "success",
           confirmButtonColor: "#4284f2",
         })
@@ -419,6 +418,30 @@ export default function SuperAdminCommissionReportsPage() {
     } finally {
       setUploading(false)
     }
+  }
+
+  // When changing records per page
+  const handleRecordsPerPageChange = (value: string) => {
+    setRecordsPerPage(Number(value))
+    setCurrentPage(1)
+  }
+
+  // When changing search term
+  const handleSearchTermChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchTerm(e.target.value)
+    setCurrentPage(1)
+  }
+
+  // When changing status filter
+  const handleStatusFilterChange = (value: string) => {
+    setStatusFilter(value)
+    setCurrentPage(1)
+  }
+
+  // When changing assigned area filter
+  const handleAssignedAreaFilterChange = (value: string) => {
+    setAssignedAreaFilter(value)
+    setCurrentPage(1)
   }
 
   // Map frontend value to DB enum value (with spaces, lowercase)
@@ -694,11 +717,11 @@ export default function SuperAdminCommissionReportsPage() {
         prev.map((r) =>
           r.uuid === statusUpdateReport.uuid
             ? {
-                ...r,
-                status: dbStatus,
-                remarks: statusRemark,
-                history: newHistory,
-              }
+              ...r,
+              status: dbStatus,
+              remarks: statusRemark,
+              history: newHistory,
+            }
             : r,
         ),
       )
@@ -1009,12 +1032,12 @@ export default function SuperAdminCommissionReportsPage() {
                     <Input
                       placeholder="Search by report number or remarks..."
                       value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
+                      onChange={handleSearchTermChange}
                       className="pl-10 border-blue-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 bg-white text-[#001f3f] placeholder-gray-400"
                     />
                   </div>
                 </div>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <Select value={statusFilter} onValueChange={handleStatusFilterChange}>
                   <SelectTrigger className="w-full sm:w-48 border-blue-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 bg-white text-[#001f3f]">
                     <SelectValue placeholder="Filter by status" />
                   </SelectTrigger>
@@ -1028,7 +1051,7 @@ export default function SuperAdminCommissionReportsPage() {
                     <SelectItem value="for_testing">For Testing</SelectItem>
                   </SelectContent>
                 </Select>
-                <Select value={assignedAreaFilter} onValueChange={setAssignedAreaFilter}>
+                <Select value={assignedAreaFilter} onValueChange={handleAssignedAreaFilterChange}>
                   <SelectTrigger className="w-full sm:w-48 border-blue-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 bg-white text-[#001f3f]">
                     <SelectValue placeholder="Filter by area" />
                   </SelectTrigger>
@@ -1090,7 +1113,7 @@ export default function SuperAdminCommissionReportsPage() {
                     <span className="text-sm font-medium text-[#001f3f]">Show</span>
                     <Select
                       value={recordsPerPage.toString()}
-                      onValueChange={(value) => setRecordsPerPage(Number(value))}
+                      onValueChange={handleRecordsPerPageChange}
                     >
                       <SelectTrigger className="w-full sm:w-20 border-blue-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 bg-white text-[#001f3f] font-medium">
                         <SelectValue />
@@ -1372,12 +1395,12 @@ export default function SuperAdminCommissionReportsPage() {
                                               <span>
                                                 {mostRecent.timestamp
                                                   ? new Date(mostRecent.timestamp).toLocaleString("en-US", {
-                                                      year: "numeric",
-                                                      month: "short",
-                                                      day: "numeric",
-                                                      hour: "2-digit",
-                                                      minute: "2-digit",
-                                                    })
+                                                    year: "numeric",
+                                                    month: "short",
+                                                    day: "numeric",
+                                                    hour: "2-digit",
+                                                    minute: "2-digit",
+                                                  })
                                                   : ""}
                                               </span>
                                             </div>
@@ -1506,9 +1529,8 @@ export default function SuperAdminCommissionReportsPage() {
       {/* Update Status Modal */}
       {statusUpdateReport && (
         <div
-          className={`fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 ${
-            statusModalOpen ? "" : "hidden"
-          }`}
+          className={`fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 ${statusModalOpen ? "" : "hidden"
+            }`}
         >
           <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-6">
             <h2 className="text-lg text-[#001f3f] font-semibold mb-4">Update Status</h2>
@@ -1596,11 +1618,10 @@ export default function SuperAdminCommissionReportsPage() {
             </div>
 
             <div
-              className={`flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-6 mb-4 transition cursor-pointer ${
-                uploading
-                  ? "border-gray-300 bg-gray-50 cursor-not-allowed"
-                  : "border-blue-400 bg-blue-50 hover:bg-blue-100"
-              }`}
+              className={`flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-6 mb-4 transition cursor-pointer ${uploading
+                ? "border-gray-300 bg-gray-50 cursor-not-allowed"
+                : "border-blue-400 bg-blue-50 hover:bg-blue-100"
+                }`}
               onDrop={uploading ? undefined : handleDrop}
               onDragOver={uploading ? undefined : (e) => e.preventDefault()}
               onClick={uploading ? undefined : () => document.getElementById("file-upload-input")?.click()}
@@ -1741,22 +1762,22 @@ export default function SuperAdminCommissionReportsPage() {
                 prev.map((r) =>
                   r.uuid === selectedAttachmentsReport.uuid
                     ? {
-                        ...r,
-                        ...(isSecretary
-                          ? { secretary_pot: JSON.stringify(updated) }
-                          : { accounting_pot: JSON.stringify(updated) }),
-                      }
+                      ...r,
+                      ...(isSecretary
+                        ? { secretary_pot: JSON.stringify(updated) }
+                        : { accounting_pot: JSON.stringify(updated) }),
+                    }
                     : r,
                 ),
               )
               setSelectedAttachmentsReport((prev) =>
                 prev
                   ? {
-                      ...prev,
-                      ...(isSecretary
-                        ? { secretary_pot: JSON.stringify(updated) }
-                        : { accounting_pot: JSON.stringify(updated) }),
-                    }
+                    ...prev,
+                    ...(isSecretary
+                      ? { secretary_pot: JSON.stringify(updated) }
+                      : { accounting_pot: JSON.stringify(updated) }),
+                  }
                   : prev,
               )
             }
@@ -1817,10 +1838,10 @@ export default function SuperAdminCommissionReportsPage() {
                         <TableCell style={{ color: "#001f3f" }}>
                           {sale.tax_month
                             ? new Date(sale.tax_month).toLocaleDateString("en-US", {
-                                year: "numeric",
-                                month: "short",
-                                day: "numeric",
-                              })
+                              year: "numeric",
+                              month: "short",
+                              day: "numeric",
+                            })
                             : "N/A"}
                         </TableCell>
                         <TableCell style={{ color: "#001f3f" }}>
@@ -1831,27 +1852,27 @@ export default function SuperAdminCommissionReportsPage() {
                         <TableCell style={{ color: "#001f3f" }}>
                           {sale.gross_taxable
                             ? new Intl.NumberFormat("en-PH", {
-                                style: "currency",
-                                currency: "PHP",
-                              }).format(sale.gross_taxable)
+                              style: "currency",
+                              currency: "PHP",
+                            }).format(sale.gross_taxable)
                             : "N/A"}
                         </TableCell>
                         <TableCell style={{ color: "#001f3f" }}>
                           {sale.total_actual_amount
                             ? new Intl.NumberFormat("en-PH", {
-                                style: "currency",
-                                currency: "PHP",
-                              }).format(sale.total_actual_amount)
+                              style: "currency",
+                              currency: "PHP",
+                            }).format(sale.total_actual_amount)
                             : "N/A"}
                         </TableCell>
                         <TableCell style={{ color: "#001f3f" }}>{sale.invoice_number || "N/A"}</TableCell>
                         <TableCell style={{ color: "#001f3f" }}>
                           {sale.pickup_date
                             ? new Date(sale.pickup_date).toLocaleDateString("en-US", {
-                                year: "numeric",
-                                month: "short",
-                                day: "numeric",
-                              })
+                              year: "numeric",
+                              month: "short",
+                              day: "numeric",
+                            })
                             : "N/A"}
                         </TableCell>
                         <TableCell style={{ color: "#001f3f" }}>
