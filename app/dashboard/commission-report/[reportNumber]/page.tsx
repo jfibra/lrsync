@@ -548,14 +548,6 @@ export default function CommissionReportViewer() {
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div className="flex items-center gap-4">
-            <Button
-              variant="outline"
-              onClick={() => router.back()}
-              className="bg-white border-[#3c8dbc] text-[#3c8dbc] hover:bg-[#3c8dbc] hover:text-white"
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back
-            </Button>
             <div>
               <h1 className="text-2xl font-bold text-[#001f3f]">
                 Commission Report #{report.report_number}
