@@ -618,24 +618,38 @@ export default function SuperAdminCommissionReportsPage() {
     )
 
     const [currentIndex, setCurrentIndex] = useState(0)
+    const [zoom, setZoom] = useState(1)
+    const [rotation, setRotation] = useState(0)
 
-    const nextImage = () => {
-      setCurrentIndex((prev) => (prev + 1) % imageAttachments.length)
-    }
+    const nextImage = () => setCurrentIndex((prev) => (prev + 1) % imageAttachments.length)
+    const prevImage = () => setCurrentIndex((prev) => (prev - 1 + imageAttachments.length) % imageAttachments.length)
+    const resetTransform = () => { setZoom(1); setRotation(0) }
 
-    const prevImage = () => {
-      setCurrentIndex((prev) => (prev - 1 + imageAttachments.length) % imageAttachments.length)
-    }
+    if (imageAttachments.length === 0) return null
 
-    if (imageAttachments.length === 0) {
-      return null
-    }
+    const currentImage = imageAttachments[currentIndex]
 
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-90">
         <button className="absolute top-4 right-4 text-white hover:text-gray-300 z-10" onClick={onClose}>
           <X className="h-8 w-8" />
         </button>
+
+        {/* Controls */}
+        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 flex gap-4 z-20">
+          <button onClick={() => setZoom((z) => Math.min(z + 0.2, 3))} className="text-white bg-black/50 px-3 py-1 rounded">Zoom In</button>
+          <button onClick={() => setZoom((z) => Math.max(z - 0.2, 0.5))} className="text-white bg-black/50 px-3 py-1 rounded">Zoom Out</button>
+          <button onClick={() => setRotation((r) => r - 90)} className="text-white bg-black/50 px-3 py-1 rounded">Rotate Left</button>
+          <button onClick={() => setRotation((r) => r + 90)} className="text-white bg-black/50 px-3 py-1 rounded">Rotate Right</button>
+          <button onClick={resetTransform} className="text-white bg-black/50 px-3 py-1 rounded">Reset</button>
+          <a
+            href={currentImage.url}
+            download={currentImage.name}
+            className="text-white bg-black/50 px-3 py-1 rounded"
+          >
+            Download
+          </a>
+        </div>
 
         {imageAttachments.length > 1 && (
           <>
@@ -656,12 +670,16 @@ export default function SuperAdminCommissionReportsPage() {
 
         <div className="max-w-4xl max-h-[90vh] flex flex-col items-center">
           <img
-            src={imageAttachments[currentIndex]?.url || "/placeholder.svg"}
-            alt={imageAttachments[currentIndex]?.name}
+            src={currentImage.url || "/placeholder.svg"}
+            alt={currentImage.name}
             className="max-w-full max-h-[80vh] object-contain"
+            style={{
+              transform: `scale(${zoom}) rotate(${rotation}deg)`,
+              transition: "transform 0.2s",
+            }}
           />
           <div className="mt-4 text-white text-center">
-            <p className="text-lg font-medium">{imageAttachments[currentIndex]?.name}</p>
+            <p className="text-lg font-medium">{currentImage.name}</p>
             {imageAttachments.length > 1 && (
               <p className="text-sm text-gray-300 mt-2">
                 {currentIndex + 1} of {imageAttachments.length}
