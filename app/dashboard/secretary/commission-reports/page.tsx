@@ -20,7 +20,19 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination"
-import { Search, FileText, Calendar, User, Hash, CheckCircle, X, Upload, Download } from "lucide-react"
+import {
+  Search,
+  FileText,
+  Calendar,
+  User,
+  Hash,
+  CheckCircle,
+  X,
+  Upload,
+  Download,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react"
 import { CommissionReportViewModal } from "@/components/commission-report-view-modal"
 import { CommissionEditModal } from "@/components/commission-edit-modal"
 import { useAuth } from "@/contexts/auth-context"
@@ -112,6 +124,9 @@ export default function SecretaryCommissionReportsPage() {
   const [selectedSalesData, setSelectedSalesData] = useState<SalesData[]>([])
   const [loadingSalesData, setLoadingSalesData] = useState(false)
   const [selectedReportForSales, setSelectedReportForSales] = useState<CommissionReport | null>(null)
+  const [lightboxOpen, setLightboxOpen] = useState(false)
+  const [lightboxImages, setLightboxImages] = useState<Array<{ name: string; url: string }>>([])
+  const [currentImageIndex, setCurrentImageIndex] = useState(0)
 
   const statusOptions = [
     { value: "new", label: "New" },
@@ -224,11 +239,40 @@ export default function SecretaryCommissionReportsPage() {
     )
   }
 
+  const separateAttachments = (attachments: any[]) => {
+    const pdfs = attachments.filter((file) => file.name?.toLowerCase().endsWith(".pdf"))
+    const images = attachments.filter((file) => {
+      const name = file.name?.toLowerCase() || ""
+      return (
+        name.endsWith(".jpg") ||
+        name.endsWith(".jpeg") ||
+        name.endsWith(".png") ||
+        name.endsWith(".gif") ||
+        name.endsWith(".webp")
+      )
+    })
+    return { pdfs, images }
+  }
+
+  const openImageLightbox = (images: any[], startIndex = 0) => {
+    setLightboxImages(images)
+    setCurrentImageIndex(startIndex)
+    setLightboxOpen(true)
+  }
+
+  const nextImage = () => {
+    setCurrentImageIndex((prev) => (prev + 1) % lightboxImages.length)
+  }
+
+  const prevImage = () => {
+    setCurrentImageIndex((prev) => (prev - 1 + lightboxImages.length) % lightboxImages.length)
+  }
+
   function AttachmentsModal({ report, onClose }) {
     const [page, setPage] = useState(1)
     const [perPage, setPerPage] = useState(5)
 
-    const attachments =
+    const allAttachments =
       report._attachmentType === "secretary"
         ? report.secretary_pot
           ? JSON.parse(report.secretary_pot)
@@ -236,6 +280,8 @@ export default function SecretaryCommissionReportsPage() {
         : report.accounting_pot
           ? JSON.parse(report.accounting_pot)
           : []
+
+    const attachments = allAttachments.filter((file) => file.name?.toLowerCase().endsWith(".pdf"))
 
     const total = attachments.length
     const totalPages = Math.max(1, Math.ceil(total / perPage))
@@ -310,13 +356,13 @@ export default function SecretaryCommissionReportsPage() {
             <X className="h-5 w-5" />
           </button>
           <h2 className="text-lg text-[#001f3f] font-semibold mb-4">
-            Attachments for Report <span className="text-purple-700">#{report.report_number}</span>
+            PDF Attachments for Report <span className="text-purple-700">#{report.report_number}</span>
           </h2>
           <div className="mb-4 flex justify-between items-center">
             <span className="text-sm text-gray-700">
               Showing <span className="font-semibold text-[#001f3f]">{Math.min((page - 1) * perPage + 1, total)}</span>{" "}
               to <span className="font-semibold text-[#001f3f]">{Math.min(page * perPage, total)}</span> of{" "}
-              <span className="font-semibold text-[#001f3f]">{total}</span> files
+              <span className="font-semibold text-[#001f3f]">{total}</span> PDF files
             </span>
             <div>
               <label className="mr-2 text-sm text-[#001f3f]">Show</label>
@@ -957,54 +1003,86 @@ export default function SecretaryCommissionReportsPage() {
                                 {columnVisibility.find((col) => col.key === "accounting_attachments")?.visible && (
                                   <TableCell>
                                     <div className="flex items-center gap-2">
-                                      <Badge
-                                        variant={attachmentCount > 0 ? "default" : "secondary"}
-                                        className={
-                                          attachmentCount > 0 ? "bg-green-600 cursor-pointer hover:bg-green-700" : ""
-                                        }
-                                        onClick={() => {
-                                          if (attachmentCount > 0) {
-                                            setSelectedAttachmentsReport({
-                                              ...report,
-                                              _attachmentType: "accounting",
-                                            })
-                                            setAttachmentsModalOpen(true)
-                                          }
-                                        }}
-                                        style={{ pointerEvents: attachmentCount > 0 ? "auto" : "none" }}
-                                      >
-                                        {attachmentCount} files
-                                      </Badge>
-                                      {attachmentCount > 0 && <CheckCircle className="h-4 w-4 text-green-600" />}
+                                      {(() => {
+                                        const { pdfs, images } = separateAttachments(attachments)
+                                        return (
+                                          <>
+                                            {pdfs.length > 0 && (
+                                              <Badge
+                                                variant="default"
+                                                className="bg-green-600 cursor-pointer hover:bg-green-700"
+                                                onClick={() => {
+                                                  setSelectedAttachmentsReport({
+                                                    ...report,
+                                                    _attachmentType: "accounting",
+                                                  })
+                                                  setAttachmentsModalOpen(true)
+                                                }}
+                                              >
+                                                {pdfs.length} pdf files
+                                              </Badge>
+                                            )}
+                                            {images.length > 0 && (
+                                              <Badge
+                                                variant="default"
+                                                className="bg-blue-600 cursor-pointer hover:bg-blue-700"
+                                                onClick={() => openImageLightbox(images, 0)}
+                                              >
+                                                {images.length} image files
+                                              </Badge>
+                                            )}
+                                            {pdfs.length === 0 && images.length === 0 && (
+                                              <Badge variant="secondary">0 files</Badge>
+                                            )}
+                                            {(pdfs.length > 0 || images.length > 0) && (
+                                              <CheckCircle className="h-4 w-4 text-green-600" />
+                                            )}
+                                          </>
+                                        )
+                                      })()}
                                     </div>
                                   </TableCell>
                                 )}
                                 {columnVisibility.find((col) => col.key === "secretary_attachments")?.visible && (
                                   <TableCell>
                                     <div className="flex items-center gap-2">
-                                      <Badge
-                                        variant={secretaryAttachmentCount > 0 ? "default" : "secondary"}
-                                        className={
-                                          secretaryAttachmentCount > 0
-                                            ? "bg-blue-600 cursor-pointer hover:bg-blue-700"
-                                            : ""
-                                        }
-                                        onClick={() => {
-                                          if (secretaryAttachmentCount > 0) {
-                                            setSelectedAttachmentsReport({
-                                              ...report,
-                                              _attachmentType: "secretary",
-                                            })
-                                            setAttachmentsModalOpen(true)
-                                          }
-                                        }}
-                                        style={{ pointerEvents: secretaryAttachmentCount > 0 ? "auto" : "none" }}
-                                      >
-                                        {secretaryAttachmentCount} files
-                                      </Badge>
-                                      {secretaryAttachmentCount > 0 && (
-                                        <CheckCircle className="h-4 w-4 text-blue-600" />
-                                      )}
+                                      {(() => {
+                                        const { pdfs, images } = separateAttachments(secretaryAttachments)
+                                        return (
+                                          <>
+                                            {pdfs.length > 0 && (
+                                              <Badge
+                                                variant="default"
+                                                className="bg-purple-600 cursor-pointer hover:bg-purple-700"
+                                                onClick={() => {
+                                                  setSelectedAttachmentsReport({
+                                                    ...report,
+                                                    _attachmentType: "secretary",
+                                                  })
+                                                  setAttachmentsModalOpen(true)
+                                                }}
+                                              >
+                                                {pdfs.length} pdf files
+                                              </Badge>
+                                            )}
+                                            {images.length > 0 && (
+                                              <Badge
+                                                variant="default"
+                                                className="bg-indigo-600 cursor-pointer hover:bg-indigo-700"
+                                                onClick={() => openImageLightbox(images, 0)}
+                                              >
+                                                {images.length} image files
+                                              </Badge>
+                                            )}
+                                            {pdfs.length === 0 && images.length === 0 && (
+                                              <Badge variant="secondary">0 files</Badge>
+                                            )}
+                                            {(pdfs.length > 0 || images.length > 0) && (
+                                              <CheckCircle className="h-4 w-4 text-blue-600" />
+                                            )}
+                                          </>
+                                        )
+                                      })()}
                                     </div>
                                   </TableCell>
                                 )}
@@ -1037,12 +1115,12 @@ export default function SecretaryCommissionReportsPage() {
                                               <span>
                                                 {mostRecent.timestamp
                                                   ? new Date(mostRecent.timestamp).toLocaleString("en-US", {
-                                                    year: "numeric",
-                                                    month: "short",
-                                                    day: "numeric",
-                                                    hour: "2-digit",
-                                                    minute: "2-digit",
-                                                  })
+                                                      year: "numeric",
+                                                      month: "short",
+                                                      day: "numeric",
+                                                      hour: "2-digit",
+                                                      minute: "2-digit",
+                                                    })
                                                   : ""}
                                               </span>
                                             </div>
@@ -1171,6 +1249,53 @@ export default function SecretaryCommissionReportsPage() {
         </div>
       </div>
 
+      {lightboxOpen && (
+        <div className="fixed inset-0 z-[60] bg-black bg-opacity-90 flex items-center justify-center">
+          <button
+            className="absolute top-4 right-4 text-white hover:text-gray-300 z-10"
+            onClick={() => setLightboxOpen(false)}
+          >
+            <X className="h-8 w-8" />
+          </button>
+
+          <div className="relative w-full h-full flex items-center justify-center p-4">
+            {lightboxImages.length > 1 && (
+              <button
+                className="absolute left-4 top-1/2 transform -translate-y-1/2 text-white hover:text-gray-300 z-10 bg-black bg-opacity-50 rounded-full p-2"
+                onClick={prevImage}
+              >
+                <ChevronLeft className="h-8 w-8" />
+              </button>
+            )}
+
+            <div className="max-w-full max-h-full flex flex-col items-center">
+              <img
+                src={lightboxImages[currentImageIndex]?.url || "/placeholder.svg"}
+                alt={lightboxImages[currentImageIndex]?.name}
+                className="max-w-full max-h-[80vh] object-contain"
+              />
+              <div className="mt-4 text-center">
+                <p className="text-white text-lg font-medium">{lightboxImages[currentImageIndex]?.name}</p>
+                {lightboxImages.length > 1 && (
+                  <p className="text-gray-300 text-sm mt-1">
+                    {currentImageIndex + 1} of {lightboxImages.length}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {lightboxImages.length > 1 && (
+              <button
+                className="absolute right-4 top-1/2 transform -translate-y-1/2 text-white hover:text-gray-300 z-10 bg-black bg-opacity-50 rounded-full p-2"
+                onClick={nextImage}
+              >
+                <ChevronRight className="h-8 w-8" />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {selectedReport && (
         <CommissionReportViewModal
           isOpen={viewModalOpen}
@@ -1202,10 +1327,11 @@ export default function SecretaryCommissionReportsPage() {
               <p className="text-xs text-gray-600">Files will be uploaded to our server and made publicly viewable</p>
             </div>
             <div
-              className={`flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-6 mb-4 transition cursor-pointer ${uploading
-                ? "border-gray-300 bg-gray-50 cursor-not-allowed"
-                : "border-purple-400 bg-purple-50 hover:bg-purple-100"
-                }`}
+              className={`flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-6 mb-4 transition cursor-pointer ${
+                uploading
+                  ? "border-gray-300 bg-gray-50 cursor-not-allowed"
+                  : "border-purple-400 bg-purple-50 hover:bg-purple-100"
+              }`}
               onDrop={uploading ? undefined : handleDrop}
               onDragOver={uploading ? undefined : (e) => e.preventDefault()}
               onClick={uploading ? undefined : () => document.getElementById("file-upload-input")?.click()}
@@ -1347,10 +1473,10 @@ export default function SecretaryCommissionReportsPage() {
                         <TableCell style={{ color: "#001f3f" }}>
                           {sale.tax_month
                             ? new Date(sale.tax_month).toLocaleDateString("en-US", {
-                              year: "numeric",
-                              month: "short",
-                              day: "numeric",
-                            })
+                                year: "numeric",
+                                month: "short",
+                                day: "numeric",
+                              })
                             : "N/A"}
                         </TableCell>
                         <TableCell style={{ color: "#001f3f" }}>
@@ -1361,27 +1487,27 @@ export default function SecretaryCommissionReportsPage() {
                         <TableCell style={{ color: "#001f3f" }}>
                           {sale.gross_taxable
                             ? new Intl.NumberFormat("en-PH", {
-                              style: "currency",
-                              currency: "PHP",
-                            }).format(sale.gross_taxable)
+                                style: "currency",
+                                currency: "PHP",
+                              }).format(sale.gross_taxable)
                             : "N/A"}
                         </TableCell>
                         <TableCell style={{ color: "#001f3f" }}>
                           {sale.total_actual_amount
                             ? new Intl.NumberFormat("en-PH", {
-                              style: "currency",
-                              currency: "PHP",
-                            }).format(sale.total_actual_amount)
+                                style: "currency",
+                                currency: "PHP",
+                              }).format(sale.total_actual_amount)
                             : "N/A"}
                         </TableCell>
                         <TableCell style={{ color: "#001f3f" }}>{sale.invoice_number || "N/A"}</TableCell>
                         <TableCell style={{ color: "#001f3f" }}>
                           {sale.pickup_date
                             ? new Date(sale.pickup_date).toLocaleDateString("en-US", {
-                              year: "numeric",
-                              month: "short",
-                              day: "numeric",
-                            })
+                                year: "numeric",
+                                month: "short",
+                                day: "numeric",
+                              })
                             : "N/A"}
                         </TableCell>
                         <TableCell style={{ color: "#001f3f" }}>
