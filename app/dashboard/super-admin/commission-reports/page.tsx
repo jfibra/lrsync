@@ -21,7 +21,19 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination"
-import { Search, FileText, Calendar, User, Hash, Upload, X, CheckCircle, Download } from "lucide-react"
+import {
+  Search,
+  FileText,
+  Calendar,
+  User,
+  Hash,
+  Upload,
+  X,
+  CheckCircle,
+  Download,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react"
 import { CommissionReportViewModal } from "@/components/commission-report-view-modal"
 import { logNotification } from "@/utils/logNotification"
 import { useAuth } from "@/contexts/auth-context" // If not already imported
@@ -116,6 +128,10 @@ export default function SuperAdminCommissionReportsPage() {
   const [assignedAreaFilter, setAssignedAreaFilter] = useState("all")
   const [attachmentsModalOpen, setAttachmentsModalOpen] = useState(false)
   const [selectedAttachmentsReport, setSelectedAttachmentsReport] = useState<CommissionReport | null>(null)
+
+  const [imageLightboxOpen, setImageLightboxOpen] = useState(false)
+  const [selectedImageReport, setSelectedImageReport] = useState(null)
+  const [currentImageIndex, setCurrentImageIndex] = useState(0)
 
   const [columnVisibility, setColumnVisibility] = useState([
     { key: "report_number", label: "Report #", visible: true },
@@ -356,8 +372,9 @@ export default function SuperAdminCommissionReportsPage() {
 
         await Swal.fire({
           title: "Success!",
-          text: `${successfulUploads.length} file(s) uploaded successfully${failedUploads.length > 0 ? `. ${failedUploads.length} file(s) failed.` : "."
-            }`,
+          text: `${successfulUploads.length} file(s) uploaded successfully${
+            failedUploads.length > 0 ? `. ${failedUploads.length} file(s) failed.` : "."
+          }`,
           icon: "success",
           confirmButtonColor: "#4284f2",
         })
@@ -427,10 +444,8 @@ export default function SuperAdminCommissionReportsPage() {
   function AttachmentsModal({ report, onClose, onDeleteAttachment }) {
     const [page, setPage] = useState(1)
     const [perPage, setPerPage] = useState(5)
-    const secretaryAttachments = report.secretary_pot ? JSON.parse(report.secretary_pot) : []
-    const secretaryAttachmentCount = Array.isArray(secretaryAttachments) ? secretaryAttachments.length : 0
 
-    const attachments =
+    const allAttachments =
       report._attachmentType === "secretary"
         ? report.secretary_pot
           ? JSON.parse(report.secretary_pot)
@@ -438,9 +453,14 @@ export default function SuperAdminCommissionReportsPage() {
         : report.accounting_pot
           ? JSON.parse(report.accounting_pot)
           : []
-    const total = attachments.length
+
+    const pdfAttachments = allAttachments.filter(
+      (file) => file.name?.toLowerCase().endsWith(".pdf") || file.type === "application/pdf",
+    )
+
+    const total = pdfAttachments.length
     const totalPages = Math.max(1, Math.ceil(total / perPage))
-    const paged = attachments.slice((page - 1) * perPage, page * perPage)
+    const paged = pdfAttachments.slice((page - 1) * perPage, page * perPage)
 
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
@@ -449,13 +469,13 @@ export default function SuperAdminCommissionReportsPage() {
             <X className="h-5 w-5" />
           </button>
           <h2 className="text-lg text-[#001f3f] font-semibold mb-4">
-            Attachments for Report <span className="text-blue-700">#{report.report_number}</span>
+            PDF Attachments for Report <span className="text-blue-700">#{report.report_number}</span>
           </h2>
           <div className="mb-4 flex justify-between items-center">
             <span className="text-sm text-gray-700">
               Showing <span className="font-semibold text-[#001f3f]">{Math.min((page - 1) * perPage + 1, total)}</span>{" "}
               to <span className="font-semibold text-[#001f3f]">{Math.min(page * perPage, total)}</span> of{" "}
-              <span className="font-semibold text-[#001f3f]">{total}</span> files
+              <span className="font-semibold text-[#001f3f]">{total}</span> PDF files
             </span>
             <div>
               <label className="mr-2 text-sm text-[#001f3f]">Show</label>
@@ -489,7 +509,7 @@ export default function SuperAdminCommissionReportsPage() {
               {paged.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={4} className="text-center text-gray-400 py-6">
-                    No attachments found.
+                    No PDF attachments found.
                   </TableCell>
                 </TableRow>
               ) : (
@@ -515,7 +535,10 @@ export default function SuperAdminCommissionReportsPage() {
                         className="border-red-400 text-white hover:bg-red-100 hover:text-red-900"
                         onClick={() => {
                           if (window.confirm("Are you sure you want to delete this attachment?")) {
-                            onDeleteAttachment((page - 1) * perPage + idx)
+                            const originalIndex = allAttachments.findIndex(
+                              (f) => f.name === file.name && f.url === file.url,
+                            )
+                            onDeleteAttachment(originalIndex)
                           }
                         }}
                       >
@@ -551,6 +574,76 @@ export default function SuperAdminCommissionReportsPage() {
                 Next
               </Button>
             </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  function ImageLightboxModal({ report, onClose }) {
+    const allAttachments =
+      report._attachmentType === "secretary"
+        ? report.secretary_pot
+          ? JSON.parse(report.secretary_pot)
+          : []
+        : report.accounting_pot
+          ? JSON.parse(report.accounting_pot)
+          : []
+
+    const imageAttachments = allAttachments.filter(
+      (file) => file.name?.toLowerCase().match(/\.(jpg|jpeg|png|gif|bmp|webp)$/i) || file.type?.startsWith("image/"),
+    )
+
+    const [currentIndex, setCurrentIndex] = useState(0)
+
+    const nextImage = () => {
+      setCurrentIndex((prev) => (prev + 1) % imageAttachments.length)
+    }
+
+    const prevImage = () => {
+      setCurrentIndex((prev) => (prev - 1 + imageAttachments.length) % imageAttachments.length)
+    }
+
+    if (imageAttachments.length === 0) {
+      return null
+    }
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-90">
+        <button className="absolute top-4 right-4 text-white hover:text-gray-300 z-10" onClick={onClose}>
+          <X className="h-8 w-8" />
+        </button>
+
+        {imageAttachments.length > 1 && (
+          <>
+            <button
+              className="absolute left-4 top-1/2 transform -translate-y-1/2 text-white hover:text-gray-300 z-10"
+              onClick={prevImage}
+            >
+              <ChevronLeft className="h-12 w-12" />
+            </button>
+            <button
+              className="absolute right-4 top-1/2 transform -translate-y-1/2 text-white hover:text-gray-300 z-10"
+              onClick={nextImage}
+            >
+              <ChevronRight className="h-12 w-12" />
+            </button>
+          </>
+        )}
+
+        <div className="max-w-4xl max-h-[90vh] flex flex-col items-center">
+          <img
+            src={imageAttachments[currentIndex]?.url || "/placeholder.svg"}
+            alt={imageAttachments[currentIndex]?.name}
+            className="max-w-full max-h-[80vh] object-contain"
+          />
+          <div className="mt-4 text-white text-center">
+            <p className="text-lg font-medium">{imageAttachments[currentIndex]?.name}</p>
+            {imageAttachments.length > 1 && (
+              <p className="text-sm text-gray-300 mt-2">
+                {currentIndex + 1} of {imageAttachments.length}
+              </p>
+            )}
           </div>
         </div>
       </div>
@@ -601,11 +694,11 @@ export default function SuperAdminCommissionReportsPage() {
         prev.map((r) =>
           r.uuid === statusUpdateReport.uuid
             ? {
-              ...r,
-              status: dbStatus,
-              remarks: statusRemark,
-              history: newHistory,
-            }
+                ...r,
+                status: dbStatus,
+                remarks: statusRemark,
+                history: newHistory,
+              }
             : r,
         ),
       )
@@ -788,6 +881,20 @@ export default function SuperAdminCommissionReportsPage() {
     )
   }
 
+  const getPdfCount = (attachments) => {
+    if (!attachments) return 0
+    const parsed = JSON.parse(attachments)
+    return parsed.filter((file) => file.name?.toLowerCase().endsWith(".pdf") || file.type === "application/pdf").length
+  }
+
+  const getImageCount = (attachments) => {
+    if (!attachments) return 0
+    const parsed = JSON.parse(attachments)
+    return parsed.filter(
+      (file) => file.name?.toLowerCase().match(/\.(jpg|jpeg|png|gif|bmp|webp)$/i) || file.type?.startsWith("image/"),
+    ).length
+  }
+
   const handleViewReport = (report: CommissionReport) => {
     setSelectedReport(report)
     setViewModalOpen(true)
@@ -945,10 +1052,7 @@ export default function SuperAdminCommissionReportsPage() {
                 <CardTitle className="text-[#001f3f] text-lg sm:text-2xl">Commission Reports</CardTitle>
                 <div className="flex flex-col gap-2 w-full sm:w-auto sm:flex-row sm:items-center sm:gap-4">
                   <div className="flex flex-col gap-2 w-full sm:w-auto sm:flex-row sm:items-center">
-                    <ColumnVisibilityControl
-                      columns={columnVisibility}
-                      onColumnToggle={toggleColumnVisibility}
-                    />
+                    <ColumnVisibilityControl columns={columnVisibility} onColumnToggle={toggleColumnVisibility} />
                     <CommissionReportsExportModal
                       reports={reports}
                       onExport={(exportedCount) => {
@@ -1150,51 +1254,90 @@ export default function SuperAdminCommissionReportsPage() {
                                 {columnVisibility.find((col) => col.key === "accounting_attachments")?.visible && (
                                   <TableCell>
                                     <div className="flex items-center gap-2">
-                                      <Badge
-                                        variant={attachmentCount > 0 ? "default" : "secondary"}
-                                        className={
-                                          attachmentCount > 0 ? "bg-green-600 cursor-pointer hover:bg-green-700" : ""
-                                        }
-                                        onClick={() => {
-                                          if (attachmentCount > 0) {
-                                            setSelectedAttachmentsReport(report)
-                                            setAttachmentsModalOpen(true)
-                                          }
-                                        }}
-                                        style={{ pointerEvents: attachmentCount > 0 ? "auto" : "none" }}
-                                      >
-                                        {attachmentCount} files
-                                      </Badge>
-                                      {attachmentCount > 0 && <CheckCircle className="h-4 w-4 text-green-600" />}
+                                      {(() => {
+                                        const pdfCount = getPdfCount(report.accounting_pot)
+                                        const imageCount = getImageCount(report.accounting_pot)
+
+                                        return (
+                                          <>
+                                            {pdfCount > 0 && (
+                                              <Badge
+                                                variant="default"
+                                                className="bg-green-600 cursor-pointer hover:bg-green-700 mr-1"
+                                                onClick={() => {
+                                                  setSelectedAttachmentsReport(report)
+                                                  setAttachmentsModalOpen(true)
+                                                }}
+                                              >
+                                                {pdfCount} pdf files
+                                              </Badge>
+                                            )}
+                                            {imageCount > 0 && (
+                                              <Badge
+                                                variant="default"
+                                                className="bg-blue-600 cursor-pointer hover:bg-blue-700"
+                                                onClick={() => {
+                                                  setSelectedImageReport(report)
+                                                  setImageLightboxOpen(true)
+                                                }}
+                                              >
+                                                {imageCount} image files
+                                              </Badge>
+                                            )}
+                                            {(pdfCount > 0 || imageCount > 0) && (
+                                              <CheckCircle className="h-4 w-4 text-green-600" />
+                                            )}
+                                          </>
+                                        )
+                                      })()}
                                     </div>
                                   </TableCell>
                                 )}
                                 {columnVisibility.find((col) => col.key === "secretary_attachments")?.visible && (
                                   <TableCell>
                                     <div className="flex items-center gap-2">
-                                      <Badge
-                                        variant={secretaryAttachmentCount > 0 ? "default" : "secondary"}
-                                        className={
-                                          secretaryAttachmentCount > 0
-                                            ? "bg-purple-600 cursor-pointer hover:bg-purple-700"
-                                            : ""
-                                        }
-                                        onClick={() => {
-                                          if (secretaryAttachmentCount > 0) {
-                                            setSelectedAttachmentsReport({
-                                              ...report,
-                                              _attachmentType: "secretary",
-                                            })
-                                            setAttachmentsModalOpen(true)
-                                          }
-                                        }}
-                                        style={{ pointerEvents: secretaryAttachmentCount > 0 ? "auto" : "none" }}
-                                      >
-                                        {secretaryAttachmentCount} files
-                                      </Badge>
-                                      {secretaryAttachmentCount > 0 && (
-                                        <CheckCircle className="h-4 w-4 text-purple-600" />
-                                      )}
+                                      {(() => {
+                                        const pdfCount = getPdfCount(report.secretary_pot)
+                                        const imageCount = getImageCount(report.secretary_pot)
+
+                                        return (
+                                          <>
+                                            {pdfCount > 0 && (
+                                              <Badge
+                                                variant="default"
+                                                className="bg-purple-600 cursor-pointer hover:bg-purple-700 mr-1"
+                                                onClick={() => {
+                                                  setSelectedAttachmentsReport({
+                                                    ...report,
+                                                    _attachmentType: "secretary",
+                                                  })
+                                                  setAttachmentsModalOpen(true)
+                                                }}
+                                              >
+                                                {pdfCount} pdf files
+                                              </Badge>
+                                            )}
+                                            {imageCount > 0 && (
+                                              <Badge
+                                                variant="default"
+                                                className="bg-indigo-600 cursor-pointer hover:bg-indigo-700"
+                                                onClick={() => {
+                                                  setSelectedImageReport({
+                                                    ...report,
+                                                    _attachmentType: "secretary",
+                                                  })
+                                                  setImageLightboxOpen(true)
+                                                }}
+                                              >
+                                                {imageCount} image files
+                                              </Badge>
+                                            )}
+                                            {(pdfCount > 0 || imageCount > 0) && (
+                                              <CheckCircle className="h-4 w-4 text-purple-600" />
+                                            )}
+                                          </>
+                                        )
+                                      })()}
                                     </div>
                                   </TableCell>
                                 )}
@@ -1229,12 +1372,12 @@ export default function SuperAdminCommissionReportsPage() {
                                               <span>
                                                 {mostRecent.timestamp
                                                   ? new Date(mostRecent.timestamp).toLocaleString("en-US", {
-                                                    year: "numeric",
-                                                    month: "short",
-                                                    day: "numeric",
-                                                    hour: "2-digit",
-                                                    minute: "2-digit",
-                                                  })
+                                                      year: "numeric",
+                                                      month: "short",
+                                                      day: "numeric",
+                                                      hour: "2-digit",
+                                                      minute: "2-digit",
+                                                    })
                                                   : ""}
                                               </span>
                                             </div>
@@ -1363,8 +1506,9 @@ export default function SuperAdminCommissionReportsPage() {
       {/* Update Status Modal */}
       {statusUpdateReport && (
         <div
-          className={`fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 ${statusModalOpen ? "" : "hidden"
-            }`}
+          className={`fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 ${
+            statusModalOpen ? "" : "hidden"
+          }`}
         >
           <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-6">
             <h2 className="text-lg text-[#001f3f] font-semibold mb-4">Update Status</h2>
@@ -1452,10 +1596,11 @@ export default function SuperAdminCommissionReportsPage() {
             </div>
 
             <div
-              className={`flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-6 mb-4 transition cursor-pointer ${uploading
-                ? "border-gray-300 bg-gray-50 cursor-not-allowed"
-                : "border-blue-400 bg-blue-50 hover:bg-blue-100"
-                }`}
+              className={`flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-6 mb-4 transition cursor-pointer ${
+                uploading
+                  ? "border-gray-300 bg-gray-50 cursor-not-allowed"
+                  : "border-blue-400 bg-blue-50 hover:bg-blue-100"
+              }`}
               onDrop={uploading ? undefined : handleDrop}
               onDragOver={uploading ? undefined : (e) => e.preventDefault()}
               onClick={uploading ? undefined : () => document.getElementById("file-upload-input")?.click()}
@@ -1596,27 +1741,30 @@ export default function SuperAdminCommissionReportsPage() {
                 prev.map((r) =>
                   r.uuid === selectedAttachmentsReport.uuid
                     ? {
-                      ...r,
-                      ...(isSecretary
-                        ? { secretary_pot: JSON.stringify(updated) }
-                        : { accounting_pot: JSON.stringify(updated) }),
-                    }
+                        ...r,
+                        ...(isSecretary
+                          ? { secretary_pot: JSON.stringify(updated) }
+                          : { accounting_pot: JSON.stringify(updated) }),
+                      }
                     : r,
                 ),
               )
               setSelectedAttachmentsReport((prev) =>
                 prev
                   ? {
-                    ...prev,
-                    ...(isSecretary
-                      ? { secretary_pot: JSON.stringify(updated) }
-                      : { accounting_pot: JSON.stringify(updated) }),
-                  }
+                      ...prev,
+                      ...(isSecretary
+                        ? { secretary_pot: JSON.stringify(updated) }
+                        : { accounting_pot: JSON.stringify(updated) }),
+                    }
                   : prev,
               )
             }
           }}
         />
+      )}
+      {imageLightboxOpen && selectedImageReport && (
+        <ImageLightboxModal report={selectedImageReport} onClose={() => setImageLightboxOpen(false)} />
       )}
       <Dialog open={salesBreakdownOpen} onOpenChange={setSalesBreakdownOpen}>
         <DialogContent className="max-w-7xl max-h-[90vh] overflow-y-auto bg-white">
@@ -1669,10 +1817,10 @@ export default function SuperAdminCommissionReportsPage() {
                         <TableCell style={{ color: "#001f3f" }}>
                           {sale.tax_month
                             ? new Date(sale.tax_month).toLocaleDateString("en-US", {
-                              year: "numeric",
-                              month: "short",
-                              day: "numeric",
-                            })
+                                year: "numeric",
+                                month: "short",
+                                day: "numeric",
+                              })
                             : "N/A"}
                         </TableCell>
                         <TableCell style={{ color: "#001f3f" }}>
@@ -1683,27 +1831,27 @@ export default function SuperAdminCommissionReportsPage() {
                         <TableCell style={{ color: "#001f3f" }}>
                           {sale.gross_taxable
                             ? new Intl.NumberFormat("en-PH", {
-                              style: "currency",
-                              currency: "PHP",
-                            }).format(sale.gross_taxable)
+                                style: "currency",
+                                currency: "PHP",
+                              }).format(sale.gross_taxable)
                             : "N/A"}
                         </TableCell>
                         <TableCell style={{ color: "#001f3f" }}>
                           {sale.total_actual_amount
                             ? new Intl.NumberFormat("en-PH", {
-                              style: "currency",
-                              currency: "PHP",
-                            }).format(sale.total_actual_amount)
+                                style: "currency",
+                                currency: "PHP",
+                              }).format(sale.total_actual_amount)
                             : "N/A"}
                         </TableCell>
                         <TableCell style={{ color: "#001f3f" }}>{sale.invoice_number || "N/A"}</TableCell>
                         <TableCell style={{ color: "#001f3f" }}>
                           {sale.pickup_date
                             ? new Date(sale.pickup_date).toLocaleDateString("en-US", {
-                              year: "numeric",
-                              month: "short",
-                              day: "numeric",
-                            })
+                                year: "numeric",
+                                month: "short",
+                                day: "numeric",
+                              })
                             : "N/A"}
                         </TableCell>
                         <TableCell style={{ color: "#001f3f" }}>
