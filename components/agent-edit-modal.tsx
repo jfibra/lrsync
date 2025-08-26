@@ -87,20 +87,25 @@ const AgentEditModal = ({ open, agent, onClose, onSave, authUserId }: AgentEditM
       let ewt = ""
       let netComm = ""
 
+      // Always calculate netOfVat for these types, regardless of agent rate
+      if (calcType === "nonvat with invoice" || calcType === "vat with invoice") {
+        netOfVat = comm ? String(comm / 1.02) : ""
+      }
+
       if (agentsRate === 0) {
         agent = ""
         vat = ""
         ewt = ""
         netComm = ""
+        // Do NOT clear netOfVat here!
       } else {
         if (calcType === "vat deduction") {
           agent = comm && agentsRate && developersRate ? String((comm * agentsRate) / developersRate) : ""
           netComm = agent ? String(Number(agent) / 1.12) : ""
           vat = netComm ? String(Number(netComm) * 0.12) : ""
           ewt = ""
-          netOfVat = ""
+          // netOfVat is not used for vat deduction
         } else if (calcType === "nonvat with invoice") {
-          netOfVat = comm ? String(comm / 1.02) : ""
           agent =
             netOfVat && agentsRate && developersRate
               ? String((Number.parseFloat(netOfVat) * agentsRate) / developersRate)
@@ -110,13 +115,12 @@ const AgentEditModal = ({ open, agent, onClose, onSave, authUserId }: AgentEditM
           netComm = agent && ewt ? String(Number.parseFloat(agent) - Number.parseFloat(ewt)) : ""
           vat = ""
         } else if (calcType === "nonvat without invoice") {
-          netOfVat = ""
           agent = ""
           vat = ""
           ewt = ""
           netComm = comm && agentsRate && developersRate ? String((comm * agentsRate) / developersRate) : ""
+          // netOfVat is not used for nonvat without invoice
         } else if (calcType === "vat with invoice") {
-          netOfVat = comm ? String(comm / 1.02) : ""
           agent =
             netOfVat && agentsRate && developersRate
               ? String((Number.parseFloat(netOfVat) * agentsRate) / developersRate)
