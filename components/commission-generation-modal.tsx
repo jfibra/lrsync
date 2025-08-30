@@ -472,16 +472,13 @@ export function CommissionGenerationModal({
         ewt = ""
         netComm = comm && agentsRate && developersRate ? String((comm * agentsRate) / developersRate) : ""
       } else if (calcType === "vat with invoice") {
-        netOfVat = comm ? String(comm / 1.02) : ""
-        agent =
-          netOfVat && agentsRate && developersRate
-            ? String((Number.parseFloat(netOfVat) * agentsRate) / developersRate)
-            : ""
-        vat = agent ? String(Number.parseFloat(agent) * 0.12) : ""
-        const agentEwtRate = Number(record.ewtRate || (record.ewtRate === "10" ? "10" : "5")) / 100
-        ewt = agent ? String(Number.parseFloat(agent) * agentEwtRate) : ""
-        netComm =
-          agent && vat && ewt ? String(Number.parseFloat(agent) + Number.parseFloat(vat) - Number.parseFloat(ewt)) : ""
+        netOfVat = ""
+        vat = ""
+        agent = comm && agentsRate && developersRate
+          ? String((Number.parseFloat(comm) * agentsRate) / developersRate)
+          : ""
+        netComm = comm ? String(agent) : ""
+        ewt = comm ? String((Number(netComm) / 1.02) * 0.10) : ""
       }
 
       record.netOfVat = netOfVat
@@ -504,9 +501,9 @@ export function CommissionGenerationModal({
         let umNetComm = ""
 
         // If agent calculation is 'nonvat without invoice' or 'vat deduction', use COMM for UM/TL calculation
-        if (calcType === "nonvat without invoice" || calcType === "vat deduction") {
+        if (calcType === "nonvat without invoice" || calcType === "vat deduction" || umCalcType === "vat with invoice") {
           umAmount = comm && umRate && umDevelopersRate ? String((comm * umRate) / umDevelopersRate) : ""
-        } else if (umCalcType === "nonvat with invoice" || umCalcType === "vat with invoice") {
+        } else if (umCalcType === "nonvat with invoice") {
           umAmount =
             netOfVat && umRate && umDevelopersRate
               ? String((Number.parseFloat(netOfVat) * umRate) / umDevelopersRate)
@@ -521,13 +518,9 @@ export function CommissionGenerationModal({
           umNetComm = umAmount && umEwt ? String(Number.parseFloat(umAmount) - Number.parseFloat(umEwt)) : ""
           umVat = ""
         } else if (umCalcType === "vat with invoice") {
-          umVat = umAmount ? String(Number.parseFloat(umAmount) * 0.12) : ""
-          const umEwtRate = Number(record.umEwtRate || (record.umEwtRate === "10" ? "10" : "5")) / 100
-          umEwt = umAmount ? String(Number.parseFloat(umAmount) * umEwtRate) : ""
-          umNetComm =
-            umAmount && umVat && umEwt
-              ? String(Number.parseFloat(umAmount) + Number.parseFloat(umVat) - Number.parseFloat(umEwt))
-              : ""
+          umVat = ""
+          umNetComm = comm ? String(umAmount) : ""
+          umEwt = comm ? String((Number(umNetComm) / 1.02) * 0.10) : ""
         } else if (umCalcType === "vat deduction") {
           // vat deduction for UM: netComm = umAmount / 1.12, vat = netComm * 0.12
           umNetComm = umAmount ? String(Number(umAmount) / 1.12) : ""
@@ -561,9 +554,9 @@ export function CommissionGenerationModal({
         let tlNetComm = ""
 
         // If agent calculation is 'nonvat without invoice' or 'vat deduction', use COMM for UM/TL calculation
-        if (calcType === "nonvat without invoice" || calcType === "vat deduction") {
+        if (calcType === "nonvat without invoice" || calcType === "vat deduction" || tlCalcType === "vat with invoice") {
           tlAmount = comm && tlRate && tlDevelopersRate ? String((comm * tlRate) / tlDevelopersRate) : ""
-        } else if (tlCalcType === "nonvat with invoice" || tlCalcType === "vat with invoice") {
+        } else if (tlCalcType === "nonvat with invoice") {
           tlAmount =
             netOfVat && tlRate && tlDevelopersRate
               ? String((Number.parseFloat(netOfVat) * tlRate) / tlDevelopersRate)
@@ -578,13 +571,9 @@ export function CommissionGenerationModal({
           tlNetComm = tlAmount && tlEwt ? String(Number.parseFloat(tlAmount) - Number.parseFloat(tlEwt)) : ""
           tlVat = ""
         } else if (tlCalcType === "vat with invoice") {
-          tlVat = tlAmount ? String(Number.parseFloat(tlAmount) * 0.12) : ""
-          const tlEwtRate = Number(record.tlEwtRate || (record.tlEwtRate === "10" ? "10" : "5")) / 100
-          tlEwt = tlAmount ? String(Number.parseFloat(tlAmount) * tlEwtRate) : ""
-          tlNetComm =
-            tlAmount && tlVat && tlEwt
-              ? String(Number.parseFloat(tlAmount) + Number.parseFloat(tlVat) - Number.parseFloat(tlEwt))
-              : ""
+          tlVat = ""
+          tlNetComm = comm ? String(tlAmount) : ""
+          tlEwt = comm ? String((Number(tlNetComm) / 1.02) * 0.10) : ""
         } else if (tlCalcType === "vat deduction") {
           // vat deduction for TL: netComm = tlAmount / 1.12, vat = netComm * 0.12
           tlNetComm = tlAmount ? String(Number(tlAmount) / 1.12) : ""

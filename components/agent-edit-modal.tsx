@@ -88,7 +88,7 @@ const AgentEditModal = ({ open, agent, onClose, onSave, authUserId }: AgentEditM
       let netComm = ""
 
       // Always calculate netOfVat for these types, regardless of agent rate
-      if (calcType === "nonvat with invoice" || calcType === "vat with invoice") {
+      if (calcType === "nonvat with invoice") {
         netOfVat = comm ? String(comm / 1.02) : ""
       }
 
@@ -121,17 +121,12 @@ const AgentEditModal = ({ open, agent, onClose, onSave, authUserId }: AgentEditM
           netComm = comm && agentsRate && developersRate ? String((comm * agentsRate) / developersRate) : ""
           // netOfVat is not used for nonvat without invoice
         } else if (calcType === "vat with invoice") {
-          agent =
-            netOfVat && agentsRate && developersRate
-              ? String((Number.parseFloat(netOfVat) * agentsRate) / developersRate)
-              : ""
-          vat = agent ? String(Number.parseFloat(agent) * 0.12) : ""
-          const agentEwtRate = Number(formData.agent_ewt_rate || "5") / 100
-          ewt = agent ? String(Number.parseFloat(agent) * agentEwtRate) : ""
-          netComm =
-            agent && vat && ewt
-              ? String(Number.parseFloat(agent) + Number.parseFloat(vat) - Number.parseFloat(ewt))
-              : ""
+          vat = ""
+          agent = comm && agentsRate && developersRate
+            ? String((Number.parseFloat(comm) * agentsRate) / developersRate)
+            : ""
+          netComm = comm ? String(agent) : ""
+          ewt = comm ? String((Number(netComm) / 1.02) * 0.10) : ""
         }
       }
 

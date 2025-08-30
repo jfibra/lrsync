@@ -3,7 +3,7 @@ export async function GET(request: Request) {
     request.headers.get("x-forwarded-for")?.split(",")[0] ||
     (request as any).ip ||
     null;
-
+  console.log(ip);
   // Use a public IP geolocation API
   const geoRes = await fetch(`https://ipapi.co/${ip}/json/`);
   const geo = await geoRes.json();
