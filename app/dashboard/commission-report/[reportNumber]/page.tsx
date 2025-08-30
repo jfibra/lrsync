@@ -4,7 +4,7 @@ import * as XLSX from "xlsx";
 import { format } from "date-fns";
 import { useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { createClient } from "@/lib/supabase/client"
+import { supabase } from "@/lib/supabase/client"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -131,7 +131,6 @@ export default function CommissionReportViewer() {
     setSelectedAgent(null);
   };
 
-  const supabase = createClient()
   const [authUserId, setAuthUserId] = useState<string | null>(null)
 
   useEffect(() => {
