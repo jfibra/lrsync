@@ -28,7 +28,7 @@ export function ColumnVisibilityControl({ columns, onColumnToggle }: ColumnVisib
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="border-gray-300 text-gray-700 hover:bg-gray-50 bg-transparent">
+        <Button variant="outline" size="sm" className="border-gray-300 text-gray-700 hover:text-gray-700 hover:bg-gray-50 bg-transparent">
           <Columns className="h-4 w-4 mr-2" />
           Columns ({visibleCount}/{totalCount})
         </Button>

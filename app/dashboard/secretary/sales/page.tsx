@@ -160,7 +160,7 @@ export default function SecretarySalesPage() {
                 setSelectedSaleForRemarks(sale)
                 setRemarksModalOpen(true)
               }}
-              className="text-xs text-purple-600 hover:text-purple-800 border-purple-200 hover:border-purple-300"
+              className="text-xs text-blue-600 bg-white hover:text-white hover:bg-[#001f3f] border-purple-200 hover:border-purple-300"
             >
               View All Remarks
             </Button>
@@ -933,7 +933,7 @@ export default function SecretarySalesPage() {
                     className={`border-gray-300 ${
                       showOnlyWithRemarks
                         ? "bg-purple-600 text-white hover:bg-purple-700"
-                        : "text-gray-700 hover:bg-gray-50 bg-transparent"
+                        : "text-gray-700 hover:text-gray-700 hover:bg-gray-50 bg-transparent"
                     }`}
                   >
                     <MessageSquarePlus className="h-4 w-4 mr-2" />
@@ -1304,7 +1304,7 @@ export default function SecretarySalesPage() {
                         className={`h-8 px-3 min-w-[32px] ${
                           currentPage === pageNum
                             ? "bg-indigo-600 text-white hover:bg-indigo-700 border-indigo-600"
-                            : "border-gray-300 hover:bg-gray-50"
+                            : "border-gray-300 hover:text-gray-700 hover:bg-gray-50"
                         }`}
                       >
                         {pageNum}

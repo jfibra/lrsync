@@ -139,7 +139,7 @@ export function RemarksModalViewer({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
+      <DialogContent className="max-w-4xl max-h-[80vh] bg-white text-[#001f3f] overflow-hidden flex flex-col">
         <DialogHeader className={`${colors.header} text-white p-4 -m-6 mb-4`}>
           <DialogTitle className="text-lg font-semibold">All Remarks ({sortedRemarks.length})</DialogTitle>
         </DialogHeader>
@@ -233,7 +233,7 @@ export function RemarksModalViewer({
           )}
         </div>
 
-        <div className="flex justify-end pt-4 border-t">
+        <div className="flex justify-end text-white pt-4 border-t">
           <Button variant="outline" onClick={onClose}>
             Close
           </Button>

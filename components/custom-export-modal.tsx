@@ -256,7 +256,7 @@ export function CustomExportModal({ sales, userArea }: CustomExportModalProps) {
         <Button
           variant="outline"
           size="sm"
-          className="border-indigo-300 text-indigo-700 hover:bg-indigo-50 bg-transparent"
+          className="border-indigo-300 text-indigo-700 hover:text-gray-700 hover:bg-indigo-50 bg-transparent"
         >
           <Settings className="h-4 w-4 mr-2" />
           Custom Export

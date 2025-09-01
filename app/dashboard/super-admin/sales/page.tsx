@@ -742,7 +742,7 @@ export default function SuperAdminSalesPage() {
                 setSelectedSaleForRemarks(sale)
                 setRemarksModalOpen(true)
               }}
-              className="text-xs text-blue-600 hover:text-blue-800 border-blue-200 hover:border-blue-300"
+              className="text-xs text-blue-600 bg-white hover:text-white hover:bg-[#001f3f] border-purple-200 hover:border-purple-300"
             >
               View All Remarks
             </Button>
@@ -974,8 +974,8 @@ export default function SuperAdminSalesPage() {
                     onClick={() => setShowOnlyWithRemarks(!showOnlyWithRemarks)}
                     className={`border-gray-300 ${
                       showOnlyWithRemarks
-                        ? "bg-indigo-600 text-white hover:bg-indigo-700"
-                        : "text-gray-700 hover:bg-gray-50 bg-transparent"
+                        ? "bg-indigo-600 text-black hover:bg-indigo-700"
+                        : "text-gray-700 hover:text-gray-700 hover:bg-gray-50 bg-transparent"
                     }`}
                   >
                     <MessageSquarePlus className="h-4 w-4 mr-2" />
@@ -1396,7 +1396,7 @@ export default function SuperAdminSalesPage() {
                         className={`h-8 px-3 min-w-[32px] ${
                           currentPage === pageNum
                             ? "bg-indigo-600 text-white hover:bg-indigo-700 border-indigo-600"
-                            : "border-gray-300 hover:bg-gray-50"
+                            : "border-gray-300 hover:text-gray-700 hover:bg-gray-50"
                         }`}
                       >
                         {pageNum}
