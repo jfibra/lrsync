@@ -61,22 +61,30 @@ export function RemarksModalViewer({
     setIsLoading(true)
     try {
       const updatedRemarks = [...remarksArray]
-      const originalIndex = remarksArray.findIndex((r) => r === sortedRemarks[index])
-      updatedRemarks[originalIndex] = { ...updatedRemarks[originalIndex], remark: editText.trim() }
+      const targetRemark = sortedRemarks[index]
+      const originalIndex = remarksArray.findIndex(
+        (r) => r.uuid === targetRemark.uuid && r.date === targetRemark.date && r.remark === targetRemark.remark,
+      )
 
-      const response = await fetch("/api/update-sale-remarks", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          saleId,
-          remarks: updatedRemarks,
-        }),
-      })
+      if (originalIndex !== -1) {
+        updatedRemarks[originalIndex] = { ...updatedRemarks[originalIndex], remark: editText.trim() }
 
-      if (response.ok) {
-        onRemarksUpdate(saleId, updatedRemarks)
-        setEditingIndex(null)
-        setEditText("")
+        const response = await fetch("/api/update-sale-remarks", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            saleId,
+            remarks: updatedRemarks,
+          }),
+        })
+
+        if (response.ok) {
+          onRemarksUpdate(saleId, updatedRemarks)
+          setEditingIndex(null)
+          setEditText("")
+        } else {
+          console.error("Failed to update remark:", await response.text())
+        }
       }
     } catch (error) {
       console.error("Error updating remark:", error)
@@ -91,20 +99,28 @@ export function RemarksModalViewer({
     setIsLoading(true)
     try {
       const updatedRemarks = [...remarksArray]
-      const originalIndex = remarksArray.findIndex((r) => r === sortedRemarks[index])
-      updatedRemarks.splice(originalIndex, 1)
+      const targetRemark = sortedRemarks[index]
+      const originalIndex = remarksArray.findIndex(
+        (r) => r.uuid === targetRemark.uuid && r.date === targetRemark.date && r.remark === targetRemark.remark,
+      )
 
-      const response = await fetch("/api/update-sale-remarks", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          saleId,
-          remarks: updatedRemarks,
-        }),
-      })
+      if (originalIndex !== -1) {
+        updatedRemarks.splice(originalIndex, 1)
 
-      if (response.ok) {
-        onRemarksUpdate(saleId, updatedRemarks)
+        const response = await fetch("/api/update-sale-remarks", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            saleId,
+            remarks: updatedRemarks,
+          }),
+        })
+
+        if (response.ok) {
+          onRemarksUpdate(saleId, updatedRemarks)
+        } else {
+          console.error("Failed to delete remark:", await response.text())
+        }
       }
     } catch (error) {
       console.error("Error deleting remark:", error)
