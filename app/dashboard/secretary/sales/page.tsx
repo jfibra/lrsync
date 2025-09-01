@@ -40,6 +40,7 @@ import type { Sales } from "@/types/sales"
 import * as XLSX from "xlsx"
 import { logNotification } from "@/utils/logNotification"
 import { AddRemarkModal } from "@/components/add-remark-modal"
+import { RemarksModalViewer } from "@/components/remarks-modal-viewer"
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat("en-PH", {
@@ -71,73 +72,6 @@ const getMostRecentRemark = (remarks: string | any[] | null) => {
   if (!Array.isArray(remarksArr) || remarksArr.length === 0) return null
   const sortedRemarks = remarksArr.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
   return sortedRemarks[0]
-}
-
-const RecentRemarkDisplay = ({
-  remark,
-  commission,
-  onCommissionClick,
-}: {
-  remark: any
-  commission?: { report_number: number; created_by: string; created_at: string; status: string; deleted_at: string }
-  onCommissionClick?: (commission: any) => void
-}) => {
-  if (remark) {
-    return (
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 max-w-xs">
-        <div className="flex items-start gap-2">
-          <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm text-gray-800 font-medium mb-1 line-clamp-2">{remark.remark}</p>
-            <div className="flex items-center gap-2 text-xs text-gray-600">
-              <span className="font-medium">{remark.name}</span>
-              <span>•</span>
-              <span>{format(new Date(remark.date), "MMM dd, yyyy")}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  if (commission) {
-    const isDeleted = commission.deleted_at
-    const statusColor =
-      commission.status === "approved"
-        ? "text-green-600"
-        : commission.status === "rejected"
-          ? "text-red-600"
-          : "text-yellow-600"
-
-    return (
-      <div className="bg-green-50 border border-green-200 rounded-lg p-3 max-w-xs">
-        <div className="flex items-start gap-2">
-          <div className="w-2 h-2 bg-green-500 rounded-full mt-2 flex-shrink-0"></div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm text-gray-800 font-medium mb-1">
-              {isDeleted ? (
-                <span className="text-red-600">Commission Report #{commission.report_number} (Deleted)</span>
-              ) : (
-                <button
-                  onClick={() => onCommissionClick?.(commission)}
-                  className="text-blue-600 hover:text-blue-800 underline"
-                >
-                  Commission Report #{commission.report_number}
-                </button>
-              )}
-            </p>
-            <div className="flex items-center gap-2 text-xs text-gray-600">
-              <span className={`font-medium ${statusColor}`}>{commission.status?.toUpperCase() || "PENDING"}</span>
-              <span>•</span>
-              <span>{format(new Date(commission.created_at), "MMM dd, yyyy")}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  return <div className="text-sm text-gray-500 italic">No remarks</div>
 }
 
 export default function SecretarySalesPage() {
@@ -185,6 +119,127 @@ export default function SecretarySalesPage() {
   ])
 
   const [showOnlyWithRemarks, setShowOnlyWithRemarks] = useState(false)
+
+  const [remarksModalOpen, setRemarksModalOpen] = useState(false)
+  const [selectedSaleForRemarks, setSelectedSaleForRemarks] = useState<any>(null)
+
+  const RecentRemarkDisplay = ({
+    remark,
+    commission,
+    onCommissionClick,
+    sale,
+  }: {
+    remark: any
+    commission?: { report_number: number; created_by: string; created_at: string; status: string; deleted_at: string }
+    onCommissionClick?: (commission: any) => void
+    sale?: any
+  }) => {
+    const hasRemarks = sale?.remarks && JSON.parse(sale.remarks || "[]").length > 0
+
+    if (remark) {
+      return (
+        <div className="space-y-2">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 max-w-xs">
+            <div className="flex items-start gap-2">
+              <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-gray-800 font-medium mb-1 line-clamp-2">{remark.remark}</p>
+                <div className="flex items-center gap-2 text-xs text-gray-600">
+                  <span className="font-medium">{remark.name}</span>
+                  <span>•</span>
+                  <span>{format(new Date(remark.date), "MMM dd, yyyy")}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          {hasRemarks && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setSelectedSaleForRemarks(sale)
+                setRemarksModalOpen(true)
+              }}
+              className="text-xs text-purple-600 hover:text-purple-800 border-purple-200 hover:border-purple-300"
+            >
+              View All Remarks
+            </Button>
+          )}
+        </div>
+      )
+    }
+
+    if (commission) {
+      const isDeleted = commission.deleted_at
+      const statusColor =
+        commission.status === "approved"
+          ? "text-green-600"
+          : commission.status === "rejected"
+            ? "text-red-600"
+            : "text-yellow-600"
+
+      return (
+        <div className="space-y-2">
+          <div className="bg-green-50 border border-green-200 rounded-lg p-3 max-w-xs">
+            <div className="flex items-start gap-2">
+              <div className="w-2 h-2 bg-green-500 rounded-full mt-2 flex-shrink-0"></div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-gray-800 font-medium mb-1">
+                  {isDeleted ? (
+                    <span className="text-red-600">Commission Report #{commission.report_number} (Deleted)</span>
+                  ) : (
+                    <button
+                      onClick={() => onCommissionClick?.(commission)}
+                      className="text-blue-600 hover:text-blue-800 underline"
+                    >
+                      Commission Report #{commission.report_number}
+                    </button>
+                  )}
+                </p>
+                <div className="flex items-center gap-2 text-xs text-gray-600">
+                  <span className={`font-medium ${statusColor}`}>{commission.status?.toUpperCase() || "PENDING"}</span>
+                  <span>•</span>
+                  <span>{format(new Date(commission.created_at), "MMM dd, yyyy")}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          {hasRemarks && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setSelectedSaleForRemarks(sale)
+                setRemarksModalOpen(true)
+              }}
+              className="text-xs text-purple-600 hover:text-purple-800 border-purple-200 hover:border-purple-300"
+            >
+              View All Remarks
+            </Button>
+          )}
+        </div>
+      )
+    }
+
+    return (
+      <div className="space-y-2">
+        <div className="text-gray-400 text-sm italic">No remarks</div>
+        {hasRemarks && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              setSelectedSaleForRemarks(sale)
+              setRemarksModalOpen(true)
+            }}
+            className="text-xs text-purple-600 hover:text-purple-800 border-purple-200 hover:border-purple-300"
+          >
+            View All Remarks
+          </Button>
+        )}
+      </div>
+    )
+  }
 
   // Toggle column visibility
   const toggleColumnVisibility = (key: string) => {
@@ -331,20 +386,6 @@ export default function SecretarySalesPage() {
       fetchSales()
     }
   }, [searchTerm, filterTaxType, filterMonth, profile?.assigned_area])
-
-  // Format currency
-  // const formatCurrency = (amount: number) => {
-  //   return new Intl.NumberFormat("en-PH", {
-  //     style: "currency",
-  //     currency: "PHP",
-  //   }).format(amount)
-  // }
-
-  // Format TIN display - add dash after every 3 digits
-  // const formatTin = (tin: string) => {
-  //   const digits = tin.replace(/\D/g, "")
-  //   return digits.replace(/(\d{3})(?=\d)/g, "$1-")
-  // }
 
   // Get tax type badge color
   const getTaxTypeBadgeColor = (taxType: string) => {
@@ -708,64 +749,11 @@ export default function SecretarySalesPage() {
   const totalAmount = sales.reduce((sum, sale) => sum + (sale.gross_taxable || 0), 0)
   const totalActualAmount = sales.reduce((sum, sale) => sum + (sale.total_actual_amount || 0), 0)
 
-  // const getMostRecentRemark = (remarks: string | any[] | null) => {
-  //   if (!remarks) return null;
-  //   let remarksArr: any[] = [];
-  //   if (typeof remarks === "string") {
-  //     try {
-  //       remarksArr = JSON.parse(remarks);
-  //     } catch {
-  //       return null;
-  //     }
-  //   } else if (Array.isArray(remarks)) {
-  //     remarksArr = remarks;
-  //   }
-  //   if (!Array.isArray(remarksArr) || remarksArr.length === 0) return null;
-  //   const sortedRemarks = remarksArr.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  //   return sortedRemarks[0];
-  // };
-
-  // const RecentRemarkDisplay = ({
-  //   remark,
-  //   commission,
-  //   onCommissionClick,
-  // }: {
-  //   remark: any
-  //   commission?: { report_number: number; created_by: string; created_at: string, status: string, deleted_at: string }
-  //   onCommissionClick?: (commission: any) => void
-  // }) => {
-  //   if (remark) {
-  //     return (
-  //       <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 max-w-xs">
-  //         <div className="flex items-start gap-2">
-  //           <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
-  //           <div className="flex-1 min-w-0">
-  //             <p className="text-sm text-gray-800 font-medium mb-1 line-clamp-2">{remark.remark}</p>
-  //             <div className="flex items-center justify-between text-xs text-gray-600">
-  //               <span className="font-medium">{remark.name}</span>
-  //               <span>{format(new Date(remark.date), "MMM dd, yyyy")}</span>
-  //             </div>
-  //           </div>
-  //         </div>
-  //       </div>
-  //     )
-  //   }
-
-  //   if (commission && !commission.deleted_at) {
-  //     return (
-  //       <Badge
-  //         variant="outline"
-  //         className={getStatusBadgeClass(commission.status, false) + " cursor-pointer"}
-  //         onClick={() => onCommissionClick?.(commission)}
-  //         style={{ cursor: "pointer" }}
-  //       >
-  //         Report #{commission.report_number}
-  //       </Badge>
-  //     )
-  //   }
-
-  //   return <div className="text-gray-400 text-sm italic">No remarks</div>
-  // }
+  const handleRemarksUpdate = (saleId: string, updatedRemarks: any[]) => {
+    setSales((prevSales) =>
+      prevSales.map((sale) => (sale.id === saleId ? { ...sale, remarks: JSON.stringify(updatedRemarks) } : sale)),
+    )
+  }
 
   // Handle add remark
   const handleAddRemark = (sale: Sales) => {
@@ -1143,6 +1131,7 @@ export default function SecretarySalesPage() {
                                   setSelectedCommission(commission)
                                   setCommissionModalOpen(true)
                                 }}
+                                sale={sale}
                               />
                             </TableCell>
                           )}
@@ -1403,6 +1392,17 @@ export default function SecretarySalesPage() {
               </div>
             )
           })()}
+        <RemarksModalViewer
+          isOpen={remarksModalOpen}
+          onClose={() => {
+            setRemarksModalOpen(false)
+            setSelectedSaleForRemarks(null)
+          }}
+          saleId={selectedSaleForRemarks?.id || ""}
+          remarks={selectedSaleForRemarks?.remarks || null}
+          onRemarksUpdate={handleRemarksUpdate}
+          roleColor="purple"
+        />
       </div>
     </ProtectedRoute>
   )

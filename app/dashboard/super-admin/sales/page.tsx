@@ -40,6 +40,7 @@ import type { Sales } from "@/types/sales"
 import * as XLSX from "xlsx"
 import { logNotification } from "@/utils/logNotification"
 import { AddRemarkModal } from "@/components/add-remark-modal"
+import { RemarksModalViewer } from "@/components/remarks-modal-viewer"
 
 export default function SuperAdminSalesPage() {
   const { profile } = useAuth()
@@ -94,6 +95,9 @@ export default function SuperAdminSalesPage() {
   ])
 
   const [showOnlyWithRemarks, setShowOnlyWithRemarks] = useState(false)
+
+  const [remarksModalOpen, setRemarksModalOpen] = useState(false)
+  const [selectedSaleForRemarks, setSelectedSaleForRemarks] = useState<any>(null)
 
   // Toggle column visibility
   const toggleColumnVisibility = (key: string) => {
@@ -220,7 +224,7 @@ export default function SuperAdminSalesPage() {
       // Map saleId to commission report info
       const saleIdToCommissionObj: Record<string, any> = {}
       commissionReports.forEach((report) => {
-        ; (report.sales_uuids || []).forEach((saleId) => {
+        ;(report.sales_uuids || []).forEach((saleId) => {
           saleIdToCommissionObj[saleId] = {
             report_number: report.report_number,
             created_by: report.created_by,
@@ -696,46 +700,103 @@ export default function SuperAdminSalesPage() {
   const totalAmount = sales.reduce((sum, sale) => sum + (sale.gross_taxable || 0), 0)
   const totalActualAmount = sales.reduce((sum, sale) => sum + (sale.total_actual_amount || 0), 0)
 
+  const handleRemarksUpdate = (saleId: string, updatedRemarks: any[]) => {
+    setSales((prevSales) =>
+      prevSales.map((sale) => (sale.id === saleId ? { ...sale, remarks: JSON.stringify(updatedRemarks) } : sale)),
+    )
+  }
+
   const RecentRemarkDisplay = ({
     remark,
     commission,
     onCommissionClick,
+    sale,
   }: {
     remark: any
     commission?: { report_number: number; created_by: string; created_at: string; status?: string; deleted_at?: string }
     onCommissionClick?: (commission: any) => void
+    sale?: any
   }) => {
+    const hasRemarks = sale?.remarks && JSON.parse(sale.remarks || "[]").length > 0
+
     if (remark) {
       return (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 max-w-xs">
-          <div className="flex items-start gap-2">
-            <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm text-gray-800 font-medium mb-1 line-clamp-2">{remark.remark}</p>
-              <div className="flex items-center justify-between text-xs text-gray-600">
-                <span className="font-medium">{remark.name}</span>
-                <span>{format(new Date(remark.date), "MMM dd, yyyy")}</span>
+        <div className="space-y-2">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 max-w-xs">
+            <div className="flex items-start gap-2">
+              <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-gray-800 font-medium mb-1 line-clamp-2">{remark.remark}</p>
+                <div className="flex items-center justify-between text-xs text-gray-600">
+                  <span className="font-medium">{remark.name}</span>
+                  <span>{format(new Date(remark.date), "MMM dd, yyyy")}</span>
+                </div>
               </div>
             </div>
           </div>
+          {hasRemarks && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setSelectedSaleForRemarks(sale)
+                setRemarksModalOpen(true)
+              }}
+              className="text-xs text-blue-600 hover:text-blue-800 border-blue-200 hover:border-blue-300"
+            >
+              View All Remarks
+            </Button>
+          )}
         </div>
       )
     }
 
     if (commission && !commission.deleted_at) {
       return (
-        <Badge
-          variant="outline"
-          className={getStatusBadgeClass(commission.status, false) + " cursor-pointer"}
-          onClick={() => onCommissionClick?.(commission)}
-          style={{ cursor: "pointer" }}
-        >
-          Report #{commission.report_number}
-        </Badge>
+        <div className="space-y-2">
+          <Badge
+            variant="outline"
+            className={getStatusBadgeClass(commission.status, false) + " cursor-pointer"}
+            onClick={() => onCommissionClick?.(commission)}
+            style={{ cursor: "pointer" }}
+          >
+            Report #{commission.report_number}
+          </Badge>
+          {hasRemarks && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setSelectedSaleForRemarks(sale)
+                setRemarksModalOpen(true)
+              }}
+              className="text-xs text-blue-600 hover:text-blue-800 border-blue-200 hover:border-blue-300"
+            >
+              View All Remarks
+            </Button>
+          )}
+        </div>
       )
     }
 
-    return <div className="text-gray-400 text-sm italic">No remarks</div>
+    return (
+      <div className="space-y-2">
+        <div className="text-gray-400 text-sm italic">No remarks</div>
+        {hasRemarks && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              setSelectedSaleForRemarks(sale)
+              setRemarksModalOpen(true)
+            }}
+            className="text-xs text-blue-600 hover:text-blue-800 border-blue-200 hover:border-blue-300"
+          >
+            View All Remarks
+          </Button>
+        )}
+      </div>
+    )
   }
 
   return (
@@ -911,10 +972,11 @@ export default function SuperAdminSalesPage() {
                     variant={showOnlyWithRemarks ? "default" : "outline"}
                     size="sm"
                     onClick={() => setShowOnlyWithRemarks(!showOnlyWithRemarks)}
-                    className={`border-gray-300 ${showOnlyWithRemarks
+                    className={`border-gray-300 ${
+                      showOnlyWithRemarks
                         ? "bg-indigo-600 text-white hover:bg-indigo-700"
                         : "text-gray-700 hover:bg-gray-50 bg-transparent"
-                      }`}
+                    }`}
                   >
                     <MessageSquarePlus className="h-4 w-4 mr-2" />
                     {showOnlyWithRemarks ? "Show All" : "With Remarks"}
@@ -1156,6 +1218,7 @@ export default function SuperAdminSalesPage() {
                                   setSelectedCommission(commission)
                                   setCommissionModalOpen(true)
                                 }}
+                                sale={sale}
                               />
                             </TableCell>
                           )}
@@ -1330,10 +1393,11 @@ export default function SuperAdminSalesPage() {
                         variant={currentPage === pageNum ? "default" : "outline"}
                         size="sm"
                         onClick={() => setCurrentPage(pageNum)}
-                        className={`h-8 px-3 min-w-[32px] ${currentPage === pageNum
+                        className={`h-8 px-3 min-w-[32px] ${
+                          currentPage === pageNum
                             ? "bg-indigo-600 text-white hover:bg-indigo-700 border-indigo-600"
                             : "border-gray-300 hover:bg-gray-50"
-                          }`}
+                        }`}
                       >
                         {pageNum}
                       </Button>
@@ -1427,6 +1491,18 @@ export default function SuperAdminSalesPage() {
           onOpenChange={setAddRemarkModalOpen}
           saleId={selectedSaleForRemark?.id || 0}
           onRemarkAdded={handleRemarkAdded}
+        />
+
+        <RemarksModalViewer
+          isOpen={remarksModalOpen}
+          onClose={() => {
+            setRemarksModalOpen(false)
+            setSelectedSaleForRemarks(null)
+          }}
+          saleId={selectedSaleForRemarks?.id || ""}
+          remarks={selectedSaleForRemarks?.remarks || null}
+          onRemarksUpdate={handleRemarksUpdate}
+          roleColor="blue"
         />
       </div>
     </ProtectedRoute>
