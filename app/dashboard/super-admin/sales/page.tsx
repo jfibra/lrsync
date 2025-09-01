@@ -220,7 +220,7 @@ export default function SuperAdminSalesPage() {
       // Map saleId to commission report info
       const saleIdToCommissionObj: Record<string, any> = {}
       commissionReports.forEach((report) => {
-        ;(report.sales_uuids || []).forEach((saleId) => {
+        ; (report.sales_uuids || []).forEach((saleId) => {
           saleIdToCommissionObj[saleId] = {
             report_number: report.report_number,
             created_by: report.created_by,
@@ -308,6 +308,22 @@ export default function SuperAdminSalesPage() {
   }
 
   const monthOptions = generateMonthOptions()
+
+  const getMostRecentRemark = (remarksJson: string | null) => {
+    if (!remarksJson) return null
+
+    try {
+      const remarks = JSON.parse(remarksJson)
+      if (!Array.isArray(remarks) || remarks.length === 0) return null
+
+      // Sort by date descending and get the most recent
+      const sortedRemarks = remarks.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      return sortedRemarks[0]
+    } catch (error) {
+      console.error("Error parsing remarks JSON:", error)
+      return null
+    }
+  }
 
   // Pagination calculations
   const paginatedSales = useMemo(() => {
@@ -680,22 +696,6 @@ export default function SuperAdminSalesPage() {
   const totalAmount = sales.reduce((sum, sale) => sum + (sale.gross_taxable || 0), 0)
   const totalActualAmount = sales.reduce((sum, sale) => sum + (sale.total_actual_amount || 0), 0)
 
-  const getMostRecentRemark = (remarksJson: string | null) => {
-    if (!remarksJson) return null
-
-    try {
-      const remarks = JSON.parse(remarksJson)
-      if (!Array.isArray(remarks) || remarks.length === 0) return null
-
-      // Sort by date descending and get the most recent
-      const sortedRemarks = remarks.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-      return sortedRemarks[0]
-    } catch (error) {
-      console.error("Error parsing remarks JSON:", error)
-      return null
-    }
-  }
-
   const RecentRemarkDisplay = ({
     remark,
     commission,
@@ -911,11 +911,10 @@ export default function SuperAdminSalesPage() {
                     variant={showOnlyWithRemarks ? "default" : "outline"}
                     size="sm"
                     onClick={() => setShowOnlyWithRemarks(!showOnlyWithRemarks)}
-                    className={`border-gray-300 ${
-                      showOnlyWithRemarks
+                    className={`border-gray-300 ${showOnlyWithRemarks
                         ? "bg-indigo-600 text-white hover:bg-indigo-700"
                         : "text-gray-700 hover:bg-gray-50 bg-transparent"
-                    }`}
+                      }`}
                   >
                     <MessageSquarePlus className="h-4 w-4 mr-2" />
                     {showOnlyWithRemarks ? "Show All" : "With Remarks"}
@@ -1331,11 +1330,10 @@ export default function SuperAdminSalesPage() {
                         variant={currentPage === pageNum ? "default" : "outline"}
                         size="sm"
                         onClick={() => setCurrentPage(pageNum)}
-                        className={`h-8 px-3 min-w-[32px] ${
-                          currentPage === pageNum
+                        className={`h-8 px-3 min-w-[32px] ${currentPage === pageNum
                             ? "bg-indigo-600 text-white hover:bg-indigo-700 border-indigo-600"
                             : "border-gray-300 hover:bg-gray-50"
-                        }`}
+                          }`}
                       >
                         {pageNum}
                       </Button>
