@@ -7,7 +7,6 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import {
   Search,
   Filter,
@@ -64,14 +63,14 @@ export default function SuperAdminSalesPage() {
   const [addRemarkModalOpen, setAddRemarkModalOpen] = useState(false)
   const [selectedSaleForRemark, setSelectedSaleForRemark] = useState<Sales | null>(null)
 
-  const [saleIdToCommission, setSaleIdToCommission] = useState<Record<string, any>>({});
-  const [creatorIdToName, setCreatorIdToName] = useState<Record<string, string>>({});
+  const [saleIdToCommission, setSaleIdToCommission] = useState<Record<string, any>>({})
+  const [creatorIdToName, setCreatorIdToName] = useState<Record<string, string>>({})
 
-  const [commissionModalOpen, setCommissionModalOpen] = useState(false);
-  const [selectedCommission, setSelectedCommission] = useState<any>(null);
+  const [commissionModalOpen, setCommissionModalOpen] = useState(false)
+  const [selectedCommission, setSelectedCommission] = useState<any>(null)
 
-  const [sortField, setSortField] = useState<string>("created_at");
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
+  const [sortField, setSortField] = useState<string>("created_at")
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc")
 
   // Column visibility state
   const [columnVisibility, setColumnVisibility] = useState([
@@ -93,6 +92,8 @@ export default function SuperAdminSalesPage() {
     { key: "files", label: "Files", visible: true },
     { key: "actions", label: "Actions", visible: true },
   ])
+
+  const [showOnlyWithRemarks, setShowOnlyWithRemarks] = useState(false)
 
   // Toggle column visibility
   const toggleColumnVisibility = (key: string) => {
@@ -119,12 +120,12 @@ export default function SuperAdminSalesPage() {
 
   const handleSort = (field: string) => {
     if (sortField === field) {
-      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
+      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"))
     } else {
-      setSortField(field);
-      setSortDirection("asc");
+      setSortField(field)
+      setSortDirection("asc")
     }
-  };
+  }
 
   // Fetch sales data
   const fetchSales = async () => {
@@ -217,9 +218,9 @@ export default function SuperAdminSalesPage() {
       }
 
       // Map saleId to commission report info
-      const saleIdToCommissionObj: Record<string, any> = {};
+      const saleIdToCommissionObj: Record<string, any> = {}
       commissionReports.forEach((report) => {
-        (report.sales_uuids || []).forEach((saleId) => {
+        ;(report.sales_uuids || []).forEach((saleId) => {
           saleIdToCommissionObj[saleId] = {
             report_number: report.report_number,
             created_by: report.created_by,
@@ -228,12 +229,10 @@ export default function SuperAdminSalesPage() {
             deleted_at: report.deleted_at,
           }
         })
-      });
-      setSaleIdToCommission(saleIdToCommissionObj);
+      })
+      setSaleIdToCommission(saleIdToCommissionObj)
 
-      const creatorIds = [
-        ...new Set(commissionReports.map((r) => r.created_by).filter(Boolean)),
-      ]
+      const creatorIds = [...new Set(commissionReports.map((r) => r.created_by).filter(Boolean))]
       let creators = []
       if (creatorIds.length > 0) {
         const { data: creatorProfiles } = await supabase
@@ -242,11 +241,8 @@ export default function SuperAdminSalesPage() {
           .in("id", creatorIds)
         creators = creatorProfiles || []
       }
-      const creatorIdToNameObj = Object.fromEntries(
-        creators.map((c) => [c.id, c.full_name])
-      );
-      setCreatorIdToName(creatorIdToNameObj);
-
+      const creatorIdToNameObj = Object.fromEntries(creators.map((c) => [c.id, c.full_name]))
+      setCreatorIdToName(creatorIdToNameObj)
     } catch (error) {
       console.error("Error fetching sales:", error)
     } finally {
@@ -259,8 +255,8 @@ export default function SuperAdminSalesPage() {
   }, [])
 
   useEffect(() => {
-    fetchSales();
-  }, [searchTerm, filterTaxType, filterMonth, filterArea, sortField, sortDirection]);
+    fetchSales()
+  }, [searchTerm, filterTaxType, filterMonth, filterArea, sortField, sortDirection])
 
   // Format currency
   const formatCurrency = (amount: number) => {
@@ -315,14 +311,34 @@ export default function SuperAdminSalesPage() {
 
   // Pagination calculations
   const paginatedSales = useMemo(() => {
+    let filteredSales = sales
+    if (showOnlyWithRemarks) {
+      filteredSales = sales.filter((sale) => {
+        const recentRemark = getMostRecentRemark(sale.remarks)
+        const hasCommission = saleIdToCommission[sale.id] && !saleIdToCommission[sale.id].deleted_at
+        return recentRemark || hasCommission
+      })
+    }
+
     const startIndex = (currentPage - 1) * pageSize
     const endIndex = startIndex + pageSize
-    return sales.slice(startIndex, endIndex)
-  }, [sales, currentPage, pageSize])
+    return filteredSales.slice(startIndex, endIndex)
+  }, [sales, currentPage, pageSize, showOnlyWithRemarks, saleIdToCommission])
 
-  const totalPages = Math.ceil(sales.length / pageSize)
-  const startRecord = sales.length === 0 ? 0 : (currentPage - 1) * pageSize + 1
-  const endRecord = Math.min(currentPage * pageSize, sales.length)
+  const filteredSalesCount = useMemo(() => {
+    if (showOnlyWithRemarks) {
+      return sales.filter((sale) => {
+        const recentRemark = getMostRecentRemark(sale.remarks)
+        const hasCommission = saleIdToCommission[sale.id] && !saleIdToCommission[sale.id].deleted_at
+        return recentRemark || hasCommission
+      }).length
+    }
+    return sales.length
+  }, [sales, showOnlyWithRemarks, saleIdToCommission])
+
+  const totalPages = Math.ceil(filteredSalesCount / pageSize)
+  const startRecord = filteredSalesCount === 0 ? 0 : (currentPage - 1) * pageSize + 1
+  const endRecord = Math.min(currentPage * pageSize, filteredSalesCount)
 
   // Reset to page 1 when search term changes
   useEffect(() => {
@@ -374,21 +390,21 @@ export default function SuperAdminSalesPage() {
   }
 
   const getStatusBadgeClass = (status: string, deleted: boolean) => {
-    if (deleted) return "bg-red-100 text-red-700 border border-red-200";
+    if (deleted) return "bg-red-100 text-red-700 border border-red-200"
     switch ((status || "").toLowerCase()) {
       case "approved":
       case "completed":
-        return "bg-green-100 text-green-700 border border-green-200";
+        return "bg-green-100 text-green-700 border border-green-200"
       case "pending":
       case "new":
-        return "bg-yellow-100 text-yellow-800 border border-yellow-200";
+        return "bg-yellow-100 text-yellow-800 border border-yellow-200"
       case "rejected":
       case "cancelled":
-        return "bg-gray-200 text-gray-700 border border-gray-300";
+        return "bg-gray-200 text-gray-700 border border-gray-300"
       default:
-        return "bg-blue-100 text-blue-800 border border-blue-200";
+        return "bg-blue-100 text-blue-800 border border-blue-200"
     }
-  };
+  }
 
   // Handle soft delete
   const handleSoftDelete = async (sale: Sales) => {
@@ -447,34 +463,30 @@ export default function SuperAdminSalesPage() {
           substreet_street_brgy,
           district_city_zip
         )
-      `
+      `,
       )
       .eq("is_deleted", false)
       .order(sortField, { ascending: sortDirection === "asc" })
-      .limit(10000); // or use .range(0, 9999) for more than 1000 records
+      .limit(10000) // or use .range(0, 9999) for more than 1000 records
 
     if (error) {
-      console.error("Error fetching all sales for export:", error);
-      return [];
+      console.error("Error fetching all sales for export:", error)
+      return []
     }
-    return data || [];
-  };
+    return data || []
+  }
 
   // Export to Excel function - exclude non-invoice sales
   const exportToExcel = async () => {
     // Determine if any filter or search is active
-    const isFiltered =
-      !!searchTerm ||
-      filterTaxType !== "all" ||
-      filterMonth !== "all" ||
-      filterArea !== "all";
+    const isFiltered = !!searchTerm || filterTaxType !== "all" || filterMonth !== "all" || filterArea !== "all"
 
     // If no filters/search, export all records (not just the current page)
     // If filtered, export only the filtered records (those in the datatable)
-    const exportSales = isFiltered ? sales : await fetchAllSales();
+    const exportSales = isFiltered ? sales : await fetchAllSales()
 
     // Filter out non-invoice sales for export
-    const invoiceSales = exportSales.filter((sale) => sale.sale_type === "invoice");
+    const invoiceSales = exportSales.filter((sale) => sale.sale_type === "invoice")
 
     // Calculate statistics for invoice sales only
     const totalSales = invoiceSales.length
@@ -888,11 +900,26 @@ export default function SuperAdminSalesPage() {
                     Sales Records
                   </CardTitle>
                   <CardDescription className="text-gray-600 mt-1 text-sm sm:text-base">
-                    {loading ? "Loading..." : `${sales.length} records found`}
+                    {loading
+                      ? "Loading..."
+                      : `${filteredSalesCount} records found${showOnlyWithRemarks ? " (with remarks)" : ""}`}
                   </CardDescription>
                 </div>
                 <div className="flex flex-col gap-2 sm:flex-row sm:gap-2 w-full sm:w-auto">
                   <ColumnVisibilityControl columns={columnVisibility} onColumnToggle={toggleColumnVisibility} />
+                  <Button
+                    variant={showOnlyWithRemarks ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setShowOnlyWithRemarks(!showOnlyWithRemarks)}
+                    className={`border-gray-300 ${
+                      showOnlyWithRemarks
+                        ? "bg-indigo-600 text-white hover:bg-indigo-700"
+                        : "text-gray-700 hover:bg-gray-50 bg-transparent"
+                    }`}
+                  >
+                    <MessageSquarePlus className="h-4 w-4 mr-2" />
+                    {showOnlyWithRemarks ? "Show All" : "With Remarks"}
+                  </Button>
                   <CustomExportModal
                     sales={sales}
                     onExport={async (exportedCount, selectedFields) => {
@@ -953,9 +980,7 @@ export default function SuperAdminSalesPage() {
                           onClick={() => handleSort("tin")}
                         >
                           TIN
-                          {sortField === "tin" && (
-                            <span className="ml-1">{sortDirection === "asc" ? "▲" : "▼"}</span>
-                          )}
+                          {sortField === "tin" && <span className="ml-1">{sortDirection === "asc" ? "▲" : "▼"}</span>}
                         </TableHead>
                       )}
                       {columnVisibility.find((col) => col.key === "name")?.visible && (
@@ -1129,8 +1154,8 @@ export default function SuperAdminSalesPage() {
                                 remark={getMostRecentRemark(sale.remarks)}
                                 commission={saleIdToCommission[sale.id]}
                                 onCommissionClick={(commission) => {
-                                  setSelectedCommission(commission);
-                                  setCommissionModalOpen(true);
+                                  setSelectedCommission(commission)
+                                  setCommissionModalOpen(true)
                                 }}
                               />
                             </TableCell>
@@ -1306,10 +1331,11 @@ export default function SuperAdminSalesPage() {
                         variant={currentPage === pageNum ? "default" : "outline"}
                         size="sm"
                         onClick={() => setCurrentPage(pageNum)}
-                        className={`h-8 px-3 min-w-[32px] ${currentPage === pageNum
-                          ? "bg-indigo-600 text-white hover:bg-indigo-700 border-indigo-600"
-                          : "border-gray-300 hover:bg-gray-50"
-                          }`}
+                        className={`h-8 px-3 min-w-[32px] ${
+                          currentPage === pageNum
+                            ? "bg-indigo-600 text-white hover:bg-indigo-700 border-indigo-600"
+                            : "border-gray-300 hover:bg-gray-50"
+                        }`}
                       >
                         {pageNum}
                       </Button>
@@ -1357,9 +1383,10 @@ export default function SuperAdminSalesPage() {
             />
           </>
         )}
-        {commissionModalOpen && selectedCommission && (
+        {commissionModalOpen &&
+          selectedCommission &&
           (() => {
-            console.log("selectedCommission:", selectedCommission);
+            console.log("selectedCommission:", selectedCommission)
             return (
               <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
                 <div className="bg-white rounded-lg shadow-lg p-6 min-w-[320px] max-w-[90vw]">
@@ -1379,7 +1406,12 @@ export default function SuperAdminSalesPage() {
                     {selectedCommission.deleted_at ? (
                       <span className="bg-red-100 text-red-700 px-2 py-1 rounded font-semibold text-xs">Deleted</span>
                     ) : (
-                      <span className={getStatusBadgeClass(selectedCommission.status, false) + " px-2 py-1 rounded font-semibold text-xs capitalize"}>
+                      <span
+                        className={
+                          getStatusBadgeClass(selectedCommission.status, false) +
+                          " px-2 py-1 rounded font-semibold text-xs capitalize"
+                        }
+                      >
                         {selectedCommission.status || "N/A"}
                       </span>
                     )}
@@ -1389,9 +1421,8 @@ export default function SuperAdminSalesPage() {
                   </div>
                 </div>
               </div>
-            );
-          })()
-        )}
+            )
+          })()}
 
         <AddRemarkModal
           open={addRemarkModalOpen}

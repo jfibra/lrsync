@@ -184,6 +184,8 @@ export default function SecretarySalesPage() {
     { key: "actions", label: "Actions", visible: true },
   ])
 
+  const [showOnlyWithRemarks, setShowOnlyWithRemarks] = useState(false)
+
   // Toggle column visibility
   const toggleColumnVisibility = (key: string) => {
     setColumnVisibility((prev) => prev.map((col) => (col.key === key ? { ...col, visible: !col.visible } : col)))
@@ -215,7 +217,7 @@ export default function SecretarySalesPage() {
         )
         .eq("is_deleted", false)
         .order("created_at", { ascending: false })
-        .limit(10000); // <-- Increase this as needed (max 10000 for Supabase)
+        .limit(10000) // <-- Increase this as needed (max 10000 for Supabase)
 
       // Apply filters
       if (searchTerm) {
@@ -289,7 +291,7 @@ export default function SecretarySalesPage() {
       // Map saleId to commission report info
       const saleIdToCommissionObj: Record<string, any> = {}
       commissionReports.forEach((report) => {
-        ; (report.sales_uuids || []).forEach((saleId: string) => {
+        ;(report.sales_uuids || []).forEach((saleId: string) => {
           saleIdToCommissionObj[saleId] = {
             report_number: report.report_number,
             created_by: report.created_by,
@@ -381,15 +383,36 @@ export default function SecretarySalesPage() {
 
   const monthOptions = generateMonthOptions()
 
+  // Pagination calculations
   const paginatedSales = useMemo(() => {
+    let filteredSales = sales
+    if (showOnlyWithRemarks) {
+      filteredSales = sales.filter((sale) => {
+        const recentRemark = getMostRecentRemark(sale.remarks)
+        const hasCommission = saleIdToCommission[sale.id] && !saleIdToCommission[sale.id].deleted_at
+        return recentRemark || hasCommission
+      })
+    }
+
     const startIndex = (currentPage - 1) * pageSize
     const endIndex = startIndex + pageSize
-    return sales.slice(startIndex, endIndex)
-  }, [sales, currentPage, pageSize])
+    return filteredSales.slice(startIndex, endIndex)
+  }, [sales, currentPage, pageSize, showOnlyWithRemarks, saleIdToCommission])
 
-  const totalPages = Math.ceil(sales.length / pageSize)
-  const startRecord = sales.length === 0 ? 0 : (currentPage - 1) * pageSize + 1
-  const endRecord = Math.min(currentPage * pageSize, sales.length)
+  const filteredSalesCount = useMemo(() => {
+    if (showOnlyWithRemarks) {
+      return sales.filter((sale) => {
+        const recentRemark = getMostRecentRemark(sale.remarks)
+        const hasCommission = saleIdToCommission[sale.id] && !saleIdToCommission[sale.id].deleted_at
+        return recentRemark || hasCommission
+      }).length
+    }
+    return sales.length
+  }, [sales, showOnlyWithRemarks, saleIdToCommission])
+
+  const totalPages = Math.ceil(filteredSalesCount / pageSize)
+  const startRecord = filteredSalesCount === 0 ? 0 : (currentPage - 1) * pageSize + 1
+  const endRecord = Math.min(currentPage * pageSize, filteredSalesCount)
 
   const getPageNumbers = () => {
     const pages = []
@@ -622,8 +645,9 @@ export default function SecretarySalesPage() {
     XLSX.utils.book_append_sheet(wb, ws, "Invoice Sales Report")
 
     // Generate filename with current date and area
-    const filename = `Invoice_Sales_Report_${profile?.assigned_area || "Area"}_${new Date().toISOString().split("T")[0]
-      }.xlsx`
+    const filename = `Invoice_Sales_Report_${profile?.assigned_area || "Area"}_${
+      new Date().toISOString().split("T")[0]
+    }.xlsx`
 
     /* ---- browser-safe download ---- */
     const wbArray = XLSX.write(wb, { bookType: "xlsx", type: "array" })
@@ -909,11 +933,24 @@ export default function SecretarySalesPage() {
                   <CardDescription style={{ color: "#555" }} className="mt-1 text-sm sm:text-base">
                     {loading
                       ? "Loading..."
-                      : `${sales.length} records found in ${profile?.assigned_area || "your area"}`}
+                      : `${filteredSalesCount} records found${showOnlyWithRemarks ? " (with remarks)" : ""}`}
                   </CardDescription>
                 </div>
-                <div className="flex flex-col gap-2 w-full sm:w-auto sm:flex-row sm:items-center sm:gap-2">
+                <div className="flex flex-col gap-2 sm:flex-row sm:gap-2 w-full sm:w-auto">
                   <ColumnVisibilityControl columns={columnVisibility} onColumnToggle={toggleColumnVisibility} />
+                  <Button
+                    variant={showOnlyWithRemarks ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setShowOnlyWithRemarks(!showOnlyWithRemarks)}
+                    className={`border-gray-300 ${
+                      showOnlyWithRemarks
+                        ? "bg-purple-600 text-white hover:bg-purple-700"
+                        : "text-gray-700 hover:bg-gray-50 bg-transparent"
+                    }`}
+                  >
+                    <MessageSquarePlus className="h-4 w-4 mr-2" />
+                    {showOnlyWithRemarks ? "Show All" : "With Remarks"}
+                  </Button>
                   <CustomExportModal sales={sales} />
                   <Button
                     variant="outline"
@@ -1275,10 +1312,11 @@ export default function SecretarySalesPage() {
                         variant={currentPage === pageNum ? "default" : "outline"}
                         size="sm"
                         onClick={() => setCurrentPage(pageNum)}
-                        className={`h-8 px-3 min-w-[32px] ${currentPage === pageNum
-                          ? "bg-indigo-600 text-white hover:bg-indigo-700 border-indigo-600"
-                          : "border-gray-300 hover:bg-gray-50"
-                          }`}
+                        className={`h-8 px-3 min-w-[32px] ${
+                          currentPage === pageNum
+                            ? "bg-indigo-600 text-white hover:bg-indigo-700 border-indigo-600"
+                            : "border-gray-300 hover:bg-gray-50"
+                        }`}
                       >
                         {pageNum}
                       </Button>
