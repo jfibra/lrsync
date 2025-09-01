@@ -60,34 +60,42 @@ export function RemarksModalViewer({
 
     setIsLoading(true)
     try {
-      const updatedRemarks = [...remarksArray]
       const targetRemark = sortedRemarks[index]
-      const originalIndex = remarksArray.findIndex(
-        (r) => r.uuid === targetRemark.uuid && r.date === targetRemark.date && r.remark === targetRemark.remark,
-      )
-
-      if (originalIndex !== -1) {
-        updatedRemarks[originalIndex] = { ...updatedRemarks[originalIndex], remark: editText.trim() }
-
-        const response = await fetch("/api/update-sale-remarks", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            saleId,
-            remarks: updatedRemarks,
-          }),
-        })
-
-        if (response.ok) {
-          onRemarksUpdate(saleId, updatedRemarks)
-          setEditingIndex(null)
-          setEditText("")
-        } else {
-          console.error("Failed to update remark:", await response.text())
+      const updatedRemarks = remarksArray.map((remark) => {
+        if (
+          remark.uuid === targetRemark.uuid &&
+          remark.date === targetRemark.date &&
+          remark.remark === targetRemark.remark
+        ) {
+          return { ...remark, remark: editText.trim() }
         }
+        return remark
+      })
+
+      console.log("[v0] Saving remark update for saleId:", saleId)
+      console.log("[v0] Updated remarks array:", updatedRemarks)
+
+      const response = await fetch("/api/update-sale-remarks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          saleId,
+          remarks: updatedRemarks,
+        }),
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        console.log("[v0] API response:", result)
+        onRemarksUpdate(saleId, updatedRemarks)
+        setEditingIndex(null)
+        setEditText("")
+      } else {
+        const errorText = await response.text()
+        console.error("[v0] Failed to update remark:", errorText)
       }
     } catch (error) {
-      console.error("Error updating remark:", error)
+      console.error("[v0] Error updating remark:", error)
     } finally {
       setIsLoading(false)
     }
@@ -98,32 +106,37 @@ export function RemarksModalViewer({
 
     setIsLoading(true)
     try {
-      const updatedRemarks = [...remarksArray]
       const targetRemark = sortedRemarks[index]
-      const originalIndex = remarksArray.findIndex(
-        (r) => r.uuid === targetRemark.uuid && r.date === targetRemark.date && r.remark === targetRemark.remark,
-      )
+      const updatedRemarks = remarksArray.filter((remark) => {
+        return !(
+          remark.uuid === targetRemark.uuid &&
+          remark.date === targetRemark.date &&
+          remark.remark === targetRemark.remark
+        )
+      })
 
-      if (originalIndex !== -1) {
-        updatedRemarks.splice(originalIndex, 1)
+      console.log("[v0] Deleting remark for saleId:", saleId)
+      console.log("[v0] Updated remarks array after deletion:", updatedRemarks)
 
-        const response = await fetch("/api/update-sale-remarks", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            saleId,
-            remarks: updatedRemarks,
-          }),
-        })
+      const response = await fetch("/api/update-sale-remarks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          saleId,
+          remarks: updatedRemarks,
+        }),
+      })
 
-        if (response.ok) {
-          onRemarksUpdate(saleId, updatedRemarks)
-        } else {
-          console.error("Failed to delete remark:", await response.text())
-        }
+      if (response.ok) {
+        const result = await response.json()
+        console.log("[v0] API response:", result)
+        onRemarksUpdate(saleId, updatedRemarks)
+      } else {
+        const errorText = await response.text()
+        console.error("[v0] Failed to delete remark:", errorText)
       }
     } catch (error) {
-      console.error("Error deleting remark:", error)
+      console.error("[v0] Error deleting remark:", error)
     } finally {
       setIsLoading(false)
     }
@@ -215,7 +228,13 @@ export function RemarksModalViewer({
                           >
                             <Save className="h-3 w-3" />
                           </Button>
-                          <Button size="sm" className="bg-white" variant="outline" onClick={handleCancel} disabled={isLoading}>
+                          <Button
+                            size="sm"
+                            className="bg-white"
+                            variant="outline"
+                            onClick={handleCancel}
+                            disabled={isLoading}
+                          >
                             <X className="h-3 w-3" />
                           </Button>
                         </div>
