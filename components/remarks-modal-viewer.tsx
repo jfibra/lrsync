@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { Edit2, Trash2, Save, X } from "lucide-react"
 import { format } from "date-fns"
+import { supabase } from "@/lib/supabase/client"
 
 interface Remark {
   remark: string
@@ -22,7 +23,8 @@ interface RemarksModalViewerProps {
   saleId: string
   remarks: string | null
   onRemarksUpdate: (saleId: string, updatedRemarks: Remark[]) => void
-  roleColor?: "blue" | "purple" // For theme consistency
+  roleColor?: "blue" | "purple"
+  userRole?: string // <-- add this
 }
 
 export function RemarksModalViewer({
@@ -32,6 +34,7 @@ export function RemarksModalViewer({
   remarks,
   onRemarksUpdate,
   roleColor = "blue",
+  userRole, // <-- add this
 }: RemarksModalViewerProps) {
   const [editingIndex, setEditingIndex] = useState<number | null>(null)
   const [editText, setEditText] = useState("")
@@ -75,24 +78,21 @@ export function RemarksModalViewer({
       console.log("[v0] Saving remark update for saleId:", saleId)
       console.log("[v0] Updated remarks array:", updatedRemarks)
 
-      const response = await fetch("/api/update-sale-remarks", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          saleId,
-          remarks: updatedRemarks,
-        }),
-      })
+      const { error } = await supabase
+        .from("sales")
+        .update({
+          remarks: JSON.stringify(updatedRemarks),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", saleId)
 
-      if (response.ok) {
-        const result = await response.json()
-        console.log("[v0] API response:", result)
+      if (!error) {
         onRemarksUpdate(saleId, updatedRemarks)
         setEditingIndex(null)
         setEditText("")
+        window.location.reload() // Refresh the page after successful edit
       } else {
-        const errorText = await response.text()
-        console.error("[v0] Failed to update remark:", errorText)
+        console.error("[v0] Failed to update remark:", error)
       }
     } catch (error) {
       console.error("[v0] Error updating remark:", error)
@@ -118,22 +118,19 @@ export function RemarksModalViewer({
       console.log("[v0] Deleting remark for saleId:", saleId)
       console.log("[v0] Updated remarks array after deletion:", updatedRemarks)
 
-      const response = await fetch("/api/update-sale-remarks", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          saleId,
-          remarks: updatedRemarks,
-        }),
-      })
+      const { error } = await supabase
+        .from("sales")
+        .update({
+          remarks: JSON.stringify(updatedRemarks),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", saleId)
 
-      if (response.ok) {
-        const result = await response.json()
-        console.log("[v0] API response:", result)
+      if (!error) {
         onRemarksUpdate(saleId, updatedRemarks)
+        window.location.reload() // Refresh the page after successful edit
       } else {
-        const errorText = await response.text()
-        console.error("[v0] Failed to delete remark:", errorText)
+        console.error("[v0] Failed to delete remark:", error)
       }
     } catch (error) {
       console.error("[v0] Error deleting remark:", error)
@@ -240,24 +237,28 @@ export function RemarksModalViewer({
                         </div>
                       ) : (
                         <div className="flex gap-1">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleEdit(index, remark.remark)}
-                            disabled={isLoading}
-                            className={colors.editButton}
-                          >
-                            <Edit2 className="h-3 w-3" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleDelete(index)}
-                            disabled={isLoading}
-                            className={colors.deleteButton}
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
+                          {userRole === "super_admin" && (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleEdit(index, remark.remark)}
+                                disabled={isLoading}
+                                className={colors.editButton}
+                              >
+                                <Edit2 className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleDelete(index)}
+                                disabled={isLoading}
+                                className={colors.deleteButton}
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </>
+                          )}
                         </div>
                       )}
                     </TableCell>

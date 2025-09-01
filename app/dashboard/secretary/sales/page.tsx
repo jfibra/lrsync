@@ -346,7 +346,7 @@ export default function SecretarySalesPage() {
       // Map saleId to commission report info
       const saleIdToCommissionObj: Record<string, any> = {}
       commissionReports.forEach((report) => {
-        ;(report.sales_uuids || []).forEach((saleId: string) => {
+        ; (report.sales_uuids || []).forEach((saleId: string) => {
           saleIdToCommissionObj[saleId] = {
             report_number: report.report_number,
             created_by: report.created_by,
@@ -686,9 +686,8 @@ export default function SecretarySalesPage() {
     XLSX.utils.book_append_sheet(wb, ws, "Invoice Sales Report")
 
     // Generate filename with current date and area
-    const filename = `Invoice_Sales_Report_${profile?.assigned_area || "Area"}_${
-      new Date().toISOString().split("T")[0]
-    }.xlsx`
+    const filename = `Invoice_Sales_Report_${profile?.assigned_area || "Area"}_${new Date().toISOString().split("T")[0]
+      }.xlsx`
 
     /* ---- browser-safe download ---- */
     const wbArray = XLSX.write(wb, { bookType: "xlsx", type: "array" })
@@ -930,11 +929,10 @@ export default function SecretarySalesPage() {
                     variant={showOnlyWithRemarks ? "default" : "outline"}
                     size="sm"
                     onClick={() => setShowOnlyWithRemarks(!showOnlyWithRemarks)}
-                    className={`border-gray-300 ${
-                      showOnlyWithRemarks
+                    className={`border-gray-300 ${showOnlyWithRemarks
                         ? "bg-purple-600 text-white hover:bg-purple-700"
                         : "text-gray-700 hover:text-gray-700 hover:bg-gray-50 bg-transparent"
-                    }`}
+                      }`}
                   >
                     <MessageSquarePlus className="h-4 w-4 mr-2" />
                     {showOnlyWithRemarks ? "Show All" : "With Remarks"}
@@ -1301,11 +1299,10 @@ export default function SecretarySalesPage() {
                         variant={currentPage === pageNum ? "default" : "outline"}
                         size="sm"
                         onClick={() => setCurrentPage(pageNum)}
-                        className={`h-8 px-3 min-w-[32px] ${
-                          currentPage === pageNum
+                        className={`h-8 px-3 min-w-[32px] ${currentPage === pageNum
                             ? "bg-indigo-600 text-white hover:bg-indigo-700 border-indigo-600"
                             : "border-gray-300 hover:text-gray-700 hover:bg-gray-50"
-                        }`}
+                          }`}
                       >
                         {pageNum}
                       </Button>
@@ -1402,6 +1399,7 @@ export default function SecretarySalesPage() {
           remarks={selectedSaleForRemarks?.remarks || null}
           onRemarksUpdate={handleRemarksUpdate}
           roleColor="purple"
+          userRole={profile?.role} // <-- pass the role here
         />
       </div>
     </ProtectedRoute>
