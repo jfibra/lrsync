@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { Edit2, Trash2, Save, X } from "lucide-react"
 import { format } from "date-fns"
 import { supabase } from "@/lib/supabase/client"
+import { useRouter } from "next/navigation"
 
 interface Remark {
   remark: string
@@ -39,6 +40,7 @@ export function RemarksModalViewer({
   const [editingIndex, setEditingIndex] = useState<number | null>(null)
   const [editText, setEditText] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const router = useRouter()
 
   const parseRemarks = (remarksJson: string | null): Remark[] => {
     if (!remarksJson) return []
@@ -90,7 +92,7 @@ export function RemarksModalViewer({
         onRemarksUpdate(saleId, updatedRemarks)
         setEditingIndex(null)
         setEditText("")
-        window.location.reload() // Refresh the page after successful edit
+        router.replace(`/dashboard/${userRole === "super_admin" ? "super-admin" : userRole}/sales`)
       } else {
         console.error("[v0] Failed to update remark:", error)
       }
@@ -128,7 +130,7 @@ export function RemarksModalViewer({
 
       if (!error) {
         onRemarksUpdate(saleId, updatedRemarks)
-        window.location.reload() // Refresh the page after successful edit
+        router.replace(`/dashboard/${userRole === "super_admin" ? "super-admin" : userRole}/sales`)
       } else {
         console.error("[v0] Failed to delete remark:", error)
       }
