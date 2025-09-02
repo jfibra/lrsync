@@ -87,6 +87,16 @@ export function DashboardMenuCards({ userRole }: DashboardMenuCardsProps) {
             badgeColor: "bg-blue-100 text-blue-800",
           },
           {
+            title: "Admin Settings",
+            description: "Manage system configurations and settings",
+            icon: Contact,
+            href: "/dashboard/super-admin/admin-settings",
+            color: "from-slate-500 to-slate-600",
+            bgColor: "bg-slate-50/80 border-slate-200",
+            badge: "Config",
+            badgeColor: "bg-slate-100 text-slate-800",
+          },
+          {
             title: "Activity Tracker",
             description: "Monitor all system activities and user actions with comprehensive analytics",
             icon: Contact,
