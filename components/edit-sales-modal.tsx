@@ -15,6 +15,7 @@ import { supabase } from "@/lib/supabase/client"
 import type { Sales } from "@/types/sales"
 import type { TaxpayerListing } from "@/types/taxpayer"
 import { logNotification } from "@/utils/logNotification"
+import { useRouter } from "next/navigation";
 
 interface EditSalesModalProps {
   open: boolean
@@ -109,7 +110,8 @@ const uploadToS3API = async (
 }
 
 export function EditSalesModal({ open, onOpenChange, sale, onSaleUpdated }: EditSalesModalProps) {
-  const { profile } = useAuth()
+  const router = useRouter();
+  const { user, profile } = useAuth(); // (if not already)
   const [loading, setLoading] = useState(false)
 
   // Form state
@@ -313,11 +315,11 @@ export function EditSalesModal({ open, onOpenChange, sale, onSaleUpdated }: Edit
         prev.map((upload) =>
           upload.id === uploadId
             ? {
-                ...upload,
-                files: [...upload.files, ...validFiles],
-                uploadedUrls: [...upload.uploadedUrls, ...uploadedUrls],
-                uploading: false,
-              }
+              ...upload,
+              files: [...upload.files, ...validFiles],
+              uploadedUrls: [...upload.uploadedUrls, ...uploadedUrls],
+              uploading: false,
+            }
             : upload,
         ),
       )
@@ -337,9 +339,9 @@ export function EditSalesModal({ open, onOpenChange, sale, onSaleUpdated }: Edit
       prev.map((upload) =>
         upload.id === uploadId
           ? {
-              ...upload,
-              existingUrls: upload.existingUrls.filter((_, index) => index !== fileIndex),
-            }
+            ...upload,
+            existingUrls: upload.existingUrls.filter((_, index) => index !== fileIndex),
+          }
           : upload,
       ),
     )
@@ -351,10 +353,10 @@ export function EditSalesModal({ open, onOpenChange, sale, onSaleUpdated }: Edit
       prev.map((upload) =>
         upload.id === uploadId
           ? {
-              ...upload,
-              files: upload.files.filter((_, index) => index !== fileIndex),
-              uploadedUrls: upload.uploadedUrls.filter((_, index) => index !== fileIndex),
-            }
+            ...upload,
+            files: upload.files.filter((_, index) => index !== fileIndex),
+            uploadedUrls: upload.uploadedUrls.filter((_, index) => index !== fileIndex),
+          }
           : upload,
       ),
     )
@@ -459,6 +461,7 @@ export function EditSalesModal({ open, onOpenChange, sale, onSaleUpdated }: Edit
       // Success
       onOpenChange(false)
       onSaleUpdated?.()
+      router.replace(`/dashboard/${profile?.role === "super_admin" ? "super-admin" : profile?.role}/sales`)
     } catch (error) {
       console.error("Error updating sales record:", error)
       alert("Error updating sales record. Please try again.")
@@ -726,9 +729,8 @@ export function EditSalesModal({ open, onOpenChange, sale, onSaleUpdated }: Edit
                     />
                     <label
                       htmlFor={upload.id}
-                      className={`flex flex-col items-center justify-center cursor-pointer ${
-                        upload.uploading || !taxMonth || !tinSearch ? "opacity-50 cursor-not-allowed" : ""
-                      }`}
+                      className={`flex flex-col items-center justify-center cursor-pointer ${upload.uploading || !taxMonth || !tinSearch ? "opacity-50 cursor-not-allowed" : ""
+                        }`}
                     >
                       {upload.uploading ? (
                         <>

@@ -73,7 +73,7 @@ export default function AdminSettingsPage() {
       const { error } = await supabase.from("purchases_categories").insert({
         category: newCategoryName.trim(),
         is_default: false,
-        user_uuid: profile?.id,
+        user_uuid: profile?.auth_user_id,
         user_full_name: profile?.full_name,
         user_area: profile?.assigned_area,
       })
@@ -208,9 +208,9 @@ export default function AdminSettingsPage() {
                       Add Category
                     </Button>
                   </DialogTrigger>
-                  <DialogContent>
+                  <DialogContent className="bg-white">
                     <DialogHeader>
-                      <DialogTitle>Add New Category</DialogTitle>
+                      <DialogTitle className="text-[#001f3f]">Add New Category</DialogTitle>
                       <DialogDescription>Create a new purchase category</DialogDescription>
                     </DialogHeader>
                     <div className="py-4">
@@ -218,14 +218,15 @@ export default function AdminSettingsPage() {
                         placeholder="Enter category name"
                         value={newCategoryName}
                         onChange={(e) => setNewCategoryName(e.target.value)}
+                        className="bg-white text-[#001f3f]"
                         onKeyPress={(e) => e.key === "Enter" && handleAddCategory()}
                       />
                     </div>
                     <DialogFooter>
-                      <Button variant="outline" onClick={() => setIsAddModalOpen(false)}>
+                      <Button variant="outline" className="bg-white text-[#001f3f]" onClick={() => setIsAddModalOpen(false)}>
                         Cancel
                       </Button>
-                      <Button onClick={handleAddCategory} className="bg-blue-600 hover:bg-blue-700">
+                      <Button onClick={handleAddCategory} className="text-white bg-[#001f3f] hover:bg-[#001f3f]">
                         Add Category
                       </Button>
                     </DialogFooter>
@@ -252,7 +253,7 @@ export default function AdminSettingsPage() {
                   <TableBody>
                     {categories.map((category) => (
                       <TableRow key={category.id}>
-                        <TableCell className="font-medium">{category.category}</TableCell>
+                        <TableCell className="font-medium text-[#001f3f]">{category.category}</TableCell>
                         <TableCell>
                           {category.is_default ? (
                             <Badge className="bg-blue-100 text-blue-800">Default</Badge>
@@ -260,9 +261,9 @@ export default function AdminSettingsPage() {
                             <Badge className="bg-green-100 text-green-800">Custom</Badge>
                           )}
                         </TableCell>
-                        <TableCell>{category.user_full_name || "System"}</TableCell>
-                        <TableCell>{new Date(category.created_at).toLocaleDateString()}</TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="text-[#001f3f]">{category.user_full_name || "System"}</TableCell>
+                        <TableCell className="text-[#001f3f]">{new Date(category.created_at).toLocaleDateString()}</TableCell>
+                        <TableCell className="text-center">
                           <div className="flex justify-end gap-2">
                             <Button
                               size="sm"
@@ -294,7 +295,7 @@ export default function AdminSettingsPage() {
 
           {/* Edit Modal */}
           <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-            <DialogContent>
+            <DialogContent className="bg-white text-[#001f3f]">
               <DialogHeader>
                 <DialogTitle>Edit Category</DialogTitle>
                 <DialogDescription>Update the category name</DialogDescription>
@@ -304,11 +305,12 @@ export default function AdminSettingsPage() {
                   placeholder="Enter category name"
                   value={editCategoryName}
                   onChange={(e) => setEditCategoryName(e.target.value)}
+                  className="bg-white text-[#001f3f]"
                   onKeyPress={(e) => e.key === "Enter" && handleEditCategory()}
                 />
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setIsEditModalOpen(false)}>
+                <Button variant="outline" className="bg-white" onClick={() => setIsEditModalOpen(false)}>
                   Cancel
                 </Button>
                 <Button onClick={handleEditCategory} className="bg-blue-600 hover:bg-blue-700">

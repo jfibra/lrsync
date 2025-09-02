@@ -80,6 +80,179 @@ export default function SecretaryPurchasesPage() {
 
   const [sortField, setSortField] = useState<string>("created_at")
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc")
+  const [categories, setCategories] = useState<{ id: string; category: string }[]>([])
+
+  const [lightboxOpen, setLightboxOpen] = useState(false)
+  const [lightboxImages, setLightboxImages] = useState<{ url: string; label: string }[]>([])
+  const [lightboxIndex, setLightboxIndex] = useState(0)
+
+  const [filterCategory, setFilterCategory] = useState("all")
+
+  function LightboxModal({
+    images,
+    index,
+    onClose,
+  }: {
+    images: { url: string; label: string }[]
+    index: number
+    onClose: () => void
+  }) {
+    const [current, setCurrent] = useState(index)
+    const [zoom, setZoom] = useState(1)
+    const [rotation, setRotation] = useState(0)
+    const [offset, setOffset] = useState({ x: 0, y: 0 })
+    const [dragging, setDragging] = useState(false)
+    const [start, setStart] = useState<{ x: number; y: number } | null>(null)
+
+    const currentImage = images[current]
+
+    // Keyboard navigation
+    useEffect(() => {
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === "ArrowLeft") {
+          setCurrent((prev) => (prev === 0 ? images.length - 1 : prev - 1))
+        } else if (e.key === "ArrowRight") {
+          setCurrent((prev) => (prev === images.length - 1 ? 0 : prev + 1))
+        } else if (e.key === "Escape") {
+          onClose()
+        }
+      }
+      window.addEventListener("keydown", handleKeyDown)
+      return () => window.removeEventListener("keydown", handleKeyDown)
+    }, [images.length, onClose])
+
+    // Reset pan/zoom/rotation when image changes
+    useEffect(() => {
+      setZoom(1)
+      setRotation(0)
+      setOffset({ x: 0, y: 0 })
+    }, [current, index, images])
+
+    // Mouse/touch drag handlers for panning
+    const handleMouseDown = (e: React.MouseEvent) => {
+      if (zoom === 1) return
+      setDragging(true)
+      setStart({ x: e.clientX - offset.x, y: e.clientY - offset.y })
+    }
+    const handleMouseMove = (e: React.MouseEvent) => {
+      if (!dragging || zoom === 1) return
+      setOffset({
+        x: e.clientX - (start?.x ?? 0),
+        y: e.clientY - (start?.y ?? 0),
+      })
+    }
+    const handleMouseUp = () => setDragging(false)
+
+    // Touch events for mobile
+    const handleTouchStart = (e: React.TouchEvent) => {
+      if (zoom === 1) return
+      setDragging(true)
+      const touch = e.touches[0]
+      setStart({ x: touch.clientX - offset.x, y: touch.clientY - offset.y })
+    }
+    const handleTouchMove = (e: React.TouchEvent) => {
+      if (!dragging || zoom === 1) return
+      const touch = e.touches[0]
+      setOffset({
+        x: touch.clientX - (start?.x ?? 0),
+        y: touch.clientY - (start?.y ?? 0),
+      })
+    }
+    const handleTouchEnd = () => setDragging(false)
+
+    const handlePrev = () => setCurrent((prev) => (prev === 0 ? images.length - 1 : prev - 1))
+    const handleNext = () => setCurrent((prev) => (prev === images.length - 1 ? 0 : prev + 1))
+    const handleZoomIn = () => setZoom((z) => Math.min(z + 0.2, 3))
+    const handleZoomOut = () => setZoom((z) => Math.max(z - 0.2, 1))
+    const handleRotate = () => setRotation((r) => r + 90)
+    const handleReset = () => {
+      setZoom(1)
+      setRotation(0)
+      setOffset({ x: 0, y: 0 })
+    }
+
+    if (!currentImage) return null
+
+    return (
+      <div
+        className="fixed inset-0 z-[9999] bg-black bg-opacity-95 overflow-hidden flex items-center justify-center"
+        style={{ touchAction: "none" }}
+        onMouseUp={handleMouseUp}
+        onMouseMove={handleMouseMove}
+        onTouchEnd={handleTouchEnd}
+        onTouchMove={handleTouchMove}
+      >
+        {/* Close Button */}
+        <button
+          className="absolute top-6 right-6 text-white text-3xl z-20"
+          onClick={onClose}
+          aria-label="Close"
+          style={{ lineHeight: 1 }}
+        >
+          ×
+        </button>
+
+        {/* Controls - absolute at top center */}
+        <div className="absolute top-6 left-1/2 -translate-x-1/2 z-20 flex gap-2 bg-black bg-opacity-60 rounded-lg px-4 py-2">
+          <button onClick={handlePrev} className="text-white px-2 py-1 rounded hover:bg-gray-700">&lt;</button>
+          <button onClick={handleNext} className="text-white px-2 py-1 rounded hover:bg-gray-700">&gt;</button>
+          <button onClick={handleZoomIn} className="text-white px-2 py-1 rounded hover:bg-gray-700">Zoom In</button>
+          <button onClick={handleZoomOut} className="text-white px-2 py-1 rounded hover:bg-gray-700">Zoom Out</button>
+          <button onClick={handleRotate} className="text-white px-2 py-1 rounded hover:bg-gray-700">Rotate</button>
+          <button onClick={handleReset} className="text-white px-2 py-1 rounded hover:bg-gray-700">Reset</button>
+          <a
+            href={currentImage.url}
+            download
+            className="text-white px-2 py-1 rounded hover:bg-gray-700"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Download
+          </a>
+        </div>
+
+        {/* Image - centered and fills available space */}
+        <div className="absolute inset-0 flex items-center justify-center select-none">
+          <img
+            src={currentImage.url}
+            alt={currentImage.label}
+            className="max-w-[90vw] max-h-[80vh] object-contain"
+            style={{
+              transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom}) rotate(${rotation}deg)`,
+              transition: dragging ? "none" : "transform 0.2s",
+              cursor: zoom > 1 ? "grab" : "default",
+              userSelect: "none",
+              display: "block",
+              margin: "auto",
+            }}
+            draggable={false}
+            onMouseDown={handleMouseDown}
+            onTouchStart={handleTouchStart}
+          />
+          {/* Image label at bottom center */}
+          <div className="absolute bottom-8 left-1/2 -translate-x-1/2 text-white bg-black bg-opacity-60 rounded px-3 py-1 z-20">
+            {currentImage.label}
+          </div>
+          {/* Image index label */}
+          <div className="absolute bottom-20 left-1/2 -translate-x-1/2 text-white bg-black bg-opacity-60 rounded px-3 py-1 z-20">
+            Image {current + 1} of {images.length}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      const { data, error } = await supabase
+        .from("purchases_categories")
+        .select("id, category")
+        .eq("is_deleted", false)
+        .order("category", { ascending: true })
+      if (!error && data) setCategories(data)
+    }
+    fetchCategories()
+  }, [])
 
   // Statistics
   const totalPurchases = purchases.length
@@ -88,17 +261,25 @@ export default function SecretaryPurchasesPage() {
   const nonVatPurchases = purchases.filter((p) => p.tax_type === "non-vat").length
 
   const [exportModalOpen, setExportModalOpen] = useState(false)
-  const [columnVisibility, setColumnVisibility] = useState({
-    tax_month: true,
-    tin: true,
-    name: true,
-    tax_type: true,
-    gross_taxable: true,
-    invoice_number: true,
-    official_receipt: true,
-    remark: true,
-    actions: true,
-  })
+
+  const [columns, setColumns] = useState([
+    { key: "tax_month", label: "Tax Month", visible: true },
+    { key: "tin", label: "TIN", visible: true },
+    { key: "name", label: "Name", visible: true },
+    { key: "tax_type", label: "Tax Type", visible: true },
+    { key: "gross_taxable", label: "Gross Taxable", visible: true },
+    { key: "invoice_number", label: "Invoice #", visible: true },
+    { key: "category_id", label: "Category", visible: true }, // <-- Add this
+    { key: "official_receipt", label: "File Attachments", visible: true },
+    { key: "remark", label: "Remark", visible: true },
+    { key: "actions", label: "Actions", visible: true },
+  ])
+
+  const handleColumnToggle = (key: string) => {
+    setColumns((prev) =>
+      prev.map((col) => (col.key === key ? { ...col, visible: !col.visible } : col))
+    )
+  }
 
   const getMostRecentRemark = (remarksJson: string | null) => {
     if (!remarksJson) return null
@@ -128,6 +309,10 @@ export default function SecretaryPurchasesPage() {
         .select("*")
         .eq("is_deleted", false)
         .order(sortField, { ascending: sortDirection === "asc" })
+
+      if (filterCategory !== "all") {
+        purchasesQuery = purchasesQuery.eq("category_id", filterCategory)
+      }
 
       // Apply filters
       if (searchTerm) {
@@ -197,7 +382,7 @@ export default function SecretaryPurchasesPage() {
     if (profile?.assigned_area) {
       fetchPurchases()
     }
-  }, [searchTerm, filterTaxType, filterMonth, sortField, sortDirection, profile?.assigned_area])
+  }, [searchTerm, filterTaxType, filterMonth, sortField, sortDirection, profile?.assigned_area, filterCategory])
 
   // Format currency
   const formatCurrency = (amount: number) => {
@@ -244,6 +429,18 @@ export default function SecretaryPurchasesPage() {
     }
 
     return options
+  }
+
+  function s3UrlFix(url: string) {
+    // Only fix the last segment (the filename)
+    const parts = url.split("/");
+    let filename = parts[parts.length - 1];
+    // Replace spaces with +
+    filename = filename.replace(/ /g, "+");
+    // Replace # with %23 (and any other special chars if needed)
+    filename = filename.replace(/#/g, "%23");
+    parts[parts.length - 1] = filename;
+    return parts.join("/");
   }
 
   const taxMonthOptions = generateTaxMonthOptions()
@@ -470,7 +667,7 @@ export default function SecretaryPurchasesPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="p-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 lg:grid-cols-5 gap-4">
                 <div className="relative col-span-full sm:col-span-1 lg:col-span-1">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                   <Input
@@ -511,6 +708,19 @@ export default function SecretaryPurchasesPage() {
                     ))}
                   </SelectContent>
                 </Select>
+                <Select value={filterCategory} onValueChange={setFilterCategory}>
+                  <SelectTrigger className="bg-white border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 text-gray-900">
+                    <SelectValue placeholder="Category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Categories</SelectItem>
+                    {categories.map((cat) => (
+                      <SelectItem key={cat.id} value={cat.id}>
+                        {cat.category}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <Button
                   variant="outline"
                   onClick={() => {
@@ -545,19 +755,8 @@ export default function SecretaryPurchasesPage() {
                 </div>
                 <div className="flex flex-col gap-2 w-full sm:w-auto sm:flex-row sm:items-center sm:gap-2">
                   <ColumnVisibilityControl
-                    columns={[
-                      { key: "tax_month", label: "Tax Month" },
-                      { key: "tin", label: "TIN" },
-                      { key: "name", label: "Name" },
-                      { key: "tax_type", label: "Tax Type" },
-                      { key: "gross_taxable", label: "Gross Taxable" },
-                      { key: "invoice_number", label: "Invoice #" },
-                      { key: "official_receipt", label: "Official Receipt" },
-                      { key: "remark", label: "Remark" },
-                      { key: "actions", label: "Actions" },
-                    ]}
-                    visibility={columnVisibility}
-                    onVisibilityChange={setColumnVisibility}
+                    columns={columns}
+                    onColumnToggle={handleColumnToggle}
                     role="secretary"
                   />
                   <Button
@@ -588,70 +787,11 @@ export default function SecretaryPurchasesPage() {
                 <Table>
                   <TableHeader>
                     <TableRow style={{ background: "#fff", borderBottom: "1px solid #e0e0e0" }}>
-                      {columnVisibility.tax_month && (
-                        <TableHead
-                          className="min-w-[120px] font-semibold cursor-pointer select-none"
-                          style={{ color: "#001f3f" }}
-                          onClick={() => handleSort("tax_month")}
-                        >
-                          Tax Month
-                          {sortField === "tax_month" && (
-                            <span className="ml-1">{sortDirection === "asc" ? "▲" : "▼"}</span>
-                          )}
+                      {columns.filter(col => col.visible).map(col => (
+                        <TableHead key={col.key} className="min-w-[120px] font-semibold text-[#001f3f]">
+                          {col.label}
                         </TableHead>
-                      )}
-                      {columnVisibility.tin && (
-                        <TableHead
-                          className="min-w-[120px] font-semibold cursor-pointer select-none"
-                          style={{ color: "#001f3f" }}
-                          onClick={() => handleSort("tin")}
-                        >
-                          TIN
-                          {sortField === "tin" && <span className="ml-1">{sortDirection === "asc" ? "▲" : "▼"}</span>}
-                        </TableHead>
-                      )}
-                      {columnVisibility.name && (
-                        <TableHead className="min-w-[180px] font-semibold" style={{ color: "#001f3f" }}>
-                          Name
-                        </TableHead>
-                      )}
-                      {columnVisibility.tax_type && (
-                        <TableHead className="min-w-[100px] font-semibold" style={{ color: "#001f3f" }}>
-                          Tax Type
-                        </TableHead>
-                      )}
-                      {columnVisibility.gross_taxable && (
-                        <TableHead
-                          className="min-w-[120px] font-semibold cursor-pointer select-none"
-                          style={{ color: "#001f3f" }}
-                          onClick={() => handleSort("gross_taxable")}
-                        >
-                          Gross Taxable
-                          {sortField === "gross_taxable" && (
-                            <span className="ml-1">{sortDirection === "asc" ? "▲" : "▼"}</span>
-                          )}
-                        </TableHead>
-                      )}
-                      {columnVisibility.invoice_number && (
-                        <TableHead className="min-w-[120px] font-semibold" style={{ color: "#001f3f" }}>
-                          Invoice #
-                        </TableHead>
-                      )}
-                      {columnVisibility.official_receipt && (
-                        <TableHead className="min-w-[120px] font-semibold" style={{ color: "#001f3f" }}>
-                          Official Receipt
-                        </TableHead>
-                      )}
-                      {columnVisibility.remark && (
-                        <TableHead className="min-w-[200px] font-semibold" style={{ color: "#001f3f" }}>
-                          Remark
-                        </TableHead>
-                      )}
-                      {columnVisibility.actions && (
-                        <TableHead className="min-w-[150px] font-semibold" style={{ color: "#001f3f" }}>
-                          Actions
-                        </TableHead>
-                      )}
+                      ))}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -680,166 +820,198 @@ export default function SecretaryPurchasesPage() {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      paginatedPurchases.map((purchase) => {
-                        const recentRemark = getMostRecentRemark(purchase.remarks)
-
-                        return (
-                          <TableRow
-                            key={purchase.id}
-                            className="hover:bg-[#001f3f]/5 transition-colors border-b border-[#001f3f]/10"
-                          >
-                            {columnVisibility.tax_month && (
-                              <TableCell className="text-[#001f3f] font-medium">
-                                <div className="flex items-center gap-2">
-                                  <Calendar className="h-4 w-4 text-[#3c8dbc]" />
-                                  {format(new Date(purchase.tax_month), "MMM yyyy")}
-                                </div>
-                              </TableCell>
-                            )}
-                            {columnVisibility.tin && (
-                              <TableCell className="font-mono text-[#001f3f]">
-                                <div className="flex items-center gap-2">
-                                  <div className="w-2 h-2 bg-[#3c8dbc] rounded-full"></div>
-                                  {formatTin(purchase.tin)}
-                                </div>
-                              </TableCell>
-                            )}
-                            {columnVisibility.name && (
-                              <TableCell className="text-[#001f3f]">
-                                <div>
-                                  <div className="font-medium">{purchase.name}</div>
-                                  {purchase.substreet_street_brgy && (
-                                    <div className="text-sm text-[#001f3f]/70 flex items-center gap-1">
-                                      <MapPin className="h-3 w-3" />
-                                      {purchase.substreet_street_brgy}
+                      paginatedPurchases.map((purchase) => (
+                        <TableRow key={purchase.id}>
+                          {columns.filter(col => col.visible).map(col => {
+                            switch (col.key) {
+                              case "tax_month":
+                                return (
+                                  <TableCell key={col.key}>
+                                    <div className="flex items-center gap-2 text-[#001f3f]">
+                                      <Calendar className="h-4 w-4 text-[#3c8dbc]" />
+                                      {format(new Date(purchase.tax_month), "MMM yyyy")}
                                     </div>
-                                  )}
-                                </div>
-                              </TableCell>
-                            )}
-                            {columnVisibility.tax_type && (
-                              <TableCell>
-                                <Badge className={getTaxTypeBadgeColor(purchase.tax_type)}>
-                                  {purchase.tax_type?.toUpperCase()}
-                                </Badge>
-                              </TableCell>
-                            )}
-                            {columnVisibility.gross_taxable && (
-                              <TableCell className="text-[#001f3f] font-semibold">
-                                {formatCurrency(purchase.gross_taxable || 0)}
-                              </TableCell>
-                            )}
-                            {columnVisibility.invoice_number && (
-                              <TableCell className="text-[#001f3f]/70">{purchase.invoice_number || "-"}</TableCell>
-                            )}
-                            {columnVisibility.official_receipt && (
-                              <TableCell className="text-[#001f3f]/70">
-                                {(() => {
-                                  let files: string[] = []
-                                  try {
-                                    if (purchase.official_receipt) {
-                                      const parsed = JSON.parse(purchase.official_receipt)
-                                      files = Array.isArray(parsed) ? parsed : []
-                                    }
-                                  } catch {
-                                    if (
-                                      typeof purchase.official_receipt === "string" &&
-                                      purchase.official_receipt.startsWith("http")
-                                    ) {
-                                      files = [purchase.official_receipt]
-                                    }
+                                  </TableCell>
+                                )
+                              case "tin":
+                                return (
+                                  <TableCell key={col.key} className="font-mono text-[#001f3f]">
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-2 h-2 bg-[#3c8dbc] rounded-full"></div>
+                                      {formatTin(purchase.tin)}
+                                    </div>
+                                  </TableCell>
+                                )
+                              case "name":
+                                return (
+                                  <TableCell key={col.key} className="text-[#001f3f]">
+                                    <div>
+                                      <div className="font-medium">{purchase.name}</div>
+                                      {purchase.substreet_street_brgy && (
+                                        <div className="text-sm text-[#001f3f]/70 flex items-center gap-1">
+                                          <MapPin className="h-3 w-3" />
+                                          {purchase.substreet_street_brgy}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </TableCell>
+                                )
+                              case "tax_type":
+                                return (
+                                  <TableCell key={col.key}>
+                                    <Badge className={getTaxTypeBadgeColor(purchase.tax_type)}>
+                                      {purchase.tax_type?.toUpperCase()}
+                                    </Badge>
+                                  </TableCell>
+                                )
+                              case "gross_taxable":
+                                return (
+                                  <TableCell key={col.key} className="text-[#001f3f] font-semibold">
+                                    {formatCurrency(purchase.gross_taxable || 0)}
+                                  </TableCell>
+                                )
+                              case "invoice_number":
+                                return (
+                                  <TableCell key={col.key} className="text-[#001f3f]/70">
+                                    {purchase.invoice_number || "-"}
+                                  </TableCell>
+                                )
+                              case "category_id":
+                                return (
+                                  <TableCell key={col.key} className="text-[#001f3f]/70">
+                                    {categories.find(cat => cat.id === purchase.category_id)?.category || (
+                                      <span className="italic text-gray-400">Uncategorized</span>
+                                    )}
+                                  </TableCell>
+                                )
+                              case "official_receipt": {
+                                // Parse files
+                                let files: string[] = []
+                                try {
+                                  if (purchase.official_receipt) {
+                                    const parsed = JSON.parse(purchase.official_receipt)
+                                    files = Array.isArray(parsed) ? parsed : []
                                   }
-                                  if (!files.length) return <span>-</span>
+                                } catch {
+                                  if (
+                                    typeof purchase.official_receipt === "string" &&
+                                    purchase.official_receipt.startsWith("http")
+                                  ) {
+                                    files = [purchase.official_receipt]
+                                  }
+                                }
+
+                                // Separate images and pdfs
+                                const isImageFile = (url: string) => {
+                                  const ext = url.split(".").pop()?.toLowerCase()
+                                  return ["jpg", "jpeg", "png", "gif", "bmp", "webp"].includes(ext || "")
+                                }
+                                const isPdfFile = (url: string) => url.split(".").pop()?.toLowerCase() === "pdf"
+
+                                const imageFiles = files
+                                  .map((url, i) => ({
+                                    url: s3UrlFix(url),
+                                    label: `Attachment ${i + 1}`,
+                                  }))
+                                  .filter((f) => isImageFile(f.url));
+                                const pdfFiles = files.filter(isPdfFile)
+
+                                if (!files.length) {
                                   return (
-                                    <div className="flex flex-col gap-1">
-                                      {files.map((url, idx) => {
-                                        const fixedUrl = url
-                                          .split("/")
-                                          .map((part, i, arr) =>
-                                            i === arr.length - 1 ? encodeURIComponent(part).replace(/%20/g, "+") : part,
-                                          )
-                                          .join("/")
-                                        const fileName = decodeURIComponent(
-                                          url.split("/").pop() || `Receipt ${idx + 1}`,
-                                        )
-                                        return (
-                                          <Button
-                                            key={url}
-                                            variant="outline"
-                                            size="sm"
-                                            className="w-full justify-start bg-white text-[#3c8dbc] border-[#3c8dbc] hover:bg-[#3c8dbc]/10 hover:text-[#001f3f] px-2 py-1 text-xs font-medium"
-                                            onClick={() => window.open(fixedUrl, "_blank", "noopener,noreferrer")}
-                                            title={fileName}
-                                          >
-                                            {fileName}
-                                          </Button>
-                                        )
-                                      })}
-                                    </div>
+                                    <TableCell key={col.key} className="text-[#001f3f]/70">
+                                      <span>-</span>
+                                    </TableCell>
                                   )
-                                })()}
-                              </TableCell>
-                            )}
-                            {columnVisibility.remark && (
-                              <TableCell className="text-[#001f3f]/70">
-                                {recentRemark ? (
-                                  <div className="max-w-[200px]">
-                                    <div className="text-sm bg-[#001f3f]/10 p-2 rounded border-l-4 border-[#3c8dbc]">
-                                      <div className="font-medium text-[#001f3f] truncate" title={recentRemark.remark}>
-                                        {recentRemark.remark}
+                                }
+
+                                return (
+                                  <TableCell key={col.key} className="text-[#001f3f]/70">
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="w-full justify-start bg-white text-[#3c8dbc] border-[#3c8dbc] hover:bg-[#3c8dbc]/10 hover:text-[#001f3f] px-2 py-1 text-xs font-medium"
+                                      onClick={() => {
+                                        if (imageFiles.length > 0) {
+                                          setLightboxImages(imageFiles)
+                                          setLightboxIndex(0)
+                                          setLightboxOpen(true)
+                                        } else if (pdfFiles.length > 0) {
+                                          pdfFiles.forEach((url) => window.open(url, "_blank"))
+                                        }
+                                      }}
+                                    >
+                                      View Attachments
+                                    </Button>
+                                  </TableCell>
+                                )
+                              }
+                              case "remark": {
+                                const recentRemark = getMostRecentRemark(purchase.remarks)
+                                return (
+                                  <TableCell key={col.key} className="text-[#001f3f]/70">
+                                    {recentRemark ? (
+                                      <div className="max-w-[200px]">
+                                        <div className="text-sm bg-[#001f3f]/10 p-2 rounded border-l-4 border-[#3c8dbc]">
+                                          <div className="font-medium text-[#001f3f] truncate" title={recentRemark.remark}>
+                                            {recentRemark.remark}
+                                          </div>
+                                          <div className="text-xs text-[#001f3f]/60 mt-1">
+                                            by {recentRemark.name} • {format(new Date(recentRemark.date), "MMM dd, yyyy")}
+                                          </div>
+                                        </div>
                                       </div>
-                                      <div className="text-xs text-[#001f3f]/60 mt-1">
-                                        by {recentRemark.name} • {format(new Date(recentRemark.date), "MMM dd, yyyy")}
-                                      </div>
+                                    ) : (
+                                      <span className="text-[#001f3f]/40 italic">No remarks</span>
+                                    )}
+                                  </TableCell>
+                                )
+                              }
+                              case "actions":
+                                return (
+                                  <TableCell key={col.key}>
+                                    <div className="flex items-center gap-2">
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleViewPurchase(purchase)}
+                                        className="h-8 w-8 p-0 hover:bg-[#3c8dbc]/20"
+                                      >
+                                        <Eye className="h-4 w-4 text-[#3c8dbc]" />
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleEditPurchase(purchase)}
+                                        className="h-8 w-8 p-0 hover:bg-[#ffc107]/20"
+                                      >
+                                        <Edit className="h-4 w-4 text-[#ffc107]" />
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleAddRemark(purchase)}
+                                        className="h-8 w-8 p-0 hover:bg-[#3c8dbc]/20"
+                                        title="Add Remark"
+                                      >
+                                        <MessageSquarePlus className="h-4 w-4 text-[#3c8dbc]" />
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleSoftDelete(purchase)}
+                                        className="h-8 w-8 p-0 hover:bg-[#dc3545]/20"
+                                      >
+                                        <Trash2 className="h-4 w-4 text-[#dc3545]" />
+                                      </Button>
                                     </div>
-                                  </div>
-                                ) : (
-                                  <span className="text-[#001f3f]/40 italic">No remarks</span>
-                                )}
-                              </TableCell>
-                            )}
-                            {columnVisibility.actions && (
-                              <TableCell>
-                                <div className="flex items-center gap-2">
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => handleViewPurchase(purchase)}
-                                    className="h-8 w-8 p-0 hover:bg-[#3c8dbc]/20"
-                                  >
-                                    <Eye className="h-4 w-4 text-[#3c8dbc]" />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => handleEditPurchase(purchase)}
-                                    className="h-8 w-8 p-0 hover:bg-[#ffc107]/20"
-                                  >
-                                    <Edit className="h-4 w-4 text-[#ffc107]" />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => handleAddRemark(purchase)}
-                                    className="h-8 w-8 p-0 hover:bg-[#3c8dbc]/20"
-                                    title="Add Remark"
-                                  >
-                                    <MessageSquarePlus className="h-4 w-4 text-[#3c8dbc]" />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => handleSoftDelete(purchase)}
-                                    className="h-8 w-8 p-0 hover:bg-[#dc3545]/20"
-                                  >
-                                    <Trash2 className="h-4 w-4 text-[#dc3545]" />
-                                  </Button>
-                                </div>
-                              </TableCell>
-                            )}
-                          </TableRow>
-                        )
-                      })
+                                  </TableCell>
+                                )
+                              default:
+                                return null
+                            }
+                          })}
+                        </TableRow>
+                      ))
                     )}
                   </TableBody>
                 </Table>
@@ -943,6 +1115,14 @@ export default function SecretaryPurchasesPage() {
             purchases={purchases}
             role="secretary"
           />
+
+          {lightboxOpen && (
+            <LightboxModal
+              images={lightboxImages}
+              index={lightboxIndex}
+              onClose={() => setLightboxOpen(false)}
+            />
+          )}
         </div>
       </div>
     </ProtectedRoute>

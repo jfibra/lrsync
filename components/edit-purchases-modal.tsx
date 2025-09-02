@@ -64,11 +64,26 @@ export function EditPurchasesModal({ open, onOpenChange, purchase, onPurchaseUpd
 
   const [totalActualAmount, setTotalActualAmount] = useState("");
 
+  const [categories, setCategories] = useState<{ id: string; category: string }[]>([])
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>("")
+
   const isFileUploadDisabled =
     !taxMonth ||
     !tinSearch ||
     !name ||
     !invoiceNumber;
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      const { data, error } = await supabase
+        .from("purchases_categories")
+        .select("id, category")
+        .eq("is_deleted", false)
+        .order("category", { ascending: true })
+      if (!error && data) setCategories(data)
+    }
+    fetchCategories()
+  }, [])
 
   // Initialize form with purchase data
   useEffect(() => {
@@ -83,6 +98,7 @@ export function EditPurchasesModal({ open, onOpenChange, purchase, onPurchaseUpd
       setTaxType(purchase.tax_type)
       setOfficialReceipt(purchase.official_receipt || "")
       setRemarks(purchase.remarks || "")
+      setSelectedCategoryId(purchase.category_id || "")
       setTotalActualAmount(
         purchase.total_actual_amount !== undefined && purchase.total_actual_amount !== null
           ? Number(purchase.total_actual_amount).toLocaleString()
@@ -239,6 +255,7 @@ export function EditPurchasesModal({ open, onOpenChange, purchase, onPurchaseUpd
         total_actual_amount: Number.parseFloat(totalActualAmount.replace(/,/g, "")) || 0, // <-- add this
         invoice_number: invoiceNumber || null,
         tax_type: taxType,
+        category_id: selectedCategoryId,
         official_receipt: JSON.stringify(officialReceiptFiles.map(f => f.url)),
         remarks: remarks || null,
         updated_at: new Date().toISOString(),
@@ -283,9 +300,7 @@ export function EditPurchasesModal({ open, onOpenChange, purchase, onPurchaseUpd
     <Dialog
       open={open}
       onOpenChange={(nextOpen) => {
-        if (!nextOpen && officialReceiptFiles.length === 0) {
-          onOpenChange(false);
-        }
+        if (!nextOpen) onOpenChange(false);
       }}
     >
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-white text-[#001f3f]">
@@ -397,7 +412,7 @@ export function EditPurchasesModal({ open, onOpenChange, purchase, onPurchaseUpd
           </div>
 
           {/* Third Row - Editable Fields */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Gross Taxable */}
             <div className="space-y-2">
               <Label htmlFor="gross-taxable" className="text-sm font-medium text-[#001f3f]">
@@ -430,6 +445,27 @@ export function EditPurchasesModal({ open, onOpenChange, purchase, onPurchaseUpd
                 className="bg-white text-[#001f3f] border-[#001f3f]"
                 required
               />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="purchase-category" className="text-sm font-medium text-[#001f3f]">
+                Purchase Category *
+              </Label>
+              <Select
+                value={selectedCategoryId}
+                onValueChange={setSelectedCategoryId}
+                required
+              >
+                <SelectTrigger className="bg-white text-[#001f3f] border-[#001f3f]">
+                  <SelectValue placeholder="Select category..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories.map((cat) => (
+                    <SelectItem key={cat.id} value={cat.id}>
+                      {cat.category}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
@@ -521,10 +557,8 @@ export function EditPurchasesModal({ open, onOpenChange, purchase, onPurchaseUpd
             <Button
               type="button"
               variant="outline"
-              onClick={() => {
-                if (officialReceiptFiles.length === 0) onOpenChange(false);
-              }}
-              disabled={loading || officialReceiptFiles.length > 0}
+              onClick={() => onOpenChange(false)}
+              disabled={loading}
               className="bg-white border-[#001f3f] hover:bg-[#001f3f]/10 text-[#001f3f]"
             >
               Cancel

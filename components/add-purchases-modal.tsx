@@ -61,11 +61,26 @@ export function AddPurchasesModal({ open, onOpenChange, onPurchaseAdded }: AddPu
   const [officialReceiptUploading, setOfficialReceiptUploading] = useState(false);
   const [officialReceiptUrl, setOfficialReceiptUrl] = useState<string | null>(null);
 
+  const [categories, setCategories] = useState<{ id: string; category: string }[]>([])
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>("")
+
   const isFileUploadDisabled =
     !formData.tax_month ||
     !formData.tin ||
     !formData.name ||
     !formData.invoice_number;
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      const { data, error } = await supabase
+        .from("purchases_categories")
+        .select("id, category")
+        .eq("is_deleted", false)
+        .order("category", { ascending: true })
+      if (!error && data) setCategories(data)
+    }
+    fetchCategories()
+  }, [])
 
   // Generate tax month options
   const generateTaxMonthOptions = (): TaxMonthOption[] => {
@@ -361,6 +376,7 @@ export function AddPurchasesModal({ open, onOpenChange, onPurchaseAdded }: AddPu
         district_city_zip: formData.district_city_zip || null,
         gross_taxable: Number.parseFloat(formData.gross_taxable.replace(/,/g, "")) || 0,
         total_actual_amount: Number.parseFloat(formData.total_actual_amount.replace(/,/g, "")) || 0, // <-- add this
+        category_id: selectedCategoryId,
         invoice_number: formData.invoice_number || null,
         tax_type: formData.tax_type,
         official_receipt: JSON.stringify(officialReceiptFiles.map(f => f.url)),
@@ -613,7 +629,7 @@ export function AddPurchasesModal({ open, onOpenChange, onPurchaseAdded }: AddPu
           </div>
 
           {/* Optional fields */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Gross Taxable */}
             <div className="space-y-2">
               <Label htmlFor="gross-taxable" className="text-sm font-medium text-[#001f3f]">
@@ -652,6 +668,28 @@ export function AddPurchasesModal({ open, onOpenChange, onPurchaseAdded }: AddPu
                 className="bg-white text-[#001f3f] border-[#001f3f]"
                 required
               />
+            </div>
+            {/* Purchase Category Dropdown */}
+            <div className="space-y-2">
+              <Label htmlFor="purchase-category" className="text-sm font-medium text-[#001f3f]">
+                Purchase Category *
+              </Label>
+              <Select
+                value={selectedCategoryId}
+                onValueChange={setSelectedCategoryId}
+                required
+              >
+                <SelectTrigger className="bg-white text-[#001f3f] border-[#001f3f]">
+                  <SelectValue placeholder="Select category..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories.map((cat) => (
+                    <SelectItem key={cat.id} value={cat.id}>
+                      {cat.category}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 

@@ -73,6 +73,10 @@ export default function SuperAdminSalesPage() {
   const [sortField, setSortField] = useState<string>("created_at")
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc")
 
+  const [lightboxOpen, setLightboxOpen] = useState(false)
+  const [lightboxImages, setLightboxImages] = useState<{ url: string; label: string }[]>([])
+  const [lightboxIndex, setLightboxIndex] = useState(0)
+
   // Column visibility state
   const [columnVisibility, setColumnVisibility] = useState([
     { key: "tax_month", label: "Tax Month", visible: true },
@@ -98,6 +102,164 @@ export default function SuperAdminSalesPage() {
 
   const [remarksModalOpen, setRemarksModalOpen] = useState(false)
   const [selectedSaleForRemarks, setSelectedSaleForRemarks] = useState<any>(null)
+
+  function LightboxModal({
+    images,
+    index,
+    onClose,
+  }: {
+    images: { url: string; label: string }[]
+    index: number
+    onClose: () => void
+  }) {
+    const [current, setCurrent] = useState(index)
+    const [zoom, setZoom] = useState(1)
+    const [rotation, setRotation] = useState(0)
+    const [offset, setOffset] = useState({ x: 0, y: 0 })
+    const [dragging, setDragging] = useState(false)
+    const [start, setStart] = useState<{ x: number; y: number } | null>(null)
+
+    const currentImage = images[current]
+
+    // Keyboard navigation
+    useEffect(() => {
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === "ArrowLeft") {
+          setCurrent((prev) => (prev === 0 ? images.length - 1 : prev - 1))
+        } else if (e.key === "ArrowRight") {
+          setCurrent((prev) => (prev === images.length - 1 ? 0 : prev + 1))
+        } else if (e.key === "Escape") {
+          onClose()
+        }
+      }
+      window.addEventListener("keydown", handleKeyDown)
+      return () => window.removeEventListener("keydown", handleKeyDown)
+    }, [images.length, onClose])
+
+    // Reset pan/zoom/rotation when image changes
+    useEffect(() => {
+      setZoom(1)
+      setRotation(0)
+      setOffset({ x: 0, y: 0 })
+    }, [current, index, images])
+
+    // Mouse/touch drag handlers for panning
+    const handleMouseDown = (e: React.MouseEvent) => {
+      if (zoom === 1) return
+      setDragging(true)
+      setStart({ x: e.clientX - offset.x, y: e.clientY - offset.y })
+    }
+    const handleMouseMove = (e: React.MouseEvent) => {
+      if (!dragging || zoom === 1) return
+      setOffset({
+        x: e.clientX - (start?.x ?? 0),
+        y: e.clientY - (start?.y ?? 0),
+      })
+    }
+    const handleMouseUp = () => setDragging(false)
+
+    // Touch events for mobile
+    const handleTouchStart = (e: React.TouchEvent) => {
+      if (zoom === 1) return
+      setDragging(true)
+      const touch = e.touches[0]
+      setStart({ x: touch.clientX - offset.x, y: touch.clientY - offset.y })
+    }
+    const handleTouchMove = (e: React.TouchEvent) => {
+      if (!dragging || zoom === 1) return
+      const touch = e.touches[0]
+      setOffset({
+        x: touch.clientX - (start?.x ?? 0),
+        y: touch.clientY - (start?.y ?? 0),
+      })
+    }
+    const handleTouchEnd = () => setDragging(false)
+
+    const handlePrev = () => setCurrent((prev) => (prev === 0 ? images.length - 1 : prev - 1))
+    const handleNext = () => setCurrent((prev) => (prev === images.length - 1 ? 0 : prev + 1))
+    const handleZoomIn = () => setZoom((z) => Math.min(z + 0.2, 3))
+    const handleZoomOut = () => setZoom((z) => Math.max(z - 0.2, 1))
+    const handleRotate = () => setRotation((r) => r + 90)
+    const handleReset = () => {
+      setZoom(1)
+      setRotation(0)
+      setOffset({ x: 0, y: 0 })
+    }
+
+    if (!currentImage) return null
+
+    return (
+      <div
+        className="fixed inset-0 z-[9999] bg-black bg-opacity-95 overflow-hidden flex items-center justify-center"
+        style={{ touchAction: "none" }}
+        onMouseUp={handleMouseUp}
+        onMouseMove={handleMouseMove}
+        onTouchEnd={handleTouchEnd}
+        onTouchMove={handleTouchMove}
+      >
+        {/* Close Button */}
+        <button
+          className="absolute top-6 right-6 text-white text-3xl z-20"
+          onClick={onClose}
+          aria-label="Close"
+          style={{ lineHeight: 1 }}
+        >
+          ×
+        </button>
+
+        {/* Controls - absolute at top center */}
+        <div className="absolute top-6 left-1/2 -translate-x-1/2 z-20 flex gap-2 bg-black bg-opacity-60 rounded-lg px-4 py-2">
+          <button onClick={handlePrev} className="text-white px-2 py-1 rounded hover:bg-gray-700">&lt;</button>
+          <button onClick={handleNext} className="text-white px-2 py-1 rounded hover:bg-gray-700">&gt;</button>
+          <button onClick={handleZoomIn} className="text-white px-2 py-1 rounded hover:bg-gray-700">Zoom In</button>
+          <button onClick={handleZoomOut} className="text-white px-2 py-1 rounded hover:bg-gray-700">Zoom Out</button>
+          <button onClick={handleRotate} className="text-white px-2 py-1 rounded hover:bg-gray-700">Rotate</button>
+          <button onClick={handleReset} className="text-white px-2 py-1 rounded hover:bg-gray-700">Reset</button>
+          <a
+            href={currentImage.url}
+            download
+            className="text-white px-2 py-1 rounded hover:bg-gray-700"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Download
+          </a>
+        </div>
+
+        {/* Image - centered and fills available space */}
+        <div className="w-full h-full flex items-center justify-center select-none">
+          <img
+            src={currentImage.url}
+            alt={currentImage.label}
+            className="max-w-full max-h-full object-contain cursor-grab"
+            style={{
+              transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom}) rotate(${rotation}deg)`,
+              transition: dragging ? "none" : "transform 0.2s",
+              cursor: zoom > 1 ? "grab" : "default",
+              userSelect: "none",
+            }}
+            draggable={false}
+            onMouseDown={handleMouseDown}
+            onTouchStart={handleTouchStart}
+          />
+          {/* Image label at bottom center */}
+          <div className="absolute bottom-8 left-1/2 -translate-x-1/2 text-white bg-black bg-opacity-60 rounded px-3 py-1 z-20">
+            {currentImage.label}
+          </div>
+          {/* Image index label */}
+          <div className="absolute bottom-20 left-1/2 -translate-x-1/2 text-white bg-black bg-opacity-60 rounded px-3 py-1 z-20">
+            Image {current + 1} of {images.length}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const isImageFile = (url: string) => {
+    const ext = url.split(".").pop()?.toLowerCase()
+    return ["jpg", "jpeg", "png", "gif", "bmp", "webp"].includes(ext || "")
+  }
+  const isPdfFile = (url: string) => url.split(".").pop()?.toLowerCase() === "pdf"
 
   // Toggle column visibility
   const toggleColumnVisibility = (key: string) => {
@@ -973,8 +1135,8 @@ export default function SuperAdminSalesPage() {
                     size="sm"
                     onClick={() => setShowOnlyWithRemarks(!showOnlyWithRemarks)}
                     className={`border-gray-300 ${showOnlyWithRemarks
-                        ? "bg-indigo-600 text-black hover:bg-indigo-700"
-                        : "text-gray-700 hover:text-gray-700 hover:bg-gray-50 bg-transparent"
+                      ? "bg-indigo-600 text-black hover:bg-indigo-700"
+                      : "text-gray-700 hover:text-gray-700 hover:bg-gray-50 bg-transparent"
                       }`}
                   >
                     <MessageSquarePlus className="h-4 w-4 mr-2" />
@@ -1224,46 +1386,49 @@ export default function SuperAdminSalesPage() {
                           {columnVisibility.find((col) => col.key === "files")?.visible && (
                             <TableCell>
                               <div className="flex flex-wrap gap-1">
-                                {sale.cheque && sale.cheque.length > 0 && (
-                                  <Badge
-                                    variant="outline"
-                                    className="text-xs font-semibold bg-blue-50 text-blue-800 border border-blue-200 px-2 py-1 rounded-lg shadow-sm"
-                                  >
-                                    Cheque ({sale.cheque.length})
-                                  </Badge>
-                                )}
-                                {sale.voucher && sale.voucher.length > 0 && (
-                                  <Badge
-                                    variant="outline"
-                                    className="text-xs font-semibold bg-green-50 text-green-800 border border-green-200 px-2 py-1 rounded-lg shadow-sm"
-                                  >
-                                    Voucher ({sale.voucher.length})
-                                  </Badge>
-                                )}
-                                {sale.invoice && sale.invoice.length > 0 && (
-                                  <Badge
-                                    variant="outline"
-                                    className="text-xs font-semibold bg-green-50 text-green-800 border border-green-200 px-2 py-1 rounded-lg shadow-sm"
-                                  >
-                                    Invoice ({sale.invoice.length})
-                                  </Badge>
-                                )}
-                                {sale.doc_2307 && sale.doc_2307.length > 0 && (
-                                  <Badge
-                                    variant="outline"
-                                    className="text-xs font-semibold bg-gray-50 text-gray-800 border border-gray-200 px-2 py-1 rounded-lg shadow-sm"
-                                  >
-                                    2307 ({sale.doc_2307.length})
-                                  </Badge>
-                                )}
-                                {sale.deposit_slip && sale.deposit_slip.length > 0 && (
-                                  <Badge
-                                    variant="outline"
-                                    className="text-xs font-semibold bg-green-50 text-green-800 border border-green-200 px-2 py-1 rounded-lg shadow-sm"
-                                  >
-                                    Deposit ({sale.deposit_slip.length})
-                                  </Badge>
-                                )}
+                                {["cheque", "voucher", "invoice", "doc_2307", "deposit_slip"].map((type) => {
+                                  const files = sale[type] || []
+                                  if (files.length === 0) return null
+
+                                  // Separate images and pdfs
+                                  const imageFiles = files
+                                    .map((url: string, i: number) => ({
+                                      url,
+                                      label: `${type.replace("_", " ").replace(/\b\w/g, l => l.toUpperCase())} ${i + 1}`,
+                                    }))
+                                    .filter((f) => isImageFile(f.url))
+                                  const pdfFiles = files.filter(isPdfFile)
+
+                                  return (
+                                    <span key={type} className="flex items-center gap-1">
+                                      {imageFiles.length > 0 && (
+                                        <Badge
+                                          variant="outline"
+                                          className="text-xs font-semibold bg-blue-50 text-blue-800 border border-blue-200 px-2 py-1 rounded-lg shadow-sm cursor-pointer"
+                                          onClick={() => {
+                                            setLightboxImages(imageFiles)
+                                            setLightboxIndex(0)
+                                            setLightboxOpen(true)
+                                          }}
+                                        >
+                                          {type.replace("_", " ").replace(/\b\w/g, l => l.toUpperCase())} ({imageFiles.length})
+                                        </Badge>
+                                      )}
+                                      {pdfFiles.length > 0 && (
+                                        <Badge
+                                          variant="outline"
+                                          className="text-xs font-semibold bg-gray-50 text-gray-800 border border-gray-200 px-2 py-1 rounded-lg shadow-sm cursor-pointer"
+                                          onClick={() => {
+                                            // Open all PDFs in new tabs
+                                            pdfFiles.forEach((url) => window.open(url, "_blank"))
+                                          }}
+                                        >
+                                          {type.replace("_", " ").replace(/\b\w/g, l => l.toUpperCase())} PDF ({pdfFiles.length})
+                                        </Badge>
+                                      )}
+                                    </span>
+                                  )
+                                })}
                               </div>
                             </TableCell>
                           )}
@@ -1393,8 +1558,8 @@ export default function SuperAdminSalesPage() {
                         size="sm"
                         onClick={() => setCurrentPage(pageNum)}
                         className={`h-8 px-3 min-w-[32px] ${currentPage === pageNum
-                            ? "bg-indigo-600 text-white hover:bg-indigo-700 border-indigo-600"
-                            : "border-gray-300 hover:text-gray-700 hover:bg-gray-50"
+                          ? "bg-indigo-600 text-white hover:bg-indigo-700 border-indigo-600"
+                          : "border-gray-300 hover:text-gray-700 hover:bg-gray-50"
                           }`}
                       >
                         {pageNum}
@@ -1503,6 +1668,14 @@ export default function SuperAdminSalesPage() {
           roleColor="blue"
           userRole={profile?.role} // <-- pass the role here
         />
+
+        {lightboxOpen && (
+          <LightboxModal
+            images={lightboxImages}
+            index={lightboxIndex}
+            onClose={() => setLightboxOpen(false)}
+          />
+        )}
       </div>
     </ProtectedRoute>
   )

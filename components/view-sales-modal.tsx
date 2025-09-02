@@ -18,6 +18,9 @@ interface ViewSalesModalProps {
 
 export function ViewSalesModal({ open, onOpenChange, sale }: ViewSalesModalProps) {
   const { profile } = useAuth()
+  const [lightboxOpen, setLightboxOpen] = React.useState(false)
+  const [lightboxImages, setLightboxImages] = React.useState<{ url: string; label: string }[]>([])
+  const [lightboxIndex, setLightboxIndex] = React.useState(0)
 
   // Format TIN display - add dash after every 3 digits
   const formatTin = (tin: string) => {
@@ -45,10 +48,92 @@ export function ViewSalesModal({ open, onOpenChange, sale }: ViewSalesModalProps
     }
   }
 
+  // Add this helper function inside your component
+  const getFileTypeLabel = (url: string) => {
+    const ext = url.split(".").pop()?.toLowerCase()
+    if (ext === "pdf") return "PDF"
+    if (["jpg", "jpeg", "png", "gif", "bmp", "webp"].includes(ext || "")) return "IMAGE"
+    return "FILE"
+  }
+
+  function LightboxModal({
+    images,
+    index,
+    onClose,
+  }: {
+    images: { url: string; label: string }[]
+    index: number
+    onClose: () => void
+  }) {
+    const [current, setCurrent] = React.useState(index)
+    const [zoom, setZoom] = React.useState(1)
+    const [rotation, setRotation] = React.useState(0)
+
+    const currentImage = images[current]
+
+    const handlePrev = () => setCurrent((prev) => (prev === 0 ? images.length - 1 : prev - 1))
+    const handleNext = () => setCurrent((prev) => (prev === images.length - 1 ? 0 : prev + 1))
+    const handleZoomIn = () => setZoom((z) => Math.min(z + 0.2, 3))
+    const handleZoomOut = () => setZoom((z) => Math.max(z - 0.2, 0.5))
+    const handleRotate = () => setRotation((r) => r + 90)
+    const handleReset = () => { setZoom(1); setRotation(0) }
+
+    React.useEffect(() => {
+      setCurrent(index)
+      setZoom(1)
+      setRotation(0)
+    }, [index, images])
+
+    if (!currentImage) return null
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-90">
+        <button
+          className="absolute top-4 right-4 text-white text-2xl"
+          onClick={onClose}
+          aria-label="Close"
+        >
+          ×
+        </button>
+        <div className="flex flex-col items-center">
+          <div className="flex gap-2 mb-2">
+            <button onClick={handlePrev} className="text-white px-2 py-1 rounded bg-gray-800 hover:bg-gray-700">&lt;</button>
+            <button onClick={handleNext} className="text-white px-2 py-1 rounded bg-gray-800 hover:bg-gray-700">&gt;</button>
+            <button onClick={handleZoomIn} className="text-white px-2 py-1 rounded bg-gray-800 hover:bg-gray-700">Zoom In</button>
+            <button onClick={handleZoomOut} className="text-white px-2 py-1 rounded bg-gray-800 hover:bg-gray-700">Zoom Out</button>
+            <button onClick={handleRotate} className="text-white px-2 py-1 rounded bg-gray-800 hover:bg-gray-700">Rotate</button>
+            <button onClick={handleReset} className="text-white px-2 py-1 rounded bg-gray-800 hover:bg-gray-700">Reset</button>
+            <a
+              href={currentImage.url}
+              download
+              className="text-white px-2 py-1 rounded bg-gray-800 hover:bg-gray-700"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Download
+            </a>
+          </div>
+          <div className="flex flex-col items-center">
+            <img
+              src={currentImage.url}
+              alt={currentImage.label}
+              className="max-w-[80vw] max-h-[70vh] object-contain"
+              style={{
+                transform: `scale(${zoom}) rotate(${rotation}deg)`,
+                transition: "transform 0.2s",
+              }}
+            />
+            <div className="text-white mt-2">{currentImage.label}</div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   // Log view action when modal opens
   React.useEffect(() => {
     if (open && sale) {
-      ;(async () => {
+      ; (async () => {
         try {
           const { supabase } = await import("@/lib/supabase/client")
           await supabase.rpc("log_notification", {
@@ -164,11 +249,16 @@ export function ViewSalesModal({ open, onOpenChange, sale }: ViewSalesModalProps
                         key={index}
                         variant="outline"
                         size="sm"
-                        className="w-full justify-start bg-white text-[#001f3f] border-[#001f3f]"
+                        className="w-full justify-between bg-white text-[#001f3f] border-[#001f3f]"
                         onClick={() => window.open(url, "_blank")}
                       >
-                        <ExternalLink className="h-3 w-3 mr-2" />
-                        Cheque {index + 1}
+                        <span className="flex items-center">
+                          <ExternalLink className="h-3 w-3 mr-2" />
+                          Cheque {index + 1}
+                        </span>
+                        <span className="ml-2 text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-700">
+                          {getFileTypeLabel(url)}
+                        </span>
                       </Button>
                     ))}
                   </div>
@@ -185,11 +275,16 @@ export function ViewSalesModal({ open, onOpenChange, sale }: ViewSalesModalProps
                         key={index}
                         variant="outline"
                         size="sm"
-                        className="w-full justify-start bg-white text-[#001f3f] border-[#001f3f]"
+                        className="w-full justify-between bg-white text-[#001f3f] border-[#001f3f]"
                         onClick={() => window.open(url, "_blank")}
                       >
-                        <ExternalLink className="h-3 w-3 mr-2" />
-                        Voucher {index + 1}
+                        <span className="flex items-center">
+                          <ExternalLink className="h-3 w-3 mr-2" />
+                          Voucher {index + 1}
+                        </span>
+                        <span className="ml-2 text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-700">
+                          {getFileTypeLabel(url)}
+                        </span>
                       </Button>
                     ))}
                   </div>
@@ -206,11 +301,16 @@ export function ViewSalesModal({ open, onOpenChange, sale }: ViewSalesModalProps
                         key={index}
                         variant="outline"
                         size="sm"
-                        className="w-full justify-start bg-white text-[#001f3f] border-[#001f3f]"
+                        className="w-full justify-between bg-white text-[#001f3f] border-[#001f3f]"
                         onClick={() => window.open(url, "_blank")}
                       >
-                        <ExternalLink className="h-3 w-3 mr-2" />
-                        Invoice {index + 1}
+                        <span className="flex items-center">
+                          <ExternalLink className="h-3 w-3 mr-2" />
+                          Invoice {index + 1}
+                        </span>
+                        <span className="ml-2 text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-700">
+                          {getFileTypeLabel(url)}
+                        </span>
                       </Button>
                     ))}
                   </div>
@@ -227,11 +327,16 @@ export function ViewSalesModal({ open, onOpenChange, sale }: ViewSalesModalProps
                         key={index}
                         variant="outline"
                         size="sm"
-                        className="w-full justify-start bg-white text-[#001f3f] border-[#001f3f]"
+                        className="w-full justify-between bg-white text-[#001f3f] border-[#001f3f]"
                         onClick={() => window.open(url, "_blank")}
                       >
-                        <ExternalLink className="h-3 w-3 mr-2" />
-                        Doc 2307 {index + 1}
+                        <span className="flex items-center">
+                          <ExternalLink className="h-3 w-3 mr-2" />
+                          Doc 2307 {index + 1}
+                        </span>
+                        <span className="ml-2 text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-700">
+                          {getFileTypeLabel(url)}
+                        </span>
                       </Button>
                     ))}
                   </div>
@@ -250,11 +355,16 @@ export function ViewSalesModal({ open, onOpenChange, sale }: ViewSalesModalProps
                         key={index}
                         variant="outline"
                         size="sm"
-                        className="w-full justify-start bg-white text-[#001f3f] border-[#001f3f]"
+                        className="w-full justify-between bg-white text-[#001f3f] border-[#001f3f]"
                         onClick={() => window.open(url, "_blank")}
                       >
-                        <ExternalLink className="h-3 w-3 mr-2" />
-                        Deposit Slip {index + 1}
+                        <span className="flex items-center">
+                          <ExternalLink className="h-3 w-3 mr-2" />
+                          Deposit Slip {index + 1}
+                        </span>
+                        <span className="ml-2 text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-700">
+                          {getFileTypeLabel(url)}
+                        </span>
                       </Button>
                     ))}
                   </div>

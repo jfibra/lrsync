@@ -31,6 +31,7 @@ import { format } from "date-fns";
 import { supabase } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { logNotification } from "@/utils/logNotification";
+import { useRouter } from "next/navigation";
 
 interface AddSalesModalProps {
   onSalesAdded: () => void;
@@ -132,7 +133,7 @@ const uploadToS3API = async (
 };
 
 export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
-  const { user } = useAuth();
+  const { user, profile } = useAuth(); // (if not already)
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [taxMonth, setTaxMonth] = useState<string>("");
@@ -142,6 +143,7 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
   // Name search suggestions
   const [nameSuggestions, setNameSuggestions] = useState<TaxpayerSuggestion[]>([]);
   const [showNameSuggestions, setShowNameSuggestions] = useState(false);
+  const router = useRouter();
 
   const [formData, setFormData] = useState({
     tin: "",
@@ -645,6 +647,7 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
       );
       setOpen(false);
       onSalesAdded();
+      router.replace(`/dashboard/${profile?.role === "super_admin" ? "super-admin" : profile?.role}/sales`);
     } catch (error) {
       console.error("Error adding sales record:", error);
       alert("Error adding sales record. Please try again.");
