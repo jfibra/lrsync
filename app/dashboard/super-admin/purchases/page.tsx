@@ -82,6 +82,9 @@ export default function SuperAdminPurchasesPage() {
   const [sortField, setSortField] = useState<string>("created_at")
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc")
 
+  const [categories, setCategories] = useState<{ id: string; category: string }[]>([])
+  const [filterCategory, setFilterCategory] = useState("all")
+
   // Column visibility state
   const [columnVisibility, setColumnVisibility] = useState({
     tax_month: true,
@@ -132,6 +135,25 @@ export default function SuperAdminPurchasesPage() {
     }
   }
 
+  const fetchCategories = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("purchases_categories")
+        .select("id, category")
+        .eq("is_deleted", false)
+        .order("category", { ascending: true })
+
+      if (error) throw error
+      setCategories(data || [])
+    } catch (error) {
+      console.error("Error fetching categories:", error)
+    }
+  }
+
+  useEffect(() => {
+    fetchCategories()
+  }, [])
+
   // Fetch purchases data
   const fetchPurchases = async () => {
     try {
@@ -143,7 +165,7 @@ export default function SuperAdminPurchasesPage() {
         .eq("is_deleted", false)
         .order(sortField, { ascending: sortDirection === "asc" })
 
-      // Apply filters
+      // Apply filters BEFORE fetching data
       if (searchTerm) {
         purchasesQuery = purchasesQuery.or(
           `name.ilike.%${searchTerm}%,tin.ilike.%${searchTerm}%,invoice_number.ilike.%${searchTerm}%`,
@@ -161,6 +183,10 @@ export default function SuperAdminPurchasesPage() {
         const nextYear = Number.parseInt(month) === 12 ? Number.parseInt(year) + 1 : Number.parseInt(year)
         const endDate = `${nextYear}-${String(nextMonth).padStart(2, "0")}-01`
         purchasesQuery = purchasesQuery.gte("tax_month", startDate).lt("tax_month", endDate)
+      }
+
+      if (filterCategory !== "all") {
+        purchasesQuery = purchasesQuery.eq("category_id", filterCategory)
       }
 
       const { data: purchasesData, error: purchasesError } = await purchasesQuery
@@ -191,7 +217,7 @@ export default function SuperAdminPurchasesPage() {
           }
         }) || []
 
-      // Filter by area if selected
+      // Filter by area if selected (local filtering)
       let filteredData = purchasesWithProfiles
       if (filterArea !== "all") {
         filteredData = filteredData.filter((purchase) => purchase.user_assigned_area === filterArea)
@@ -211,7 +237,7 @@ export default function SuperAdminPurchasesPage() {
 
   useEffect(() => {
     fetchPurchases()
-  }, [searchTerm, filterTaxType, filterMonth, filterArea, sortField, sortDirection])
+  }, [searchTerm, filterTaxType, filterMonth, filterArea, sortField, sortDirection, filterCategory])
 
   // Format currency
   const formatCurrency = (amount: number) => {
@@ -492,6 +518,21 @@ export default function SuperAdminPurchasesPage() {
                 {taxMonthOptions.map((option) => (
                   <SelectItem key={option.value} value={option.value}>
                     {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {/* Purchase Categories Filter */}
+            <Select value={filterCategory} onValueChange={setFilterCategory}>
+              <SelectTrigger className="bg-white border-[#001f3f]/30 focus:border-[#001f3f] text-[#001f3f]">
+                <SelectValue placeholder="Category" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Categories</SelectItem>
+                {categories.map((cat) => (
+                  <SelectItem key={cat.id} value={cat.id}>
+                    {cat.category}
                   </SelectItem>
                 ))}
               </SelectContent>
