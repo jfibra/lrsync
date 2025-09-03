@@ -701,7 +701,6 @@ export function CommissionGenerationModal({
           "BDO ACCOUNT #",
           "COMM",
           "NET OF VAT",
-          "STATUS",
           "AGENT CALC TYPE", // <-- Added
           "AGENT'S RATE",
           "AGENT",
@@ -724,6 +723,7 @@ export function CommissionGenerationModal({
           "TL VAT",
           "TL EWT",
           "TL NET COMM",
+          "STATUS",
           "REMARKS",
         ])
 
@@ -739,7 +739,6 @@ export function CommissionGenerationModal({
               record.bdoAccount || "",
               formatCurrency(Number(record.comm.replace(/,/g, "")) || 0),
               formatCurrency(Number(record.netOfVat) || 0),
-              record.status,
               record.calculationType || "", // <-- Agent calc type
               `${record.agentsRate}`,
               formatCurrency(Number(record.agent) || 0),
@@ -762,6 +761,7 @@ export function CommissionGenerationModal({
               formatCurrency(Number(record.tlVat) || 0),
               formatCurrency(Number(record.tlEwt) || 0),
               formatCurrency(Number(record.tlNetComm) || 0),
+              record.status,
               record.remarks || "",
             ])
           })
@@ -1431,7 +1431,6 @@ export function CommissionGenerationModal({
                                     BDO Account #
                                   </TableHead>
                                   <TableHead className="font-semibold text-[#001f3f] text-center">Net of VAT</TableHead>
-                                  <TableHead className="font-semibold text-[#001f3f] text-center">STATUS</TableHead>
                                   <TableHead className="font-semibold bg-[#001f3f] text-white text-center">
                                     Calculation Type
                                   </TableHead>
@@ -1578,6 +1577,7 @@ export function CommissionGenerationModal({
                                   >
                                     NET COMM
                                   </TableHead>
+                                  <TableHead className="font-semibold text-[#001f3f] text-center">STATUS</TableHead>
                                   <TableHead className="font-semibold text-[#ee3433] text-center">Remarks</TableHead>
                                   <TableHead className="font-semibold text-[#ee3433] text-center">Actions</TableHead>
                                 </TableRow>
@@ -1653,18 +1653,6 @@ export function CommissionGenerationModal({
                                         {/* Net of VAT */}
                                         <TableCell className="text-right font-semibold text-[#001f3f]">
                                           {record.netOfVat ? formatCurrency(Number(record.netOfVat)) : ""}
-                                        </TableCell>
-                                        {/* Status input */}
-                                        <TableCell className="text-center">
-                                          <input
-                                            type="text"
-                                            className="border border-gray-300 rounded px-2 py-1 w-20 text-center text-[#001f3f] bg-white"
-                                            value={record.status}
-                                            onChange={(e) =>
-                                              handleCommissionRecordChange(key, index, "status", e.target.value)
-                                            }
-                                            placeholder="Status"
-                                          />
                                         </TableCell>
                                         {/* Calculation Type Dropdown */}
                                         <TableCell className="bg-[#a0d9ef]">
@@ -2081,6 +2069,18 @@ export function CommissionGenerationModal({
                                           }}
                                         >
                                           {record.tlNetComm ? formatCurrency(Number(record.tlNetComm)) : ""}
+                                        </TableCell>
+                                        {/* Status input */}
+                                        <TableCell className="text-center">
+                                          <input
+                                            type="text"
+                                            className="border border-gray-300 rounded px-2 py-1 w-20 text-center text-[#001f3f] bg-white"
+                                            value={record.status}
+                                            onChange={(e) =>
+                                              handleCommissionRecordChange(key, index, "status", e.target.value)
+                                            }
+                                            placeholder="Status"
+                                          />
                                         </TableCell>
                                         <TableCell className="text-center">
                                           <textarea
