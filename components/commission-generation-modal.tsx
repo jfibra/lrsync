@@ -778,7 +778,6 @@ export function CommissionGenerationModal({
             formatCurrency(tabCommissionRecords.reduce((sum, r) => sum + (Number(r.netOfVat) || 0), 0)),
             "",
             "",
-            "",
             formatCurrency(tabCommissionRecords.reduce((sum, r) => sum + (Number(r.agent) || 0), 0)),
             formatCurrency(tabCommissionRecords.reduce((sum, r) => sum + (Number(r.vat) || 0), 0)),
             formatCurrency(tabCommissionRecords.reduce((sum, r) => sum + (Number(r.ewt) || 0), 0)),
@@ -2131,7 +2130,6 @@ export function CommissionGenerationModal({
                                           ),
                                         )}
                                       </TableCell>
-                                      <TableCell />
                                       <TableCell />
                                       <TableCell />
                                       <TableCell />
