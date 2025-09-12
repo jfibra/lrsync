@@ -125,6 +125,37 @@ SWIFT: WIOBAEADXXX`)
     printInvoice.style.display = "none"
   }
 
+  // New function: open PDF in a new tab for preview
+  const previewPDF = async () => {
+    const printInvoice = document.getElementById("print-invoice")
+    if (!printInvoice) return
+
+    printInvoice.style.display = "block"
+    await new Promise((resolve) => setTimeout(resolve, 100))
+
+    const canvas = await html2canvas(printInvoice, {
+      scale: 2,
+      useCORS: true,
+      allowTaint: true,
+    })
+    const imgData = canvas.toDataURL("image/png")
+    const pdf = new jsPDF({
+      orientation: "portrait",
+      unit: "mm",
+      format: "a4",
+    })
+
+    const pdfWidth = pdf.internal.pageSize.getWidth()
+    const pdfHeight = (canvas.height * pdfWidth) / canvas.width
+
+    pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight)
+
+    // Open PDF in new tab
+    window.open(pdf.output("bloburl"), "_blank")
+
+    printInvoice.style.display = "none"
+  }
+
   return (
     <div className="min-h-screen bg-[#f4f8fb] text-[#001f3f]">
       <div className="bg-[#001f3f] border-b px-6 py-4">
@@ -212,31 +243,9 @@ SWIFT: WIOBAEADXXX`)
             </div>
           </div>
 
-          {/* To and Ship To Section */}
-          <div className="grid grid-cols-2 gap-8 mb-8">
-            <div>
-              <Label className="text-sm font-medium text-[#3c8dbc] mb-2 block">To</Label>
-              <Textarea
-                value={clientName}
-                onChange={(e) => setClientName(e.target.value)}
-                className="w-full h-24 resize-none bg-[#f4f8fb] text-[#001f3f]"
-                placeholder="Who is this invoice to?"
-              />
-            </div>
-            <div>
-              <Label className="text-sm font-medium text-[#3c8dbc] mb-2 block">Ship To</Label>
-              <Textarea
-                value={shipTo}
-                onChange={(e) => setShipTo(e.target.value)}
-                className="w-full h-24 resize-none bg-[#f4f8fb] text-[#001f3f]"
-                placeholder="(optional)"
-              />
-            </div>
-          </div>
-
           {/* Items Table */}
           <div className="mb-8">
-            <div className="bg-[#3c8dbc] text-white px-4 py-3 grid grid-cols-12 gap-4 rounded-t">
+            <div className="bg-[#001f3f] text-white px-4 py-3 grid grid-cols-12 gap-4 rounded-t">
               <div className="col-span-6 font-medium">Item</div>
               <div className="col-span-2 font-medium text-center">Quantity</div>
               <div className="col-span-2 font-medium text-center">Rate</div>
@@ -482,7 +491,7 @@ SWIFT: WIOBAEADXXX`)
             }}
           >
             {/* Left: Logo and Trade License */}
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", minWidth: 120 }}>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", width: 400 }}>
               <img
                 src="/invoice-fhi-logo.jpeg"
                 alt="FHI Global Property Logo"
@@ -503,11 +512,15 @@ SWIFT: WIOBAEADXXX`)
                   <div>Phone: {companyPhone}</div>
                 </div>
               </div>
+              <div style={{ flex: 1, minWidth: 0, marginTop: 20,  }}>
+                <div style={{ fontWeight: "bold", fontSize: 14, marginBottom: 8 }}>To:</div>
+                <div style={{ fontSize: 14, whiteSpace: "pre-line" }}>{clientName}</div>
+              </div>
             </div>
           </div>
 
           {/* Right: Invoice Title and Number */}
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", }}>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", width: 800 }}>
             <div style={{ fontWeight: "bold", fontSize: 36, marginBottom: 16, color: "#3c8dbc" }}>INVOICE</div>
             <div
               style={{
@@ -518,43 +531,60 @@ SWIFT: WIOBAEADXXX`)
                 padding: "8px 0",
                 borderRadius: 6,
                 width: 120,
-                textAlign: "right", // ensures the number hugs the right
+                textAlign: "right",
                 letterSpacing: 1,
               }}
             >
               # {invoiceNumber}
             </div>
-          </div>
-        </div>
-
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 32 }}>
-          <div style={{ width: "48%" }}>
-            <div style={{ fontWeight: "bold", fontSize: 14, marginBottom: 8 }}>To:</div>
-            <div style={{ fontSize: 14, whiteSpace: "pre-line" }}>{clientName}</div>
-          </div>
-          <div style={{ width: "48%", textAlign: "right" }}>
-            <div style={{ fontSize: 14, marginBottom: 4 }}>
+            <div style={{ fontSize: 14, marginTop: 20, marginBottom: 4 }}>
               <span style={{ fontWeight: "bold" }}>Date:</span> {format(new Date(invoiceDate), "MMM dd, yyyy")}
             </div>
-            <div style={{ fontSize: 14, marginBottom: 4 }}>
-              <span style={{ fontWeight: "bold" }}>Balance Due:</span> AED {balanceDue.toFixed(2)}
+            {paymentTerms && (
+              <div style={{ fontSize: 14, marginBottom: 4 }}>
+                <span style={{ fontWeight: "bold" }}>Payment Terms:</span> {paymentTerms}
+              </div>
+            )}
+            {dueDate && (
+              <div style={{ fontSize: 14, marginBottom: 4 }}>
+                <span style={{ fontWeight: "bold" }}>Due Date:</span> {format(new Date(dueDate), "MMM dd, yyyy")}
+              </div>
+            )}
+            {poNumber && (
+              <div style={{ fontSize: 14, marginBottom: 12 }}>
+                <span style={{ fontWeight: "bold" }}>PO Number:</span> {poNumber}
+              </div>
+            )}
+            <div
+              style={{
+                background: "#f4f8fb",
+                fontWeight: "bold",
+                fontSize: 16,
+                padding: "10px",
+                borderRadius: 6,
+                marginTop: 8,
+                width: "100%",
+                textAlign: "right",
+              }}
+            >
+              Balance Due: AED {balanceDue.toFixed(2)}
             </div>
           </div>
         </div>
 
         <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 32, border: "1px solid #ddd" }}>
           <thead>
-            <tr style={{ background: "#f8f9fa" }}>
-              <th style={{ padding: 12, textAlign: "left", borderBottom: "1px solid #ddd", fontWeight: "bold" }}>
+            <tr style={{ background: "#001f3f", color: "#fff" }}>
+              <th style={{ padding: 6, textAlign: "left", border: "1px solid #ddd", fontWeight: "bold" }}>
                 Item
               </th>
-              <th style={{ padding: 12, textAlign: "center", borderBottom: "1px solid #ddd", fontWeight: "bold" }}>
+              <th style={{ padding: 6, textAlign: "center", border: "1px solid #ddd", fontWeight: "bold" }}>
                 Quantity
               </th>
-              <th style={{ padding: 12, textAlign: "center", borderBottom: "1px solid #ddd", fontWeight: "bold" }}>
+              <th style={{ padding: 6, textAlign: "center", border: "1px solid #ddd", fontWeight: "bold" }}>
                 Rate
               </th>
-              <th style={{ padding: 12, textAlign: "right", borderBottom: "1px solid #ddd", fontWeight: "bold" }}>
+              <th style={{ padding: 6, textAlign: "right", border: "1px solid #ddd", fontWeight: "bold" }}>
                 Amount
               </th>
             </tr>
@@ -562,12 +592,12 @@ SWIFT: WIOBAEADXXX`)
           <tbody>
             {items.map((item, index) => (
               <tr key={item.id} style={{ borderBottom: index === items.length - 1 ? "none" : "1px solid #eee" }}>
-                <td style={{ padding: 12, borderRight: "1px solid #eee" }}>{item.description}</td>
-                <td style={{ padding: 12, textAlign: "center", borderRight: "1px solid #eee" }}>{item.quantity}</td>
-                <td style={{ padding: 12, textAlign: "center", borderRight: "1px solid #eee" }}>
+                <td style={{ padding: 4, borderRight: "1px solid #eee" }}>{item.description}</td>
+                <td style={{ padding: 4, textAlign: "center", borderRight: "1px solid #eee" }}>{item.quantity}</td>
+                <td style={{ padding: 4, textAlign: "center", borderRight: "1px solid #eee" }}>
                   AED {item.rate.toFixed(2)}
                 </td>
-                <td style={{ padding: 12, textAlign: "right" }}>AED {item.amount.toFixed(2)}</td>
+                <td style={{ padding: 4, textAlign: "right" }}>AED {item.amount.toFixed(2)}</td>
               </tr>
             ))}
           </tbody>
@@ -575,14 +605,6 @@ SWIFT: WIOBAEADXXX`)
 
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
           <div style={{ width: "48%" }}>
-            <div style={{ marginBottom: 24 }}>
-              <div style={{ fontWeight: "bold", fontSize: 14, marginBottom: 8 }}>Noted By:</div>
-              <div style={{ fontSize: 14 }}>{notedBy}</div>
-            </div>
-            <div>
-              <div style={{ fontWeight: "bold", fontSize: 14, marginBottom: 8 }}>Terms:</div>
-              <div style={{ fontSize: 12, whiteSpace: "pre-line", lineHeight: 1.4 }}>{terms}</div>
-            </div>
           </div>
 
           <div style={{ width: "48%" }}>
@@ -618,7 +640,7 @@ SWIFT: WIOBAEADXXX`)
                     </td>
                   </tr>
                 )}
-                <tr style={{ borderTop: "2px solid #333" }}>
+                <tr>
                   <td
                     style={{
                       padding: "12px 0",
@@ -636,6 +658,19 @@ SWIFT: WIOBAEADXXX`)
                 </tr>
               </tbody>
             </table>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+          <div style={{ width: "48%" }}>
+            <div style={{ marginBottom: 24 }}>
+              <div style={{ fontWeight: "bold", fontSize: 14, marginBottom: 8 }}>Noted By:</div>
+              <div style={{ fontSize: 14 }}>{notedBy}</div>
+            </div>
+            <div>
+              <div style={{ fontWeight: "bold", fontSize: 14, marginBottom: 8 }}>Terms:</div>
+              <div style={{ fontSize: 12, whiteSpace: "pre-line", lineHeight: 1.4 }}>{terms}</div>
+            </div>
           </div>
         </div>
       </div>
