@@ -174,11 +174,11 @@ SWIFT: WIOBAEADXXX`)
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto p-6">
-        <div className="bg-white border border-[#e0e7ef] rounded-lg shadow p-8">
+      <div className="max-w-6xl mx-auto p-4 sm:p-6">
+        <div className="bg-white border border-[#e0e7ef] rounded-lg shadow p-4 sm:p-8">
           {/* Invoice Header */}
-          <div className="flex justify-between items-start mb-8">
-            <div className="space-y-2">
+          <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-4 mb-8">
+            <div className="w-full md:w-1/2">
               <Textarea
                 value={`${companyName}\nTRADE LICENSE: ${tradeLicense}\nTDN:${tdn}\nADDRESS: ${companyAddress}\nEmail Address: ${companyEmail}\nPhone: ${companyPhone}`}
                 onChange={(e) => {
@@ -190,20 +190,22 @@ SWIFT: WIOBAEADXXX`)
                   setCompanyEmail(lines[4]?.replace("Email Address: ", "") || "")
                   setCompanyPhone(lines[5]?.replace("Phone: ", "") || "")
                 }}
-                className="w-96 h-32 border-gray-300 text-sm resize-none bg-[#f4f8fb] text-[#001f3f]"
+                className="w-full h-32 border-gray-300 text-sm resize-none bg-[#f4f8fb] text-[#001f3f]"
               />
             </div>
-            <div className="flex flex-col items-end w-full max-w-xl ml-8">
-              <div className="flex items-center mb-4">
-                <span className="text-3xl font-bold text-[#001f3f] mr-4">INVOICE</span>
-                <span className="text-lg text-[#3c8dbc] mr-1">#</span>
-                <Input
-                  value={invoiceNumber}
-                  onChange={(e) => setInvoiceNumber(e.target.value)}
-                  className="w-24 text-center border-[#3c8dbc] text-[#001f3f] bg-[#f4f8fb] font-bold text-lg"
-                />
+            <div className="w-full md:w-1/2 flex flex-col items-end gap-4">
+              <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2 w-full">
+                <span className="text-3xl font-bold text-[#001f3f]">INVOICE</span>
+                <div className="flex items-center gap-1 w-full sm:w-auto">
+                  <span className="text-lg text-[#3c8dbc]">#</span>
+                  <Input
+                    value={invoiceNumber}
+                    onChange={(e) => setInvoiceNumber(e.target.value)}
+                    className="w-full sm:w-24 text-center border-[#3c8dbc] text-[#001f3f] bg-[#f4f8fb] font-bold text-lg"
+                  />
+                </div>
               </div>
-              <div className="grid grid-cols-4 gap-4 w-full">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 w-full">
                 <div>
                   <Label className="text-xs text-[#3c8dbc]">Date</Label>
                   <Input
@@ -244,7 +246,7 @@ SWIFT: WIOBAEADXXX`)
           </div>
 
           {/* To and Ship To Section */}
-          <div className="grid grid-cols-2 gap-8 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
             <div>
               <Label className="text-sm font-medium text-[#3c8dbc] mb-2 block">To</Label>
               <Textarea
@@ -257,22 +259,22 @@ SWIFT: WIOBAEADXXX`)
           </div>
 
           {/* Items Table */}
-          <div className="mb-8">
-            <div className="bg-[#001f3f] text-white px-4 py-3 grid grid-cols-12 gap-4 rounded-t">
+          <div className="mb-8 overflow-x-auto">
+            <div className="bg-[#001f3f] text-white px-4 py-3 grid grid-cols-12 gap-2 rounded-t min-w-[600px]">
               <div className="col-span-6 font-medium">Item</div>
               <div className="col-span-2 font-medium text-center">Quantity</div>
               <div className="col-span-2 font-medium text-center">Rate</div>
               <div className="col-span-2 font-medium text-right">Amount</div>
             </div>
-            <div className="border-l border-r border-b bg-[#f9fbfd]">
+            <div className="border-l border-r border-b bg-[#f9fbfd] min-w-[600px]">
               {items.map((item, index) => (
-                <div key={item.id} className="grid grid-cols-12 gap-4 p-4 border-b last:border-b-0 items-center">
+                <div key={item.id} className="grid grid-cols-12 gap-2 p-2 border-b last:border-b-0 items-center">
                   <div className="col-span-6">
                     <Input
                       value={item.description}
                       onChange={(e) => updateItem(item.id, "description", e.target.value)}
                       placeholder="Description of service or product..."
-                      className="border-0 shadow-none p-0 h-auto bg-transparent text-[#001f3f]"
+                      className="border-0 shadow-none p-0 h-auto bg-transparent text-[#001f3f] w-full"
                     />
                   </div>
                   <div className="col-span-2">
@@ -280,7 +282,7 @@ SWIFT: WIOBAEADXXX`)
                       type="number"
                       value={item.quantity}
                       onChange={(e) => updateItem(item.id, "quantity", Number.parseFloat(e.target.value) || 0)}
-                      className="text-center border-0 shadow-none p-0 h-auto bg-transparent text-[#001f3f]"
+                      className="text-center border-0 shadow-none p-0 h-auto bg-transparent text-[#001f3f] w-full"
                       min="0"
                       step="0.01"
                     />
@@ -291,7 +293,7 @@ SWIFT: WIOBAEADXXX`)
                       type="number"
                       value={item.rate}
                       onChange={(e) => updateItem(item.id, "rate", Number.parseFloat(e.target.value) || 0)}
-                      className="border-0 shadow-none p-0 h-auto bg-transparent text-[#001f3f]"
+                      className="border-0 shadow-none p-0 h-auto bg-transparent text-[#001f3f] w-full"
                       min="0"
                       step="0.01"
                     />
@@ -323,7 +325,7 @@ SWIFT: WIOBAEADXXX`)
           </div>
 
           {/* Bottom Section */}
-          <div className="grid grid-cols-2 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Left Side - Notes and Terms */}
             <div className="space-y-6">
               <div>
