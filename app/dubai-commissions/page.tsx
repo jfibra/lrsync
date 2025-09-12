@@ -471,31 +471,59 @@ SWIFT: WIOBAEADXXX`)
           display: "none",
         }}
       >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 40 }}>
-          <div style={{ display: "flex", alignItems: "flex-start", gap: 20 }}>
-            <img
-              src="/invoice-fhi-logo.jpg"
-              alt="FHI Global Property Logo"
-              style={{
-                width: 80,
-                height: 80,
-                objectFit: "contain",
-              }}
-            />
-            <div>
-              <div style={{ fontWeight: "bold", fontSize: 18, marginBottom: 8 }}>{companyName}</div>
-              <div style={{ fontSize: 12, lineHeight: 1.4 }}>
-                <div>TRADE LICENSE: {tradeLicense}</div>
-                <div>TDN:{tdn}</div>
-                <div>ADDRESS: {companyAddress}</div>
-                <div>Email Address: {companyEmail}</div>
-                <div>Phone: {companyPhone}</div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 40, }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "flex-start",
+              marginBottom: 40,
+              gap: 24,
+            }}
+          >
+            {/* Left: Logo and Trade License */}
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", minWidth: 120 }}>
+              <img
+                src="/invoice-fhi-logo.jpeg"
+                alt="FHI Global Property Logo"
+                style={{
+                  width: "auto",
+                  height: 80,
+                  objectFit: "contain",
+                  marginBottom: 8,
+                }}
+              />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: "bold", fontSize: 18, marginBottom: 8 }}>{companyName}</div>
+                <div style={{ fontSize: 12, lineHeight: 1.4 }}>
+                  <div>TRADE LICENSE: {tradeLicense}</div>
+                  <div>TDN: {tdn}</div>
+                  <div>ADDRESS: {companyAddress}</div>
+                  <div>Email Address: {companyEmail}</div>
+                  <div>Phone: {companyPhone}</div>
+                </div>
               </div>
             </div>
           </div>
-          <div style={{ textAlign: "right" }}>
-            <div style={{ fontWeight: "bold", fontSize: 36, marginBottom: 16 }}>INVOICE</div>
-            <div style={{ fontSize: 18, fontWeight: "bold", marginBottom: 16 }}># {invoiceNumber}</div>
+
+          {/* Right: Invoice Title and Number */}
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", }}>
+            <div style={{ fontWeight: "bold", fontSize: 36, marginBottom: 16, color: "#3c8dbc" }}>INVOICE</div>
+            <div
+              style={{
+                fontSize: 18,
+                fontWeight: "bold",
+                marginBottom: 16,
+                background: "#f4f8fb",
+                padding: "8px 0",
+                borderRadius: 6,
+                width: 120,
+                textAlign: "right", // ensures the number hugs the right
+                letterSpacing: 1,
+              }}
+            >
+              # {invoiceNumber}
+            </div>
           </div>
         </div>
 
