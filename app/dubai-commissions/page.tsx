@@ -243,6 +243,19 @@ SWIFT: WIOBAEADXXX`)
             </div>
           </div>
 
+          {/* To and Ship To Section */}
+          <div className="grid grid-cols-2 gap-8 mb-8">
+            <div>
+              <Label className="text-sm font-medium text-[#3c8dbc] mb-2 block">To</Label>
+              <Textarea
+                value={clientName}
+                onChange={(e) => setClientName(e.target.value)}
+                className="w-full h-24 resize-none bg-[#f4f8fb] text-[#001f3f]"
+                placeholder="Who is this invoice to?"
+              />
+            </div>
+          </div>
+
           {/* Items Table */}
           <div className="mb-8">
             <div className="bg-[#001f3f] text-white px-4 py-3 grid grid-cols-12 gap-4 rounded-t">
@@ -512,7 +525,7 @@ SWIFT: WIOBAEADXXX`)
                   <div>Phone: {companyPhone}</div>
                 </div>
               </div>
-              <div style={{ flex: 1, minWidth: 0, marginTop: 20,  }}>
+              <div style={{ flex: 1, minWidth: 0, marginTop: 20, }}>
                 <div style={{ fontWeight: "bold", fontSize: 14, marginBottom: 8 }}>To:</div>
                 <div style={{ fontSize: 14, whiteSpace: "pre-line" }}>{clientName}</div>
               </div>
