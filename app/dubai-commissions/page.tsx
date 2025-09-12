@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Plus, Trash2, Download, RefreshCw } from "lucide-react"
+import { Plus, Trash2, Download } from "lucide-react"
 import { format } from "date-fns"
 import jsPDF from "jspdf"
 import html2canvas from "html2canvas"
@@ -104,14 +104,22 @@ SWIFT: WIOBAEADXXX`)
     printInvoice.style.display = "block"
     await new Promise((resolve) => setTimeout(resolve, 100))
 
-    const canvas = await html2canvas(printInvoice, { scale: 2 })
+    const canvas = await html2canvas(printInvoice, {
+      scale: 2,
+      useCORS: true,
+      allowTaint: true,
+    })
     const imgData = canvas.toDataURL("image/png")
     const pdf = new jsPDF({
       orientation: "portrait",
-      unit: "px",
-      format: [canvas.width, canvas.height],
+      unit: "mm",
+      format: "a4",
     })
-    pdf.addImage(imgData, "PNG", 0, 0, canvas.width, canvas.height)
+
+    const pdfWidth = pdf.internal.pageSize.getWidth()
+    const pdfHeight = (canvas.height * pdfWidth) / canvas.width
+
+    pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight)
     pdf.save(`invoice-${invoiceNumber}.pdf`)
 
     printInvoice.style.display = "none"
@@ -298,7 +306,11 @@ SWIFT: WIOBAEADXXX`)
             <div className="space-y-6">
               <div>
                 <Label className="text-sm font-medium text-[#3c8dbc] mb-2 block">Noted By:</Label>
-                <Input value={notedBy} onChange={(e) => setNotedBy(e.target.value)} className="w-full bg-[#f4f8fb] text-[#001f3f]" />
+                <Input
+                  value={notedBy}
+                  onChange={(e) => setNotedBy(e.target.value)}
+                  className="w-full bg-[#f4f8fb] text-[#001f3f]"
+                />
               </div>
               <div>
                 <Label className="text-sm font-medium text-[#3c8dbc] mb-2 block">Terms</Label>
@@ -346,11 +358,7 @@ SWIFT: WIOBAEADXXX`)
                 </div>
               ) : (
                 <div className="flex justify-between items-center text-green-700">
-                  <Button
-                    variant="ghost"
-                    className="text-green-700 p-0 h-auto"
-                    onClick={() => setShowTax(true)}
-                  >
+                  <Button variant="ghost" className="text-green-700 p-0 h-auto" onClick={() => setShowTax(true)}>
                     + Tax
                   </Button>
                 </div>
@@ -382,11 +390,7 @@ SWIFT: WIOBAEADXXX`)
                 </div>
               ) : (
                 <div className="flex justify-between items-center text-green-700">
-                  <Button
-                    variant="ghost"
-                    className="text-green-700 p-0 h-auto"
-                    onClick={() => setShowDiscount(true)}
-                  >
+                  <Button variant="ghost" className="text-green-700 p-0 h-auto" onClick={() => setShowDiscount(true)}>
                     + Discount
                   </Button>
                 </div>
@@ -419,11 +423,7 @@ SWIFT: WIOBAEADXXX`)
                 </div>
               ) : (
                 <div className="flex justify-between items-center text-green-700">
-                  <Button
-                    variant="ghost"
-                    className="text-green-700 p-0 h-auto"
-                    onClick={() => setShowShipping(true)}
-                  >
+                  <Button variant="ghost" className="text-green-700 p-0 h-auto" onClick={() => setShowShipping(true)}>
                     + Shipping
                   </Button>
                 </div>
@@ -464,110 +464,151 @@ SWIFT: WIOBAEADXXX`)
         style={{
           width: 800,
           margin: "0 auto",
-          padding: 32,
+          padding: 40,
           background: "#fff",
           color: "#222",
           fontFamily: "Arial, sans-serif",
           display: "none",
         }}
       >
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 32 }}>
-          <div>
-            <div style={{ fontWeight: "bold", fontSize: 22 }}>{companyName}</div>
-            <div style={{ fontSize: 13, marginTop: 8 }}>{companyAddress}</div>
-            <div style={{ fontSize: 13 }}>{companyEmail}</div>
-            <div style={{ fontSize: 13 }}>{companyPhone}</div>
-            <div style={{ fontSize: 13 }}>TRADE LICENSE: {tradeLicense}</div>
-            <div style={{ fontSize: 13 }}>TDN: {tdn}</div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 40 }}>
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 20 }}>
+            <img
+              src="/invoice-fhi-logo.jpg"
+              alt="FHI Global Property Logo"
+              style={{
+                width: 80,
+                height: 80,
+                objectFit: "contain",
+              }}
+            />
+            <div>
+              <div style={{ fontWeight: "bold", fontSize: 18, marginBottom: 8 }}>{companyName}</div>
+              <div style={{ fontSize: 12, lineHeight: 1.4 }}>
+                <div>TRADE LICENSE: {tradeLicense}</div>
+                <div>TDN:{tdn}</div>
+                <div>ADDRESS: {companyAddress}</div>
+                <div>Email Address: {companyEmail}</div>
+                <div>Phone: {companyPhone}</div>
+              </div>
+            </div>
           </div>
           <div style={{ textAlign: "right" }}>
-            <div style={{ fontWeight: "bold", fontSize: 32, color: "#3c8dbc" }}>INVOICE</div>
-            <div style={{ fontSize: 15, marginTop: 16 }}>
-              <span style={{ fontWeight: "bold" }}>#</span> {invoiceNumber}
-            </div>
-            <div style={{ fontSize: 13, marginTop: 8 }}>Date: {invoiceDate}</div>
-            <div style={{ fontSize: 13 }}>Payment Terms: {paymentTerms}</div>
-            <div style={{ fontSize: 13 }}>Due Date: {dueDate}</div>
-            <div style={{ fontSize: 13 }}>PO Number: {poNumber}</div>
+            <div style={{ fontWeight: "bold", fontSize: 36, marginBottom: 16 }}>INVOICE</div>
+            <div style={{ fontSize: 18, fontWeight: "bold", marginBottom: 16 }}># {invoiceNumber}</div>
           </div>
         </div>
+
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 32 }}>
-          <div>
-            <div style={{ fontWeight: "bold", fontSize: 15, color: "#3c8dbc" }}>Bill To</div>
-            <div style={{ fontSize: 13, marginTop: 8, whiteSpace: "pre-line" }}>{clientName}</div>
+          <div style={{ width: "48%" }}>
+            <div style={{ fontWeight: "bold", fontSize: 14, marginBottom: 8 }}>To:</div>
+            <div style={{ fontSize: 14, whiteSpace: "pre-line" }}>{clientName}</div>
           </div>
-          <div>
-            <div style={{ fontWeight: "bold", fontSize: 15, color: "#3c8dbc" }}>Ship To</div>
-            <div style={{ fontSize: 13, marginTop: 8, whiteSpace: "pre-line" }}>{shipTo}</div>
+          <div style={{ width: "48%", textAlign: "right" }}>
+            <div style={{ fontSize: 14, marginBottom: 4 }}>
+              <span style={{ fontWeight: "bold" }}>Date:</span> {format(new Date(invoiceDate), "MMM dd, yyyy")}
+            </div>
+            <div style={{ fontSize: 14, marginBottom: 4 }}>
+              <span style={{ fontWeight: "bold" }}>Balance Due:</span> AED {balanceDue.toFixed(2)}
+            </div>
           </div>
         </div>
-        <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 32 }}>
+
+        <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 32, border: "1px solid #ddd" }}>
           <thead>
-            <tr style={{ background: "#3c8dbc", color: "#fff" }}>
-              <th style={{ padding: 8, textAlign: "left" }}>Item</th>
-              <th style={{ padding: 8, textAlign: "center" }}>Quantity</th>
-              <th style={{ padding: 8, textAlign: "center" }}>Rate</th>
-              <th style={{ padding: 8, textAlign: "right" }}>Amount</th>
+            <tr style={{ background: "#f8f9fa" }}>
+              <th style={{ padding: 12, textAlign: "left", borderBottom: "1px solid #ddd", fontWeight: "bold" }}>
+                Item
+              </th>
+              <th style={{ padding: 12, textAlign: "center", borderBottom: "1px solid #ddd", fontWeight: "bold" }}>
+                Quantity
+              </th>
+              <th style={{ padding: 12, textAlign: "center", borderBottom: "1px solid #ddd", fontWeight: "bold" }}>
+                Rate
+              </th>
+              <th style={{ padding: 12, textAlign: "right", borderBottom: "1px solid #ddd", fontWeight: "bold" }}>
+                Amount
+              </th>
             </tr>
           </thead>
           <tbody>
-            {items.map((item) => (
-              <tr key={item.id} style={{ borderBottom: "1px solid #eee" }}>
-                <td style={{ padding: 8 }}>{item.description}</td>
-                <td style={{ padding: 8, textAlign: "center" }}>{item.quantity}</td>
-                <td style={{ padding: 8, textAlign: "center" }}>AED {item.rate.toFixed(2)}</td>
-                <td style={{ padding: 8, textAlign: "right" }}>AED {item.amount.toFixed(2)}</td>
+            {items.map((item, index) => (
+              <tr key={item.id} style={{ borderBottom: index === items.length - 1 ? "none" : "1px solid #eee" }}>
+                <td style={{ padding: 12, borderRight: "1px solid #eee" }}>{item.description}</td>
+                <td style={{ padding: 12, textAlign: "center", borderRight: "1px solid #eee" }}>{item.quantity}</td>
+                <td style={{ padding: 12, textAlign: "center", borderRight: "1px solid #eee" }}>
+                  AED {item.rate.toFixed(2)}
+                </td>
+                <td style={{ padding: 12, textAlign: "right" }}>AED {item.amount.toFixed(2)}</td>
               </tr>
             ))}
           </tbody>
         </table>
-        <div style={{ display: "flex", justifyContent: "flex-end" }}>
-          <table style={{ width: 320, fontSize: 14 }}>
-            <tbody>
-              <tr>
-                <td style={{ padding: "4px 8px" }}>Subtotal</td>
-                <td style={{ padding: "4px 8px", textAlign: "right" }}>AED {subtotal.toFixed(2)}</td>
-              </tr>
-              {showTax && (
+
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+          <div style={{ width: "48%" }}>
+            <div style={{ marginBottom: 24 }}>
+              <div style={{ fontWeight: "bold", fontSize: 14, marginBottom: 8 }}>Noted By:</div>
+              <div style={{ fontSize: 14 }}>{notedBy}</div>
+            </div>
+            <div>
+              <div style={{ fontWeight: "bold", fontSize: 14, marginBottom: 8 }}>Terms:</div>
+              <div style={{ fontSize: 12, whiteSpace: "pre-line", lineHeight: 1.4 }}>{terms}</div>
+            </div>
+          </div>
+
+          <div style={{ width: "48%" }}>
+            <table style={{ width: "100%", fontSize: 14, marginLeft: "auto" }}>
+              <tbody>
                 <tr>
-                  <td style={{ padding: "4px 8px" }}>Tax ({taxRate}%)</td>
-                  <td style={{ padding: "4px 8px", textAlign: "right" }}>AED {taxAmount.toFixed(2)}</td>
+                  <td style={{ padding: "8px 0", textAlign: "right", paddingRight: 20 }}>Subtotal:</td>
+                  <td style={{ padding: "8px 0", textAlign: "right", fontWeight: "bold" }}>
+                    AED {subtotal.toFixed(2)}
+                  </td>
                 </tr>
-              )}
-              {showDiscount && (
-                <tr>
-                  <td style={{ padding: "4px 8px" }}>Discount</td>
-                  <td style={{ padding: "4px 8px", textAlign: "right" }}>- AED {discountAmount.toFixed(2)}</td>
+                {showTax && (
+                  <tr>
+                    <td style={{ padding: "8px 0", textAlign: "right", paddingRight: 20 }}>Tax ({taxRate}%):</td>
+                    <td style={{ padding: "8px 0", textAlign: "right", fontWeight: "bold" }}>
+                      AED {taxAmount.toFixed(2)}
+                    </td>
+                  </tr>
+                )}
+                {showDiscount && discountAmount > 0 && (
+                  <tr>
+                    <td style={{ padding: "8px 0", textAlign: "right", paddingRight: 20 }}>Discount:</td>
+                    <td style={{ padding: "8px 0", textAlign: "right", fontWeight: "bold" }}>
+                      - AED {discountAmount.toFixed(2)}
+                    </td>
+                  </tr>
+                )}
+                {showShipping && shippingAmount > 0 && (
+                  <tr>
+                    <td style={{ padding: "8px 0", textAlign: "right", paddingRight: 20 }}>Shipping:</td>
+                    <td style={{ padding: "8px 0", textAlign: "right", fontWeight: "bold" }}>
+                      + AED {shippingAmount.toFixed(2)}
+                    </td>
+                  </tr>
+                )}
+                <tr style={{ borderTop: "2px solid #333" }}>
+                  <td
+                    style={{
+                      padding: "12px 0",
+                      textAlign: "right",
+                      paddingRight: 20,
+                      fontSize: 16,
+                      fontWeight: "bold",
+                    }}
+                  >
+                    Total:
+                  </td>
+                  <td style={{ padding: "12px 0", textAlign: "right", fontSize: 16, fontWeight: "bold" }}>
+                    AED {total.toFixed(2)}
+                  </td>
                 </tr>
-              )}
-              {showShipping && (
-                <tr>
-                  <td style={{ padding: "4px 8px" }}>Shipping</td>
-                  <td style={{ padding: "4px 8px", textAlign: "right" }}>+ AED {shippingAmount.toFixed(2)}</td>
-                </tr>
-              )}
-              <tr style={{ fontWeight: "bold", fontSize: 16 }}>
-                <td style={{ padding: "8px 8px", borderTop: "2px solid #3c8dbc" }}>Total</td>
-                <td style={{ padding: "8px 8px", textAlign: "right", borderTop: "2px solid #3c8dbc" }}>AED {total.toFixed(2)}</td>
-              </tr>
-              <tr>
-                <td style={{ padding: "4px 8px" }}>Amount Paid</td>
-                <td style={{ padding: "4px 8px", textAlign: "right" }}>AED {amountPaid.toFixed(2)}</td>
-              </tr>
-              <tr style={{ fontWeight: "bold" }}>
-                <td style={{ padding: "8px 8px", borderTop: "2px solid #3c8dbc" }}>Balance Due</td>
-                <td style={{ padding: "8px 8px", textAlign: "right", borderTop: "2px solid #3c8dbc" }}>AED {balanceDue.toFixed(2)}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <div style={{ marginTop: 32 }}>
-          <div style={{ fontWeight: "bold", color: "#3c8dbc", marginBottom: 8 }}>Terms</div>
-          <div style={{ fontSize: 13, whiteSpace: "pre-line" }}>{terms}</div>
-        </div>
-        <div style={{ marginTop: 32 }}>
-          <div style={{ fontWeight: "bold", color: "#3c8dbc", marginBottom: 8 }}>Noted By</div>
-          <div style={{ fontSize: 13 }}>{notedBy}</div>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
