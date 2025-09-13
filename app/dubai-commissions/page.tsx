@@ -9,6 +9,8 @@ import { Plus, Trash2, Download } from "lucide-react"
 import { format } from "date-fns"
 import jsPDF from "jspdf"
 import html2canvas from "html2canvas"
+import { supabase } from "@/lib/supabase/client"
+import { useEffect } from "react"
 
 interface InvoiceItem {
   id: string
@@ -67,6 +69,31 @@ SWIFT: WIOBAEADXXX`)
   const total = subtotal + taxAmount - discountAmount + shippingAmount
   const balanceDue = total - amountPaid
 
+  useEffect(() => {
+    const fetchLastInvoiceNumber = async () => {
+      const { data, error } = await supabase
+        .from("invoices")
+        .select("invoice_number")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .single()
+
+      if (data && data.invoice_number) {
+        // Try to increment if it's a number, else fallback to "1"
+        const lastNum = parseInt(data.invoice_number, 10)
+        if (!isNaN(lastNum)) {
+          setInvoiceNumber((lastNum + 1).toString())
+        } else {
+          setInvoiceNumber("1")
+        }
+      } else {
+        setInvoiceNumber("1")
+      }
+    }
+
+    fetchLastInvoiceNumber()
+  }, [])
+
   const addItem = () => {
     const newItem: InvoiceItem = {
       id: Date.now().toString(),
@@ -98,6 +125,43 @@ SWIFT: WIOBAEADXXX`)
   }
 
   const generatePDF = async () => {
+    // Save invoice to Supabase
+    const { error } = await supabase.from("invoices").insert([
+      {
+        invoice_number: invoiceNumber,
+        invoice_date: invoiceDate || null, // <-- fix here
+        payment_terms: paymentTerms || null,
+        due_date: dueDate || null,
+        po_number: poNumber || null,
+        company_name: companyName || null,
+        trade_license: tradeLicense || null,
+        tdn: tdn || null,
+        company_address: companyAddress || null,
+        company_email: companyEmail || null,
+        company_phone: companyPhone || null,
+        client_name: clientName || null,
+        ship_to: shipTo || null,
+        items: items.map(({ id, ...rest }) => rest), // remove id for storage
+        tax_rate: taxRate,
+        show_tax: showTax,
+        discount_amount: discountAmount,
+        show_discount: showDiscount,
+        shipping_amount: shippingAmount,
+        show_shipping: showShipping,
+        subtotal,
+        total,
+        amount_paid: amountPaid,
+        balance_due: balanceDue,
+        noted_by: notedBy,
+        terms,
+        currency: "AED", // or make this dynamic if needed
+      },
+    ])
+    if (error) {
+      alert("Failed to save invoice: " + error.message)
+      return
+    }
+
     const printInvoice = document.getElementById("print-invoice")
     if (!printInvoice) return
 
