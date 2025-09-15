@@ -110,11 +110,6 @@ export function ViewPurchasesModal({ open, onOpenChange, purchase }: ViewPurchas
               </div>
 
               <div>
-                <label className="text-sm font-medium text-[#001f3f]">Official Receipt</label>
-                <div className="text-lg text-[#001f3f]">{purchase.official_receipt || "N/A"}</div>
-              </div>
-
-              <div>
                 <label className="text-sm font-medium text-[#001f3f]">Date Added</label>
                 <div className="text-lg text-[#001f3f]">
                   {purchase.date_added ? format(new Date(purchase.date_added), "MMM dd, yyyy") : "N/A"}

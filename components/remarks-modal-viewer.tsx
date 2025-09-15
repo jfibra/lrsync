@@ -10,6 +10,7 @@ import { Edit2, Trash2, Save, X } from "lucide-react"
 import { format } from "date-fns"
 import { supabase } from "@/lib/supabase/client"
 import { useRouter } from "next/navigation"
+import { logNotification } from "@/utils/logNotification"
 
 interface Remark {
   remark: string
@@ -92,6 +93,20 @@ export function RemarksModalViewer({
         onRemarksUpdate(saleId, updatedRemarks)
         setEditingIndex(null)
         setEditText("")
+
+        await supabase.rpc("log_notification", {
+          p_action: "edit_sales_remark",
+          p_description: `Remark edited for sale ID: ${saleId}`,
+          p_ip_address: "",
+          p_location: null,
+          p_user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "",
+          p_meta: {
+            saleId,
+            edited_remark: editText.trim(),
+            original_remark: targetRemark.remark,
+            date: targetRemark.date,
+          },
+        })
         router.replace(`/dashboard/${userRole === "super_admin" ? "super-admin" : userRole}/sales`)
       } else {
         console.error("[v0] Failed to update remark:", error)
@@ -130,6 +145,19 @@ export function RemarksModalViewer({
 
       if (!error) {
         onRemarksUpdate(saleId, updatedRemarks)
+
+        await supabase.rpc("log_notification", {
+          p_action: "delete_sales_remark",
+          p_description: `Remark deleted for sale ID: ${saleId}`,
+          p_ip_address: "",
+          p_location: null,
+          p_user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "",
+          p_meta: {
+            saleId,
+            deleted_remark: targetRemark.remark,
+            date: targetRemark.date,
+          },
+        });
         router.replace(`/dashboard/${userRole === "super_admin" ? "super-admin" : userRole}/sales`)
       } else {
         console.error("[v0] Failed to delete remark:", error)

@@ -29,6 +29,8 @@ import { DashboardHeader } from "@/components/dashboard-header"
 import { PurchasesExportModal } from "@/components/purchases-export-modal"
 import { ColumnVisibilityControl } from "@/components/column-visibility-control"
 import * as XLSX from "xlsx"
+import { exportPurchasesToExcel } from "@/utils/export-purchases"
+import { RemarksModalViewerPurchases } from "@/components/remarks-modal-viewer-purchases"
 
 // Import modals
 import { AddPurchasesModal } from "@/components/add-purchases-modal"
@@ -45,6 +47,7 @@ interface Purchase {
   substreet_street_brgy: string | null
   district_city_zip: string | null
   gross_taxable: number
+  total_actual_amount?: number
   invoice_number: string | null
   tax_type: string
   official_receipt: string | null
@@ -85,6 +88,26 @@ export default function SecretaryPurchasesPage() {
   const [lightboxOpen, setLightboxOpen] = useState(false)
   const [lightboxImages, setLightboxImages] = useState<{ url: string; label: string }[]>([])
   const [lightboxIndex, setLightboxIndex] = useState(0)
+  const [selectedSales, setSelectedSales] = useState<string[]>([])
+
+  const [remarksModalOpen, setRemarksModalOpen] = useState(false)
+  const [selectedPurchaseForRemarks, setSelectedPurchaseForRemarks] = useState<any>(null)
+
+  const handleRemarksUpdate = (purchaseId: string, updatedRemarks: any[]) => {
+    setPurchases((prev) =>
+      prev.map((purchase) =>
+        purchase.id === purchaseId
+          ? { ...purchase, remarks: JSON.stringify(updatedRemarks) }
+          : purchase
+      )
+    )
+  }
+
+  const handleRowSelect = (id: string) => {
+    setSelectedSales(prev =>
+      prev.includes(id) ? prev.filter(sid => sid !== id) : [...prev, id]
+    )
+  }
 
   const [filterCategory, setFilterCategory] = useState("all")
 
@@ -268,8 +291,9 @@ export default function SecretaryPurchasesPage() {
     { key: "name", label: "Name", visible: true },
     { key: "tax_type", label: "Tax Type", visible: true },
     { key: "gross_taxable", label: "Gross Taxable", visible: true },
+    { key: "total_actual_amount", label: "Total Actual Amount", visible: true },
     { key: "invoice_number", label: "Invoice #", visible: true },
-    { key: "category_id", label: "Category", visible: true }, // <-- Add this
+    { key: "category_id", label: "Category", visible: true },
     { key: "official_receipt", label: "File Attachments", visible: true },
     { key: "remark", label: "Remark", visible: true },
     { key: "actions", label: "Actions", visible: true },
@@ -582,6 +606,47 @@ export default function SecretaryPurchasesPage() {
     }
   }
 
+  const handleExportSelected = async () => {
+    try {
+      const selectedPurchases = purchases.filter(p => selectedSales.includes(p.id))
+      if (selectedPurchases.length === 0) {
+        alert("No records selected.")
+        return
+      }
+
+      const exportData = selectedPurchases.map((purchase) => ({
+        "Tax Month": format(new Date(purchase.tax_month), "MMMM yyyy"),
+        TIN: formatTin(purchase.tin),
+        Name: purchase.name,
+        "Address (Street/Brgy)": purchase.substreet_street_brgy || "",
+        "Address (City/District)": purchase.district_city_zip || "",
+        "Tax Type": purchase.tax_type?.toUpperCase() || "",
+        "Gross Taxable Amount": purchase.gross_taxable || 0,
+        "Total Actual Amount": purchase.total_actual_amount || 0,
+        "Invoice Number": purchase.invoice_number || "",
+        Area: purchase.user_assigned_area || "",
+        "Date Created": format(new Date(purchase.created_at), "MMM dd, yyyy HH:mm"),
+      }))
+
+      const wb = XLSX.utils.book_new()
+      const ws = XLSX.utils.json_to_sheet(exportData)
+
+      const colWidths = Object.keys(exportData[0] || {}).map((key) => ({
+        wch: Math.max(key.length, 15),
+      }))
+      ws["!cols"] = colWidths
+
+      XLSX.utils.book_append_sheet(wb, ws, "Selected Purchases")
+
+      const timestamp = format(new Date(), "yyyy-MM-dd_HH-mm")
+      const filename = `selected_purchases_${timestamp}.xlsx`
+      XLSX.writeFile(wb, filename)
+    } catch (error) {
+      console.error("Error exporting selected purchases:", error)
+      alert("Error exporting selected purchases. Please try again.")
+    }
+  }
+
   return (
     <ProtectedRoute allowedRoles={["secretary"]}>
       <div style={{ background: "#fff" }} className="min-h-screen">
@@ -738,6 +803,20 @@ export default function SecretaryPurchasesPage() {
             </CardContent>
           </Card>
 
+          {selectedSales.length > 0 && (
+            <div className="mb-4">
+              <Button
+                className="bg-blue-700 text-white px-4 py-2 rounded"
+                onClick={() => exportPurchasesToExcel(
+                  purchases.filter(p => selectedSales.includes(p.id)),
+                  profile
+                )}
+              >
+                Export Selected Purchase Records ({selectedSales.length})
+              </Button>
+            </div>
+          )}
+
           {/* Purchases Table */}
           <Card style={{ background: "#f9f9f9", border: "1px solid #e0e0e0" }} className="shadow-lg">
             <CardHeader style={{ background: "#fff", borderBottom: "1px solid #e0e0e0" }}>
@@ -762,8 +841,8 @@ export default function SecretaryPurchasesPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={handleStandardExport}
-                    className="bg-white border-indigo-300 text-indigo-600 hover:bg-indigo-50 w-full sm:w-auto flex items-center justify-center"
+                    onClick={() => exportPurchasesToExcel(purchases, profile)}
+                    className="bg-white border-[#001f3f]/30 text-[#001f3f] hover:bg-[#001f3f]/10 flex items-center justify-center"
                   >
                     <Download className="h-4 w-4 mr-2" />
                     <span className="hidden xs:inline">Export</span>
@@ -797,7 +876,7 @@ export default function SecretaryPurchasesPage() {
                   <TableBody>
                     {loading ? (
                       <TableRow>
-                        <TableCell colSpan={9} className="text-center py-12">
+                        <TableCell colSpan={columns.length} className="text-center py-12">
                           <div className="flex flex-col items-center justify-center">
                             <div
                               className="animate-spin rounded-full h-12 w-12"
@@ -809,7 +888,7 @@ export default function SecretaryPurchasesPage() {
                       </TableRow>
                     ) : purchases.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={9} className="text-center py-12">
+                        <TableCell colSpan={columns.length} className="text-center py-12">
                           <BarChart3 className="h-16 w-16 text-[#001f3f]/30 mx-auto mb-4" />
                           <h3 className="text-lg font-medium text-[#001f3f] mb-2">No purchase records found</h3>
                           <p className="text-[#001f3f]/70">
@@ -821,7 +900,14 @@ export default function SecretaryPurchasesPage() {
                       </TableRow>
                     ) : (
                       paginatedPurchases.map((purchase) => (
-                        <TableRow key={purchase.id}>
+                        <TableRow
+                          key={purchase.id}
+                          onClick={() => handleRowSelect(purchase.id)}
+                          className={`cursor-pointer transition-colors ${selectedSales.includes(purchase.id)
+                            ? "bg-blue-100 hover:bg-blue-200"
+                            : "hover:bg-gray-100"
+                            }`}
+                        >
                           {columns.filter(col => col.visible).map(col => {
                             switch (col.key) {
                               case "tax_month":
@@ -868,6 +954,12 @@ export default function SecretaryPurchasesPage() {
                                 return (
                                   <TableCell key={col.key} className="text-[#001f3f] font-semibold">
                                     {formatCurrency(purchase.gross_taxable || 0)}
+                                  </TableCell>
+                                )
+                              case "total_actual_amount":
+                                return (
+                                  <TableCell key={col.key} className="text-[#001f3f] font-semibold">
+                                    {formatCurrency(purchase.total_actual_amount || 0)}
                                   </TableCell>
                                 )
                               case "invoice_number":
@@ -959,6 +1051,17 @@ export default function SecretaryPurchasesPage() {
                                             by {recentRemark.name} • {format(new Date(recentRemark.date), "MMM dd, yyyy")}
                                           </div>
                                         </div>
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={() => {
+                                            setSelectedPurchaseForRemarks(purchase)
+                                            setRemarksModalOpen(true)
+                                          }}
+                                          className="text-xs text-blue-600 bg-white hover:text-white hover:bg-[#001f3f] border-blue-200 hover:border-blue-300 mt-2"
+                                        >
+                                          View All Remarks
+                                        </Button>
                                       </div>
                                     ) : (
                                       <span className="text-[#001f3f]/40 italic">No remarks</span>
@@ -1121,6 +1224,20 @@ export default function SecretaryPurchasesPage() {
               images={lightboxImages}
               index={lightboxIndex}
               onClose={() => setLightboxOpen(false)}
+            />
+          )}
+
+          {selectedPurchaseForRemarks && (
+            <RemarksModalViewerPurchases
+              isOpen={remarksModalOpen}
+              onClose={() => {
+                setRemarksModalOpen(false)
+                setSelectedPurchaseForRemarks(null)
+              }}
+              purchaseId={selectedPurchaseForRemarks.id}
+              remarks={selectedPurchaseForRemarks.remarks}
+              onRemarksUpdate={handleRemarksUpdate}
+              userRole={profile?.role}
             />
           )}
         </div>

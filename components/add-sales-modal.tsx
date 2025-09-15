@@ -1056,25 +1056,20 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
             </div>
 
             <div className="space-y-2">
-              <Label
-                htmlFor="pickup_date"
-                className="text-sm font-medium text-[#001f3f]"
-              >
+              <Label htmlFor="pickup_date" className="text-sm font-medium text-[#001f3f]">
                 Pickup Date
               </Label>
               <Input
                 type="date"
-                name="pickup_random_8"
                 id="pickup_date"
+                name="pickup_date"
                 value={pickupDate ? format(pickupDate, "yyyy-MM-dd") : ""}
-                onChange={(e) => {
-                  const newDate = new Date(e.target.value);
-                  if (!isNaN(newDate.getTime())) {
-                    setPickupDate(newDate);
-                  }
+                onChange={e => {
+                  const newDate = new Date(e.target.value)
+                  if (!isNaN(newDate.getTime())) setPickupDate(newDate)
+                  else setPickupDate(undefined)
                 }}
-                className="bg-white text-[#001f3f] border-[#001f3f]"
-                autoComplete="new-password"
+                className="border-[#001f3f] focus:border-blue-500 focus:ring-blue-500 text-[#001f3f] bg-[#e5e7eb]"
                 min="1900-01-01"
                 max={format(new Date(), "yyyy-MM-dd")}
               />

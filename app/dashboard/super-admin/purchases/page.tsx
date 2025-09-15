@@ -25,6 +25,7 @@ import { useAuth } from "@/contexts/auth-context"
 import { supabase } from "@/lib/supabase/client"
 import { logNotification } from "@/utils/logNotification"
 import * as XLSX from "xlsx"
+import { exportPurchasesToExcel } from "@/utils/export-purchases"
 
 // Import modals
 import { AddPurchasesModal } from "@/components/add-purchases-modal"
@@ -33,6 +34,7 @@ import { EditPurchasesModal } from "@/components/edit-purchases-modal"
 import { AddPurchasesRemarkModal } from "@/components/add-purchases-remark-modal"
 import { PurchasesExportModal } from "@/components/purchases-export-modal"
 import { ColumnVisibilityControl } from "@/components/column-visibility-control"
+import { RemarksModalViewerPurchases } from "@/components/remarks-modal-viewer-purchases"
 
 interface Purchase {
   id: string
@@ -43,6 +45,7 @@ interface Purchase {
   substreet_street_brgy: string | null
   district_city_zip: string | null
   gross_taxable: number
+  total_actual_amount?: number
   invoice_number: string | null
   tax_type: string
   official_receipt: string | null
@@ -84,7 +87,186 @@ export default function SuperAdminPurchasesPage() {
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc")
 
   const [categories, setCategories] = useState<{ id: string; category: string }[]>([])
+
+  const [lightboxOpen, setLightboxOpen] = useState(false)
+  const [lightboxImages, setLightboxImages] = useState<{ url: string; label: string }[]>([])
+  const [lightboxIndex, setLightboxIndex] = useState(0)
+
   const [filterCategory, setFilterCategory] = useState("all")
+  const [selectedSales, setSelectedSales] = useState<string[]>([])
+
+  const [remarksModalOpen, setRemarksModalOpen] = useState(false)
+  const [selectedPurchaseForRemarks, setSelectedPurchaseForRemarks] = useState<any>(null)
+
+  const handleRemarksUpdate = (purchaseId: string, updatedRemarks: any[]) => {
+    setPurchases((prev) =>
+      prev.map((purchase) =>
+        purchase.id === purchaseId
+          ? { ...purchase, remarks: JSON.stringify(updatedRemarks) }
+          : purchase
+      )
+    )
+  }
+
+  const handleRowSelect = (id: string) => {
+    setSelectedSales(prev =>
+      prev.includes(id) ? prev.filter(sid => sid !== id) : [...prev, id]
+    )
+  }
+
+  function LightboxModal({
+    images,
+    index,
+    onClose,
+  }: {
+    images: { url: string; label: string }[]
+    index: number
+    onClose: () => void
+  }) {
+    const [current, setCurrent] = useState(index)
+    const [zoom, setZoom] = useState(1)
+    const [rotation, setRotation] = useState(0)
+    const [offset, setOffset] = useState({ x: 0, y: 0 })
+    const [dragging, setDragging] = useState(false)
+    const [start, setStart] = useState<{ x: number; y: number } | null>(null)
+
+    const currentImage = images[current]
+
+    // Keyboard navigation
+    useEffect(() => {
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === "ArrowLeft") {
+          setCurrent((prev) => (prev === 0 ? images.length - 1 : prev - 1))
+        } else if (e.key === "ArrowRight") {
+          setCurrent((prev) => (prev === images.length - 1 ? 0 : prev + 1))
+        } else if (e.key === "Escape") {
+          onClose()
+        }
+      }
+      window.addEventListener("keydown", handleKeyDown)
+      return () => window.removeEventListener("keydown", handleKeyDown)
+    }, [images.length, onClose])
+
+    // Reset pan/zoom/rotation when image changes
+    useEffect(() => {
+      setZoom(1)
+      setRotation(0)
+      setOffset({ x: 0, y: 0 })
+    }, [current, index, images])
+
+    // Mouse/touch drag handlers for panning
+    const handleMouseDown = (e: React.MouseEvent) => {
+      if (zoom === 1) return
+      setDragging(true)
+      setStart({ x: e.clientX - offset.x, y: e.clientY - offset.y })
+    }
+    const handleMouseMove = (e: React.MouseEvent) => {
+      if (!dragging || zoom === 1) return
+      setOffset({
+        x: e.clientX - (start?.x ?? 0),
+        y: e.clientY - (start?.y ?? 0),
+      })
+    }
+    const handleMouseUp = () => setDragging(false)
+
+    // Touch events for mobile
+    const handleTouchStart = (e: React.TouchEvent) => {
+      if (zoom === 1) return
+      setDragging(true)
+      const touch = e.touches[0]
+      setStart({ x: touch.clientX - offset.x, y: touch.clientY - offset.y })
+    }
+    const handleTouchMove = (e: React.TouchEvent) => {
+      if (!dragging || zoom === 1) return
+      const touch = e.touches[0]
+      setOffset({
+        x: touch.clientX - (start?.x ?? 0),
+        y: touch.clientY - (start?.y ?? 0),
+      })
+    }
+    const handleTouchEnd = () => setDragging(false)
+
+    const handlePrev = () => setCurrent((prev) => (prev === 0 ? images.length - 1 : prev - 1))
+    const handleNext = () => setCurrent((prev) => (prev === images.length - 1 ? 0 : prev + 1))
+    const handleZoomIn = () => setZoom((z) => Math.min(z + 0.2, 3))
+    const handleZoomOut = () => setZoom((z) => Math.max(z - 0.2, 1))
+    const handleRotate = () => setRotation((r) => r + 90)
+    const handleReset = () => {
+      setZoom(1)
+      setRotation(0)
+      setOffset({ x: 0, y: 0 })
+    }
+
+    if (!currentImage) return null
+
+    return (
+      <div
+        className="fixed inset-0 z-[9999] bg-black bg-opacity-95 overflow-hidden flex items-center justify-center"
+        style={{ touchAction: "none" }}
+        onMouseUp={handleMouseUp}
+        onMouseMove={handleMouseMove}
+        onTouchEnd={handleTouchEnd}
+        onTouchMove={handleTouchMove}
+      >
+        {/* Close Button */}
+        <button
+          className="absolute top-6 right-6 text-white text-3xl z-20"
+          onClick={onClose}
+          aria-label="Close"
+          style={{ lineHeight: 1 }}
+        >
+          ×
+        </button>
+
+        {/* Controls - absolute at top center */}
+        <div className="absolute top-6 left-1/2 -translate-x-1/2 z-20 flex gap-2 bg-black bg-opacity-60 rounded-lg px-4 py-2">
+          <button onClick={handlePrev} className="text-white px-2 py-1 rounded hover:bg-gray-700">&lt;</button>
+          <button onClick={handleNext} className="text-white px-2 py-1 rounded hover:bg-gray-700">&gt;</button>
+          <button onClick={handleZoomIn} className="text-white px-2 py-1 rounded hover:bg-gray-700">Zoom In</button>
+          <button onClick={handleZoomOut} className="text-white px-2 py-1 rounded hover:bg-gray-700">Zoom Out</button>
+          <button onClick={handleRotate} className="text-white px-2 py-1 rounded hover:bg-gray-700">Rotate</button>
+          <button onClick={handleReset} className="text-white px-2 py-1 rounded hover:bg-gray-700">Reset</button>
+          <a
+            href={currentImage.url}
+            download
+            className="text-white px-2 py-1 rounded hover:bg-gray-700"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Download
+          </a>
+        </div>
+
+        {/* Image - centered and fills available space */}
+        <div className="absolute inset-0 flex items-center justify-center select-none">
+          <img
+            src={currentImage.url}
+            alt={currentImage.label}
+            className="max-w-[90vw] max-h-[80vh] object-contain"
+            style={{
+              transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom}) rotate(${rotation}deg)`,
+              transition: dragging ? "none" : "transform 0.2s",
+              cursor: zoom > 1 ? "grab" : "default",
+              userSelect: "none",
+              display: "block",
+              margin: "auto",
+            }}
+            draggable={false}
+            onMouseDown={handleMouseDown}
+            onTouchStart={handleTouchStart}
+          />
+          {/* Image label at bottom center */}
+          <div className="absolute bottom-8 left-1/2 -translate-x-1/2 text-white bg-black bg-opacity-60 rounded px-3 py-1 z-20">
+            {currentImage.label}
+          </div>
+          {/* Image index label */}
+          <div className="absolute bottom-20 left-1/2 -translate-x-1/2 text-white bg-black bg-opacity-60 rounded px-3 py-1 z-20">
+            Image {current + 1} of {images.length}
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   // Column visibility state
   const [columnVisibility, setColumnVisibility] = useState({
@@ -412,6 +594,47 @@ export default function SuperAdminPurchasesPage() {
     }
   }
 
+  const handleExportSelected = async () => {
+    try {
+      const selectedPurchases = purchases.filter(p => selectedSales.includes(p.id))
+      if (selectedPurchases.length === 0) {
+        alert("No records selected.")
+        return
+      }
+
+      const exportData = selectedPurchases.map((purchase) => ({
+        "Tax Month": format(new Date(purchase.tax_month), "MMMM yyyy"),
+        TIN: formatTin(purchase.tin),
+        Name: purchase.name,
+        "Address (Street/Brgy)": purchase.substreet_street_brgy || "",
+        "Address (City/District)": purchase.district_city_zip || "",
+        "Tax Type": purchase.tax_type?.toUpperCase() || "",
+        "Gross Taxable Amount": purchase.gross_taxable || 0,
+        "Total Actual Amount": purchase.total_actual_amount || 0,
+        "Invoice Number": purchase.invoice_number || "",
+        Area: purchase.user_assigned_area || "",
+        "Date Created": format(new Date(purchase.created_at), "MMM dd, yyyy HH:mm"),
+      }))
+
+      const wb = XLSX.utils.book_new()
+      const ws = XLSX.utils.json_to_sheet(exportData)
+
+      const colWidths = Object.keys(exportData[0] || {}).map((key) => ({
+        wch: Math.max(key.length, 15),
+      }))
+      ws["!cols"] = colWidths
+
+      XLSX.utils.book_append_sheet(wb, ws, "Selected Purchases")
+
+      const timestamp = format(new Date(), "yyyy-MM-dd_HH-mm")
+      const filename = `selected_purchases_${timestamp}.xlsx`
+      XLSX.writeFile(wb, filename)
+    } catch (error) {
+      console.error("Error exporting selected purchases:", error)
+      alert("Error exporting selected purchases. Please try again.")
+    }
+  }
+
   // Pagination
   const totalPages = Math.ceil(purchases.length / pageSize)
   const startIndex = (currentPage - 1) * pageSize
@@ -439,6 +662,7 @@ export default function SuperAdminPurchasesPage() {
     { key: "name", label: "Name", visible: true },
     { key: "tax_type", label: "Tax Type", visible: true },
     { key: "gross_taxable", label: "Gross Taxable", visible: true },
+    { key: "total_actual_amount", label: "Total Actual Amount", visible: true },
     { key: "invoice_number", label: "Invoice #", visible: true },
     { key: "category_id", label: "Category", visible: true },
     { key: "official_receipt", label: "File Attachments", visible: true },
@@ -592,6 +816,18 @@ export default function SuperAdminPurchasesPage() {
         </CardContent>
       </Card>
 
+      {selectedSales.length > 0 && (
+        <Button
+          className="bg-blue-700 text-white px-4 py-2 rounded"
+          onClick={() => exportPurchasesToExcel(
+            purchases.filter(p => selectedSales.includes(p.id)),
+            profile
+          )}
+        >
+          Export Selected Purchase Records ({selectedSales.length})
+        </Button>
+      )}
+
       {/* Purchases Table */}
       <Card className="border-[#001f3f]/20 shadow-lg bg-white">
         <CardHeader>
@@ -615,7 +851,7 @@ export default function SuperAdminPurchasesPage() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={handleStandardExport}
+                onClick={() => exportPurchasesToExcel(purchases, profile)}
                 className="bg-white border-[#001f3f]/30 text-[#001f3f] hover:bg-[#001f3f]/10 flex items-center justify-center"
               >
                 <Download className="h-4 w-4 mr-2" />
@@ -649,7 +885,14 @@ export default function SuperAdminPurchasesPage() {
               </TableHeader>
               <TableBody>
                 {paginatedPurchases.map((purchase) => (
-                  <TableRow key={purchase.id}>
+                  <TableRow
+                    key={purchase.id}
+                    onClick={() => handleRowSelect(purchase.id)}
+                    className={`cursor-pointer transition-colors ${selectedSales.includes(purchase.id)
+                      ? "bg-blue-100 hover:bg-blue-200"
+                      : "hover:bg-gray-100"
+                      }`}
+                  >
                     {columns.filter(col => col.visible).map(col => {
                       switch (col.key) {
                         case "tax_month":
@@ -698,6 +941,12 @@ export default function SuperAdminPurchasesPage() {
                               {formatCurrency(purchase.gross_taxable || 0)}
                             </TableCell>
                           )
+                        case "total_actual_amount":
+                          return (
+                            <TableCell key={col.key} className="text-[#001f3f] font-semibold">
+                              {formatCurrency(purchase.total_actual_amount || 0)}
+                            </TableCell>
+                          )
                         case "invoice_number":
                           return (
                             <TableCell key={col.key} className="text-[#001f3f]/70">
@@ -712,57 +961,76 @@ export default function SuperAdminPurchasesPage() {
                               )}
                             </TableCell>
                           )
-                        case "official_receipt":
-                          return (
-                            <TableCell className="text-[#001f3f]/70">
-                              {(() => {
-                                let files: string[] = []
-                                try {
-                                  if (purchase.official_receipt) {
-                                    const parsed = JSON.parse(purchase.official_receipt)
-                                    files = Array.isArray(parsed) ? parsed : []
-                                  }
-                                } catch {
-                                  if (
-                                    typeof purchase.official_receipt === "string" &&
-                                    purchase.official_receipt.startsWith("http")
-                                  ) {
-                                    files = [purchase.official_receipt]
-                                  }
-                                }
-                                if (!files.length) return <span>-</span>
-                                return (
-                                  <div className="flex flex-col gap-1">
-                                    {files.map((url, idx) => {
-                                      const fixedUrl = url
-                                        .split("/")
-                                        .map((part, i, arr) =>
-                                          i === arr.length - 1 ? encodeURIComponent(part).replace(/%20/g, "+") : part,
-                                        )
-                                        .join("/")
-                                      const fileName = decodeURIComponent(url.split("/").pop() || `Receipt ${idx + 1}`)
-                                      return (
-                                        <Button
-                                          key={url}
-                                          variant="outline"
-                                          size="sm"
-                                          className="w-full justify-start bg-white text-[#3c8dbc] border-[#3c8dbc] hover:bg-[#3c8dbc]/10 hover:text-[#001f3f] px-2 py-1 text-xs font-medium"
-                                          onClick={() => window.open(fixedUrl, "_blank", "noopener,noreferrer")}
-                                          title={fileName}
-                                        >
-                                          {fileName}
-                                        </Button>
-                                      )
-                                    })}
-                                  </div>
+                        case "official_receipt": {
+                          // Parse files
+                          let files: string[] = []
+                          try {
+                            if (purchase.official_receipt) {
+                              const parsed = JSON.parse(purchase.official_receipt)
+                              files = Array.isArray(parsed) ? parsed : []
+                            }
+                          } catch {
+                            if (
+                              typeof purchase.official_receipt === "string" &&
+                              purchase.official_receipt.startsWith("http")
+                            ) {
+                              files = [purchase.official_receipt]
+                            }
+                          }
+
+                          // Separate images and pdfs
+                          const isImageFile = (url: string) => {
+                            const ext = url.split(".").pop()?.toLowerCase()
+                            return ["jpg", "jpeg", "png", "gif", "bmp", "webp"].includes(ext || "")
+                          }
+                          const isPdfFile = (url: string) => url.split(".").pop()?.toLowerCase() === "pdf"
+
+                          const imageFiles = files
+                            .map((url, i) => ({
+                              url: url
+                                .split("/")
+                                .map((part, i, arr) =>
+                                  i === arr.length - 1 ? encodeURIComponent(part).replace(/%20/g, "+") : part,
                                 )
-                              })()}
+                                .join("/"),
+                              label: `Attachment ${i + 1}`,
+                            }))
+                            .filter((f) => isImageFile(f.url));
+                          const pdfFiles = files.filter(isPdfFile)
+
+                          if (!files.length) {
+                            return (
+                              <TableCell key={col.key} className="text-[#001f3f]/70">
+                                <span>-</span>
+                              </TableCell>
+                            )
+                          }
+
+                          return (
+                            <TableCell key={col.key} className="text-[#001f3f]/70">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="w-full justify-start bg-white text-[#3c8dbc] border-[#3c8dbc] hover:bg-[#3c8dbc]/10 hover:text-[#001f3f] px-2 py-1 text-xs font-medium"
+                                onClick={() => {
+                                  if (imageFiles.length > 0) {
+                                    setLightboxImages(imageFiles)
+                                    setLightboxIndex(0)
+                                    setLightboxOpen(true)
+                                  } else if (pdfFiles.length > 0) {
+                                    pdfFiles.forEach((url) => window.open(url, "_blank"))
+                                  }
+                                }}
+                              >
+                                View Attachments
+                              </Button>
                             </TableCell>
                           )
+                        }
                         case "remark": {
                           const recentRemark = getMostRecentRemark(purchase.remarks)
                           return (
-                            <TableCell className="text-[#001f3f]/70">
+                            <TableCell key={col.key} className="text-[#001f3f]/70">
                               {recentRemark ? (
                                 <div className="max-w-[200px]">
                                   <div className="text-sm bg-[#001f3f]/10 p-2 rounded border-l-4 border-[#3c8dbc]">
@@ -773,6 +1041,17 @@ export default function SuperAdminPurchasesPage() {
                                       by {recentRemark.name} • {format(new Date(recentRemark.date), "MMM dd, yyyy")}
                                     </div>
                                   </div>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => {
+                                      setSelectedPurchaseForRemarks(purchase)
+                                      setRemarksModalOpen(true)
+                                    }}
+                                    className="text-xs text-blue-600 bg-white hover:text-white hover:bg-[#001f3f] border-blue-200 hover:border-blue-300 mt-2"
+                                  >
+                                    View All Remarks
+                                  </Button>
                                 </div>
                               ) : (
                                 <span className="text-[#001f3f]/40 italic">No remarks</span>
@@ -854,6 +1133,7 @@ export default function SuperAdminPurchasesPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="10">10</SelectItem>
                     <SelectItem value="25">25</SelectItem>
                     <SelectItem value="50">50</SelectItem>
                     <SelectItem value="100">100</SelectItem>
@@ -938,6 +1218,28 @@ export default function SuperAdminPurchasesPage() {
         purchases={purchases}
         role="admin"
       />
+
+      {lightboxOpen && (
+        <LightboxModal
+          images={lightboxImages}
+          index={lightboxIndex}
+          onClose={() => setLightboxOpen(false)}
+        />
+      )}
+
+      {selectedPurchaseForRemarks && (
+        <RemarksModalViewerPurchases
+          isOpen={remarksModalOpen}
+          onClose={() => {
+            setRemarksModalOpen(false)
+            setSelectedPurchaseForRemarks(null)
+          }}
+          purchaseId={selectedPurchaseForRemarks.id}
+          remarks={selectedPurchaseForRemarks.remarks}
+          onRemarksUpdate={handleRemarksUpdate}
+          userRole={profile?.role}
+        />
+      )}
     </div>
   )
 }

@@ -643,14 +643,14 @@ export function EditSalesModal({ open, onOpenChange, sale, onSaleUpdated }: Edit
               </Label>
               <Input
                 type="date"
-                value={format(pickupDate, "yyyy-MM-dd")}
-                onChange={(e) => {
-                  const newDate = new Date(e.target.value)
-                  if (!isNaN(newDate.getTime())) {
-                    setPickupDate(newDate)
-                  }
+                id="pickup-date"
+                value={pickupDate ? format(pickupDate, "yyyy-MM-dd") : ""}
+                onChange={e => {
+                  setPickupDate(e.target.value ? new Date(e.target.value) : undefined)
                 }}
-                className="border-[#001f3f] focus:border-blue-500 focus:ring-blue-500 text-[#001f3f] bg-white"
+                className="border-[#001f3f] focus:border-blue-500 focus:ring-blue-500 text-[#001f3f] bg-[#e5e7eb]"
+                min="1900-01-01"
+                max={format(new Date(), "yyyy-MM-dd")}
               />
             </div>
           </div>

@@ -174,13 +174,14 @@ export function DashboardHeader() {
                 {loadingNotifications ? (
                   <div className="p-4 text-center text-xs text-muted-foreground">Loading...</div>
                 ) : notifications.filter(
-                    (notif) => notif.action !== "user_login" && notif.action !== "dashboard_access",
-                  ).length === 0 ? (
+                  (notif) => notif.action !== "user_login" && notif.action !== "dashboard_access",
+                ).length === 0 ? (
                   <div className="p-4 text-center text-xs text-muted-foreground">No recent activities.</div>
                 ) : (
                   <div style={{ maxHeight: 320, overflowY: "auto" }}>
                     {notifications
                       .filter((notif) => notif.action !== "user_login" && notif.action !== "dashboard_access")
+                      .slice(0, 10) // <-- Limit to 10 notifications
                       .map((notif) => (
                         <NotificationDropdownItem
                           key={notif.id}
