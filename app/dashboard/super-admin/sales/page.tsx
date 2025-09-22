@@ -313,7 +313,6 @@ export default function SuperAdminSalesPage() {
         )
         .eq("is_deleted", false)
         .order(sortField, { ascending: sortDirection === "asc" })
-        .limit(1500)
 
       // Apply filters
       if (searchTerm) {
