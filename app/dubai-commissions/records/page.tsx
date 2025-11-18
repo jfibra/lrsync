@@ -1,11 +1,10 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { supabase } from "@/lib/supabase/client"
 import { format } from "date-fns"
 import jsPDF from "jspdf"
 import html2canvas from "html2canvas"
-import { useRef } from "react"
 
 interface InvoiceRecord {
     id: string
@@ -17,6 +16,28 @@ interface InvoiceRecord {
     balance_due: number
     currency: string
     created_at: string
+
+    // optional/full fields that may exist on saved invoices
+    payment_terms?: string | null
+    due_date?: string | null
+    po_number?: string | null
+    trade_license?: string | null
+    tdn?: string | null
+    company_address?: string | null
+    company_email?: string | null
+    company_phone?: string | null
+    ship_to?: string | null
+    items?: any[]
+    tax_rate?: number
+    show_tax?: boolean
+    discount_amount?: number
+    show_discount?: boolean
+    shipping_amount?: number
+    show_shipping?: boolean
+    subtotal?: number
+    amount_paid?: number
+    noted_by?: string | null
+    terms?: string | null
 }
 
 export default function InvoiceRecordsPage() {
@@ -47,8 +68,8 @@ export default function InvoiceRecordsPage() {
 
     const printRef = useRef<HTMLDivElement>(null)
 
-    const generatePDFForInvoice = async (invoice: InvoiceRecord) => {
-        // Render a hidden printable invoice using the invoice data
+    // Helper that does the html2canvas + jsPDF generation from printRef
+    const generatePDFFromRef = async (fileName: string) => {
         if (!printRef.current) return
 
         printRef.current.style.display = "block"
@@ -70,9 +91,36 @@ export default function InvoiceRecordsPage() {
         const pdfHeight = (canvas.height * pdfWidth) / canvas.width
 
         pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight)
-        pdf.save(`invoice-${invoice.invoice_number}.pdf`)
+        pdf.save(fileName)
 
         printRef.current.style.display = "none"
+    }
+
+    // Fetch full invoice record from Supabase and generate PDF (same structure as the main page)
+    const handleGenerateAgain = async (invoiceId: string) => {
+        setLoading(true)
+        const { data, error } = await supabase
+            .from("invoices")
+            .select("*")
+            .eq("id", invoiceId)
+            .single()
+        setLoading(false)
+
+        if (error || !data) {
+            alert("Failed to fetch invoice: " + (error?.message ?? "Not found"))
+            return
+        }
+
+        setSelectedInvoice(data)
+
+        // Wait for selectedInvoice to render into the hidden print area
+        await new Promise((resolve) => setTimeout(resolve, 150))
+
+        const fileName = `invoice-${data.invoice_number || data.id}.pdf`
+        await generatePDFFromRef(fileName)
+
+        // Clear selected after generation to keep DOM tidy
+        setSelectedInvoice(null)
     }
 
     return (
@@ -131,10 +179,7 @@ export default function InvoiceRecordsPage() {
                                             <td className="py-2 px-4 border-b text-center">
                                                 <button
                                                     className="text-[#3c8dbc] hover:underline text-sm font-medium"
-                                                    onClick={() => {
-                                                        setSelectedInvoice(inv)
-                                                        setTimeout(() => generatePDFForInvoice(inv), 100)
-                                                    }}
+                                                    onClick={() => handleGenerateAgain(inv.id)}
                                                 >
                                                     Generate Again
                                                 </button>
@@ -147,7 +192,8 @@ export default function InvoiceRecordsPage() {
                     </div>
                 </div>
             </div>
-            {/* Hidden Printable Invoice */}
+
+            {/* Hidden Printable Invoice - using same structure as the main invoice page */}
             <div
                 id="print-invoice"
                 ref={printRef}
@@ -163,15 +209,13 @@ export default function InvoiceRecordsPage() {
             >
                 {selectedInvoice && (
                     <div>
-                        {/* Header */}
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 40 }}>
-                            {/* Left: Logo and Company Info */}
-                            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", minWidth: 300 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 40, }}>
+                            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", width: 400, gap: 16 }}>
                                 <img
                                     src="/invoice-fhi-logo.jpeg"
                                     alt="FHI Global Property Logo"
                                     style={{
-                                        width: 80,
+                                        width: "auto",
                                         height: 80,
                                         objectFit: "contain",
                                         marginBottom: 8,
@@ -185,9 +229,20 @@ export default function InvoiceRecordsPage() {
                                     {selectedInvoice.company_email && <div>Email Address: {selectedInvoice.company_email}</div>}
                                     {selectedInvoice.company_phone && <div>Phone: {selectedInvoice.company_phone}</div>}
                                 </div>
+
+                                <div style={{ marginTop: 20 }}>
+                                    <div style={{ fontWeight: "bold", fontSize: 14, marginBottom: 8 }}>To:</div>
+                                    <div style={{ fontSize: 14, whiteSpace: "pre-line" }}>{selectedInvoice.client_name}</div>
+                                    {selectedInvoice.ship_to && (
+                                        <div style={{ marginTop: 12 }}>
+                                            <div style={{ fontWeight: "bold", fontSize: 14, marginBottom: 8 }}>Ship To:</div>
+                                            <div style={{ fontSize: 14, whiteSpace: "pre-line" }}>{selectedInvoice.ship_to}</div>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
-                            {/* Right: Invoice Meta */}
-                            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", minWidth: 220 }}>
+
+                            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", width: 360 }}>
                                 <div style={{ fontWeight: "bold", fontSize: 36, marginBottom: 16, color: "#3c8dbc" }}>INVOICE</div>
                                 <div
                                     style={{
@@ -204,7 +259,7 @@ export default function InvoiceRecordsPage() {
                                 >
                                     # {selectedInvoice.invoice_number}
                                 </div>
-                                <div style={{ fontSize: 14, marginBottom: 4 }}>
+                                <div style={{ fontSize: 14, marginTop: 8, marginBottom: 4 }}>
                                     <span style={{ fontWeight: "bold" }}>Date:</span>{" "}
                                     {selectedInvoice.invoice_date ? format(new Date(selectedInvoice.invoice_date), "MMM dd, yyyy") : "-"}
                                 </div>
@@ -242,114 +297,112 @@ export default function InvoiceRecordsPage() {
                             </div>
                         </div>
 
-                        {/* To Section */}
-                        <div style={{ marginBottom: 24 }}>
-                            <div style={{ fontWeight: "bold", fontSize: 14, marginBottom: 8 }}>To:</div>
-                            <div style={{ fontSize: 14, whiteSpace: "pre-line" }}>{selectedInvoice.client_name}</div>
-                            {selectedInvoice.ship_to && (
-                                <>
-                                    <div style={{ fontWeight: "bold", fontSize: 14, marginTop: 16, marginBottom: 8 }}>Ship To:</div>
-                                    <div style={{ fontSize: 14, whiteSpace: "pre-line" }}>{selectedInvoice.ship_to}</div>
-                                </>
-                            )}
-                        </div>
-
-                        {/* Items Table */}
-                        {selectedInvoice.items && Array.isArray(selectedInvoice.items) && (
-                            <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 32, border: "1px solid #ddd" }}>
-                                <thead>
-                                    <tr style={{ background: "#001f3f", color: "#fff" }}>
-                                        <th style={{ padding: 6, textAlign: "left", border: "1px solid #ddd", fontWeight: "bold" }}>Item</th>
-                                        <th style={{ padding: 6, textAlign: "center", border: "1px solid #ddd", fontWeight: "bold" }}>Quantity</th>
-                                        <th style={{ padding: 6, textAlign: "center", border: "1px solid #ddd", fontWeight: "bold" }}>Rate</th>
-                                        <th style={{ padding: 6, textAlign: "right", border: "1px solid #ddd", fontWeight: "bold" }}>Amount</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {selectedInvoice.items.map((item: any, index: number) => (
-                                        <tr key={index} style={{ borderBottom: index === selectedInvoice.items.length - 1 ? "none" : "1px solid #eee" }}>
+                        <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 32, border: "1px solid #ddd" }}>
+                            <thead>
+                                <tr style={{ background: "#001f3f", color: "#fff" }}>
+                                    <th style={{ padding: 6, textAlign: "left", border: "1px solid #ddd", fontWeight: "bold" }}>Item</th>
+                                    <th style={{ padding: 6, textAlign: "center", border: "1px solid #ddd", fontWeight: "bold" }}>Quantity</th>
+                                    <th style={{ padding: 6, textAlign: "center", border: "1px solid #ddd", fontWeight: "bold" }}>Rate</th>
+                                    <th style={{ padding: 6, textAlign: "right", border: "1px solid #ddd", fontWeight: "bold" }}>Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {selectedInvoice.items && Array.isArray(selectedInvoice.items) ? (
+                                    selectedInvoice.items.map((item: any, index: number) => (
+                                        <tr key={index} style={{ borderBottom: index === selectedInvoice.items!.length - 1 ? "none" : "1px solid #eee" }}>
                                             <td style={{ padding: 4, borderRight: "1px solid #eee" }}>{item.description}</td>
                                             <td style={{ padding: 4, textAlign: "center", borderRight: "1px solid #eee" }}>{item.quantity}</td>
                                             <td style={{ padding: 4, textAlign: "center", borderRight: "1px solid #eee" }}>
-                                                {selectedInvoice.currency} {item.rate?.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                                {selectedInvoice.currency} {Number(item.rate || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                             </td>
                                             <td style={{ padding: 4, textAlign: "right" }}>
-                                                {selectedInvoice.currency} {item.amount?.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                                {selectedInvoice.currency} {Number(item.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                             </td>
                                         </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        )}
-
-                        {/* Totals Section */}
-                        <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                            <table style={{ width: 320, fontSize: 14 }}>
-                                <tbody>
+                                    ))
+                                ) : (
                                     <tr>
-                                        <td style={{ padding: "4px 8px" }}>Subtotal</td>
-                                        <td style={{ padding: "4px 8px", textAlign: "right" }}>
-                                            {selectedInvoice.currency} {selectedInvoice.subtotal?.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                                        </td>
+                                        <td colSpan={4} style={{ padding: 8, textAlign: "center" }}>No items</td>
                                     </tr>
-                                    {selectedInvoice.show_tax && (
-                                        <tr>
-                                            <td style={{ padding: "4px 8px" }}>
-                                                Tax{selectedInvoice.tax_rate ? ` (${selectedInvoice.tax_rate}%)` : ""}
-                                            </td>
-                                            <td style={{ padding: "4px 8px", textAlign: "right" }}>
-                                                {selectedInvoice.currency} {selectedInvoice.tax_amount?.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                                            </td>
-                                        </tr>
-                                    )}
-                                    {selectedInvoice.show_discount && selectedInvoice.discount_amount > 0 && (
-                                        <tr>
-                                            <td style={{ padding: "4px 8px" }}>Discount</td>
-                                            <td style={{ padding: "4px 8px", textAlign: "right" }}>
-                                                - {selectedInvoice.currency} {selectedInvoice.discount_amount?.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                                            </td>
-                                        </tr>
-                                    )}
-                                    {selectedInvoice.show_shipping && selectedInvoice.shipping_amount > 0 && (
-                                        <tr>
-                                            <td style={{ padding: "4px 8px" }}>Shipping</td>
-                                            <td style={{ padding: "4px 8px", textAlign: "right" }}>
-                                                + {selectedInvoice.currency} {selectedInvoice.shipping_amount?.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                                            </td>
-                                        </tr>
-                                    )}
-                                    <tr style={{ fontWeight: "bold", fontSize: 16 }}>
-                                        <td style={{ padding: "8px 8px", borderTop: "2px solid #3c8dbc" }}>Total</td>
-                                        <td style={{ padding: "8px 8px", textAlign: "right", borderTop: "2px solid #3c8dbc" }}>
-                                            {selectedInvoice.currency} {selectedInvoice.total?.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td style={{ padding: "4px 8px" }}>Amount Paid</td>
-                                        <td style={{ padding: "4px 8px", textAlign: "right" }}>
-                                            {selectedInvoice.currency} {selectedInvoice.amount_paid?.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                                        </td>
-                                    </tr>
-                                    <tr style={{ fontWeight: "bold" }}>
-                                        <td style={{ padding: "8px 8px", borderTop: "2px solid #3c8dbc" }}>Balance Due</td>
-                                        <td style={{ padding: "8px 8px", textAlign: "right", borderTop: "2px solid #3c8dbc" }}>
-                                            {selectedInvoice.currency} {selectedInvoice.balance_due?.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
+                                )}
+                            </tbody>
+                        </table>
 
-                        {/* Terms and Noted By */}
-                        <div style={{ marginTop: 32, display: "flex", gap: 40 }}>
-                            <div style={{ flex: 1 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                            <div style={{ width: "48%" }}>
                                 <div style={{ fontWeight: "bold", color: "#3c8dbc", marginBottom: 8 }}>Terms</div>
                                 <div style={{ fontSize: 13, whiteSpace: "pre-line" }}>{selectedInvoice.terms}</div>
                             </div>
-                            <div style={{ flex: 1 }}>
-                                <div style={{ fontWeight: "bold", color: "#3c8dbc", marginBottom: 8 }}>Noted By</div>
-                                <div style={{ fontSize: 13 }}>{selectedInvoice.noted_by}</div>
+
+                            <div style={{ width: "48%" }}>
+                                <table style={{ width: "100%", fontSize: 14, marginLeft: "auto" }}>
+                                    <tbody>
+                                        <tr>
+                                            <td style={{ padding: "8px 0", textAlign: "right", paddingRight: 20 }}>Subtotal:</td>
+                                            <td style={{ padding: "8px 0", textAlign: "right", fontWeight: "bold" }}>
+                                                {selectedInvoice.currency} {Number(selectedInvoice.subtotal || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                            </td>
+                                        </tr>
+                                        {selectedInvoice.show_tax && (
+                                            <tr>
+                                                <td style={{ padding: "8px 0", textAlign: "right", paddingRight: 20 }}>Tax{selectedInvoice.tax_rate ? ` (${selectedInvoice.tax_rate}%)` : ""}:</td>
+                                                <td style={{ padding: "8px 0", textAlign: "right", fontWeight: "bold" }}>
+                                                    {selectedInvoice.currency} {Number(((selectedInvoice.subtotal || 0) * (selectedInvoice.tax_rate || 0)) / 100).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                                </td>
+                                            </tr>
+                                        )}
+                                        {selectedInvoice.show_discount && (selectedInvoice.discount_amount || 0) > 0 && (
+                                            <tr>
+                                                <td style={{ padding: "8px 0", textAlign: "right", paddingRight: 20 }}>Discount:</td>
+                                                <td style={{ padding: "8px 0", textAlign: "right", fontWeight: "bold" }}>
+                                                    - {selectedInvoice.currency} {Number(selectedInvoice.discount_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                                </td>
+                                            </tr>
+                                        )}
+                                        {selectedInvoice.show_shipping && (selectedInvoice.shipping_amount || 0) > 0 && (
+                                            <tr>
+                                                <td style={{ padding: "8px 0", textAlign: "right", paddingRight: 20 }}>Shipping:</td>
+                                                <td style={{ padding: "8px 0", textAlign: "right", fontWeight: "bold" }}>
+                                                    + {selectedInvoice.currency} {Number(selectedInvoice.shipping_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                                </td>
+                                            </tr>
+                                        )}
+                                        <tr>
+                                            <td
+                                                style={{
+                                                    padding: "12px 0",
+                                                    textAlign: "right",
+                                                    paddingRight: 20,
+                                                    fontSize: 16,
+                                                    fontWeight: "bold",
+                                                }}
+                                            >
+                                                Total:
+                                            </td>
+                                            <td style={{ padding: "12px 0", textAlign: "right", fontSize: 16, fontWeight: "bold" }}>
+                                                {selectedInvoice.currency} {Number(selectedInvoice.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td style={{ padding: "8px 0", textAlign: "right", paddingRight: 20 }}>Amount Paid:</td>
+                                            <td style={{ padding: "8px 0", textAlign: "right", fontWeight: "bold" }}>
+                                                {selectedInvoice.currency} {Number(selectedInvoice.amount_paid || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td style={{ padding: "8px 0", textAlign: "right", paddingRight: 20, fontWeight: "bold" }}>Balance Due:</td>
+                                            <td style={{ padding: "8px 0", textAlign: "right", fontWeight: "bold" }}>
+                                                {selectedInvoice.currency} {Number(selectedInvoice.balance_due || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
                             </div>
+                        </div>
+
+                        <div style={{ marginTop: 24 }}>
+                            <div style={{ fontWeight: "bold", color: "#3c8dbc", marginBottom: 8 }}>Noted By</div>
+                            <div style={{ fontSize: 13 }}>{selectedInvoice.noted_by}</div>
                         </div>
                     </div>
                 )}
