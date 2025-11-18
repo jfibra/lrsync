@@ -11,7 +11,7 @@ import jsPDF from "jspdf"
 import html2canvas from "html2canvas"
 import { supabase } from "@/lib/supabase/client"
 import { useEffect } from "react"
-
+ 
 interface InvoiceItem {
   id: string
   description: string
@@ -19,14 +19,14 @@ interface InvoiceItem {
   rate: number
   amount: number
 }
-
+ 
 export default function DubaiCommissionsPage() {
   const [invoiceNumber, setInvoiceNumber] = useState("1")
   const [invoiceDate, setInvoiceDate] = useState(format(new Date(), "yyyy-MM-dd"))
   const [paymentTerms, setPaymentTerms] = useState("")
   const [dueDate, setDueDate] = useState("")
   const [poNumber, setPoNumber] = useState("")
-
+ 
   // Company details (defaults from PDF)
   const [companyName, setCompanyName] = useState("FHI GLOBAL PROPERTY LLC")
   const [tradeLicense, setTradeLicense] = useState("1463743")
@@ -36,24 +36,29 @@ export default function DubaiCommissionsPage() {
   )
   const [companyEmail, setCompanyEmail] = useState("mindworth@gmail.com")
   const [companyPhone, setCompanyPhone] = useState("+971504126408")
-
+ 
+  // Currency state (default AED)
+  const [currency, setCurrency] = useState<"AED" | "PHP">("AED")
+  const currencyLabel = currency // use "AED" or "PHP" text in UI
+  const currencySymbol = currency === "PHP" ? "PHP" : "AED"
+ 
   // Client details
   const [clientName, setClientName] = useState("JOTUN MEIA FZLLC")
   const [shipTo, setShipTo] = useState("")
-
+ 
   const [showDiscount, setShowDiscount] = useState(false)
   const [showShipping, setShowShipping] = useState(false)
   const [showTax, setShowTax] = useState(true)
-
+ 
   // Invoice items
   const [items, setItems] = useState<InvoiceItem[]>([])
-
+ 
   // Tax and totals
   const [taxRate, setTaxRate] = useState(5)
   const [discountAmount, setDiscountAmount] = useState(0)
   const [shippingAmount, setShippingAmount] = useState(0)
   const [amountPaid, setAmountPaid] = useState(0)
-
+ 
   // Notes and terms
   const [notedBy, setNotedBy] = useState("ANTHONY GERARD LEUTERIO")
   const [terms, setTerms] = useState(`Payment Details: Bank Transfer
@@ -62,13 +67,13 @@ Bank Account Name: FHI Global Property LLC
 Account Number: 9185994189
 IBAN:AE900860000009185994189
 SWIFT: WIOBAEADXXX`)
-
+ 
   // Calculate totals
   const subtotal = items.reduce((sum, item) => sum + item.amount, 0)
   const taxAmount = (subtotal * taxRate) / 100
   const total = subtotal + taxAmount - discountAmount + shippingAmount
   const balanceDue = total - amountPaid
-
+ 
   useEffect(() => {
     const fetchLastInvoiceNumber = async () => {
       const { data, error } = await supabase
@@ -77,7 +82,7 @@ SWIFT: WIOBAEADXXX`)
         .order("created_at", { ascending: false })
         .limit(1)
         .single()
-
+ 
       if (data && data.invoice_number) {
         // Try to increment if it's a number, else fallback to "1"
         const lastNum = parseInt(data.invoice_number, 10)
@@ -90,10 +95,10 @@ SWIFT: WIOBAEADXXX`)
         setInvoiceNumber("1")
       }
     }
-
+ 
     fetchLastInvoiceNumber()
   }, [])
-
+ 
   const addItem = () => {
     const newItem: InvoiceItem = {
       id: Date.now().toString(),
@@ -104,11 +109,11 @@ SWIFT: WIOBAEADXXX`)
     }
     setItems([...items, newItem])
   }
-
+ 
   const removeItem = (id: string) => {
     setItems(items.filter((item) => item.id !== id))
   }
-
+ 
   const updateItem = (id: string, field: keyof InvoiceItem, value: string | number) => {
     setItems(
       items.map((item) => {
@@ -123,40 +128,58 @@ SWIFT: WIOBAEADXXX`)
       }),
     )
   }
-
+ 
   const generatePDF = async () => {
-    // Save invoice to Supabase
-    const { error } = await supabase.from("invoices").insert([
-      {
-        invoice_number: invoiceNumber,
-        invoice_date: invoiceDate || null, // <-- fix here
-        payment_terms: paymentTerms || null,
-        due_date: dueDate || null,
-        po_number: poNumber || null,
-        company_name: companyName || null,
-        trade_license: tradeLicense || null,
-        tdn: tdn || null,
-        company_address: companyAddress || null,
-        company_email: companyEmail || null,
-        company_phone: companyPhone || null,
-        client_name: clientName || null,
-        ship_to: shipTo || null,
-        items: items.map(({ id, ...rest }) => rest), // remove id for storage
-        tax_rate: taxRate,
-        show_tax: showTax,
-        discount_amount: discountAmount,
-        show_discount: showDiscount,
-        shipping_amount: shippingAmount,
-        show_shipping: showShipping,
-        subtotal,
-        total,
-        amount_paid: amountPaid,
-        balance_due: balanceDue,
-        noted_by: notedBy,
-        terms,
-        currency: "AED", // or make this dynamic if needed
-      },
-    ])
+    // Ensure items amounts and totals are up-to-date and numeric before saving
+    const itemsToSave = items.map(({ id, description, quantity, rate }) => {
+      const q = Number(quantity) || 0
+      const r = Number(rate) || 0
+      return {
+        description: description || "",
+        quantity: q,
+        rate: r,
+        amount: q * r,
+      }
+    })
+
+    const computedSubtotal = itemsToSave.reduce((s, it) => s + (Number(it.amount) || 0), 0)
+    const computedTaxAmount = (computedSubtotal * Number(taxRate || 0)) / 100
+    const computedTotal = computedSubtotal + computedTaxAmount - Number(discountAmount || 0) + Number(shippingAmount || 0)
+    const computedBalance = computedTotal - Number(amountPaid || 0)
+
+    // Save invoice to Supabase - make sure numbers are numbers and items is an array
+    const payload = {
+      invoice_number: invoiceNumber,
+      invoice_date: invoiceDate || null,
+      payment_terms: paymentTerms || null,
+      due_date: dueDate || null,
+      po_number: poNumber || null,
+      company_name: companyName || null,
+      trade_license: tradeLicense || null,
+      tdn: tdn || null,
+      company_address: companyAddress || null,
+      company_email: companyEmail || null,
+      company_phone: companyPhone || null,
+      client_name: clientName || null,
+      ship_to: shipTo || null,
+      items: itemsToSave,
+      tax_rate: Number(taxRate || 0),
+      show_tax: !!showTax,
+      discount_amount: Number(discountAmount || 0),
+      show_discount: !!showDiscount,
+      shipping_amount: Number(shippingAmount || 0),
+      show_shipping: !!showShipping,
+      subtotal: computedSubtotal,
+      total: computedTotal,
+      amount_paid: Number(amountPaid || 0),
+      balance_due: computedBalance,
+      noted_by: notedBy || null,
+      terms: terms || null,
+      currency: currency, // current selected currency
+    }
+
+    const { error } = await supabase.from("invoices").insert([payload])
+
     if (error) {
       alert("Failed to save invoice: " + error.message)
       return
@@ -188,15 +211,15 @@ SWIFT: WIOBAEADXXX`)
 
     printInvoice.style.display = "none"
   }
-
+ 
   // New function: open PDF in a new tab for preview
   const previewPDF = async () => {
     const printInvoice = document.getElementById("print-invoice")
     if (!printInvoice) return
-
+ 
     printInvoice.style.display = "block"
     await new Promise((resolve) => setTimeout(resolve, 100))
-
+ 
     const canvas = await html2canvas(printInvoice, {
       scale: 2,
       useCORS: true,
@@ -208,18 +231,18 @@ SWIFT: WIOBAEADXXX`)
       unit: "mm",
       format: "a4",
     })
-
+ 
     const pdfWidth = pdf.internal.pageSize.getWidth()
     const pdfHeight = (canvas.height * pdfWidth) / canvas.width
-
+ 
     pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight)
-
+ 
     // Open PDF in new tab
     window.open(pdf.output("bloburl"), "_blank")
-
+ 
     printInvoice.style.display = "none"
   }
-
+ 
   return (
     <div className="min-h-screen bg-[#f4f8fb] text-[#001f3f]">
       <div className="bg-[#001f3f] border-b px-6 py-4">
@@ -230,6 +253,20 @@ SWIFT: WIOBAEADXXX`)
             </div>
           </div>
           <div className="flex items-center space-x-4">
+            {/* Currency dropdown */}
+            <div className="flex items-center gap-2">
+              <label htmlFor="currency" className="text-sm text-white hidden sm:inline">Currency</label>
+              <select
+                id="currency"
+                value={currency}
+                onChange={(e) => setCurrency(e.target.value as "AED" | "PHP")}
+                className="rounded px-2 py-1 text-sm bg-white text-[#001f3f]"
+              >
+                <option value="AED">AED</option>
+                <option value="PHP">PHP</option>
+              </select>
+            </div>
+ 
             <Button onClick={generatePDF} className="bg-green-600 hover:bg-green-700 text-white">
               <Download className="w-4 h-4 mr-2" />
               Download PDF
@@ -237,7 +274,7 @@ SWIFT: WIOBAEADXXX`)
           </div>
         </div>
       </div>
-
+ 
       <div className="max-w-6xl mx-auto p-4 sm:p-6">
         <div className="bg-white border border-[#e0e7ef] rounded-lg shadow p-4 sm:p-8">
           {/* Invoice Header */}
@@ -308,7 +345,7 @@ SWIFT: WIOBAEADXXX`)
               </div>
             </div>
           </div>
-
+ 
           {/* To and Ship To Section */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
             <div>
@@ -321,7 +358,7 @@ SWIFT: WIOBAEADXXX`)
               />
             </div>
           </div>
-
+ 
           {/* Items Table */}
           <div className="mb-8 overflow-x-auto">
             <div className="bg-[#001f3f] text-white px-4 py-3 grid grid-cols-12 gap-2 rounded-t min-w-[600px]">
@@ -352,7 +389,7 @@ SWIFT: WIOBAEADXXX`)
                     />
                   </div>
                   <div className="col-span-2 flex items-center">
-                    <span className="text-sm mr-1 text-[#3c8dbc]">AED</span>
+                    <span className="text-sm mr-1 text-[#3c8dbc]">{currencySymbol}</span>
                     <Input
                       type="number"
                       value={item.rate}
@@ -363,7 +400,7 @@ SWIFT: WIOBAEADXXX`)
                     />
                   </div>
                   <div className="col-span-2 text-right">
-                    <span className="font-medium text-[#001f3f]">AED {item.amount.toFixed(2)}</span>
+                    <span className="font-medium text-[#001f3f]">{currencySymbol} {item.amount.toFixed(2)}</span>
                     {items.length > 1 && (
                       <Button
                         variant="ghost"
@@ -387,7 +424,7 @@ SWIFT: WIOBAEADXXX`)
               Line Item
             </Button>
           </div>
-
+ 
           {/* Bottom Section */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Left Side - Notes and Terms */}
@@ -410,12 +447,12 @@ SWIFT: WIOBAEADXXX`)
                 />
               </div>
             </div>
-
+ 
             {/* Right Side - Totals */}
             <div className="space-y-4">
               <div className="flex justify-between items-center">
                 <span className="text-[#3c8dbc]">Subtotal</span>
-                <span className="font-medium text-[#001f3f]">AED {subtotal.toFixed(2)}</span>
+                <span className="font-medium text-[#001f3f]">{currencySymbol} {subtotal.toFixed(2)}</span>
               </div>
               {/* Tax */}
               {showTax ? (
@@ -442,7 +479,7 @@ SWIFT: WIOBAEADXXX`)
                       <Trash2 className="w-4 h-4" />
                     </Button>
                   </div>
-                  <span className="font-medium text-[#001f3f]">AED {taxAmount.toFixed(2)}</span>
+                  <span className="font-medium text-[#001f3f]">{currencySymbol} {taxAmount.toFixed(2)}</span>
                 </div>
               ) : (
                 <div className="flex justify-between items-center text-green-700">
@@ -474,7 +511,7 @@ SWIFT: WIOBAEADXXX`)
                       <Trash2 className="w-4 h-4" />
                     </Button>
                   </div>
-                  <span className="font-medium text-[#001f3f]">- AED {discountAmount.toFixed(2)}</span>
+                  <span className="font-medium text-[#001f3f]">- {currencySymbol} {discountAmount.toFixed(2)}</span>
                 </div>
               ) : (
                 <div className="flex justify-between items-center text-green-700">
@@ -483,7 +520,7 @@ SWIFT: WIOBAEADXXX`)
                   </Button>
                 </div>
               )}
-
+ 
               {/* Shipping */}
               {showShipping ? (
                 <div className="flex justify-between items-center">
@@ -507,7 +544,7 @@ SWIFT: WIOBAEADXXX`)
                       <Trash2 className="w-4 h-4" />
                     </Button>
                   </div>
-                  <span className="font-medium text-[#001f3f]">+ AED {shippingAmount.toFixed(2)}</span>
+                  <span className="font-medium text-[#001f3f]">+ {currencySymbol} {shippingAmount.toFixed(2)}</span>
                 </div>
               ) : (
                 <div className="flex justify-between items-center text-green-700">
@@ -519,13 +556,13 @@ SWIFT: WIOBAEADXXX`)
               <div className="border-t pt-4">
                 <div className="flex justify-between items-center text-lg font-bold">
                   <span className="text-[#001f3f]">Total</span>
-                  <span className="text-[#001f3f]">AED {total.toFixed(2)}</span>
+                  <span className="text-[#001f3f]">{currencySymbol} {total.toFixed(2)}</span>
                 </div>
               </div>
               <div className="flex justify-between items-center">
                 <div className="flex items-center space-x-2">
                   <span className="text-[#3c8dbc]">Amount Paid</span>
-                  <span className="text-sm text-[#3c8dbc]">AED</span>
+                  <span className="text-sm text-[#3c8dbc]">{currencySymbol}</span>
                 </div>
                 <Input
                   type="number"
@@ -539,7 +576,7 @@ SWIFT: WIOBAEADXXX`)
               <div className="border-t pt-4">
                 <div className="flex justify-between items-center text-lg font-bold">
                   <span className="text-[#001f3f]">Balance Due</span>
-                  <span className="text-[#001f3f]">AED {balanceDue.toFixed(2)}</span>
+                  <span className="text-[#001f3f]">{currencySymbol} {balanceDue.toFixed(2)}</span>
                 </div>
               </div>
             </div>
@@ -597,7 +634,7 @@ SWIFT: WIOBAEADXXX`)
               </div>
             </div>
           </div>
-
+ 
           {/* Right: Invoice Title and Number */}
           <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", width: 800 }}>
             <div style={{ fontWeight: "bold", fontSize: 36, marginBottom: 16, color: "#3c8dbc" }}>INVOICE</div>
@@ -646,11 +683,11 @@ SWIFT: WIOBAEADXXX`)
                 textAlign: "right",
               }}
             >
-              Balance Due: AED {balanceDue.toFixed(2)}
+              Balance Due: {currencySymbol} {balanceDue.toFixed(2)}
             </div>
           </div>
         </div>
-
+ 
         <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 32, border: "1px solid #ddd" }}>
           <thead>
             <tr style={{ background: "#001f3f", color: "#fff" }}>
@@ -674,32 +711,32 @@ SWIFT: WIOBAEADXXX`)
                 <td style={{ padding: 4, borderRight: "1px solid #eee" }}>{item.description}</td>
                 <td style={{ padding: 4, textAlign: "center", borderRight: "1px solid #eee" }}>{item.quantity}</td>
                 <td style={{ padding: 4, textAlign: "center", borderRight: "1px solid #eee" }}>
-                  AED {item.rate.toFixed(2)}
+                  {currencySymbol} {item.rate.toFixed(2)}
                 </td>
-                <td style={{ padding: 4, textAlign: "right" }}>AED {item.amount.toFixed(2)}</td>
+                <td style={{ padding: 4, textAlign: "right" }}>{currencySymbol} {item.amount.toFixed(2)}</td>
               </tr>
             ))}
           </tbody>
         </table>
-
+ 
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
           <div style={{ width: "48%" }}>
           </div>
-
+ 
           <div style={{ width: "48%" }}>
             <table style={{ width: "100%", fontSize: 14, marginLeft: "auto" }}>
               <tbody>
                 <tr>
                   <td style={{ padding: "8px 0", textAlign: "right", paddingRight: 20 }}>Subtotal:</td>
                   <td style={{ padding: "8px 0", textAlign: "right", fontWeight: "bold" }}>
-                    AED {subtotal.toFixed(2)}
+                    {currencySymbol} {subtotal.toFixed(2)}
                   </td>
                 </tr>
                 {showTax && (
                   <tr>
                     <td style={{ padding: "8px 0", textAlign: "right", paddingRight: 20 }}>Tax ({taxRate}%):</td>
                     <td style={{ padding: "8px 0", textAlign: "right", fontWeight: "bold" }}>
-                      AED {taxAmount.toFixed(2)}
+                      {currencySymbol} {taxAmount.toFixed(2)}
                     </td>
                   </tr>
                 )}
@@ -707,7 +744,7 @@ SWIFT: WIOBAEADXXX`)
                   <tr>
                     <td style={{ padding: "8px 0", textAlign: "right", paddingRight: 20 }}>Discount:</td>
                     <td style={{ padding: "8px 0", textAlign: "right", fontWeight: "bold" }}>
-                      - AED {discountAmount.toFixed(2)}
+                      - {currencySymbol} {discountAmount.toFixed(2)}
                     </td>
                   </tr>
                 )}
@@ -715,7 +752,7 @@ SWIFT: WIOBAEADXXX`)
                   <tr>
                     <td style={{ padding: "8px 0", textAlign: "right", paddingRight: 20 }}>Shipping:</td>
                     <td style={{ padding: "8px 0", textAlign: "right", fontWeight: "bold" }}>
-                      + AED {shippingAmount.toFixed(2)}
+                      + {currencySymbol} {shippingAmount.toFixed(2)}
                     </td>
                   </tr>
                 )}
@@ -732,14 +769,14 @@ SWIFT: WIOBAEADXXX`)
                     Total:
                   </td>
                   <td style={{ padding: "12px 0", textAlign: "right", fontSize: 16, fontWeight: "bold" }}>
-                    AED {total.toFixed(2)}
+                    {currencySymbol} {total.toFixed(2)}
                   </td>
                 </tr>
               </tbody>
             </table>
           </div>
         </div>
-
+ 
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
           <div style={{ width: "48%" }}>
             <div style={{ marginBottom: 24 }}>
