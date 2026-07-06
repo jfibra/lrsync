@@ -114,7 +114,8 @@ export default function AdminSalesPage() {
         `
         )
         .eq("is_deleted", false)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .limit(50000);
 
       // Apply filters
       if (searchTerm) {

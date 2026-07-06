@@ -313,6 +313,7 @@ export default function SuperAdminSalesPage() {
         )
         .eq("is_deleted", false)
         .order(sortField, { ascending: sortDirection === "asc" })
+        .limit(50000)
 
       // Apply filters
       if (searchTerm) {
@@ -373,13 +374,20 @@ export default function SuperAdminSalesPage() {
       const saleIds = filteredData?.map((sale) => sale.id) || []
       let commissionReports = []
       if (saleIds.length > 0) {
-        const { data: reportsData, error: reportsError } = await supabase
-          .from("commission_report")
-          .select("report_number, sales_uuids, created_by, created_at, status, deleted_at")
-          .overlaps("sales_uuids", saleIds)
+        // Chunk saleIds to avoid HTTP 400 Bad Request URL length limits
+        const chunkSize = 100;
+        for (let i = 0; i < saleIds.length; i += chunkSize) {
+          const chunk = saleIds.slice(i, i + chunkSize);
+          const { data: reportsData, error: reportsError } = await supabase
+            .from("commission_report")
+            .select("report_number, sales_uuids, created_by, created_at, status, deleted_at")
+            .overlaps("sales_uuids", chunk)
 
-        if (reportsError) throw reportsError
-        commissionReports = reportsData || []
+          if (reportsError) throw reportsError
+          if (reportsData) {
+            commissionReports.push(...reportsData)
+          }
+        }
       }
 
       // Map saleId to commission report info

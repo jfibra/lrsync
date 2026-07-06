@@ -333,6 +333,7 @@ export default function SecretaryPurchasesPage() {
         .select("*")
         .eq("is_deleted", false)
         .order(sortField, { ascending: sortDirection === "asc" })
+        .limit(50000)
 
       if (filterCategory !== "all") {
         purchasesQuery = purchasesQuery.eq("category_id", filterCategory)
