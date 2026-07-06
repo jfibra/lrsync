@@ -7,7 +7,7 @@ create table public.notifications (
   action text not null,
   description text null,
   ip_address text null,
-  location jsonb null,
+  location text null,
   user_agent text null,
   meta jsonb null,
   created_at timestamp with time zone null default now(),

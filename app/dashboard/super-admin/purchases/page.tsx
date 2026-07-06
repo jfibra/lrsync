@@ -348,6 +348,7 @@ export default function SuperAdminPurchasesPage() {
         .select("*")
         .eq("is_deleted", false)
         .order(sortField, { ascending: sortDirection === "asc" })
+        .limit(50000)
 
       // Apply filters BEFORE fetching data
       if (searchTerm) {

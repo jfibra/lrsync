@@ -796,11 +796,13 @@ export default function SuperAdminCommissionReportsPage() {
           .select("*, user_profiles:created_by(full_name,assigned_area)")
           .ilike("report_number", `%${searchTerm}%`)
           .is("deleted_at", null)
+          .limit(50000)
         const { data: reportsByRemarks } = await supabase
           .from("commission_report")
           .select("*, user_profiles:created_by(full_name,assigned_area)")
           .ilike("remarks", `%${searchTerm}%`)
           .is("deleted_at", null)
+          .limit(50000)
 
         let merged = [...(reportsByNumber || []), ...(reportsByRemarks || [])]
         // Remove duplicates
@@ -826,6 +828,7 @@ export default function SuperAdminCommissionReportsPage() {
           .select("*, user_profiles:created_by(full_name,assigned_area)")
           .is("deleted_at", null)
           .order("created_at", { ascending: false })
+          .limit(50000)
 
         if (fetchError) {
           console.log("[v0] Error fetching commission reports:", fetchError)

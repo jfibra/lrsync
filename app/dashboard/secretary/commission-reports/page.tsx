@@ -156,6 +156,7 @@ export default function SecretaryCommissionReportsPage() {
           .select("*, user_profiles:created_by(full_name,assigned_area)", { count: "exact" })
           .is("deleted_at", null)
           .order("created_at", { ascending: false })
+          .limit(50000)
 
         const { data: allReports, error, count } = await query
 
