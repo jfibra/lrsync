@@ -110,7 +110,7 @@ export function DashboardMenuCards({ userRole }: DashboardMenuCardsProps) {
             title: "My Profile",
             description: "Manage your profile information",
             icon: Building2,
-            href: "/dashboard/super-admin/my-profile",
+            href: "/dashboard/super-admin/profile",
             color: "from-green-500 to-green-600",
             bgColor: "bg-green-50/80 border-green-200",
             badge: "Your Area",
