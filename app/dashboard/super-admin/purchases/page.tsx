@@ -48,7 +48,7 @@ interface Purchase {
   total_actual_amount?: number
   invoice_number: string | null
   tax_type: string
-  official_receipt: string | null
+  official_receipt?: any
   date_added: string | null
   user_uuid: string | null
   user_full_name: string | null
@@ -847,7 +847,6 @@ export default function SuperAdminPurchasesPage() {
               <ColumnVisibilityControl
                 columns={columns}
                 onColumnToggle={handleColumnToggle}
-                role="admin"
               />
               <Button
                 variant="outline"

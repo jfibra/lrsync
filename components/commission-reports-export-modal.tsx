@@ -30,8 +30,8 @@ interface CommissionReport {
   secretary_pot?: string
   remarks?: string
   user_profiles?: {
-    full_name: string
-    assigned_area: string
+    full_name?: string
+    assigned_area?: string
   }
 }
 

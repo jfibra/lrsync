@@ -50,7 +50,7 @@ interface Purchase {
   total_actual_amount?: number
   invoice_number: string | null
   tax_type: string
-  official_receipt: string | null
+  official_receipt?: any
   date_added: string | null
   user_uuid: string | null
   user_full_name: string | null
@@ -60,6 +60,7 @@ interface Purchase {
   updated_at: string
   created_at: string
   user_assigned_area?: string | null
+  category_id?: string | null
 }
 
 export default function SecretaryPurchasesPage() {
@@ -837,7 +838,6 @@ export default function SecretaryPurchasesPage() {
                   <ColumnVisibilityControl
                     columns={columns}
                     onColumnToggle={handleColumnToggle}
-                    role="secretary"
                   />
                   <Button
                     variant="outline"

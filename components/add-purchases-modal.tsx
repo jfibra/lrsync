@@ -379,7 +379,7 @@ export function AddPurchasesModal({ open, onOpenChange, onPurchaseAdded }: AddPu
         category_id: selectedCategoryId,
         invoice_number: formData.invoice_number || null,
         tax_type: formData.tax_type,
-        official_receipt: JSON.stringify(officialReceiptFiles.map(f => f.url)),
+        official_receipt: officialReceiptFiles.map(f => f.url),
         date_added: format(new Date(), "yyyy-MM-dd"),
         user_uuid: profile?.auth_user_id || null,
         user_full_name: profile?.full_name || null,

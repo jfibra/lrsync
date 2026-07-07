@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { ProtectedRoute } from "@/components/protected-route";
+import { useAuth } from "@/contexts/auth-context";
 import { DashboardHeader } from "@/components/dashboard-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -88,6 +89,7 @@ const initialFormData: UserFormData = {
 };
 
 export default function UserManagement() {
+  const { profile } = useAuth();
   const [users, setUsers] = useState<UserProfile[]>([]);
   // Log notification/audit entry for user management dashboard access (all roles)
   const [loading, setLoading] = useState(true);

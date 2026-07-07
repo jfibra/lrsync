@@ -70,7 +70,7 @@ const steps = [
 ]
 
 const AgentEditModal = ({ open, agent, onClose, onSave, authUserId }: AgentEditModalProps) => {
-  const [form, setForm] = useState(agent || {})
+  const [form, setForm] = useState<any>(agent || {})
   const commTimeout = useRef<NodeJS.Timeout | null>(null)
   const [currentStep, setCurrentStep] = useState(1)
 
@@ -123,7 +123,7 @@ const AgentEditModal = ({ open, agent, onClose, onSave, authUserId }: AgentEditM
         } else if (calcType === "vat with invoice") {
           vat = ""
           agent = comm && agentsRate && developersRate
-            ? String((Number.parseFloat(comm) * agentsRate) / developersRate)
+            ? String((comm * agentsRate) / developersRate)
             : ""
           netComm = comm ? String(agent) : ""
           ewt = comm ? String((Number(netComm) / 1.02) * 0.10) : ""

@@ -887,6 +887,7 @@ export default function SecretarySalesPage() {
         }),
         user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
         user_email: profile.email,
+        user_uuid: profile.id,
         user_name: profile.full_name || profile.first_name || profile.id,
       })
     }
@@ -1513,7 +1514,7 @@ export default function SecretarySalesPage() {
               sale={selectedSale}
               open={editModalOpen}
               onOpenChange={setEditModalOpen}
-              onSalesUpdated={fetchSales}
+              onSaleUpdated={fetchSales}
             />
           </>
         )}
@@ -1521,7 +1522,7 @@ export default function SecretarySalesPage() {
           <AddRemarkModal
             open={addRemarkModalOpen}
             onOpenChange={setAddRemarkModalOpen}
-            saleId={selectedSaleForRemark?.id || 0}
+            saleId={selectedSaleForRemark?.id || ""}
             onRemarkAdded={handleRemarkAdded}
           />
         )}

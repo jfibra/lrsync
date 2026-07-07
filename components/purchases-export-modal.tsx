@@ -23,7 +23,7 @@ interface Purchase {
   gross_taxable: number
   invoice_number: string | null
   tax_type: string
-  official_receipt: string | null
+  official_receipt?: any
   date_added: string | null
   user_uuid: string | null
   user_full_name: string | null
@@ -100,8 +100,11 @@ export function PurchasesExportModal({ open, onOpenChange, purchases, role = "ad
     return ""
   }
 
-  const getOfficialReceiptFiles = (officialReceipt: string | null) => {
+  const getOfficialReceiptFiles = (officialReceipt: any) => {
     if (!officialReceipt) return ""
+    if (Array.isArray(officialReceipt)) {
+      return officialReceipt.map((url) => decodeURIComponent(url.split("/").pop() || "")).join(", ")
+    }
     try {
       const parsed = JSON.parse(officialReceipt)
       if (Array.isArray(parsed)) {

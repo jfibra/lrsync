@@ -690,25 +690,6 @@ export default function AdminSalesPage() {
                   <CustomExportModal
                     sales={sales}
                     userArea={profile?.assigned_area}
-                    onExport={(exportedCount) => {
-                      if (profile?.id) {
-                        logNotification(supabase, {
-                          action: "export_custom_sales",
-                          user_uuid: profile.id,
-                          user_name: profile.full_name || profile.first_name || profile.id,
-                          user_email: profile.email,
-                          description: `Exported custom sales to Excel (${exportedCount} records)`,
-                          user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
-                          meta: JSON.stringify({
-                            user_id: profile.id,
-                            role: profile.role || "unknown",
-                            dashboard: "admin_sales",
-                            export_type: "custom",
-                            record_count: exportedCount,
-                          }),
-                        });
-                      }
-                    }}
                   />
                   <Button
                     variant="outline"
@@ -1013,7 +994,7 @@ export default function AdminSalesPage() {
               sale={selectedSale}
               open={editModalOpen}
               onOpenChange={setEditModalOpen}
-              onSalesUpdated={fetchSales}
+              onSaleUpdated={fetchSales}
             />
           </>
         )}

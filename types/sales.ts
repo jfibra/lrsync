@@ -24,6 +24,9 @@ export interface Sales {
   is_deleted: boolean
   created_at: string
   updated_at: string
+  user_assigned_area?: string | null
+  remarks?: string | null
+  taxpayer_listings?: any
 }
 
 export interface SalesRecord {

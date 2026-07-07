@@ -562,9 +562,9 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
           file_attachments: fileMeta,
         }),
         user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
-        user_email: profile.email,
-        user_name: profile.full_name || profile.first_name || profile.id,
-        user_uuid: profile.id,
+        user_email: profile?.email || "",
+        user_name: profile?.full_name || profile?.first_name || profile?.id || "Unknown",
+        user_uuid: profile?.id || "",
       });
     } catch (logError) {
       console.error("Error logging notification:", logError);

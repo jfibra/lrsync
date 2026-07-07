@@ -23,11 +23,13 @@ interface Purchase {
   gross_taxable: number
   invoice_number: string | null
   tax_type: string
-  official_receipt: string | null
+  official_receipt?: any
   date_added: string | null
   user_uuid: string | null
   user_full_name: string | null
   remarks: string | null
+  category_id?: string | null
+  total_actual_amount?: number | null
   created_at: string
 }
 
@@ -109,21 +111,24 @@ export function EditPurchasesModal({ open, onOpenChange, purchase, onPurchaseUpd
 
   useEffect(() => {
     if (open && purchase) {
-      try {
-        const files = purchase.official_receipt
-          ? JSON.parse(purchase.official_receipt)
-          : [];
-        setOfficialReceiptFiles(
-          Array.isArray(files)
-            ? files.map((url: string) => ({
-              name: decodeURIComponent(url.split("/").pop() || "Receipt"),
-              url,
-            }))
-            : []
-        );
-      } catch {
-        setOfficialReceiptFiles([]);
+      const rawReceipt = purchase.official_receipt;
+      let files: string[] = [];
+      if (Array.isArray(rawReceipt)) {
+        files = rawReceipt;
+      } else if (typeof rawReceipt === "string" && rawReceipt.trim() !== "") {
+        try {
+          const parsed = JSON.parse(rawReceipt);
+          files = Array.isArray(parsed) ? parsed : [rawReceipt];
+        } catch {
+          files = [rawReceipt];
+        }
       }
+      setOfficialReceiptFiles(
+        files.map((url: string) => ({
+          name: decodeURIComponent(url.split("/").pop() || "Receipt"),
+          url,
+        }))
+      );
     }
     // Optionally clear on close
     if (!open) setOfficialReceiptFiles([]);
@@ -256,7 +261,7 @@ export function EditPurchasesModal({ open, onOpenChange, purchase, onPurchaseUpd
         invoice_number: invoiceNumber || null,
         tax_type: taxType,
         category_id: selectedCategoryId,
-        official_receipt: JSON.stringify(officialReceiptFiles.map(f => f.url)),
+        official_receipt: officialReceiptFiles.map(f => f.url),
         remarks: remarks || null,
         updated_at: new Date().toISOString(),
       }

@@ -81,6 +81,11 @@ interface CommissionAgentBreakdown {
   tl_ewt_rate: number | null
   tl_net_comm: number | null
   memberid: string | null
+  um_bdo_account?: string | null
+  tl_bdo_account?: string | null
+  lrsalesid?: string | null
+  secretary_remarks?: string | null
+  accounting_remarks?: string | null
   commission_report?: {
     uuid: string
     report_number: number

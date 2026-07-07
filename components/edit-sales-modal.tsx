@@ -126,7 +126,7 @@ export function EditSalesModal({ open, onOpenChange, sale, onSaleUpdated }: Edit
   const [invoiceNumber, setInvoiceNumber] = useState("")
   const [taxType, setTaxType] = useState("")
   const [saleType, setSaleType] = useState("")
-  const [pickupDate, setPickupDate] = useState<Date>(new Date())
+  const [pickupDate, setPickupDate] = useState<Date | undefined>(new Date())
 
   // TIN search results
   const [tinResults, setTinResults] = useState<TaxpayerListing[]>([])
@@ -443,9 +443,9 @@ export function EditSalesModal({ open, onOpenChange, sale, onSaleUpdated }: Edit
       // Log notification for all roles
       await logNotification(supabase, {
         action: "sales_updated",
-        user_uuid: profile.id,
-        user_name: profile.full_name || profile.first_name || profile.id,
-        user_email: profile.email,
+        user_uuid: profile?.id || "",
+        user_name: profile?.full_name || profile?.first_name || profile?.id || "Unknown",
+        user_email: profile?.email || "",
         description: `Sales record updated for ${name} (TIN: ${tinSearch})`,
         ip_address: "", // Optionally get from request headers
         location: null, // Optionally provide location info

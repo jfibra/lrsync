@@ -7,7 +7,7 @@ export async function createServerClient() {
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
     auth: {
       storage: {
-        getItem: (key: string) => cookieStore.get(key)?.value,
+        getItem: (key: string) => cookieStore.get(key)?.value ?? null,
         setItem: (key: string, value: string) => {
           cookieStore.set(key, value)
         },

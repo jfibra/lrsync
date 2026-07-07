@@ -1149,31 +1149,7 @@ export default function SuperAdminSalesPage() {
                     <MessageSquarePlus className="h-4 w-4 mr-2" />
                     {showOnlyWithRemarks ? "Show All" : "With Remarks"}
                   </Button>
-                  <CustomExportModal
-                    sales={sales}
-                    onExport={async (exportedCount, selectedFields) => {
-                      if (profile?.id) {
-                        await logNotification(supabase, {
-                          action: "export_custom_sales",
-                          description: `Exported custom sales to Excel (${exportedCount} records)`,
-                          ip_address: null,
-                          location: null,
-                          meta: JSON.stringify({
-                            user_id: profile.id,
-                            role: profile.role || "unknown",
-                            dashboard: "super_admin_sales",
-                            export_type: "custom",
-                            record_count: exportedCount,
-                            selected_fields: selectedFields,
-                          }),
-                          user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
-                          user_email: profile.email,
-                          user_name: profile.full_name || profile.first_name || profile.id,
-                          user_uuid: profile.id,
-                        })
-                      }
-                    }}
-                  />
+                  <CustomExportModal sales={sales} />
                   <Button
                     variant="outline"
                     size="sm"
@@ -1611,7 +1587,7 @@ export default function SuperAdminSalesPage() {
               sale={selectedSale}
               open={editModalOpen}
               onOpenChange={setEditModalOpen}
-              onSalesUpdated={fetchSales}
+              onSaleUpdated={fetchSales}
             />
           </>
         )}
@@ -1659,7 +1635,7 @@ export default function SuperAdminSalesPage() {
         <AddRemarkModal
           open={addRemarkModalOpen}
           onOpenChange={setAddRemarkModalOpen}
-          saleId={selectedSaleForRemark?.id || 0}
+          saleId={selectedSaleForRemark?.id || ""}
           onRemarkAdded={handleRemarkAdded}
         />
 

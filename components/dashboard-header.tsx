@@ -189,7 +189,7 @@ export function DashboardHeader() {
                         >
                           <span className="font-medium text-sm">
                             {" "}
-                            {notif.action.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}{" "}
+                            {notif.action.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())}{" "}
                           </span>
                           <span className="text-xs text-muted-foreground">{notif.description}</span>
                           <span className="text-[10px] text-muted-foreground">

@@ -201,12 +201,13 @@ export function CommissionGenerationModal({
     if (calcType === "vat deduction") {
       return { show: false, options: [0] }
     }
+    return { show: false, options: [0] }
   }
 
   // Group selected sales by developer name and invoice number
   const groupedByDeveloperAndInvoice = selectedSales.reduce(
     (acc, sale) => {
-      const developerId = sale.user_uuid
+      const developerId = sale.user_uuid || ""
       const saleId = sale.id
       const developerName = sale.name || "Unknown Developer"
       const invoiceNumber = sale.invoice_number || "N/A"
@@ -224,7 +225,7 @@ export function CommissionGenerationModal({
       acc[key].sales.push(sale)
       return acc
     },
-    {} as Record<string, { developerId: string; developerName: string; invoiceNumber: string; sales: Sales[] }>,
+    {} as Record<string, { developerId: string; saleId: string; developerName: string; invoiceNumber: string; sales: Sales[] }>,
   )
 
   // Handle search input changes
@@ -475,7 +476,7 @@ export function CommissionGenerationModal({
         netOfVat = ""
         vat = ""
         agent = comm && agentsRate && developersRate
-          ? String((Number.parseFloat(comm) * agentsRate) / developersRate)
+          ? String((comm * agentsRate) / developersRate)
           : ""
         netComm = comm ? String(agent) : ""
         ewt = comm ? String((Number(netComm) / 1.02) * 0.10) : ""
@@ -843,7 +844,7 @@ export function CommissionGenerationModal({
       ]
 
       // Add borders and colors for presentable sheet
-      const range = XLSX.utils.decode_range(worksheet["!ref"])
+      const range = XLSX.utils.decode_range(worksheet["!ref"] || "")
       for (let R = range.s.r; R <= range.e.r; ++R) {
         for (let C = range.s.c; C <= range.e.c; ++C) {
           const cell_address = { c: C, r: R }
@@ -2290,7 +2291,7 @@ export function CommissionGenerationModal({
                               name={`sales[${key}][${index}][pickup_date]`}
                               value={sale.pickup_date || ""}
                             />
-                            <input type="hidden" name={`sales[${key}][${index}][user_uuid]`} value={sale.user_uuid} />
+                            <input type="hidden" name={`sales[${key}][${index}][user_uuid]`} value={sale.user_uuid || ""} />
                             <input
                               type="hidden"
                               name={`sales[${key}][${index}][user_assigned_area]`}

@@ -15,7 +15,7 @@ interface Purchase {
   gross_taxable: number
   invoice_number: string | null
   tax_type: string
-  official_receipt: string | null
+  official_receipt?: any
   date_added: string | null
   user_uuid: string | null
   user_full_name: string | null

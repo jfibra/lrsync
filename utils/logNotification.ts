@@ -1,4 +1,21 @@
-export async function logNotification(supabase, params) {
+import { SupabaseClient } from "@supabase/supabase-js";
+
+interface LogNotificationParams {
+  action: string;
+  description: string;
+  user_email: string;
+  user_name: string;
+  user_uuid: string;
+  ip_address?: string | null;
+  location?: string | null;
+  meta?: string | null;
+  user_agent?: string | null;
+}
+
+export async function logNotification(
+  supabase: SupabaseClient,
+  params: LogNotificationParams
+): Promise<{ error: any }> {
   try {
     // Fetch IP and location from your API route
     const res = await fetch("/api/get-ip-location");
@@ -10,12 +27,14 @@ export async function logNotification(supabase, params) {
       location = data.location;
     }
 
-    await supabase.rpc("log_notification", {
+    const { error } = await supabase.rpc("log_notification", {
       ...params,
-      ip_address,
-      location,
+      ip_address: params.ip_address !== undefined ? params.ip_address : ip_address,
+      location: params.location !== undefined ? params.location : location,
     });
+    return { error };
   } catch (logError) {
     console.error("Error logging notification:", logError);
+    return { error: logError };
   }
 }

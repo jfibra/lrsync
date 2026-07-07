@@ -10,7 +10,7 @@ import { MessageSquarePlus } from "lucide-react"
 interface AddRemarkModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  saleId: number
+  saleId: string
   onRemarkAdded: () => void
 }
 

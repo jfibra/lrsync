@@ -54,6 +54,7 @@ interface CommissionReport {
   deleted_at: string
   remarks: string
   status: string
+  secretary_pot?: string | null
   accounting_pot: string | null
   history: Array<{
     action: string
@@ -61,6 +62,7 @@ interface CommissionReport {
     user_id: string
     timestamp: string
     user_name: string
+    status?: string
   }>
   creator_name?: string
   user_profiles?: {

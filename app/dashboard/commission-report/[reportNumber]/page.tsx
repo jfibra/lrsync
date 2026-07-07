@@ -92,6 +92,7 @@ interface SalesData {
   is_complete: boolean
   remarks: string
   user_full_name: string
+  user_uuid?: string | null
   created_at: string
 }
 
