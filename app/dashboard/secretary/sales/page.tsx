@@ -41,6 +41,7 @@ import * as XLSX from "xlsx"
 import { logNotification } from "@/utils/logNotification"
 import { AddRemarkModal } from "@/components/add-remark-modal"
 import { RemarksModalViewer } from "@/components/remarks-modal-viewer"
+import { formatS3Url } from "@/utils/s3-url"
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat("en-PH", {
@@ -1318,6 +1319,7 @@ export default function SecretarySalesPage() {
                                       files = [rawFiles];
                                     }
                                   }
+                                  files = files.map((u) => formatS3Url(u));
                                   if (files.length === 0) return null;
 
                                   // Separate images and pdfs

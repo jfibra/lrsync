@@ -53,8 +53,8 @@ export async function POST(request: NextRequest) {
       const safeAssignedArea = assigned_area.replace(/[^\w\s\-]/g, "").replace(/\s+/g, " ").trim();
       const safeUserFullName = user_full_name.replace(/[^\w\s\-]/g, "").replace(/\s+/g, " ").trim();
 
-      // Compose file name
-      const fileName = `OR # ${orNumber} - ${safeTinName} - ${safeTinNumber} (${safeAssignedArea} - ${safeUserFullName}).${ext}`;
+      // Compose file name without special hash characters
+      const fileName = `OR ${orNumber} - ${safeTinName} - ${safeTinNumber} (${safeAssignedArea} - ${safeUserFullName}).${ext}`;
 
       // Compose S3 key
       const key = `lrsync/purchases/${year}/${month}/${date}/${fileName}`;
@@ -70,7 +70,10 @@ export async function POST(request: NextRequest) {
       );
       uploaded.push({
         name: fileName,
-        url: `${PUBLIC_URL.replace(/\/$/, "")}/${key.replace(/^\//, "")}`,
+        url: `${PUBLIC_URL.replace(/\/$/, "")}/${key
+          .split("/")
+          .map((seg) => encodeURIComponent(seg))
+          .join("/")}`,
       });
     }
 

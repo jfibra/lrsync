@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { format } from "date-fns"
 import { useAuth } from "@/contexts/auth-context"
 import { ExternalLink, Eye, FileText, Image as ImageIcon } from "lucide-react"
+import { formatS3Url } from "@/utils/s3-url"
 
 interface Purchase {
   id: string
@@ -81,21 +82,21 @@ export function ViewPurchasesModal({ open, onOpenChange, purchase }: ViewPurchas
     return "FILE"
   }
 
-  // Parse attached files safely
+  // Parse attached files safely and encode S3 URLs
   const getAttachmentFiles = (): string[] => {
     if (!purchase?.official_receipt) return []
+    let rawList: string[] = []
     if (Array.isArray(purchase.official_receipt)) {
-      return purchase.official_receipt.filter(Boolean)
-    }
-    if (typeof purchase.official_receipt === "string" && purchase.official_receipt.trim() !== "") {
+      rawList = purchase.official_receipt.filter(Boolean)
+    } else if (typeof purchase.official_receipt === "string" && purchase.official_receipt.trim() !== "") {
       try {
         const parsed = JSON.parse(purchase.official_receipt)
-        return Array.isArray(parsed) ? parsed.filter(Boolean) : [purchase.official_receipt]
+        rawList = Array.isArray(parsed) ? parsed.filter(Boolean) : [purchase.official_receipt]
       } catch {
-        return [purchase.official_receipt]
+        rawList = [purchase.official_receipt]
       }
     }
-    return []
+    return rawList.map((u) => formatS3Url(u))
   }
 
   const files = getAttachmentFiles()

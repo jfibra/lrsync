@@ -11,6 +11,7 @@ import { useAuth } from "@/contexts/auth-context"
 import { supabase } from "@/lib/supabase/client"
 import { logNotification } from "@/utils/logNotification"
 import { Upload, X } from "lucide-react";
+import { formatS3Url } from "@/utils/s3-url";
 
 interface Purchase {
   id: string
@@ -126,7 +127,7 @@ export function EditPurchasesModal({ open, onOpenChange, purchase, onPurchaseUpd
       setOfficialReceiptFiles(
         files.map((url: string) => ({
           name: decodeURIComponent(url.split("/").pop() || "Receipt"),
-          url,
+          url: formatS3Url(url),
         }))
       );
     }
@@ -217,7 +218,8 @@ export function EditPurchasesModal({ open, onOpenChange, purchase, onPurchaseUpd
   };
 
   function getS3KeyFromUrl(url: string) {
-    const match = url.match(/\/(lrsync\/purchases\/.+)$/);
+    const decoded = decodeURIComponent(url);
+    const match = decoded.match(/\/(lrsync\/purchases\/.+)$/);
     return match ? match[1] : null;
   }
 

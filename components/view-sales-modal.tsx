@@ -8,6 +8,7 @@ import { ExternalLink, Eye, FileText, Image as ImageIcon } from "lucide-react"
 import { format } from "date-fns"
 import type { Sales } from "@/types/sales"
 import { useAuth } from "@/contexts/auth-context"
+import { formatS3Url } from "@/utils/s3-url"
 
 interface ViewSalesModalProps {
   open: boolean
@@ -65,16 +66,18 @@ export function ViewSalesModal({ open, onOpenChange, sale }: ViewSalesModalProps
 
   const getFilesArray = (fileProp: any): string[] => {
     if (!fileProp) return []
-    if (Array.isArray(fileProp)) return fileProp.filter(Boolean)
-    if (typeof fileProp === "string" && fileProp.trim() !== "") {
+    let rawList: string[] = []
+    if (Array.isArray(fileProp)) {
+      rawList = fileProp.filter(Boolean)
+    } else if (typeof fileProp === "string" && fileProp.trim() !== "") {
       try {
         const parsed = JSON.parse(fileProp)
-        return Array.isArray(parsed) ? parsed.filter(Boolean) : [fileProp]
+        rawList = Array.isArray(parsed) ? parsed.filter(Boolean) : [fileProp]
       } catch {
-        return [fileProp]
+        rawList = [fileProp]
       }
     }
-    return []
+    return rawList.map((u) => formatS3Url(u))
   }
 
   // Gather all image files across all categories for lightbox navigation

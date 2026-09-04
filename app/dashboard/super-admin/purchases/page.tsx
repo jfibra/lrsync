@@ -35,6 +35,7 @@ import { AddPurchasesRemarkModal } from "@/components/add-purchases-remark-modal
 import { PurchasesExportModal } from "@/components/purchases-export-modal"
 import { ColumnVisibilityControl } from "@/components/column-visibility-control"
 import { RemarksModalViewerPurchases } from "@/components/remarks-modal-viewer-purchases"
+import { formatS3Url } from "@/utils/s3-url"
 
 interface Purchase {
   id: string
@@ -974,6 +975,7 @@ export default function SuperAdminPurchasesPage() {
                               files = [purchase.official_receipt]
                             }
                           }
+                          files = files.map((u) => formatS3Url(u))
 
                           // Helper functions
                           const isImageFile = (url: string) => {

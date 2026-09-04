@@ -43,6 +43,7 @@ import * as XLSX from "xlsx"
 import { format } from "date-fns"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { useRouter } from "next/navigation"
+import { formatS3Url } from "@/utils/s3-url"
 
 interface CommissionReport {
   uuid: string
@@ -645,9 +646,11 @@ export default function SuperAdminCommissionReportsPage() {
           <button onClick={() => setRotation((r) => r + 90)} className="text-white bg-black/50 px-3 py-1 rounded">Rotate Right</button>
           <button onClick={resetTransform} className="text-white bg-black/50 px-3 py-1 rounded">Reset</button>
           <a
-            href={currentImage.url}
+            href={formatS3Url(currentImage.url)}
             download={currentImage.name}
             className="text-white bg-black/50 px-3 py-1 rounded"
+            target="_blank"
+            rel="noopener noreferrer"
           >
             Download
           </a>
@@ -672,7 +675,7 @@ export default function SuperAdminCommissionReportsPage() {
 
         <div className="max-w-4xl max-h-[90vh] flex flex-col items-center">
           <img
-            src={currentImage.url || "/placeholder.svg"}
+            src={formatS3Url(currentImage.url) || "/placeholder.svg"}
             alt={currentImage.name}
             className="max-w-full max-h-[80vh] object-contain"
             style={{

@@ -12,6 +12,7 @@ import { useAuth } from "@/contexts/auth-context"
 import { supabase } from "@/lib/supabase/client"
 import { logNotification } from "@/utils/logNotification"
 import { Upload, X } from "lucide-react";
+import { formatS3Url } from "@/utils/s3-url";
 
 interface AddPurchasesModalProps {
   open: boolean
@@ -314,7 +315,7 @@ export function AddPurchasesModal({ open, onOpenChange, onPurchaseAdded }: AddPu
         ...prev,
         ...data.files.map((f: { name: string; url: string }) => ({
           name: f.name,
-          url: f.url,
+          url: formatS3Url(f.url),
         })),
       ]);
     } catch (error) {
@@ -325,8 +326,8 @@ export function AddPurchasesModal({ open, onOpenChange, onPurchaseAdded }: AddPu
   };
 
   function getS3KeyFromUrl(url: string) {
-    // Example: https://your-bucket.s3.amazonaws.com/lrsync/purchases/2025/08/16/OR # 12345678 - Name - TIN (Area - User).pdf
-    const match = url.match(/\/(lrsync\/purchases\/.+)$/);
+    const decoded = decodeURIComponent(url);
+    const match = decoded.match(/\/(lrsync\/purchases\/.+)$/);
     return match ? match[1] : null;
   }
 

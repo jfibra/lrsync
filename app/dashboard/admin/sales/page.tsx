@@ -53,6 +53,7 @@ import { ColumnVisibilityControl } from "@/components/column-visibility-control"
 import type { Sales } from "@/types/sales";
 import * as XLSX from "xlsx";
 import { logNotification } from "@/utils/logNotification";
+import { formatS3Url } from "@/utils/s3-url";
 
 export default function AdminSalesPage() {
   const { profile } = useAuth();
@@ -1056,6 +1057,7 @@ export default function AdminSalesPage() {
                                         files = [rawFiles];
                                       }
                                     }
+                                    files = files.map((u) => formatS3Url(u));
 
                                     if (files.length === 0) return null;
 

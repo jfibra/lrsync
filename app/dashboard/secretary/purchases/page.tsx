@@ -31,6 +31,7 @@ import { ColumnVisibilityControl } from "@/components/column-visibility-control"
 import * as XLSX from "xlsx"
 import { exportPurchasesToExcel } from "@/utils/export-purchases"
 import { RemarksModalViewerPurchases } from "@/components/remarks-modal-viewer-purchases"
+import { formatS3Url } from "@/utils/s3-url"
 
 // Import modals
 import { AddPurchasesModal } from "@/components/add-purchases-modal"
@@ -990,6 +991,7 @@ export default function SecretaryPurchasesPage() {
                                     files = [purchase.official_receipt]
                                   }
                                 }
+                                files = files.map((u) => formatS3Url(u))
 
                                 // Helper functions
                                 const isImageFile = (url: string) => {

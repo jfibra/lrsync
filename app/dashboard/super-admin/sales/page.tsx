@@ -41,6 +41,7 @@ import * as XLSX from "xlsx"
 import { logNotification } from "@/utils/logNotification"
 import { AddRemarkModal } from "@/components/add-remark-modal"
 import { RemarksModalViewer } from "@/components/remarks-modal-viewer"
+import { formatS3Url } from "@/utils/s3-url"
 
 export default function SuperAdminSalesPage() {
   const { profile } = useAuth()
@@ -1382,6 +1383,7 @@ export default function SuperAdminSalesPage() {
                                       files = [rawFiles];
                                     }
                                   }
+                                  files = files.map((u) => formatS3Url(u));
                                   if (files.length === 0) return null;
 
                                   // Separate images and pdfs
