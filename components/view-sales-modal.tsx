@@ -1,11 +1,10 @@
 "use client"
 
-import React from "react"
-
+import React, { useState, useEffect } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { ExternalLink } from "lucide-react"
+import { ExternalLink, Eye, FileText, Image as ImageIcon } from "lucide-react"
 import { format } from "date-fns"
 import type { Sales } from "@/types/sales"
 import { useAuth } from "@/contexts/auth-context"
@@ -18,9 +17,9 @@ interface ViewSalesModalProps {
 
 export function ViewSalesModal({ open, onOpenChange, sale }: ViewSalesModalProps) {
   const { profile } = useAuth()
-  const [lightboxOpen, setLightboxOpen] = React.useState(false)
-  const [lightboxImages, setLightboxImages] = React.useState<{ url: string; label: string }[]>([])
-  const [lightboxIndex, setLightboxIndex] = React.useState(0)
+  const [lightboxOpen, setLightboxOpen] = useState(false)
+  const [lightboxImages, setLightboxImages] = useState<{ url: string; label: string }[]>([])
+  const [lightboxIndex, setLightboxIndex] = useState(0)
 
   // Format TIN display - add dash after every 3 digits
   const formatTin = (tin: string) => {
@@ -48,12 +47,68 @@ export function ViewSalesModal({ open, onOpenChange, sale }: ViewSalesModalProps
     }
   }
 
-  // Add this helper function inside your component
+  const isImageFile = (url: string) => {
+    const cleanUrl = url.split("?")[0].toLowerCase()
+    return [".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".svg"].some((ext) => cleanUrl.endsWith(ext))
+  }
+
+  const isPdfFile = (url: string) => {
+    const cleanUrl = url.split("?")[0].toLowerCase()
+    return cleanUrl.endsWith(".pdf")
+  }
+
   const getFileTypeLabel = (url: string) => {
-    const ext = url.split(".").pop()?.toLowerCase()
-    if (ext === "pdf") return "PDF"
-    if (["jpg", "jpeg", "png", "gif", "bmp", "webp"].includes(ext || "")) return "IMAGE"
+    if (isPdfFile(url)) return "PDF"
+    if (isImageFile(url)) return "IMAGE"
     return "FILE"
+  }
+
+  const getFilesArray = (fileProp: any): string[] => {
+    if (!fileProp) return []
+    if (Array.isArray(fileProp)) return fileProp.filter(Boolean)
+    if (typeof fileProp === "string" && fileProp.trim() !== "") {
+      try {
+        const parsed = JSON.parse(fileProp)
+        return Array.isArray(parsed) ? parsed.filter(Boolean) : [fileProp]
+      } catch {
+        return [fileProp]
+      }
+    }
+    return []
+  }
+
+  // Gather all image files across all categories for lightbox navigation
+  const getAllImageFiles = () => {
+    if (!sale) return []
+    const categories = [
+      { key: "cheque", label: "Cheque" },
+      { key: "voucher", label: "Voucher" },
+      { key: "invoice", label: "Invoice" },
+      { key: "doc_2307", label: "Doc 2307" },
+      { key: "deposit_slip", label: "Deposit Slip" },
+    ]
+
+    const allImages: { url: string; label: string }[] = []
+    categories.forEach(({ key, label }) => {
+      const urls = getFilesArray(sale[key as keyof Sales])
+      urls.forEach((url, i) => {
+        if (isImageFile(url)) {
+          allImages.push({
+            url,
+            label: `${label} ${urls.length > 1 ? i + 1 : ""}`.trim(),
+          })
+        }
+      })
+    })
+    return allImages
+  }
+
+  const openImageInLightbox = (targetUrl: string) => {
+    const allImages = getAllImageFiles()
+    const targetIdx = allImages.findIndex((img) => img.url === targetUrl)
+    setLightboxImages(allImages)
+    setLightboxIndex(targetIdx >= 0 ? targetIdx : 0)
+    setLightboxOpen(true)
   }
 
   function LightboxModal({
@@ -65,65 +120,116 @@ export function ViewSalesModal({ open, onOpenChange, sale }: ViewSalesModalProps
     index: number
     onClose: () => void
   }) {
-    const [current, setCurrent] = React.useState(index)
-    const [zoom, setZoom] = React.useState(1)
-    const [rotation, setRotation] = React.useState(0)
+    const [current, setCurrent] = useState(index)
+    const [zoom, setZoom] = useState(1)
+    const [rotation, setRotation] = useState(0)
+    const [offset, setOffset] = useState({ x: 0, y: 0 })
+    const [dragging, setDragging] = useState(false)
+    const [start, setStart] = useState<{ x: number; y: number } | null>(null)
 
     const currentImage = images[current]
+
+    useEffect(() => {
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === "ArrowLeft") {
+          setCurrent((prev) => (prev === 0 ? images.length - 1 : prev - 1))
+        } else if (e.key === "ArrowRight") {
+          setCurrent((prev) => (prev === images.length - 1 ? 0 : prev + 1))
+        } else if (e.key === "Escape") {
+          onClose()
+        }
+      }
+      window.addEventListener("keydown", handleKeyDown)
+      return () => window.removeEventListener("keydown", handleKeyDown)
+    }, [images.length, onClose])
+
+    useEffect(() => {
+      setZoom(1)
+      setRotation(0)
+      setOffset({ x: 0, y: 0 })
+    }, [current, index, images])
+
+    const handleMouseDown = (e: React.MouseEvent) => {
+      if (zoom === 1) return
+      setDragging(true)
+      setStart({ x: e.clientX - offset.x, y: e.clientY - offset.y })
+    }
+    const handleMouseMove = (e: React.MouseEvent) => {
+      if (!dragging || zoom === 1) return
+      setOffset({
+        x: e.clientX - (start?.x ?? 0),
+        y: e.clientY - (start?.y ?? 0),
+      })
+    }
+    const handleMouseUp = () => setDragging(false)
 
     const handlePrev = () => setCurrent((prev) => (prev === 0 ? images.length - 1 : prev - 1))
     const handleNext = () => setCurrent((prev) => (prev === images.length - 1 ? 0 : prev + 1))
     const handleZoomIn = () => setZoom((z) => Math.min(z + 0.2, 3))
-    const handleZoomOut = () => setZoom((z) => Math.max(z - 0.2, 0.5))
+    const handleZoomOut = () => setZoom((z) => Math.max(z - 0.2, 1))
     const handleRotate = () => setRotation((r) => r + 90)
-    const handleReset = () => { setZoom(1); setRotation(0) }
-
-    React.useEffect(() => {
-      setCurrent(index)
+    const handleReset = () => {
       setZoom(1)
       setRotation(0)
-    }, [index, images])
+      setOffset({ x: 0, y: 0 })
+    }
 
     if (!currentImage) return null
 
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-90">
+      <div
+        className="fixed inset-0 z-[9999] bg-black bg-opacity-95 overflow-hidden flex items-center justify-center"
+        style={{ touchAction: "none" }}
+        onMouseUp={handleMouseUp}
+        onMouseMove={handleMouseMove}
+      >
         <button
-          className="absolute top-4 right-4 text-white text-2xl"
+          className="absolute top-6 right-6 text-white text-3xl z-20"
           onClick={onClose}
           aria-label="Close"
+          style={{ lineHeight: 1 }}
         >
           ×
         </button>
-        <div className="flex flex-col items-center">
-          <div className="flex gap-2 mb-2">
-            <button onClick={handlePrev} className="text-white px-2 py-1 rounded bg-gray-800 hover:bg-gray-700">&lt;</button>
-            <button onClick={handleNext} className="text-white px-2 py-1 rounded bg-gray-800 hover:bg-gray-700">&gt;</button>
-            <button onClick={handleZoomIn} className="text-white px-2 py-1 rounded bg-gray-800 hover:bg-gray-700">Zoom In</button>
-            <button onClick={handleZoomOut} className="text-white px-2 py-1 rounded bg-gray-800 hover:bg-gray-700">Zoom Out</button>
-            <button onClick={handleRotate} className="text-white px-2 py-1 rounded bg-gray-800 hover:bg-gray-700">Rotate</button>
-            <button onClick={handleReset} className="text-white px-2 py-1 rounded bg-gray-800 hover:bg-gray-700">Reset</button>
-            <a
-              href={currentImage.url}
-              download
-              className="text-white px-2 py-1 rounded bg-gray-800 hover:bg-gray-700"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Download
-            </a>
-          </div>
-          <div className="flex flex-col items-center">
-            <img
-              src={currentImage.url}
-              alt={currentImage.label}
-              className="max-w-[80vw] max-h-[70vh] object-contain"
-              style={{
-                transform: `scale(${zoom}) rotate(${rotation}deg)`,
-                transition: "transform 0.2s",
-              }}
-            />
-            <div className="text-white mt-2">{currentImage.label}</div>
+
+        <div className="absolute top-6 left-1/2 -translate-x-1/2 z-20 flex gap-2 bg-black bg-opacity-60 rounded-lg px-4 py-2">
+          {images.length > 1 && (
+            <>
+              <button onClick={handlePrev} className="text-white px-2 py-1 rounded hover:bg-gray-700">&lt;</button>
+              <button onClick={handleNext} className="text-white px-2 py-1 rounded hover:bg-gray-700">&gt;</button>
+            </>
+          )}
+          <button onClick={handleZoomIn} className="text-white px-2 py-1 rounded hover:bg-gray-700">Zoom In</button>
+          <button onClick={handleZoomOut} className="text-white px-2 py-1 rounded hover:bg-gray-700">Zoom Out</button>
+          <button onClick={handleRotate} className="text-white px-2 py-1 rounded hover:bg-gray-700">Rotate</button>
+          <button onClick={handleReset} className="text-white px-2 py-1 rounded hover:bg-gray-700">Reset</button>
+          <a
+            href={currentImage.url}
+            download
+            className="text-white px-2 py-1 rounded hover:bg-gray-700"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Download
+          </a>
+        </div>
+
+        <div className="absolute inset-0 flex items-center justify-center select-none">
+          <img
+            src={currentImage.url}
+            alt={currentImage.label}
+            className="max-w-[90vw] max-h-[80vh] object-contain"
+            style={{
+              transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom}) rotate(${rotation}deg)`,
+              transition: dragging ? "none" : "transform 0.2s",
+              cursor: zoom > 1 ? "grab" : "default",
+              userSelect: "none",
+            }}
+            draggable={false}
+            onMouseDown={handleMouseDown}
+          />
+          <div className="absolute bottom-8 left-1/2 -translate-x-1/2 text-white bg-black bg-opacity-60 rounded px-3 py-1 z-20 text-sm">
+            {currentImage.label} {images.length > 1 && `(${current + 1} of ${images.length})`}
           </div>
         </div>
       </div>
@@ -131,9 +237,9 @@ export function ViewSalesModal({ open, onOpenChange, sale }: ViewSalesModalProps
   }
 
   // Log view action when modal opens
-  React.useEffect(() => {
+  useEffect(() => {
     if (open && sale) {
-      ; (async () => {
+      ;(async () => {
         try {
           const { supabase } = await import("@/lib/supabase/client")
           await supabase.rpc("log_notification", {
@@ -153,235 +259,222 @@ export function ViewSalesModal({ open, onOpenChange, sale }: ViewSalesModalProps
 
   if (!sale) return null
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-white text-[#001f3f]">
-        <DialogHeader>
-          <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-            Sales Record Details
-          </DialogTitle>
-        </DialogHeader>
+  const chequeFiles = getFilesArray(sale.cheque)
+  const voucherFiles = getFilesArray(sale.voucher)
+  const invoiceFiles = getFilesArray(sale.invoice)
+  const doc2307Files = getFilesArray(sale.doc_2307)
+  const depositSlipFiles = getFilesArray(sale.deposit_slip)
 
-        <div className="space-y-6">
-          {/* Basic Information */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-4">
-              <div>
-                <label className="text-sm font-medium text-[#001f3f]">Tax Month</label>
-                <div className="text-lg font-semibold">{format(new Date(sale.tax_month), "MMMM yyyy")}</div>
-              </div>
+  const hasAnyAttachments =
+    chequeFiles.length > 0 ||
+    voucherFiles.length > 0 ||
+    invoiceFiles.length > 0 ||
+    doc2307Files.length > 0 ||
+    depositSlipFiles.length > 0
 
-              <div>
-                <label className="text-sm font-medium text-[#001f3f]">TIN</label>
-                <div className="text-lg font-mono">{formatTin(sale.tin)}</div>
-              </div>
+  const renderFileCategory = (label: string, filesList: string[]) => {
+    if (filesList.length === 0) return null
 
-              <div>
-                <label className="text-sm font-medium text-[#001f3f]">Name</label>
-                <div className="text-lg font-semibold">{sale.name}</div>
-              </div>
+    return (
+      <div className="space-y-2">
+        <label className="text-sm font-medium text-[#001f3f]">
+          {label} ({filesList.length})
+        </label>
+        <div className="space-y-1.5">
+          {filesList.map((url, index) => {
+            const isImg = isImageFile(url)
+            const isPdf = isPdfFile(url)
+            const typeLabel = getFileTypeLabel(url)
 
-              <div>
-                <label className="text-sm font-medium text-[#001f3f]">Tax Type</label>
-                <div>
-                  <Badge className={getTaxTypeBadgeColor(sale.tax_type)}>{sale.tax_type?.toUpperCase()}</Badge>
+            return (
+              <div
+                key={index}
+                className="flex items-center justify-between p-2 rounded border border-gray-200 bg-gray-50/50 hover:bg-gray-100/80 transition-colors gap-2"
+              >
+                <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                  {isImg ? (
+                    <ImageIcon className="h-4 w-4 text-blue-600 shrink-0" />
+                  ) : (
+                    <FileText className="h-4 w-4 text-red-600 shrink-0" />
+                  )}
+                  <span className="text-xs font-medium text-gray-800 truncate" title={url.split("/").pop()}>
+                    {label} {index + 1}
+                  </span>
+                  <span className="text-[10px] uppercase font-semibold px-1 py-0.2 rounded bg-gray-200 text-gray-700 shrink-0">
+                    {typeLabel}
+                  </span>
                 </div>
-              </div>
-            </div>
 
-            <div className="space-y-4">
-              <div>
-                <label className="text-sm font-medium text-[#001f3f]">Gross Taxable</label>
-                <div className="text-lg font-semibold text-green-600">{formatCurrency(sale.gross_taxable || 0)}</div>
-              </div>
-
-              <div>
-                <label className="text-sm font-medium text-[#001f3f]">Invoice Number</label>
-                <div className="text-lg">{sale.invoice_number || "N/A"}</div>
-              </div>
-
-              <div>
-                <label className="text-sm font-medium text-[#001f3f]">Pickup Date</label>
-                <div className="text-lg">
-                  {sale.pickup_date ? format(new Date(sale.pickup_date), "MMM dd, yyyy") : "N/A"}
-                </div>
-              </div>
-
-              <div>
-                <label className="text-sm font-medium text-[#001f3f]">Date Added</label>
-                <div className="text-lg">{format(new Date(sale.created_at), "MMM dd, yyyy")}</div>
-              </div>
-            </div>
-          </div>
-
-          {/* Address Information */}
-          {(sale.substreet_street_brgy || sale.district_city_zip) && (
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-[#001f3f]">Address Information</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {sale.substreet_street_brgy && (
-                  <div>
-                    <label className="text-sm font-medium text-[#001f3f]">Substreet/Street/Barangay</label>
-                    <div className="text-base">{sale.substreet_street_brgy}</div>
-                  </div>
-                )}
-                {sale.district_city_zip && (
-                  <div>
-                    <label className="text-sm font-medium text-[#001f3f]">District/City/ZIP</label>
-                    <div className="text-base">{sale.district_city_zip}</div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* File Attachments */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-[#001f3f]">File Attachments</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {/* Cheque Files */}
-              {sale.cheque && sale.cheque.length > 0 && (
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-[#001f3f]">Cheque ({sale.cheque.length})</label>
-                  <div className="space-y-1">
-                    {sale.cheque.map((url, index) => (
+                <div className="flex items-center gap-1 shrink-0">
+                  {isImg ? (
+                    <>
                       <Button
-                        key={index}
-                        variant="outline"
+                        type="button"
                         size="sm"
-                        className="w-full justify-between bg-white text-[#001f3f] border-[#001f3f]"
-                        onClick={() => window.open(url, "_blank")}
+                        variant="outline"
+                        className="h-7 px-2 text-xs bg-white text-blue-700 border-blue-200 hover:bg-blue-50"
+                        onClick={() => openImageInLightbox(url)}
                       >
-                        <span className="flex items-center">
-                          <ExternalLink className="h-3 w-3 mr-2" />
-                          Cheque {index + 1}
-                        </span>
-                        <span className="ml-2 text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-700">
-                          {getFileTypeLabel(url)}
-                        </span>
+                        <Eye className="h-3 w-3 mr-1" />
+                        Preview
                       </Button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Voucher Files */}
-              {sale.voucher && sale.voucher.length > 0 && (
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-[#001f3f]">Voucher ({sale.voucher.length})</label>
-                  <div className="space-y-1">
-                    {sale.voucher.map((url, index) => (
                       <Button
-                        key={index}
-                        variant="outline"
+                        type="button"
                         size="sm"
-                        className="w-full justify-between bg-white text-[#001f3f] border-[#001f3f]"
+                        variant="ghost"
+                        className="h-7 px-1.5 text-gray-600 hover:text-blue-600"
                         onClick={() => window.open(url, "_blank")}
+                        title="Open in new tab"
                       >
-                        <span className="flex items-center">
-                          <ExternalLink className="h-3 w-3 mr-2" />
-                          Voucher {index + 1}
-                        </span>
-                        <span className="ml-2 text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-700">
-                          {getFileTypeLabel(url)}
-                        </span>
+                        <ExternalLink className="h-3.5 w-3.5" />
                       </Button>
-                    ))}
-                  </div>
+                    </>
+                  ) : (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-7 px-2 text-xs bg-white text-[#001f3f] border-gray-300 hover:bg-gray-50"
+                      onClick={() => window.open(url, "_blank")}
+                    >
+                      <ExternalLink className="h-3 w-3 mr-1" />
+                      Open {isPdf ? "PDF" : "File"}
+                    </Button>
+                  )}
                 </div>
-              )}
-
-              {/* Invoice Files */}
-              {sale.invoice && sale.invoice.length > 0 && (
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-[#001f3f]">Invoice ({sale.invoice.length})</label>
-                  <div className="space-y-1">
-                    {sale.invoice.map((url, index) => (
-                      <Button
-                        key={index}
-                        variant="outline"
-                        size="sm"
-                        className="w-full justify-between bg-white text-[#001f3f] border-[#001f3f]"
-                        onClick={() => window.open(url, "_blank")}
-                      >
-                        <span className="flex items-center">
-                          <ExternalLink className="h-3 w-3 mr-2" />
-                          Invoice {index + 1}
-                        </span>
-                        <span className="ml-2 text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-700">
-                          {getFileTypeLabel(url)}
-                        </span>
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Doc 2307 Files */}
-              {sale.doc_2307 && sale.doc_2307.length > 0 && (
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-[#001f3f]">Doc 2307 ({sale.doc_2307.length})</label>
-                  <div className="space-y-1">
-                    {sale.doc_2307.map((url, index) => (
-                      <Button
-                        key={index}
-                        variant="outline"
-                        size="sm"
-                        className="w-full justify-between bg-white text-[#001f3f] border-[#001f3f]"
-                        onClick={() => window.open(url, "_blank")}
-                      >
-                        <span className="flex items-center">
-                          <ExternalLink className="h-3 w-3 mr-2" />
-                          Doc 2307 {index + 1}
-                        </span>
-                        <span className="ml-2 text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-700">
-                          {getFileTypeLabel(url)}
-                        </span>
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Deposit Slip Files */}
-              {sale.deposit_slip && sale.deposit_slip.length > 0 && (
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-[#001f3f]">
-                    Deposit Slip ({sale.deposit_slip.length})
-                  </label>
-                  <div className="space-y-1">
-                    {sale.deposit_slip.map((url, index) => (
-                      <Button
-                        key={index}
-                        variant="outline"
-                        size="sm"
-                        className="w-full justify-between bg-white text-[#001f3f] border-[#001f3f]"
-                        onClick={() => window.open(url, "_blank")}
-                      >
-                        <span className="flex items-center">
-                          <ExternalLink className="h-3 w-3 mr-2" />
-                          Deposit Slip {index + 1}
-                        </span>
-                        <span className="ml-2 text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-700">
-                          {getFileTypeLabel(url)}
-                        </span>
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* User Information */}
-          {sale.user_full_name && (
-            <div className="space-y-2 pt-4 border-t">
-              <label className="text-sm font-medium text-[#001f3f]">Added by</label>
-              <div className="text-base">{sale.user_full_name}</div>
-            </div>
-          )}
+              </div>
+            )
+          })}
         </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+    )
+  }
+
+  return (
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-white text-[#001f3f]">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+              Sales Record Details
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-6">
+            {/* Basic Information */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium text-[#001f3f]">Tax Month</label>
+                  <div className="text-lg font-semibold">
+                    {sale.tax_month ? format(new Date(sale.tax_month), "MMMM yyyy") : "N/A"}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium text-[#001f3f]">TIN</label>
+                  <div className="text-lg font-mono">{formatTin(sale.tin || "")}</div>
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium text-[#001f3f]">Name</label>
+                  <div className="text-lg font-semibold">{sale.name}</div>
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium text-[#001f3f]">Tax Type</label>
+                  <div>
+                    <Badge className={getTaxTypeBadgeColor(sale.tax_type)}>{sale.tax_type?.toUpperCase()}</Badge>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium text-[#001f3f]">Gross Taxable</label>
+                  <div className="text-lg font-semibold text-green-600">{formatCurrency(sale.gross_taxable || 0)}</div>
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium text-[#001f3f]">Invoice Number</label>
+                  <div className="text-lg">{sale.invoice_number || "N/A"}</div>
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium text-[#001f3f]">Pickup Date</label>
+                  <div className="text-lg">
+                    {sale.pickup_date ? format(new Date(sale.pickup_date), "MMM dd, yyyy") : "N/A"}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium text-[#001f3f]">Date Added</label>
+                  <div className="text-lg">
+                    {sale.created_at ? format(new Date(sale.created_at), "MMM dd, yyyy") : "N/A"}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Address Information */}
+            {(sale.substreet_street_brgy || sale.district_city_zip) && (
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold text-[#001f3f]">Address Information</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {sale.substreet_street_brgy && (
+                    <div>
+                      <label className="text-sm font-medium text-[#001f3f]">Substreet/Street/Barangay</label>
+                      <div className="text-base">{sale.substreet_street_brgy}</div>
+                    </div>
+                  )}
+                  {sale.district_city_zip && (
+                    <div>
+                      <label className="text-sm font-medium text-[#001f3f]">District/City/ZIP</label>
+                      <div className="text-base">{sale.district_city_zip}</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* File Attachments */}
+            <div className="space-y-4 pt-2 border-t border-gray-200">
+              <h3 className="text-lg font-semibold text-[#001f3f] flex items-center gap-2">
+                <FileText className="h-5 w-5 text-blue-600" />
+                File Attachments
+              </h3>
+              {!hasAnyAttachments ? (
+                <p className="text-sm text-gray-500 italic">No file attachments for this sales record.</p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {renderFileCategory("Cheque", chequeFiles)}
+                  {renderFileCategory("Voucher", voucherFiles)}
+                  {renderFileCategory("Invoice", invoiceFiles)}
+                  {renderFileCategory("Doc 2307", doc2307Files)}
+                  {renderFileCategory("Deposit Slip", depositSlipFiles)}
+                </div>
+              )}
+            </div>
+
+            {/* User Information */}
+            {sale.user_full_name && (
+              <div className="space-y-2 pt-4 border-t">
+                <label className="text-sm font-medium text-[#001f3f]">Added by</label>
+                <div className="text-base">{sale.user_full_name}</div>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Lightbox Modal */}
+      {lightboxOpen && (
+        <LightboxModal
+          images={lightboxImages}
+          index={lightboxIndex}
+          onClose={() => setLightboxOpen(false)}
+        />
+      )}
+    </>
   )
 }

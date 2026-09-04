@@ -123,10 +123,45 @@ export default function InvoiceRecordsPage() {
         setSelectedInvoice(null)
     }
 
+    // Export records to CSV
+    const handleExportCSV = () => {
+        if (invoices.length === 0) return alert("No records to export.")
+        const headers = Object.keys(invoices[0])
+        const escapeCSV = (val: any) => {
+            if (val === null || val === undefined) return ""
+            let str = typeof val === "object" ? JSON.stringify(val) : String(val)
+            if (str.includes(",") || str.includes('"') || str.includes("\n") || str.includes("\r")) {
+                str = '"' + str.replace(/"/g, '""') + '"'
+            }
+            return str
+        }
+        const csvRows = [headers.join(",")]
+        for (const row of invoices) {
+            const values = headers.map(header => escapeCSV((row as any)[header]))
+            csvRows.push(values.join(","))
+        }
+        const blob = new Blob([csvRows.join("\n")], { type: "text/csv;charset=utf-8;" })
+        const url = URL.createObjectURL(blob)
+        const link = document.createElement("a")
+        link.href = url
+        link.setAttribute("download", `dubai_commission_records_${format(new Date(), "yyyyMMdd_HHmmss")}.csv`)
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+    }
+
     return (
         <div className="bg-white min-h-screen">
             <div className="max-w-6xl mx-auto p-4 sm:p-8">
-                <h1 className="text-2xl font-bold mb-6 text-[#002244]">Invoice Records</h1>
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+                    <h1 className="text-2xl font-bold text-[#002244]">Invoice Records</h1>
+                    <button
+                        onClick={handleExportCSV}
+                        className="bg-[#3c8dbc] hover:bg-[#357ca5] text-white px-4 py-2 rounded text-sm font-medium transition-colors flex items-center gap-2"
+                    >
+                        Export to CSV
+                    </button>
+                </div>
                 <div className="mb-4 flex flex-col sm:flex-row gap-2 sm:gap-4 items-start sm:items-center">
                     <input
                         type="text"

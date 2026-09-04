@@ -980,34 +980,35 @@ export default function SecretaryPurchasesPage() {
                               case "official_receipt": {
                                 // Parse files
                                 let files: string[] = []
-                                try {
-                                  if (purchase.official_receipt) {
+                                if (Array.isArray(purchase.official_receipt)) {
+                                  files = purchase.official_receipt.filter(Boolean)
+                                } else if (typeof purchase.official_receipt === "string" && purchase.official_receipt.trim() !== "") {
+                                  try {
                                     const parsed = JSON.parse(purchase.official_receipt)
-                                    files = Array.isArray(parsed) ? parsed : []
-                                  }
-                                } catch {
-                                  if (
-                                    typeof purchase.official_receipt === "string" &&
-                                    purchase.official_receipt.startsWith("http")
-                                  ) {
+                                    files = Array.isArray(parsed) ? parsed.filter(Boolean) : [purchase.official_receipt]
+                                  } catch {
                                     files = [purchase.official_receipt]
                                   }
                                 }
 
-                                // Separate images and pdfs
+                                // Helper functions
                                 const isImageFile = (url: string) => {
-                                  const ext = url.split(".").pop()?.toLowerCase()
-                                  return ["jpg", "jpeg", "png", "gif", "bmp", "webp"].includes(ext || "")
+                                  const cleanUrl = url.split("?")[0].toLowerCase()
+                                  return [".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".svg"].some(ext => cleanUrl.endsWith(ext))
                                 }
-                                const isPdfFile = (url: string) => url.split(".").pop()?.toLowerCase() === "pdf"
+                                const isPdfFile = (url: string) => {
+                                  const cleanUrl = url.split("?")[0].toLowerCase()
+                                  return cleanUrl.endsWith(".pdf")
+                                }
 
                                 const imageFiles = files
+                                  .filter(isImageFile)
                                   .map((url, i) => ({
-                                    url: s3UrlFix(url),
+                                    url,
                                     label: `Attachment ${i + 1}`,
                                   }))
-                                  .filter((f) => isImageFile(f.url));
                                 const pdfFiles = files.filter(isPdfFile)
+                                const otherFiles = files.filter((url) => !isImageFile(url) && !isPdfFile(url))
 
                                 if (!files.length) {
                                   return (
@@ -1019,22 +1020,43 @@ export default function SecretaryPurchasesPage() {
 
                                 return (
                                   <TableCell key={col.key} className="text-[#001f3f]/70">
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      className="w-full justify-start bg-white text-[#3c8dbc] border-[#3c8dbc] hover:bg-[#3c8dbc]/10 hover:text-[#001f3f] px-2 py-1 text-xs font-medium"
-                                      onClick={() => {
-                                        if (imageFiles.length > 0) {
-                                          setLightboxImages(imageFiles)
-                                          setLightboxIndex(0)
-                                          setLightboxOpen(true)
-                                        } else if (pdfFiles.length > 0) {
-                                          pdfFiles.forEach((url) => window.open(url, "_blank"))
-                                        }
-                                      }}
-                                    >
-                                      View Attachments
-                                    </Button>
+                                    <div className="flex flex-wrap gap-1">
+                                      {imageFiles.length > 0 && (
+                                        <Badge
+                                          variant="outline"
+                                          className="text-xs font-semibold bg-blue-50 text-blue-800 border border-blue-200 px-2 py-1 rounded-lg shadow-sm cursor-pointer hover:bg-blue-100"
+                                          onClick={() => {
+                                            setLightboxImages(imageFiles)
+                                            setLightboxIndex(0)
+                                            setLightboxOpen(true)
+                                          }}
+                                        >
+                                          Receipt ({imageFiles.length})
+                                        </Badge>
+                                      )}
+                                      {pdfFiles.length > 0 && (
+                                        <Badge
+                                          variant="outline"
+                                          className="text-xs font-semibold bg-gray-50 text-gray-800 border border-gray-200 px-2 py-1 rounded-lg shadow-sm cursor-pointer hover:bg-gray-100"
+                                          onClick={() => {
+                                            pdfFiles.forEach((url) => window.open(url, "_blank"))
+                                          }}
+                                        >
+                                          PDF ({pdfFiles.length})
+                                        </Badge>
+                                      )}
+                                      {otherFiles.length > 0 && (
+                                        <Badge
+                                          variant="outline"
+                                          className="text-xs font-semibold bg-purple-50 text-purple-800 border border-purple-200 px-2 py-1 rounded-lg shadow-sm cursor-pointer hover:bg-purple-100"
+                                          onClick={() => {
+                                            otherFiles.forEach((url) => window.open(url, "_blank"))
+                                          }}
+                                        >
+                                          File ({otherFiles.length})
+                                        </Badge>
+                                      )}
+                                    </div>
                                   </TableCell>
                                 )
                               }

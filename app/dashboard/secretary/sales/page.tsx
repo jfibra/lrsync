@@ -1306,24 +1306,36 @@ export default function SecretarySalesPage() {
                             <TableCell>
                               <div className="flex flex-wrap gap-1">
                                 {["cheque", "voucher", "invoice", "doc_2307", "deposit_slip"].map((type) => {
-                                  const files = sale[type] || []
-                                  if (files.length === 0) return null
+                                  const rawFiles = sale[type];
+                                  let files: string[] = [];
+                                  if (Array.isArray(rawFiles)) {
+                                    files = rawFiles.filter(Boolean);
+                                  } else if (typeof rawFiles === "string" && rawFiles.trim() !== "") {
+                                    try {
+                                      const parsed = JSON.parse(rawFiles);
+                                      files = Array.isArray(parsed) ? parsed.filter(Boolean) : [rawFiles];
+                                    } catch {
+                                      files = [rawFiles];
+                                    }
+                                  }
+                                  if (files.length === 0) return null;
 
                                   // Separate images and pdfs
                                   const imageFiles = files
+                                    .filter((url: string) => isImageFile(url))
                                     .map((url: string, i: number) => ({
                                       url,
-                                      label: `${type.replace("_", " ").replace(/\b\w/g, l => l.toUpperCase())} ${i + 1}`,
+                                      label: `${type.replace("_", " ").replace(/\b\w/g, l => l.toUpperCase())} ${files.length > 1 ? i + 1 : ""}`.trim(),
                                     }))
-                                    .filter((f) => isImageFile(f.url))
                                   const pdfFiles = files.filter(isPdfFile)
+                                  const otherFiles = files.filter((url: string) => !isImageFile(url) && !isPdfFile(url))
 
                                   return (
                                     <span key={type} className="flex items-center gap-1">
                                       {imageFiles.length > 0 && (
                                         <Badge
                                           variant="outline"
-                                          className="text-xs font-semibold bg-blue-50 text-blue-800 border border-blue-200 px-2 py-1 rounded-lg shadow-sm cursor-pointer"
+                                          className="text-xs font-semibold bg-blue-50 text-blue-800 border border-blue-200 px-2 py-1 rounded-lg shadow-sm cursor-pointer hover:bg-blue-100"
                                           onClick={() => {
                                             setLightboxImages(imageFiles)
                                             setLightboxIndex(0)
@@ -1336,13 +1348,23 @@ export default function SecretarySalesPage() {
                                       {pdfFiles.length > 0 && (
                                         <Badge
                                           variant="outline"
-                                          className="text-xs font-semibold bg-gray-50 text-gray-800 border border-gray-200 px-2 py-1 rounded-lg shadow-sm cursor-pointer"
+                                          className="text-xs font-semibold bg-gray-50 text-gray-800 border border-gray-200 px-2 py-1 rounded-lg shadow-sm cursor-pointer hover:bg-gray-100"
                                           onClick={() => {
-                                            // Open all PDFs in new tabs
                                             pdfFiles.forEach((url) => window.open(url, "_blank"))
                                           }}
                                         >
                                           {type.replace("_", " ").replace(/\b\w/g, l => l.toUpperCase())} PDF ({pdfFiles.length})
+                                        </Badge>
+                                      )}
+                                      {otherFiles.length > 0 && (
+                                        <Badge
+                                          variant="outline"
+                                          className="text-xs font-semibold bg-purple-50 text-purple-800 border border-purple-200 px-2 py-1 rounded-lg shadow-sm cursor-pointer hover:bg-purple-100"
+                                          onClick={() => {
+                                            otherFiles.forEach((url) => window.open(url, "_blank"))
+                                          }}
+                                        >
+                                          {type.replace("_", " ").replace(/\b\w/g, l => l.toUpperCase())} ({otherFiles.length})
                                         </Badge>
                                       )}
                                     </span>

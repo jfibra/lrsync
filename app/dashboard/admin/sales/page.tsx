@@ -66,6 +66,144 @@ export default function AdminSalesPage() {
   const [viewModalOpen, setViewModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [selectedSale, setSelectedSale] = useState<Sales | null>(null);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxImages, setLightboxImages] = useState<{ url: string; label: string }[]>([]);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
+
+  const isImageFile = (url: string) => {
+    const cleanUrl = url.split("?")[0].toLowerCase();
+    return [".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".svg"].some((ext) => cleanUrl.endsWith(ext));
+  };
+
+  const isPdfFile = (url: string) => {
+    const cleanUrl = url.split("?")[0].toLowerCase();
+    return cleanUrl.endsWith(".pdf");
+  };
+
+  function LightboxModal({
+    images,
+    index,
+    onClose,
+  }: {
+    images: { url: string; label: string }[];
+    index: number;
+    onClose: () => void;
+  }) {
+    const [current, setCurrent] = useState(index);
+    const [zoom, setZoom] = useState(1);
+    const [rotation, setRotation] = useState(0);
+    const [offset, setOffset] = useState({ x: 0, y: 0 });
+    const [dragging, setDragging] = useState(false);
+    const [start, setStart] = useState<{ x: number; y: number } | null>(null);
+
+    const currentImage = images[current];
+
+    useEffect(() => {
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === "ArrowLeft") {
+          setCurrent((prev) => (prev === 0 ? images.length - 1 : prev - 1));
+        } else if (e.key === "ArrowRight") {
+          setCurrent((prev) => (prev === images.length - 1 ? 0 : prev + 1));
+        } else if (e.key === "Escape") {
+          onClose();
+        }
+      };
+      window.addEventListener("keydown", handleKeyDown);
+      return () => window.removeEventListener("keydown", handleKeyDown);
+    }, [images.length, onClose]);
+
+    useEffect(() => {
+      setZoom(1);
+      setRotation(0);
+      setOffset({ x: 0, y: 0 });
+    }, [current, index, images]);
+
+    const handleMouseDown = (e: React.MouseEvent) => {
+      if (zoom === 1) return;
+      setDragging(true);
+      setStart({ x: e.clientX - offset.x, y: e.clientY - offset.y });
+    };
+    const handleMouseMove = (e: React.MouseEvent) => {
+      if (!dragging || zoom === 1) return;
+      setOffset({
+        x: e.clientX - (start?.x ?? 0),
+        y: e.clientY - (start?.y ?? 0),
+      });
+    };
+    const handleMouseUp = () => setDragging(false);
+
+    const handlePrev = () => setCurrent((prev) => (prev === 0 ? images.length - 1 : prev - 1));
+    const handleNext = () => setCurrent((prev) => (prev === images.length - 1 ? 0 : prev + 1));
+    const handleZoomIn = () => setZoom((z) => Math.min(z + 0.2, 3));
+    const handleZoomOut = () => setZoom((z) => Math.max(z - 0.2, 1));
+    const handleRotate = () => setRotation((r) => r + 90);
+    const handleReset = () => {
+      setZoom(1);
+      setRotation(0);
+      setOffset({ x: 0, y: 0 });
+    };
+
+    if (!currentImage) return null;
+
+    return (
+      <div
+        className="fixed inset-0 z-[9999] bg-black bg-opacity-95 overflow-hidden flex items-center justify-center"
+        style={{ touchAction: "none" }}
+        onMouseUp={handleMouseUp}
+        onMouseMove={handleMouseMove}
+      >
+        <button
+          className="absolute top-6 right-6 text-white text-3xl z-20"
+          onClick={onClose}
+          aria-label="Close"
+          style={{ lineHeight: 1 }}
+        >
+          ×
+        </button>
+
+        <div className="absolute top-6 left-1/2 -translate-x-1/2 z-20 flex gap-2 bg-black bg-opacity-60 rounded-lg px-4 py-2">
+          {images.length > 1 && (
+            <>
+              <button onClick={handlePrev} className="text-white px-2 py-1 rounded hover:bg-gray-700">&lt;</button>
+              <button onClick={handleNext} className="text-white px-2 py-1 rounded hover:bg-gray-700">&gt;</button>
+            </>
+          )}
+          <button onClick={handleZoomIn} className="text-white px-2 py-1 rounded hover:bg-gray-700">Zoom In</button>
+          <button onClick={handleZoomOut} className="text-white px-2 py-1 rounded hover:bg-gray-700">Zoom Out</button>
+          <button onClick={handleRotate} className="text-white px-2 py-1 rounded hover:bg-gray-700">Rotate</button>
+          <button onClick={handleReset} className="text-white px-2 py-1 rounded hover:bg-gray-700">Reset</button>
+          <a
+            href={currentImage.url}
+            download
+            className="text-white px-2 py-1 rounded hover:bg-gray-700"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Download
+          </a>
+        </div>
+
+        <div className="absolute inset-0 flex items-center justify-center select-none">
+          <img
+            src={currentImage.url}
+            alt={currentImage.label}
+            className="max-w-[90vw] max-h-[80vh] object-contain"
+            style={{
+              transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom}) rotate(${rotation}deg)`,
+              transition: dragging ? "none" : "transform 0.2s",
+              cursor: zoom > 1 ? "grab" : "default",
+              userSelect: "none",
+            }}
+            draggable={false}
+            onMouseDown={handleMouseDown}
+          />
+          <div className="absolute bottom-8 left-1/2 -translate-x-1/2 text-white bg-black bg-opacity-60 rounded px-3 py-1 z-20 text-sm">
+            {currentImage.label} {images.length > 1 && `(${current + 1} of ${images.length})`}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Column visibility state
   const [columnVisibility, setColumnVisibility] = useState([
@@ -905,39 +1043,71 @@ export default function AdminSalesPage() {
                             ?.visible && (
                               <TableCell>
                                 <div className="flex flex-wrap gap-1">
-                                  {sale.cheque && sale.cheque.length > 0 && (
-                                    <Badge
-                                      variant="outline"
-                                      className="text-xs font-semibold bg-blue-50 text-blue-800 border border-blue-200 px-2 py-1 rounded-lg shadow-sm"
-                                    >
-                                      {" "}
-                                      Cheque ( {sale.cheque.length}){" "}
-                                    </Badge>
-                                  )}
-                                  {sale.voucher && sale.voucher.length > 0 && (
-                                    <Badge variant="outline" className="text-xs font-semibold bg-green-50 text-green-800 border border-green-200 px-2 py-1 rounded-lg shadow-sm">
-                                      Voucher ({sale.voucher.length})
-                                    </Badge>
-                                  )}
-                                  {sale.invoice && sale.invoice.length > 0 && (
-                                    <Badge variant="outline" className="text-xs font-semibold bg-yellow-50 text-yellow-800 border border-yellow-200 px-2 py-1 rounded-lg shadow-sm">
-                                      Invoice ({sale.invoice.length})
-                                    </Badge>
-                                  )}
-                                  {sale.doc_2307 && sale.doc_2307.length > 0 && (
-                                    <Badge variant="outline" className="text-xs font-semibold bg-gray-50 text-gray-800 border border-gray-200 px-2 py-1 rounded-lg shadow-sm">
-                                      2307 ({sale.doc_2307.length})
-                                    </Badge>
-                                  )}
-                                  {sale.deposit_slip &&
-                                    sale.deposit_slip.length > 0 && (
-                                      <Badge
-                                        variant="outline"
-                                        className="text-xs font-semibold bg-blue-50 text-blue-800 border border-blue-200 px-2 py-1 rounded-lg shadow-sm"
-                                      >
-                                        Deposit ({sale.deposit_slip.length})
-                                      </Badge>
-                                    )}
+                                  {["cheque", "voucher", "invoice", "doc_2307", "deposit_slip"].map((type) => {
+                                    const rawFiles = sale[type as keyof Sales] as any;
+                                    let files: string[] = [];
+                                    if (Array.isArray(rawFiles)) {
+                                      files = rawFiles.filter(Boolean);
+                                    } else if (typeof rawFiles === "string" && rawFiles.trim() !== "") {
+                                      try {
+                                        const parsed = JSON.parse(rawFiles);
+                                        files = Array.isArray(parsed) ? parsed.filter(Boolean) : [rawFiles];
+                                      } catch {
+                                        files = [rawFiles];
+                                      }
+                                    }
+
+                                    if (files.length === 0) return null;
+
+                                    const imageFiles = files
+                                      .filter(isImageFile)
+                                      .map((url, i) => ({
+                                        url,
+                                        label: `${type.replace("_", " ").replace(/\b\w/g, (l) => l.toUpperCase())} ${files.length > 1 ? i + 1 : ""}`.trim(),
+                                      }));
+                                    const pdfFiles = files.filter(isPdfFile);
+                                    const otherFiles = files.filter((url) => !isImageFile(url) && !isPdfFile(url));
+
+                                    return (
+                                      <span key={type} className="flex items-center gap-1">
+                                        {imageFiles.length > 0 && (
+                                          <Badge
+                                            variant="outline"
+                                            className="text-xs font-semibold bg-blue-50 text-blue-800 border border-blue-200 px-2 py-1 rounded-lg shadow-sm cursor-pointer hover:bg-blue-100"
+                                            onClick={() => {
+                                              setLightboxImages(imageFiles);
+                                              setLightboxIndex(0);
+                                              setLightboxOpen(true);
+                                            }}
+                                          >
+                                            {type.replace("_", " ").replace(/\b\w/g, (l) => l.toUpperCase())} ({imageFiles.length})
+                                          </Badge>
+                                        )}
+                                        {pdfFiles.length > 0 && (
+                                          <Badge
+                                            variant="outline"
+                                            className="text-xs font-semibold bg-gray-50 text-gray-800 border border-gray-200 px-2 py-1 rounded-lg shadow-sm cursor-pointer hover:bg-gray-100"
+                                            onClick={() => {
+                                              pdfFiles.forEach((url) => window.open(url, "_blank"));
+                                            }}
+                                          >
+                                            {type.replace("_", " ").replace(/\b\w/g, (l) => l.toUpperCase())} PDF ({pdfFiles.length})
+                                          </Badge>
+                                        )}
+                                        {otherFiles.length > 0 && (
+                                          <Badge
+                                            variant="outline"
+                                            className="text-xs font-semibold bg-purple-50 text-purple-800 border border-purple-200 px-2 py-1 rounded-lg shadow-sm cursor-pointer hover:bg-purple-100"
+                                            onClick={() => {
+                                              otherFiles.forEach((url) => window.open(url, "_blank"));
+                                            }}
+                                          >
+                                            {type.replace("_", " ").replace(/\b\w/g, (l) => l.toUpperCase())} ({otherFiles.length})
+                                          </Badge>
+                                        )}
+                                      </span>
+                                    );
+                                  })}
                                 </div>
                               </TableCell>
                             )}
@@ -997,6 +1167,15 @@ export default function AdminSalesPage() {
               onSaleUpdated={fetchSales}
             />
           </>
+        )}
+
+        {/* Lightbox Modal */}
+        {lightboxOpen && (
+          <LightboxModal
+            images={lightboxImages}
+            index={lightboxIndex}
+            onClose={() => setLightboxOpen(false)}
+          />
         )}
       </div>
     </ProtectedRoute>
