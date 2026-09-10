@@ -454,24 +454,43 @@ export default function SecretarySalesPage() {
       if (!profile?.assigned_area) {
         setSales([])
         setTotalCount(0)
+        setStats({ totalSales: 0, vatSales: 0, nonVatSales: 0, totalAmount: 0, totalActualAmount: 0 })
         return
       }
 
-      const areaUserIds = allProfiles
+      // Ensure allProfiles is populated before executing sales queries
+      let profiles = allProfiles
+      if (!profiles || profiles.length === 0) {
+        const { data: pData, error: pError } = await supabase
+          .from("user_profiles")
+          .select("id, auth_user_id, assigned_area, full_name")
+
+        if (pError) throw pError
+        profiles = pData || []
+        setAllProfiles(profiles)
+
+        const creatorMap = new Map(profiles.map((p) => [p.id, p.full_name]))
+        setCreatorIdToName(Object.fromEntries(creatorMap))
+      }
+
+      // Filter strictly by the secretary's assigned area
+      const areaUserIds = profiles
         .filter((p) => p.assigned_area === profile.assigned_area)
         .map((p) => p.auth_user_id)
         .filter(Boolean)
 
-      if (allProfiles.length > 0 && areaUserIds.length === 0) {
+      // If no users exist for this area, return empty immediately - NEVER query all sales
+      if (areaUserIds.length === 0) {
         setSales([])
         setTotalCount(0)
+        setStats({ totalSales: 0, vatSales: 0, nonVatSales: 0, totalAmount: 0, totalActualAmount: 0 })
         return
       }
 
       const from = (currentPage - 1) * pageSize
       const to = from + pageSize - 1
 
-      // Build paginated sales query
+      // Build paginated sales query strictly scoped to secretary's area
       let salesQuery = supabase
         .from("sales")
         .select(
@@ -486,20 +505,16 @@ export default function SecretarySalesPage() {
           { count: "exact" },
         )
         .eq("is_deleted", false)
+        .in("user_uuid", areaUserIds)
         .order("created_at", { ascending: false })
         .range(from, to)
 
-      // Build lightweight stats query
+      // Build lightweight stats query strictly scoped to secretary's area
       let statsQuery = supabase
         .from("sales")
         .select("tax_type, gross_taxable, total_actual_amount")
         .eq("is_deleted", false)
-
-      // Scope to secretary's area users
-      if (areaUserIds.length > 0) {
-        salesQuery = salesQuery.in("user_uuid", areaUserIds)
-        statsQuery = statsQuery.in("user_uuid", areaUserIds)
-      }
+        .in("user_uuid", areaUserIds)
 
       // Apply filters
       if (debouncedSearchTerm) {
@@ -623,7 +638,7 @@ export default function SecretarySalesPage() {
     if (profile?.assigned_area) {
       fetchSales()
     }
-  }, [profile?.assigned_area, debouncedSearchTerm, filterTaxType, filterMonth, showOnlyWithRemarks, currentPage, pageSize, allProfiles])
+  }, [profile?.assigned_area, debouncedSearchTerm, filterTaxType, filterMonth, showOnlyWithRemarks, currentPage, pageSize])
 
   // Reset to page 1 on filter changes
   useEffect(() => {
@@ -752,10 +767,20 @@ export default function SecretarySalesPage() {
   const fetchAllFilteredSalesForExport = async () => {
     try {
       if (!profile?.assigned_area) return []
-      const areaUserIds = allProfiles
+      let profiles = allProfiles
+      if (!profiles || profiles.length === 0) {
+        const { data: pData } = await supabase
+          .from("user_profiles")
+          .select("id, auth_user_id, assigned_area, full_name")
+        profiles = pData || []
+      }
+
+      const areaUserIds = profiles
         .filter((p) => p.assigned_area === profile.assigned_area)
         .map((p) => p.auth_user_id)
         .filter(Boolean)
+
+      if (areaUserIds.length === 0) return []
 
       let query = supabase
         .from("sales")
@@ -770,14 +795,9 @@ export default function SecretarySalesPage() {
         `,
         )
         .eq("is_deleted", false)
+        .in("user_uuid", areaUserIds)
         .order("created_at", { ascending: false })
         .limit(10000)
-
-      if (areaUserIds.length > 0) {
-        query = query.in("user_uuid", areaUserIds)
-      } else {
-        return []
-      }
       if (debouncedSearchTerm) {
         query = query.or(
           `name.ilike.%${debouncedSearchTerm}%,tin.ilike.%${debouncedSearchTerm}%,invoice_number.ilike.%${debouncedSearchTerm}%`,
@@ -1198,12 +1218,12 @@ export default function SecretarySalesPage() {
                     style={{ color: "#001f3f" }}
                   >
                     <BarChart3 className="h-5 w-5 sm:h-6 sm:w-6" style={{ color: "#001f3f" }} />
-                    Sales Records
+                    Sales Records {profile?.assigned_area ? `(${profile.assigned_area})` : ""}
                   </CardTitle>
                   <CardDescription style={{ color: "#555" }} className="mt-1 text-sm sm:text-base">
                     {loading
                       ? "Loading..."
-                      : `${totalCount} records found${showOnlyWithRemarks ? " (with remarks)" : ""}`}
+                      : `${totalCount} records found in ${profile?.assigned_area || "your area"}${showOnlyWithRemarks ? " (with remarks)" : ""}`}
                   </CardDescription>
                 </div>
                 <div className="flex flex-col gap-2 sm:flex-row sm:gap-2 w-full sm:w-auto">
