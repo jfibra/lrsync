@@ -75,6 +75,28 @@ const getMostRecentRemark = (remarks: string | any[] | null) => {
   return sortedRemarks[0]
 }
 
+const AREA_ADDRESS_KEYWORDS: Record<string, string[]> = {
+  Palawan: ["Palawan", "Puerto Princesa", "5300", "5301"],
+  Cebu: ["Cebu", "Mandaue", "Lapu-Lapu", "Lapulapu", "Talisay", "Minglanilla", "Consolacion", "Liloan", "Carcar", "Danao", "Cordova"],
+  Davao: ["Davao", "Tagum", "Panabo", "8000"],
+  Butuan: ["Butuan", "Agusan", "Bayugan", "Ampayon", "8600", "8502"],
+  Gensan: ["Gensan", "General Santos", "Gen. Santos", "Gen Santos", "South Cotabato", "Koronadal", "9500"],
+  CDO: ["CDO", "Cagayan de Oro", "Upper Balulang", "Misamis Oriental", "9000"],
+  Bacolod: ["Bacolod", "Negros Occidental", "Silay", "Bago", "6100"],
+  Iloilo: ["Iloilo", "Pavia", "Oton", "Leganes", "5000"],
+  Bohol: ["Bohol", "Tagbilaran", "Panglao", "Dauis", "6300"],
+  Dumaguete: ["Dumaguete", "Negros Oriental", "Sibulan", "6200"],
+  Camsur: ["Camsur", "Camarines Sur", "Naga", "Pili", "4400"],
+  Manila: ["Manila", "Pasig", "Makati", "Taguig", "Quezon City", "Mandaluyong", "Pasay", "Paranaque", "San Juan", "Las Pinas", "Muntinlupa", "Caloocan", "Marikina", "Valenzuela", "NCR", "Bonifacio", "Ortigas", "Alabang"],
+}
+
+const buildAreaAddressFilter = (assignedArea: string): string => {
+  const keywords = AREA_ADDRESS_KEYWORDS[assignedArea] || [assignedArea]
+  return keywords
+    .flatMap((k) => [`substreet_street_brgy.ilike.%${k}%`, `district_city_zip.ilike.%${k}%`])
+    .join(",")
+}
+
 export default function SecretarySalesPage() {
   const { profile } = useAuth()
   const [sales, setSales] = useState<Sales[]>([])
@@ -458,7 +480,7 @@ export default function SecretarySalesPage() {
         return
       }
 
-      // Ensure allProfiles is populated before executing sales queries
+      // Ensure allProfiles is populated for lookup maps
       let profiles = allProfiles
       if (!profiles || profiles.length === 0) {
         const { data: pData, error: pError } = await supabase
@@ -470,27 +492,18 @@ export default function SecretarySalesPage() {
         setAllProfiles(profiles)
 
         const creatorMap = new Map(profiles.map((p) => [p.id, p.full_name]))
+        profiles.forEach((p) => {
+          if (p.auth_user_id) creatorMap.set(p.auth_user_id, p.full_name)
+        })
         setCreatorIdToName(Object.fromEntries(creatorMap))
       }
 
-      // Filter strictly by the secretary's assigned area
-      const areaUserIds = profiles
-        .filter((p) => p.assigned_area === profile.assigned_area)
-        .map((p) => p.auth_user_id)
-        .filter(Boolean)
-
-      // If no users exist for this area, return empty immediately - NEVER query all sales
-      if (areaUserIds.length === 0) {
-        setSales([])
-        setTotalCount(0)
-        setStats({ totalSales: 0, vatSales: 0, nonVatSales: 0, totalAmount: 0, totalActualAmount: 0 })
-        return
-      }
+      const addressFilter = buildAreaAddressFilter(profile.assigned_area)
 
       const from = (currentPage - 1) * pageSize
       const to = from + pageSize - 1
 
-      // Build paginated sales query strictly scoped to secretary's area
+      // Build paginated sales query strictly filtered by developer address in secretary's area
       let salesQuery = supabase
         .from("sales")
         .select(
@@ -505,16 +518,16 @@ export default function SecretarySalesPage() {
           { count: "exact" },
         )
         .eq("is_deleted", false)
-        .in("user_uuid", areaUserIds)
+        .or(addressFilter)
         .order("created_at", { ascending: false })
         .range(from, to)
 
-      // Build lightweight stats query strictly scoped to secretary's area
+      // Build lightweight stats query strictly filtered by developer address in secretary's area
       let statsQuery = supabase
         .from("sales")
         .select("tax_type, gross_taxable, total_actual_amount")
         .eq("is_deleted", false)
-        .in("user_uuid", areaUserIds)
+        .or(addressFilter)
 
       // Apply filters
       if (debouncedSearchTerm) {
@@ -775,12 +788,7 @@ export default function SecretarySalesPage() {
         profiles = pData || []
       }
 
-      const areaUserIds = profiles
-        .filter((p) => p.assigned_area === profile.assigned_area)
-        .map((p) => p.auth_user_id)
-        .filter(Boolean)
-
-      if (areaUserIds.length === 0) return []
+      const addressFilter = buildAreaAddressFilter(profile.assigned_area)
 
       let query = supabase
         .from("sales")
@@ -795,7 +803,7 @@ export default function SecretarySalesPage() {
         `,
         )
         .eq("is_deleted", false)
-        .in("user_uuid", areaUserIds)
+        .or(addressFilter)
         .order("created_at", { ascending: false })
         .limit(10000)
       if (debouncedSearchTerm) {
