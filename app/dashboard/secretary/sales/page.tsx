@@ -80,8 +80,17 @@ export default function SecretarySalesPage() {
   const [sales, setSales] = useState<Sales[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("")
   const [filterTaxType, setFilterTaxType] = useState("all")
   const [filterMonth, setFilterMonth] = useState("all")
+
+  // Debounce search input to avoid re-fetching on every single keystroke
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [searchTerm])
 
   // Modal states
   const [viewModalOpen, setViewModalOpen] = useState(false)
@@ -420,7 +429,7 @@ export default function SecretarySalesPage() {
         return
       }
 
-      // First get sales data
+      // Build sales query
       let salesQuery = supabase
         .from("sales")
         .select(
@@ -435,12 +444,12 @@ export default function SecretarySalesPage() {
         )
         .eq("is_deleted", false)
         .order("created_at", { ascending: false })
-        .limit(50000) // <-- Increase this as needed (max 10000 for Supabase)
+        .limit(50000)
 
       // Apply filters
-      if (searchTerm) {
+      if (debouncedSearchTerm) {
         salesQuery = salesQuery.or(
-          `name.ilike.%${searchTerm}%,tin.ilike.%${searchTerm}%,invoice_number.ilike.%${searchTerm}%`,
+          `name.ilike.%${debouncedSearchTerm}%,tin.ilike.%${debouncedSearchTerm}%,invoice_number.ilike.%${debouncedSearchTerm}%`,
         )
       }
 
@@ -457,65 +466,47 @@ export default function SecretarySalesPage() {
         salesQuery = salesQuery.gte("tax_month", startDate).lt("tax_month", endDate)
       }
 
-      const { data: salesData, error: salesError } = await salesQuery
-
-      if (salesError) throw salesError
-
-      // Get user profiles for the users who created these sales
-      const userUuids = [...new Set(salesData?.map((sale) => sale.user_uuid).filter(Boolean))]
-
-      let userProfiles = []
-      if (userUuids.length > 0) {
-        const { data: profilesData, error: profilesError } = await supabase
+      // Parallelize fetching sales, commission reports, and user profiles
+      const [salesResult, reportsResult, profilesResult] = await Promise.all([
+        salesQuery,
+        supabase
+          .from("commission_report")
+          .select("report_number, sales_uuids, created_by, created_at, status, deleted_at"),
+        supabase
           .from("user_profiles")
-          .select("auth_user_id, assigned_area, full_name")
-          .in("auth_user_id", userUuids)
+          .select("id, auth_user_id, assigned_area, full_name"),
+      ])
 
-        if (profilesError) throw profilesError
-        userProfiles = profilesData || []
-      }
+      if (salesResult.error) throw salesResult.error
+      if (reportsResult.error) throw reportsResult.error
+      if (profilesResult.error) throw profilesResult.error
+
+      const salesData = salesResult.data || []
+      const reportsData = reportsResult.data || []
+      const profilesData = profilesResult.data || []
+
+      // Create O(1) Fast Lookup Maps
+      const profileMap = new Map(profilesData.map((p) => [p.auth_user_id, p]))
+      const creatorMap = new Map(profilesData.map((p) => [p.id, p.full_name]))
 
       // Combine sales data with user profiles and filter by secretary's assigned area
-      const salesWithProfiles =
-        salesData?.map((sale) => {
-          const userProfile = userProfiles.find((profile) => profile.auth_user_id === sale.user_uuid)
-          return {
-            ...sale,
-            user_assigned_area: userProfile?.assigned_area || null,
-          }
-        }) || []
+      const salesWithProfiles = salesData.map((sale) => {
+        const userProfile = profileMap.get(sale.user_uuid)
+        return {
+          ...sale,
+          user_assigned_area: userProfile?.assigned_area || null,
+        }
+      })
 
       // Filter to only show sales from the secretary's assigned area
       const filteredData = salesWithProfiles.filter((sale) => sale.user_assigned_area === profile.assigned_area)
 
       setSales(filteredData)
 
-      // After setSales(filteredData)
-      const saleIds = filteredData?.map((sale) => sale.id) || []
-      let commissionReports: any[] = []
-      if (saleIds.length > 0) {
-        // Chunk saleIds to avoid HTTP 400 Bad Request URL length limits
-        const chunkSize = 100;
-        for (let i = 0; i < saleIds.length; i += chunkSize) {
-          const chunk = saleIds.slice(i, i + chunkSize);
-          const { data: reportsData, error: reportsError } = await supabase
-            .from("commission_report")
-            .select("report_number, sales_uuids, created_by, created_at, status, deleted_at")
-            .overlaps("sales_uuids", chunk)
-
-          if (reportsError) {
-            console.error("Error fetching commission reports:", reportsError)
-            throw reportsError
-          } else if (reportsData) {
-            commissionReports.push(...reportsData)
-          }
-        }
-      }
-
       // Map saleId to commission report info
       const saleIdToCommissionObj: Record<string, any> = {}
-      commissionReports.forEach((report) => {
-        ; (report.sales_uuids || []).forEach((saleId: string) => {
+      reportsData.forEach((report) => {
+        ;(report.sales_uuids || []).forEach((saleId: string) => {
           saleIdToCommissionObj[saleId] = {
             report_number: report.report_number,
             created_by: report.created_by,
@@ -527,17 +518,7 @@ export default function SecretarySalesPage() {
       })
       setSaleIdToCommission(saleIdToCommissionObj)
 
-      // Fetch creator names
-      const creatorIds = [...new Set(commissionReports.map((r) => r.created_by).filter(Boolean))]
-      let creators: any[] = []
-      if (creatorIds.length > 0) {
-        const { data: creatorProfiles } = await supabase
-          .from("user_profiles")
-          .select("id, full_name")
-          .in("id", creatorIds)
-        creators = creatorProfiles || []
-      }
-      const creatorIdToNameObj = Object.fromEntries(creators.map((c) => [c.id, c.full_name]))
+      const creatorIdToNameObj = Object.fromEntries(creatorMap)
       setCreatorIdToName(creatorIdToNameObj)
     } catch (error) {
       console.error("Error fetching sales:", error)
@@ -548,13 +529,13 @@ export default function SecretarySalesPage() {
 
   useEffect(() => {
     setCurrentPage(1)
-  }, [searchTerm, filterTaxType, filterMonth])
+  }, [debouncedSearchTerm, filterTaxType, filterMonth])
 
   useEffect(() => {
     if (profile?.assigned_area) {
       fetchSales()
     }
-  }, [searchTerm, filterTaxType, filterMonth, profile?.assigned_area])
+  }, [profile?.assigned_area, debouncedSearchTerm, filterTaxType, filterMonth])
 
   // Get tax type badge color
   const getTaxTypeBadgeColor = (taxType: string) => {
@@ -591,7 +572,7 @@ export default function SecretarySalesPage() {
     return options
   }
 
-  const monthOptions = generateMonthOptions()
+  const monthOptions = useMemo(() => generateMonthOptions(), [])
 
   // Pagination calculations
   const paginatedSales = useMemo(() => {

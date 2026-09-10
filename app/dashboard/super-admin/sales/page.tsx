@@ -48,10 +48,19 @@ export default function SuperAdminSalesPage() {
   const [sales, setSales] = useState<Sales[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("")
   const [filterTaxType, setFilterTaxType] = useState("all")
   const [filterMonth, setFilterMonth] = useState("all")
   const [filterArea, setFilterArea] = useState("all")
   const [availableAreas, setAvailableAreas] = useState<string[]>([])
+
+  // Debounce search input to avoid re-fetching on every single keystroke
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [searchTerm])
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1)
@@ -294,12 +303,12 @@ export default function SuperAdminSalesPage() {
     }
   }
 
-  // Fetch sales data
+  // Fetch sales data (optimized parallel queries)
   const fetchSales = async () => {
     try {
       setLoading(true)
 
-      // First get sales data
+      // Build sales query
       let salesQuery = supabase
         .from("sales")
         .select(
@@ -317,9 +326,9 @@ export default function SuperAdminSalesPage() {
         .limit(50000)
 
       // Apply filters
-      if (searchTerm) {
+      if (debouncedSearchTerm) {
         salesQuery = salesQuery.or(
-          `name.ilike.%${searchTerm}%,tin.ilike.%${searchTerm}%,invoice_number.ilike.%${searchTerm}%`,
+          `name.ilike.%${debouncedSearchTerm}%,tin.ilike.%${debouncedSearchTerm}%,invoice_number.ilike.%${debouncedSearchTerm}%`,
         )
       }
 
@@ -336,33 +345,37 @@ export default function SuperAdminSalesPage() {
         salesQuery = salesQuery.gte("tax_month", startDate).lt("tax_month", endDate)
       }
 
-      const { data: salesData, error: salesError } = await salesQuery
-
-      if (salesError) throw salesError
-
-      // Get user profiles for the users who created these sales
-      const userUuids = [...new Set(salesData?.map((sale) => sale.user_uuid).filter(Boolean))]
-
-      let userProfiles = []
-      if (userUuids.length > 0) {
-        const { data: profilesData, error: profilesError } = await supabase
+      // Parallelize fetching sales, commission reports, and user profiles
+      const [salesResult, reportsResult, profilesResult] = await Promise.all([
+        salesQuery,
+        supabase
+          .from("commission_report")
+          .select("report_number, sales_uuids, created_by, created_at, status, deleted_at"),
+        supabase
           .from("user_profiles")
-          .select("auth_user_id, assigned_area, full_name")
-          .in("auth_user_id", userUuids)
+          .select("id, auth_user_id, assigned_area, full_name"),
+      ])
 
-        if (profilesError) throw profilesError
-        userProfiles = profilesData || []
-      }
+      if (salesResult.error) throw salesResult.error
+      if (reportsResult.error) throw reportsResult.error
+      if (profilesResult.error) throw profilesResult.error
+
+      const salesData = salesResult.data || []
+      const reportsData = reportsResult.data || []
+      const profilesData = profilesResult.data || []
+
+      // Create O(1) Fast Lookup Maps
+      const profileMap = new Map(profilesData.map((p) => [p.auth_user_id, p]))
+      const creatorMap = new Map(profilesData.map((p) => [p.id, p.full_name]))
 
       // Combine sales data with user profiles
-      const salesWithProfiles =
-        salesData?.map((sale) => {
-          const userProfile = userProfiles.find((profile) => profile.auth_user_id === sale.user_uuid)
-          return {
-            ...sale,
-            user_assigned_area: userProfile?.assigned_area || null,
-          }
-        }) || []
+      const salesWithProfiles = salesData.map((sale) => {
+        const userProfile = profileMap.get(sale.user_uuid)
+        return {
+          ...sale,
+          user_assigned_area: userProfile?.assigned_area || null,
+        }
+      })
 
       // Filter by area if selected
       let filteredData = salesWithProfiles
@@ -372,29 +385,10 @@ export default function SuperAdminSalesPage() {
 
       setSales(filteredData)
 
-      const saleIds = filteredData?.map((sale) => sale.id) || []
-      let commissionReports = []
-      if (saleIds.length > 0) {
-        // Chunk saleIds to avoid HTTP 400 Bad Request URL length limits
-        const chunkSize = 100;
-        for (let i = 0; i < saleIds.length; i += chunkSize) {
-          const chunk = saleIds.slice(i, i + chunkSize);
-          const { data: reportsData, error: reportsError } = await supabase
-            .from("commission_report")
-            .select("report_number, sales_uuids, created_by, created_at, status, deleted_at")
-            .overlaps("sales_uuids", chunk)
-
-          if (reportsError) throw reportsError
-          if (reportsData) {
-            commissionReports.push(...reportsData)
-          }
-        }
-      }
-
       // Map saleId to commission report info
       const saleIdToCommissionObj: Record<string, any> = {}
-      commissionReports.forEach((report) => {
-        ; (report.sales_uuids || []).forEach((saleId) => {
+      reportsData.forEach((report) => {
+        ;(report.sales_uuids || []).forEach((saleId: string) => {
           saleIdToCommissionObj[saleId] = {
             report_number: report.report_number,
             created_by: report.created_by,
@@ -406,16 +400,7 @@ export default function SuperAdminSalesPage() {
       })
       setSaleIdToCommission(saleIdToCommissionObj)
 
-      const creatorIds = [...new Set(commissionReports.map((r) => r.created_by).filter(Boolean))]
-      let creators = []
-      if (creatorIds.length > 0) {
-        const { data: creatorProfiles } = await supabase
-          .from("user_profiles")
-          .select("id, full_name")
-          .in("id", creatorIds)
-        creators = creatorProfiles || []
-      }
-      const creatorIdToNameObj = Object.fromEntries(creators.map((c) => [c.id, c.full_name]))
+      const creatorIdToNameObj = Object.fromEntries(creatorMap)
       setCreatorIdToName(creatorIdToNameObj)
     } catch (error) {
       console.error("Error fetching sales:", error)
@@ -430,7 +415,7 @@ export default function SuperAdminSalesPage() {
 
   useEffect(() => {
     fetchSales()
-  }, [searchTerm, filterTaxType, filterMonth, filterArea, sortField, sortDirection])
+  }, [debouncedSearchTerm, filterTaxType, filterMonth, filterArea, sortField, sortDirection])
 
   // Format currency
   const formatCurrency = (amount: number) => {
@@ -481,7 +466,7 @@ export default function SuperAdminSalesPage() {
     return options
   }
 
-  const monthOptions = generateMonthOptions()
+  const monthOptions = useMemo(() => generateMonthOptions(), [])
 
   const getMostRecentRemark = (remarksJson: string | null) => {
     if (!remarksJson) return null
@@ -863,12 +848,29 @@ export default function SuperAdminSalesPage() {
     }
   }
 
-  // Calculate stats
-  const totalSales = sales.length
-  const vatSales = sales.filter((s) => s.tax_type === "vat").length
-  const nonVatSales = sales.filter((s) => s.tax_type === "non-vat").length
-  const totalAmount = sales.reduce((sum, sale) => sum + (sale.gross_taxable || 0), 0)
-  const totalActualAmount = sales.reduce((sum, sale) => sum + (sale.total_actual_amount || 0), 0)
+  // Calculate stats in a single pass with memoization
+  const { totalSales, vatSales, nonVatSales, totalAmount, totalActualAmount } = useMemo(() => {
+    let vat = 0
+    let nonVat = 0
+    let amount = 0
+    let actualAmount = 0
+
+    for (let i = 0; i < sales.length; i++) {
+      const s = sales[i]
+      if (s.tax_type === "vat") vat++
+      else if (s.tax_type === "non-vat") nonVat++
+      amount += s.gross_taxable || 0
+      actualAmount += s.total_actual_amount || 0
+    }
+
+    return {
+      totalSales: sales.length,
+      vatSales: vat,
+      nonVatSales: nonVat,
+      totalAmount: amount,
+      totalActualAmount: actualAmount,
+    }
+  }, [sales])
 
   const handleRemarksUpdate = (saleId: string, updatedRemarks: any[]) => {
     setSales((prevSales) =>
