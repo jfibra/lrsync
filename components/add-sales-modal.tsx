@@ -32,6 +32,7 @@ import { supabase } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { logNotification } from "@/utils/logNotification";
 import { useRouter } from "next/navigation";
+import { formatS3Url } from "@/utils/s3-url";
 
 interface AddSalesModalProps {
   onSalesAdded: () => void;
@@ -90,8 +91,11 @@ const uploadToS3API = async (
       : `${baseFileName}.${fileExtension}`;
 
   formData.append("file_name", fileName);
+  formData.append("tin", tin);
+  formData.append("file_type", fileType);
+  formData.append("existing_count", existingFileCount.toString());
 
-  const apiUrl = `${process.env.NEXT_PUBLIC_NEXT_API_ROUTE_LR}/upload-tax-file`;
+  const apiUrl = "/api/upload-sales-attachments";
 
   try {
     const response = await fetch(apiUrl, {
@@ -110,16 +114,11 @@ const uploadToS3API = async (
       );
     }
 
-    const responseText = await response.text();
+    const result = await response.json();
+    const uploadedUrl = result.url || (result["0"] && result["0"].url);
 
-    if (!responseText.trim()) {
-      throw new Error("Empty response from server");
-    }
-
-    const result = JSON.parse(responseText);
-
-    if (result.success && result["0"] && result["0"].url) {
-      return result["0"].url;
+    if (result.success && uploadedUrl) {
+      return formatS3Url(uploadedUrl);
     } else {
       throw new Error("Invalid response structure: missing URL in response");
     }
@@ -389,13 +388,6 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
     });
 
     if (validFiles.length === 0) return;
-
-    if (!process.env.NEXT_PUBLIC_NEXT_API_ROUTE_LR) {
-      alert(
-        "API endpoint not configured. Please check NEXT_PUBLIC_NEXT_API_ROUTE_LR environment variable."
-      );
-      return;
-    }
 
     setFileUploads((prev) =>
       prev.map((upload) =>
