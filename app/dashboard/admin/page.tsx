@@ -31,47 +31,48 @@ export default function AdminDashboard() {
     try {
       setLoading(true)
 
-      // Get users in same assigned area as admin
-      const { count: areaUsers } = await supabase
+      const area = profile?.assigned_area || ""
+
+      // 1. Get all profiles in assigned area once
+      const { data: areaProfiles, error: profileError } = await supabase
         .from("user_profiles")
-        .select("*", { count: "exact", head: true })
-        .eq("assigned_area", profile?.assigned_area || "")
-        .eq("status", "active")
+        .select("auth_user_id, role, status")
+        .eq("assigned_area", area)
 
-      // Get unique departments (roles) in the same area
-      const { data: departmentData } = await supabase
-        .from("user_profiles")
-        .select("role")
-        .eq("assigned_area", profile?.assigned_area || "")
-        .eq("status", "active")
+      if (profileError) throw profileError
 
-      const uniqueDepartments = new Set(departmentData?.map((item) => item.role) || [])
+      const activeProfiles = areaProfiles?.filter((u) => u.status === "active") || []
+      const uniqueDepartments = new Set(activeProfiles.map((item) => item.role).filter(Boolean))
+      const userIds = areaProfiles?.map((user) => user.auth_user_id).filter(Boolean) || []
 
-      // Get sales records for users in the same area
-      const { data: areaUserIds } = await supabase
-        .from("user_profiles")
-        .select("auth_user_id")
-        .eq("assigned_area", profile?.assigned_area || "")
+      if (userIds.length === 0) {
+        setStats({
+          areaUsers: activeProfiles.length,
+          departments: uniqueDepartments.size,
+          areaSales: 0,
+          areaTaxpayers: 0,
+        })
+        return
+      }
 
-      const userIds = areaUserIds?.map((user) => user.auth_user_id) || []
-
-      const { count: areaSales } = await supabase
-        .from("sales")
-        .select("*", { count: "exact", head: true })
-        .in("user_uuid", userIds)
-        .eq("is_deleted", false)
-
-      // Get taxpayer listings for users in the same area
-      const { count: areaTaxpayers } = await supabase
-        .from("taxpayer_listings")
-        .select("*", { count: "exact", head: true })
-        .in("user_uuid", userIds)
+      // 2. Query sales and taxpayer listings counts in parallel
+      const [salesRes, taxpayersRes] = await Promise.all([
+        supabase
+          .from("sales")
+          .select("*", { count: "exact", head: true })
+          .in("user_uuid", userIds)
+          .eq("is_deleted", false),
+        supabase
+          .from("taxpayer_listings")
+          .select("*", { count: "exact", head: true })
+          .in("user_uuid", userIds),
+      ])
 
       setStats({
-        areaUsers: areaUsers || 0,
+        areaUsers: activeProfiles.length,
         departments: uniqueDepartments.size,
-        areaSales: areaSales || 0,
-        areaTaxpayers: areaTaxpayers || 0,
+        areaSales: salesRes.count || 0,
+        areaTaxpayers: taxpayersRes.count || 0,
       })
     } catch (error) {
       console.error("Error fetching dashboard stats:", error)

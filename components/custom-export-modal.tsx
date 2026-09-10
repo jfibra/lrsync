@@ -22,7 +22,8 @@ import { supabase } from "@/lib/supabase/client";
 import { logNotification } from "@/utils/logNotification";
 
 interface CustomExportModalProps {
-  sales: Sales[]
+  sales?: Sales[]
+  fetchSales?: () => Promise<Sales[]>
   userArea?: string
 }
 
@@ -32,7 +33,7 @@ interface ExportField {
   selected: boolean
 }
 
-export function CustomExportModal({ sales, userArea }: CustomExportModalProps) {
+export function CustomExportModal({ sales, fetchSales, userArea }: CustomExportModalProps) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const { profile } = useAuth();
@@ -93,6 +94,13 @@ export function CustomExportModal({ sales, userArea }: CustomExportModalProps) {
         return
       }
 
+      const exportData = fetchSales ? await fetchSales() : (sales || [])
+
+      if (exportData.length === 0) {
+        alert("No records found to export.")
+        return
+      }
+
       // Create workbook
       const wb = XLSX.utils.book_new()
 
@@ -100,7 +108,7 @@ export function CustomExportModal({ sales, userArea }: CustomExportModalProps) {
       const headers = selectedFields.map((field) => field.label)
 
       // Create data rows
-      const dataRows = sales.map((sale) => {
+      const dataRows = exportData.map((sale) => {
         const row: (string | number)[] = []
 
         selectedFields.forEach((field) => {
@@ -184,7 +192,7 @@ export function CustomExportModal({ sales, userArea }: CustomExportModalProps) {
             minute: "2-digit",
           }),
         ],
-        ["Total Records:", sales.length],
+        ["Total Records:", exportData.length],
         ["Selected Fields:", selectedFields.length],
         [""],
         headers,
@@ -225,15 +233,15 @@ export function CustomExportModal({ sales, userArea }: CustomExportModalProps) {
 
       await logNotification(supabase, {
         action: "export_custom_sales",
-        description: `Exported custom sales to Excel (${sales.length} records)`,
+        description: `Exported custom sales to Excel (${exportData.length} records)`,
         ip_address: null,
         location: null,
         meta: JSON.stringify({
           user_id: profile?.id,
           role: profile?.role || "unknown",
-          dashboard: "secretary_sales",
+          dashboard: "sales_custom_export",
           export_type: "custom",
-          record_count: sales.length,
+          record_count: exportData.length,
           area: userArea,
           selected_fields: exportFields.filter(f => f.selected).map(f => f.key),
         }),

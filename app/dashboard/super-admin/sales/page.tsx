@@ -65,6 +65,16 @@ export default function SuperAdminSalesPage() {
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
+  const [totalCount, setTotalCount] = useState(0)
+  const [allProfiles, setAllProfiles] = useState<any[]>([])
+  const [isExporting, setIsExporting] = useState(false)
+  const [stats, setStats] = useState({
+    totalSales: 0,
+    vatSales: 0,
+    nonVatSales: 0,
+    totalAmount: 0,
+    totalActualAmount: 0,
+  })
 
   // Modal states
   const [viewModalOpen, setViewModalOpen] = useState(false)
@@ -276,19 +286,22 @@ export default function SuperAdminSalesPage() {
     setColumnVisibility((prev) => prev.map((col) => (col.key === key ? { ...col, visible: !col.visible } : col)))
   }
 
-  // Fetch available areas for filter dropdown
-  const fetchAvailableAreas = async () => {
+  // Fetch available profiles & areas once on mount
+  const fetchProfilesAndAreas = async () => {
     try {
       const { data, error } = await supabase
         .from("user_profiles")
-        .select("assigned_area")
-        .not("assigned_area", "is", null)
-        .order("assigned_area")
+        .select("id, auth_user_id, assigned_area, full_name")
 
       if (error) throw error
+      const profiles = data || []
+      setAllProfiles(profiles)
 
-      const uniqueAreas = [...new Set(data.map((item) => item.assigned_area).filter(Boolean))]
+      const uniqueAreas = [...new Set(profiles.map((item) => item.assigned_area).filter(Boolean))]
       setAvailableAreas(uniqueAreas)
+
+      const creatorMap = new Map(profiles.map((p) => [p.id, p.full_name]))
+      setCreatorIdToName(Object.fromEntries(creatorMap))
     } catch (error) {
       console.error("Error fetching available areas:", error)
     }
@@ -303,12 +316,15 @@ export default function SuperAdminSalesPage() {
     }
   }
 
-  // Fetch sales data (optimized parallel queries)
+  // Fetch sales data (server-side range pagination & parallel stats)
   const fetchSales = async () => {
     try {
       setLoading(true)
 
-      // Build sales query
+      const from = (currentPage - 1) * pageSize
+      const to = from + pageSize - 1
+
+      // Build paginated sales query
       let salesQuery = supabase
         .from("sales")
         .select(
@@ -320,22 +336,35 @@ export default function SuperAdminSalesPage() {
               district_city_zip
             )
           `,
+          { count: "exact" },
         )
         .eq("is_deleted", false)
         .order(sortField, { ascending: sortDirection === "asc" })
-        .limit(50000)
+        .range(from, to)
 
-      // Apply filters
+      // Build lightweight stats query
+      let statsQuery = supabase
+        .from("sales")
+        .select("tax_type, gross_taxable, total_actual_amount")
+        .eq("is_deleted", false)
+
+      // Apply search filter
       if (debouncedSearchTerm) {
         salesQuery = salesQuery.or(
           `name.ilike.%${debouncedSearchTerm}%,tin.ilike.%${debouncedSearchTerm}%,invoice_number.ilike.%${debouncedSearchTerm}%`,
         )
+        statsQuery = statsQuery.or(
+          `name.ilike.%${debouncedSearchTerm}%,tin.ilike.%${debouncedSearchTerm}%,invoice_number.ilike.%${debouncedSearchTerm}%`,
+        )
       }
 
+      // Apply tax type filter
       if (filterTaxType !== "all") {
         salesQuery = salesQuery.eq("tax_type", filterTaxType)
+        statsQuery = statsQuery.eq("tax_type", filterTaxType)
       }
 
+      // Apply month filter
       if (filterMonth !== "all") {
         const [year, month] = filterMonth.split("-")
         const startDate = `${year}-${month}-01`
@@ -343,65 +372,108 @@ export default function SuperAdminSalesPage() {
         const nextYear = Number.parseInt(month) === 12 ? Number.parseInt(year) + 1 : Number.parseInt(year)
         const endDate = `${nextYear}-${String(nextMonth).padStart(2, "0")}-01`
         salesQuery = salesQuery.gte("tax_month", startDate).lt("tax_month", endDate)
+        statsQuery = statsQuery.gte("tax_month", startDate).lt("tax_month", endDate)
       }
 
-      // Parallelize fetching sales, commission reports, and user profiles
-      const [salesResult, reportsResult, profilesResult] = await Promise.all([
-        salesQuery,
-        supabase
-          .from("commission_report")
-          .select("report_number, sales_uuids, created_by, created_at, status, deleted_at"),
-        supabase
-          .from("user_profiles")
-          .select("id, auth_user_id, assigned_area, full_name"),
-      ])
+      // Apply area filter
+      if (filterArea !== "all") {
+        const areaUserIds = allProfiles
+          .filter((p) => p.assigned_area === filterArea)
+          .map((p) => p.auth_user_id)
+          .filter(Boolean)
+
+        if (areaUserIds.length > 0) {
+          salesQuery = salesQuery.in("user_uuid", areaUserIds)
+          statsQuery = statsQuery.in("user_uuid", areaUserIds)
+        } else {
+          salesQuery = salesQuery.in("user_uuid", ["00000000-0000-0000-0000-000000000000"])
+          statsQuery = statsQuery.in("user_uuid", ["00000000-0000-0000-0000-000000000000"])
+        }
+      }
+
+      // Apply remarks filter if active
+      if (showOnlyWithRemarks) {
+        const [reportsRes, salesWithRemarksRes] = await Promise.all([
+          supabase.from("commission_report").select("sales_uuids").is("deleted_at", null),
+          supabase.from("sales").select("id").eq("is_deleted", false).not("remarks", "is", null).neq("remarks", "[]"),
+        ])
+        const idsWithRemarks = new Set<string>()
+        ;(reportsRes.data || []).forEach((r) => (r.sales_uuids || []).forEach((id: string) => idsWithRemarks.add(id)))
+        ;(salesWithRemarksRes.data || []).forEach((s) => idsWithRemarks.add(s.id))
+
+        const remarkIdsList = Array.from(idsWithRemarks)
+        if (remarkIdsList.length > 0) {
+          salesQuery = salesQuery.in("id", remarkIdsList)
+          statsQuery = statsQuery.in("id", remarkIdsList)
+        } else {
+          salesQuery = salesQuery.in("id", ["00000000-0000-0000-0000-000000000000"])
+          statsQuery = statsQuery.in("id", ["00000000-0000-0000-0000-000000000000"])
+        }
+      }
+
+      // Execute paginated query and stats query in parallel
+      const [salesResult, statsResult] = await Promise.all([salesQuery, statsQuery])
 
       if (salesResult.error) throw salesResult.error
-      if (reportsResult.error) throw reportsResult.error
-      if (profilesResult.error) throw profilesResult.error
+      if (statsResult.error) throw statsResult.error
 
       const salesData = salesResult.data || []
-      const reportsData = reportsResult.data || []
-      const profilesData = profilesResult.data || []
+      const total = salesResult.count || 0
+      setTotalCount(total)
 
-      // Create O(1) Fast Lookup Maps
-      const profileMap = new Map(profilesData.map((p) => [p.auth_user_id, p]))
-      const creatorMap = new Map(profilesData.map((p) => [p.id, p.full_name]))
-
-      // Combine sales data with user profiles
-      const salesWithProfiles = salesData.map((sale) => {
-        const userProfile = profileMap.get(sale.user_uuid)
-        return {
-          ...sale,
-          user_assigned_area: userProfile?.assigned_area || null,
-        }
-      })
-
-      // Filter by area if selected
-      let filteredData = salesWithProfiles
-      if (filterArea !== "all") {
-        filteredData = filteredData.filter((sale) => sale.user_assigned_area === filterArea)
+      // Calculate stats from lightweight projection
+      const statsData = statsResult.data || []
+      let vat = 0
+      let nonVat = 0
+      let amount = 0
+      let actualAmount = 0
+      for (let i = 0; i < statsData.length; i++) {
+        const s = statsData[i]
+        if (s.tax_type === "vat") vat++
+        else if (s.tax_type === "non-vat") nonVat++
+        amount += s.gross_taxable || 0
+        actualAmount += s.total_actual_amount || 0
       }
-
-      setSales(filteredData)
-
-      // Map saleId to commission report info
-      const saleIdToCommissionObj: Record<string, any> = {}
-      reportsData.forEach((report) => {
-        ;(report.sales_uuids || []).forEach((saleId: string) => {
-          saleIdToCommissionObj[saleId] = {
-            report_number: report.report_number,
-            created_by: report.created_by,
-            created_at: report.created_at,
-            status: report.status,
-            deleted_at: report.deleted_at,
-          }
-        })
+      setStats({
+        totalSales: total,
+        vatSales: vat,
+        nonVatSales: nonVat,
+        totalAmount: amount,
+        totalActualAmount: actualAmount,
       })
-      setSaleIdToCommission(saleIdToCommissionObj)
 
-      const creatorIdToNameObj = Object.fromEntries(creatorMap)
-      setCreatorIdToName(creatorIdToNameObj)
+      // Combine sales with cached user profile areas
+      const profileMap = new Map(allProfiles.map((p) => [p.auth_user_id, p]))
+      const salesWithProfiles = salesData.map((sale) => ({
+        ...sale,
+        user_assigned_area: profileMap.get(sale.user_uuid)?.assigned_area || null,
+      }))
+      setSales(salesWithProfiles)
+
+      // Fetch commission reports ONLY for the sales displayed on this page
+      const pageIds = salesWithProfiles.map((s) => s.id)
+      if (pageIds.length > 0) {
+        const { data: reportsData } = await supabase
+          .from("commission_report")
+          .select("report_number, sales_uuids, created_by, created_at, status, deleted_at")
+          .overlaps("sales_uuids", pageIds)
+
+        const saleIdToCommissionObj: Record<string, any> = {}
+        ;(reportsData || []).forEach((report) => {
+          ;(report.sales_uuids || []).forEach((saleId: string) => {
+            saleIdToCommissionObj[saleId] = {
+              report_number: report.report_number,
+              created_by: report.created_by,
+              created_at: report.created_at,
+              status: report.status,
+              deleted_at: report.deleted_at,
+            }
+          })
+        })
+        setSaleIdToCommission(saleIdToCommissionObj)
+      } else {
+        setSaleIdToCommission({})
+      }
     } catch (error) {
       console.error("Error fetching sales:", error)
     } finally {
@@ -410,12 +482,17 @@ export default function SuperAdminSalesPage() {
   }
 
   useEffect(() => {
-    fetchAvailableAreas()
+    fetchProfilesAndAreas()
   }, [])
 
   useEffect(() => {
     fetchSales()
-  }, [debouncedSearchTerm, filterTaxType, filterMonth, filterArea, sortField, sortDirection])
+  }, [debouncedSearchTerm, filterTaxType, filterMonth, filterArea, showOnlyWithRemarks, sortField, sortDirection, currentPage, pageSize, allProfiles])
+
+  // Reset to page 1 when search or filter terms change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [debouncedSearchTerm, filterTaxType, filterMonth, filterArea, showOnlyWithRemarks])
 
   // Format currency
   const formatCurrency = (amount: number) => {
@@ -484,41 +561,9 @@ export default function SuperAdminSalesPage() {
     }
   }
 
-  // Pagination calculations
-  const paginatedSales = useMemo(() => {
-    let filteredSales = sales
-    if (showOnlyWithRemarks) {
-      filteredSales = sales.filter((sale) => {
-        const recentRemark = getMostRecentRemark(sale.remarks)
-        const hasCommission = saleIdToCommission[sale.id] && !saleIdToCommission[sale.id].deleted_at
-        return recentRemark || hasCommission
-      })
-    }
-
-    const startIndex = (currentPage - 1) * pageSize
-    const endIndex = startIndex + pageSize
-    return filteredSales.slice(startIndex, endIndex)
-  }, [sales, currentPage, pageSize, showOnlyWithRemarks, saleIdToCommission])
-
-  const filteredSalesCount = useMemo(() => {
-    if (showOnlyWithRemarks) {
-      return sales.filter((sale) => {
-        const recentRemark = getMostRecentRemark(sale.remarks)
-        const hasCommission = saleIdToCommission[sale.id] && !saleIdToCommission[sale.id].deleted_at
-        return recentRemark || hasCommission
-      }).length
-    }
-    return sales.length
-  }, [sales, showOnlyWithRemarks, saleIdToCommission])
-
-  const totalPages = Math.ceil(filteredSalesCount / pageSize)
-  const startRecord = filteredSalesCount === 0 ? 0 : (currentPage - 1) * pageSize + 1
-  const endRecord = Math.min(currentPage * pageSize, filteredSalesCount)
-
-  // Reset to page 1 when search term changes
-  useEffect(() => {
-    setCurrentPage(1)
-  }, [searchTerm, filterTaxType, filterMonth, filterArea])
+  const totalPages = Math.ceil(totalCount / pageSize)
+  const startRecord = totalCount === 0 ? 0 : (currentPage - 1) * pageSize + 1
+  const endRecord = Math.min(currentPage * pageSize, totalCount)
 
   // Generate page numbers for pagination
   const getPageNumbers = () => {
@@ -626,42 +671,74 @@ export default function SuperAdminSalesPage() {
     }
   }
 
-  // Add this helper function inside your component
-  const fetchAllSales = async () => {
-    const { data, error } = await supabase
-      .from("sales")
-      .select(
-        `
-        *,
-        taxpayer_listings (
-          registered_name,
-          substreet_street_brgy,
-          district_city_zip
+  // Helper to fetch all filtered sales on-demand for export
+  const fetchAllFilteredSalesForExport = async () => {
+    try {
+      let query = supabase
+        .from("sales")
+        .select(
+          `
+            *,
+            taxpayer_listings (
+              registered_name,
+              substreet_street_brgy,
+              district_city_zip
+            )
+          `,
         )
-      `,
-      )
-      .eq("is_deleted", false)
-      .order(sortField, { ascending: sortDirection === "asc" })
-      .limit(10000) // or use .range(0, 9999) for more than 1000 records
+        .eq("is_deleted", false)
+        .order(sortField, { ascending: sortDirection === "asc" })
+        .limit(10000)
 
-    if (error) {
-      console.error("Error fetching all sales for export:", error)
+      if (debouncedSearchTerm) {
+        query = query.or(
+          `name.ilike.%${debouncedSearchTerm}%,tin.ilike.%${debouncedSearchTerm}%,invoice_number.ilike.%${debouncedSearchTerm}%`,
+        )
+      }
+      if (filterTaxType !== "all") {
+        query = query.eq("tax_type", filterTaxType)
+      }
+      if (filterMonth !== "all") {
+        const [year, month] = filterMonth.split("-")
+        const startDate = `${year}-${month}-01`
+        const nextMonth = Number.parseInt(month) === 12 ? 1 : Number.parseInt(month) + 1
+        const nextYear = Number.parseInt(month) === 12 ? Number.parseInt(year) + 1 : Number.parseInt(year)
+        const endDate = `${nextYear}-${String(nextMonth).padStart(2, "0")}-01`
+        query = query.gte("tax_month", startDate).lt("tax_month", endDate)
+      }
+      if (filterArea !== "all") {
+        const areaUserIds = allProfiles
+          .filter((p) => p.assigned_area === filterArea)
+          .map((p) => p.auth_user_id)
+          .filter(Boolean)
+        if (areaUserIds.length > 0) {
+          query = query.in("user_uuid", areaUserIds)
+        } else {
+          return []
+        }
+      }
+
+      const { data, error } = await query
+      if (error) throw error
+      const profileMap = new Map(allProfiles.map((p) => [p.auth_user_id, p]))
+      return (data || []).map((sale) => ({
+        ...sale,
+        user_assigned_area: profileMap.get(sale.user_uuid)?.assigned_area || null,
+      }))
+    } catch (error) {
+      console.error("Error fetching sales for export:", error)
       return []
     }
-    return data || []
   }
 
   // Export to Excel function - exclude non-invoice sales
   const exportToExcel = async () => {
-    // Determine if any filter or search is active
-    const isFiltered = !!searchTerm || filterTaxType !== "all" || filterMonth !== "all" || filterArea !== "all"
+    try {
+      setIsExporting(true)
+      const exportSales = await fetchAllFilteredSalesForExport()
 
-    // If no filters/search, export all records (not just the current page)
-    // If filtered, export only the filtered records (those in the datatable)
-    const exportSales = isFiltered ? sales : await fetchAllSales()
-
-    // Filter out non-invoice sales for export
-    const invoiceSales = exportSales.filter((sale) => sale.sale_type === "invoice")
+      // Filter out non-invoice sales for export
+      const invoiceSales = exportSales.filter((sale) => sale.sale_type === "invoice")
 
     // Calculate statistics for invoice sales only
     const totalSales = invoiceSales.length
@@ -846,31 +923,16 @@ export default function SuperAdminSalesPage() {
         user_uuid: profile.id,
       })
     }
+  } catch (error) {
+    console.error("Export error:", error)
+    alert("Error exporting data. Please try again.")
+  } finally {
+    setIsExporting(false)
   }
+}
 
-  // Calculate stats in a single pass with memoization
-  const { totalSales, vatSales, nonVatSales, totalAmount, totalActualAmount } = useMemo(() => {
-    let vat = 0
-    let nonVat = 0
-    let amount = 0
-    let actualAmount = 0
-
-    for (let i = 0; i < sales.length; i++) {
-      const s = sales[i]
-      if (s.tax_type === "vat") vat++
-      else if (s.tax_type === "non-vat") nonVat++
-      amount += s.gross_taxable || 0
-      actualAmount += s.total_actual_amount || 0
-    }
-
-    return {
-      totalSales: sales.length,
-      vatSales: vat,
-      nonVatSales: nonVat,
-      totalAmount: amount,
-      totalActualAmount: actualAmount,
-    }
-  }, [sales])
+  // Summary statistics from server query
+  const { totalSales, vatSales, nonVatSales, totalAmount, totalActualAmount } = stats
 
   const handleRemarksUpdate = (saleId: string, updatedRemarks: any[]) => {
     setSales((prevSales) =>
@@ -1135,7 +1197,7 @@ export default function SuperAdminSalesPage() {
                   <CardDescription className="text-gray-600 mt-1 text-sm sm:text-base">
                     {loading
                       ? "Loading..."
-                      : `${filteredSalesCount} records found${showOnlyWithRemarks ? " (with remarks)" : ""}`}
+                      : `${totalCount} records found${showOnlyWithRemarks ? " (with remarks)" : ""}`}
                   </CardDescription>
                 </div>
                 <div className="flex flex-col gap-2 sm:flex-row sm:gap-2 w-full sm:w-auto">
@@ -1152,16 +1214,17 @@ export default function SuperAdminSalesPage() {
                     <MessageSquarePlus className="h-4 w-4 mr-2" />
                     {showOnlyWithRemarks ? "Show All" : "With Remarks"}
                   </Button>
-                  <CustomExportModal sales={sales} />
+                  <CustomExportModal sales={sales} fetchSales={fetchAllFilteredSalesForExport} />
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={exportToExcel}
-                    className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white border-0 shadow-lg flex items-center justify-center"
+                    disabled={isExporting}
+                    className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white border-0 shadow-lg flex items-center justify-center disabled:opacity-50"
                   >
                     <Download className="h-4 w-4 mr-2" />
-                    <span className="hidden xs:inline">Export (Invoice Only)</span>
-                    <span className="inline xs:hidden">Export</span>
+                    <span className="hidden xs:inline">{isExporting ? "Exporting..." : "Export (Invoice Only)"}</span>
+                    <span className="inline xs:hidden">{isExporting ? "..." : "Export"}</span>
                   </Button>
                 </div>
               </div>
@@ -1277,7 +1340,7 @@ export default function SuperAdminSalesPage() {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      paginatedSales.map((sale) => (
+                      sales.map((sale) => (
                         <TableRow key={sale.id} className="hover:bg-gray-50 transition-colors border-b border-gray-100">
                           {columnVisibility.find((col) => col.key === "tax_month")?.visible && (
                             <TableCell className="text-gray-900 font-medium">
@@ -1526,7 +1589,7 @@ export default function SuperAdminSalesPage() {
                   </div>
 
                   <div className="text-sm text-gray-600">
-                    Showing {startRecord} to {endRecord} of {sales.length} records
+                    Showing {startRecord} to {endRecord} of {totalCount} records
                     {(searchTerm || filterTaxType !== "all" || filterMonth !== "all" || filterArea !== "all") &&
                       ` (filtered)`}
                   </div>

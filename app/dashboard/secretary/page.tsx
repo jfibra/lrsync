@@ -43,46 +43,45 @@ export default function SecretaryDashboard() {
       const { monday, sunday } = getWeekRange(new Date())
       const { firstDay, lastDay } = getMonthRange(new Date())
 
-      // 1. Total Sales Encoded This Week
-      const { count: salesThisWeek } = await supabase
-        .from("sales")
-        .select("*", { count: "exact", head: true })
-        .gte("created_at", monday.toISOString())
-        .lte("created_at", sunday.toISOString())
-        .eq("user_uuid", profile.id)
-        .eq("is_deleted", false)
-
-      // 2. Sales Updated This Month (from notifications)
-      const { count: salesUpdatedThisMonth } = await supabase
-        .from("notifications")
-        .select("*", { count: "exact", head: true })
-        .eq("user_uuid", profile.id)
-        .eq("action", "sales_updated")
-        .gte("created_at", firstDay.toISOString())
-        .lte("created_at", lastDay.toISOString())
-
-      // 3. Number of Commission Report Generated This Month (from notifications)
-      const { count: commissionReportsThisMonth } = await supabase
-        .from("notifications")
-        .select("*", { count: "exact", head: true })
-        .eq("user_uuid", profile.id)
-        .eq("action", "commission_report_generated")
-        .gte("created_at", firstDay.toISOString())
-        .lte("created_at", lastDay.toISOString())
-
-      // 4. Total Activities of User This Week
-      const { count: activitiesThisWeek } = await supabase
-        .from("notifications")
-        .select("*", { count: "exact", head: true })
-        .eq("user_uuid", profile.id)
-        .gte("created_at", monday.toISOString())
-        .lte("created_at", sunday.toISOString())
+      const [salesWeekRes, salesUpdatedRes, commReportsRes, activitiesRes] = await Promise.all([
+        // 1. Total Sales Encoded This Week
+        supabase
+          .from("sales")
+          .select("*", { count: "exact", head: true })
+          .gte("created_at", monday.toISOString())
+          .lte("created_at", sunday.toISOString())
+          .eq("user_uuid", profile.id)
+          .eq("is_deleted", false),
+        // 2. Sales Updated This Month (from notifications)
+        supabase
+          .from("notifications")
+          .select("*", { count: "exact", head: true })
+          .eq("user_uuid", profile.id)
+          .eq("action", "sales_updated")
+          .gte("created_at", firstDay.toISOString())
+          .lte("created_at", lastDay.toISOString()),
+        // 3. Number of Commission Report Generated This Month (from notifications)
+        supabase
+          .from("notifications")
+          .select("*", { count: "exact", head: true })
+          .eq("user_uuid", profile.id)
+          .eq("action", "commission_report_generated")
+          .gte("created_at", firstDay.toISOString())
+          .lte("created_at", lastDay.toISOString()),
+        // 4. Total Activities of User This Week
+        supabase
+          .from("notifications")
+          .select("*", { count: "exact", head: true })
+          .eq("user_uuid", profile.id)
+          .gte("created_at", monday.toISOString())
+          .lte("created_at", sunday.toISOString()),
+      ])
 
       setStats({
-        salesThisWeek: salesThisWeek || 0,
-        salesUpdatedThisMonth: salesUpdatedThisMonth || 0,
-        commissionReportsThisMonth: commissionReportsThisMonth || 0,
-        activitiesThisWeek: activitiesThisWeek || 0,
+        salesThisWeek: salesWeekRes.count || 0,
+        salesUpdatedThisMonth: salesUpdatedRes.count || 0,
+        commissionReportsThisMonth: commReportsRes.count || 0,
+        activitiesThisWeek: activitiesRes.count || 0,
       })
     }
     fetchStats()

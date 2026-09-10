@@ -71,85 +71,68 @@ export default function SuperAdminDashboard() {
     try {
       setLoading(true)
 
-      // 1. Get total users
-      const { count: totalUsers } = await supabase.from("user_profiles").select("*", { count: "exact", head: true })
+      const [
+        totalUsersRes,
+        activeUsersRes,
+        userProfilesRes,
+        totalSalesRes,
+        totalTaxpayersRes,
+        commDataRes,
+        pendingReportsRes,
+        logsDataRes,
+        salesListRes,
+      ] = await Promise.all([
+        // 1. Get total users count
+        supabase.from("user_profiles").select("*", { count: "exact", head: true }),
+        // 2. Get active users count
+        supabase.from("user_profiles").select("*", { count: "exact", head: true }).eq("status", "active"),
+        // 3. Get user profiles for area mapping
+        supabase.from("user_profiles").select("auth_user_id, assigned_area"),
+        // 4. Get total sales records (non-deleted)
+        supabase.from("sales").select("*", { count: "exact", head: true }).eq("is_deleted", false),
+        // 5. Get total taxpayer listings
+        supabase.from("taxpayer_listings").select("*", { count: "exact", head: true }),
+        // 6. Get total commissions from agent breakdown
+        supabase.from("commission_agent_breakdown").select("comm"),
+        // 7. Get pending reports list
+        supabase.from("commission_report").select("uuid, report_number, created_at, status").eq("status", "pending").order("created_at", { ascending: false }).limit(5),
+        // 8. Get latest 5 activity notifications
+        supabase.from("notifications").select("id, action, description, user_name, created_at").order("id", { ascending: false }).limit(5),
+        // 9. Fetch sales summary for area performance
+        supabase.from("sales").select("user_uuid, gross_taxable").eq("is_deleted", false),
+      ])
 
-      // 2. Get active users
-      const { count: activeUsers } = await supabase
-        .from("user_profiles")
-        .select("*", { count: "exact", head: true })
-        .eq("status", "active")
-
-      // 3. Get unique assigned areas
-      const { data: areaData } = await supabase
-        .from("user_profiles")
-        .select("assigned_area")
-        .not("assigned_area", "is", null)
-
-      const uniqueAreas = new Set(areaData?.map((item) => item.assigned_area) || [])
-
-      // 4. Get total sales records (non-deleted)
-      const { count: totalSales } = await supabase
-        .from("sales")
-        .select("*", { count: "exact", head: true })
-        .eq("is_deleted", false)
-
-      // 5. Get total taxpayer listings
-      const { count: totalTaxpayers } = await supabase
-        .from("taxpayer_listings")
-        .select("*", { count: "exact", head: true })
+      const uniqueAreas = new Set(
+        (userProfilesRes.data || [])
+          .map((item) => item.assigned_area)
+          .filter(Boolean)
+      )
 
       setStats({
-        totalUsers: totalUsers || 0,
-        activeUsers: activeUsers || 0,
+        totalUsers: totalUsersRes.count || 0,
+        activeUsers: activeUsersRes.count || 0,
         assignedAreas: uniqueAreas.size,
-        totalSales: totalSales || 0,
-        totalTaxpayers: totalTaxpayers || 0,
+        totalSales: totalSalesRes.count || 0,
+        totalTaxpayers: totalTaxpayersRes.count || 0,
       })
 
-      // 6. Get total commissions from agent breakdown
-      const { data: commData } = await supabase
-        .from("commission_agent_breakdown")
-        .select("comm")
-      const totalCommSum = commData?.reduce((sum, item) => sum + (Number(item.comm) || 0), 0) || 0
+      const totalCommSum =
+        commDataRes.data?.reduce((sum, item) => sum + (Number(item.comm) || 0), 0) || 0
       setTotalCommissions(totalCommSum)
 
-      // 7. Get pending reports list
-      const { data: pendingData } = await supabase
-        .from("commission_report")
-        .select("uuid, report_number, created_at, status")
-        .eq("status", "pending")
-        .order("created_at", { ascending: false })
-        .limit(5)
-      setPendingReports(pendingData || [])
+      setPendingReports(pendingReportsRes.data || [])
+      setActivityLogs(logsDataRes.data || [])
 
-      // 8. Get latest 5 activity notifications
-      const { data: logsData } = await supabase
-        .from("notifications")
-        .select("id, action, description, user_name, created_at")
-        .order("id", { ascending: false })
-        .limit(5)
-      setActivityLogs(logsData || [])
-
-      // 9. Fetch sales by area
-      const { data: salesList } = await supabase
-        .from("sales")
-        .select("id, user_uuid, gross_taxable")
-        .eq("is_deleted", false)
-
-      const { data: userList } = await supabase
-        .from("user_profiles")
-        .select("auth_user_id, assigned_area")
-
+      // Map area performance
       const userAreaMap: Record<string, string> = {}
-      userList?.forEach((u) => {
+      userProfilesRes.data?.forEach((u) => {
         if (u.auth_user_id) {
           userAreaMap[u.auth_user_id] = u.assigned_area || "Unassigned"
         }
       })
 
       const areaSalesMap: Record<string, { count: number; total: number }> = {}
-      salesList?.forEach((s) => {
+      salesListRes.data?.forEach((s) => {
         const area = userAreaMap[s.user_uuid] || "Unassigned"
         if (!areaSalesMap[area]) {
           areaSalesMap[area] = { count: 0, total: 0 }
@@ -158,14 +141,16 @@ export default function SuperAdminDashboard() {
         areaSalesMap[area].total += Number(s.gross_taxable) || 0
       })
 
-      const formattedPerformance = Object.entries(areaSalesMap).map(([area, data]) => ({
-        area,
-        count: data.count,
-        total: data.total
-      })).sort((a, b) => b.total - a.total).slice(0, 5)
+      const formattedPerformance = Object.entries(areaSalesMap)
+        .map(([area, data]) => ({
+          area,
+          count: data.count,
+          total: data.total,
+        }))
+        .sort((a, b) => b.total - a.total)
+        .slice(0, 5)
 
       setAreaPerformance(formattedPerformance)
-
     } catch (error) {
       console.error("Error fetching dashboard stats:", error)
     } finally {

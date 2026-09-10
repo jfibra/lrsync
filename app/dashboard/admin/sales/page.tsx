@@ -39,6 +39,10 @@ import {
   TrendingUp,
   DollarSign,
   BarChart3,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useAuth } from "@/contexts/auth-context";
@@ -60,8 +64,30 @@ export default function AdminSalesPage() {
   const [sales, setSales] = useState<Sales[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const [filterTaxType, setFilterTaxType] = useState("all");
   const [filterMonth, setFilterMonth] = useState("all");
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [totalCount, setTotalCount] = useState(0);
+  const [isExporting, setIsExporting] = useState(false);
+  const [stats, setStats] = useState({
+    totalSales: 0,
+    vatSales: 0,
+    nonVatSales: 0,
+    totalAmount: 0,
+    totalActualAmount: 0,
+  });
+
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
 
   // Modal states
   const [viewModalOpen, setViewModalOpen] = useState(false);
@@ -234,12 +260,15 @@ export default function AdminSalesPage() {
     );
   };
 
-  // Fetch sales data
+  // Fetch sales data (server-side range pagination & parallel stats)
   const fetchSales = async () => {
     try {
       setLoading(true);
 
-      // Get all sales data
+      const from = (currentPage - 1) * pageSize;
+      const to = from + pageSize - 1;
+
+      // Get paginated sales data
       let salesQuery = supabase
         .from("sales")
         .select(
@@ -250,21 +279,32 @@ export default function AdminSalesPage() {
             substreet_street_brgy,
             district_city_zip
           )
-        `
+        `,
+          { count: "exact" }
         )
         .eq("is_deleted", false)
         .order("created_at", { ascending: false })
-        .limit(50000);
+        .range(from, to);
+
+      // Lightweight stats query
+      let statsQuery = supabase
+        .from("sales")
+        .select("tax_type, gross_taxable, total_actual_amount")
+        .eq("is_deleted", false);
 
       // Apply filters
-      if (searchTerm) {
+      if (debouncedSearchTerm) {
         salesQuery = salesQuery.or(
-          `name.ilike.%${searchTerm}%,tin.ilike.%${searchTerm}%,invoice_number.ilike.%${searchTerm}%`
+          `name.ilike.%${debouncedSearchTerm}%,tin.ilike.%${debouncedSearchTerm}%,invoice_number.ilike.%${debouncedSearchTerm}%`
+        );
+        statsQuery = statsQuery.or(
+          `name.ilike.%${debouncedSearchTerm}%,tin.ilike.%${debouncedSearchTerm}%,invoice_number.ilike.%${debouncedSearchTerm}%`
         );
       }
 
       if (filterTaxType !== "all") {
         salesQuery = salesQuery.eq("tax_type", filterTaxType);
+        statsQuery = statsQuery.eq("tax_type", filterTaxType);
       }
 
       if (filterMonth !== "all") {
@@ -280,14 +320,44 @@ export default function AdminSalesPage() {
         salesQuery = salesQuery
           .gte("tax_month", startDate)
           .lt("tax_month", endDate);
+        statsQuery = statsQuery
+          .gte("tax_month", startDate)
+          .lt("tax_month", endDate);
       }
 
-      const { data: salesData, error: salesError } = await salesQuery;
+      const [salesResult, statsResult] = await Promise.all([
+        salesQuery,
+        statsQuery,
+      ]);
 
-      if (salesError) throw salesError;
+      if (salesResult.error) throw salesResult.error;
+      if (statsResult.error) throw statsResult.error;
 
-      // Admins will now see all sales, no area-based filtering here
-      setSales(salesData || []);
+      const salesData = salesResult.data || [];
+      const total = salesResult.count || 0;
+      setTotalCount(total);
+      setSales(salesData);
+
+      // Calculate stats from lightweight projection
+      const statsData = statsResult.data || [];
+      let vat = 0;
+      let nonVat = 0;
+      let amount = 0;
+      let actualAmount = 0;
+      for (let i = 0; i < statsData.length; i++) {
+        const s = statsData[i];
+        if (s.tax_type === "vat") vat++;
+        else if (s.tax_type === "non-vat") nonVat++;
+        amount += s.gross_taxable || 0;
+        actualAmount += s.total_actual_amount || 0;
+      }
+      setStats({
+        totalSales: total,
+        vatSales: vat,
+        nonVatSales: nonVat,
+        totalAmount: amount,
+        totalActualAmount: actualAmount,
+      });
     } catch (error) {
       console.error("Error fetching sales:", error);
     } finally {
@@ -297,7 +367,35 @@ export default function AdminSalesPage() {
 
   useEffect(() => {
     fetchSales();
-  }, [searchTerm, filterTaxType, filterMonth]);
+  }, [debouncedSearchTerm, filterTaxType, filterMonth, currentPage, pageSize]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearchTerm, filterTaxType, filterMonth]);
+
+  const totalPages = Math.ceil(totalCount / pageSize);
+  const startRecord = totalCount === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const endRecord = Math.min(currentPage * pageSize, totalCount);
+
+  const getPageNumbers = () => {
+    const pages = [];
+    const maxVisiblePages = 5;
+
+    if (totalPages <= maxVisiblePages) {
+      for (let i = 1; i <= totalPages; i++) {
+        pages.push(i);
+      }
+    } else {
+      const startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+      const endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+
+      for (let i = startPage; i <= endPage; i++) {
+        pages.push(i);
+      }
+    }
+    return pages;
+  };
+  const pageNumbers = getPageNumbers();
 
   // Format currency
   const formatCurrency = (amount: number) => {
@@ -414,225 +512,274 @@ export default function AdminSalesPage() {
     }
   };
 
-  // Export to Excel function
-  const exportToExcel = () => {
-    // Filter out non-invoice sales for export
-    const invoiceSales = sales.filter((sale) => sale.sale_type === "invoice");
+  // Helper to fetch all filtered sales on-demand for export
+  const fetchAllFilteredSalesForExport = async () => {
+    try {
+      let query = supabase
+        .from("sales")
+        .select(
+          `
+          *,
+          taxpayer_listings (
+            registered_name,
+            substreet_street_brgy,
+            district_city_zip
+          )
+        `
+        )
+        .eq("is_deleted", false)
+        .order("created_at", { ascending: false })
+        .limit(10000);
 
-    // Calculate statistics for invoice sales only
-    const totalSales = invoiceSales.length;
-    const vatSales = invoiceSales.filter((s) => s.tax_type === "vat").length;
-    const nonVatSales = invoiceSales.filter(
-      (s) => s.tax_type === "non-vat"
-    ).length;
-    const totalAmount = invoiceSales.reduce(
-      (sum, sale) => sum + (sale.gross_taxable || 0),
-      0
-    );
-    const totalActualAmount = invoiceSales.reduce(
-      (sum, sale) => sum + (sale.total_actual_amount || 0),
-      0
-    );
-
-    // Create workbook
-    const wb = XLSX.utils.book_new();
-
-    // Create summary data
-    const summaryData = [
-      [
-        `SALES MANAGEMENT REPORT - ${profile?.assigned_area || "Unknown Area"
-        } (Invoice Sales Only)`,
-      ],
-      [
-        "Generated on:",
-        new Date().toLocaleDateString("en-PH", {
-          year: "numeric",
-          month: "long",
-          day: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-      ],
-      [""],
-      ["SUMMARY STATISTICS"],
-      ["Total Invoice Sales", totalSales, "Total invoice records"],
-      ["VAT Sales", vatSales, "VAT registered"],
-      ["Non-VAT Sales", nonVatSales, "Non-VAT registered"],
-      [
-        "Total Gross Taxable",
-        formatCurrency(totalAmount),
-        "Gross taxable amount",
-      ],
-      [
-        "Total Actual Amount",
-        formatCurrency(totalActualAmount),
-        "Total actual amount",
-      ],
-      [""],
-      ["DETAILED SALES RECORDS"],
-      [
-        "Tax Month",
-        "TIN",
-        "Name",
-        "Address",
-        "Tax Type",
-        "Sale Type",
-        "Gross Taxable",
-        "Total Actual Amount",
-        "Invoice #",
-        "Pickup Date",
-        "Files Count",
-        "Cheque Files",
-        "Voucher Files",
-        "Invoice Files",
-        "2307 Files",
-        "Deposit Files",
-      ],
-    ];
-
-    // Add invoice sales data only
-    invoiceSales.forEach((sale) => {
-      const filesCount = [
-        ...(sale.cheque || []),
-        ...(sale.voucher || []),
-        ...(sale.invoice || []),
-        ...(sale.doc_2307 || []),
-        ...(sale.deposit_slip || []),
-      ].length;
-
-      summaryData.push([
-        format(new Date(sale.tax_month), "MMM yyyy"),
-        formatTin(sale.tin),
-        sale.name,
-        sale.substreet_street_brgy || "",
-        sale.tax_type?.toUpperCase(),
-        sale.sale_type?.toUpperCase() || "INVOICE",
-        sale.gross_taxable || 0,
-        sale.total_actual_amount || 0,
-        sale.invoice_number || "",
-        sale.pickup_date
-          ? format(new Date(sale.pickup_date), "MMM dd, yyyy")
-          : "",
-        filesCount,
-        sale.cheque?.join(", ") || "",
-        sale.voucher?.join(", ") || "",
-        sale.invoice?.join(", ") || "",
-        sale.doc_2307?.join(", ") || "",
-        sale.deposit_slip?.join(", ") || "",
-      ]);
-    });
-
-    // Create worksheet
-    const ws = XLSX.utils.aoa_to_sheet(summaryData);
-
-    // Set column widths
-    ws["!cols"] = [
-      { width: 15 }, // Tax Month
-      { width: 15 }, // TIN
-      { width: 30 }, // Name
-      { width: 25 }, // Address
-      { width: 12 }, // Tax Type
-      { width: 12 }, // Sale Type
-      { width: 15 }, // Gross Taxable
-      { width: 15 }, // Total Actual Amount
-      { width: 15 }, // Invoice #
-      { width: 15 }, // Pickup Date
-      { width: 12 }, // Files Count
-      { width: 30 }, // Cheque Files
-      { width: 30 }, // Voucher Files
-      { width: 30 }, // Invoice Files
-      { width: 30 }, // 2307 Files
-      { width: 30 }, // Deposit Files
-    ];
-
-    // Style the header rows
-    const headerStyle = {
-      font: { bold: true, size: 14 },
-      fill: { fgColor: { rgb: "366092" } },
-      alignment: { horizontal: "center" },
-    };
-
-    const summaryHeaderStyle = {
-      font: { bold: true, size: 12 },
-      fill: { fgColor: { rgb: "D9E2F3" } },
-    };
-
-    // Apply styles to specific cells
-    if (ws["A1"])
-      ws["A1"].s = {
-        font: { bold: true, size: 16 },
-        alignment: { horizontal: "center" },
-      };
-    if (ws["A4"]) ws["A4"].s = summaryHeaderStyle;
-    if (ws["A11"]) ws["A11"].s = summaryHeaderStyle;
-
-    // Style the data header row
-    for (let col = 0; col < 16; col++) {
-      const cellRef = XLSX.utils.encode_cell({ r: 11, c: col });
-      if (ws[cellRef]) {
-        ws[cellRef].s = {
-          font: { bold: true },
-          fill: { fgColor: { rgb: "E7E6E6" } },
-          alignment: { horizontal: "center" },
-        };
+      if (debouncedSearchTerm) {
+        query = query.or(
+          `name.ilike.%${debouncedSearchTerm}%,tin.ilike.%${debouncedSearchTerm}%,invoice_number.ilike.%${debouncedSearchTerm}%`
+        );
       }
-    }
+      if (filterTaxType !== "all") {
+        query = query.eq("tax_type", filterTaxType);
+      }
+      if (filterMonth !== "all") {
+        const [year, month] = filterMonth.split("-");
+        const startDate = `${year}-${month}-01`;
+        const nextMonth =
+          Number.parseInt(month) === 12 ? 1 : Number.parseInt(month) + 1;
+        const nextYear =
+          Number.parseInt(month) === 12
+            ? Number.parseInt(year) + 1
+            : Number.parseInt(year);
+        const endDate = `${nextYear}-${String(nextMonth).padStart(2, "0")}-01`;
+        query = query.gte("tax_month", startDate).lt("tax_month", endDate);
+      }
 
-    // Add worksheet to workbook
-    XLSX.utils.book_append_sheet(wb, ws, "Invoice Sales Report");
-
-    // Generate filename with current date and area
-    const filename = `Invoice_Sales_Report_${profile?.assigned_area?.replace(
-      /\s+/g,
-      "_"
-    )}_${new Date().toISOString().split("T")[0]}.xlsx`;
-
-    /* ---- browser-safe download ---- */
-    const wbArray = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-    const blob = new Blob([wbArray], {
-      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-
-    // Log export action
-    if (profile?.id) {
-      logNotification(supabase, {
-        action: "export_invoice_sales",
-        user_uuid: profile.id,
-        user_name: profile.full_name || profile.first_name || profile.id,
-        user_email: profile.email,
-        description: `Exported invoice sales to Excel (${invoiceSales.length} records)`,
-        user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
-        meta: JSON.stringify({
-          user_id: profile.id,
-          role: profile.role || "unknown",
-          dashboard: "admin_sales",
-          export_type: "invoice_only",
-          record_count: invoiceSales.length,
-        }),
-      });
+      const { data, error } = await query;
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error("Error fetching sales for export:", error);
+      return [];
     }
   };
 
-  // Calculate stats
-  const totalSales = sales.length;
-  const vatSales = sales.filter((s) => s.tax_type === "vat").length;
-  const nonVatSales = sales.filter((s) => s.tax_type === "non-vat").length;
-  const totalAmount = sales.reduce(
-    (sum, sale) => sum + (sale.gross_taxable || 0),
-    0
-  );
-  const totalActualAmount = sales.reduce(
-    (sum, sale) => sum + (sale.total_actual_amount || 0),
-    0
-  );
+  // Export to Excel function
+  const exportToExcel = async () => {
+    try {
+      setIsExporting(true);
+      const exportSales = await fetchAllFilteredSalesForExport();
+
+      // Filter out non-invoice sales for export
+      const invoiceSales = exportSales.filter((sale) => sale.sale_type === "invoice");
+
+      // Calculate statistics for invoice sales only
+      const totalSales = invoiceSales.length;
+      const vatSales = invoiceSales.filter((s) => s.tax_type === "vat").length;
+      const nonVatSales = invoiceSales.filter(
+        (s) => s.tax_type === "non-vat"
+      ).length;
+      const totalAmount = invoiceSales.reduce(
+        (sum, sale) => sum + (sale.gross_taxable || 0),
+        0
+      );
+      const totalActualAmount = invoiceSales.reduce(
+        (sum, sale) => sum + (sale.total_actual_amount || 0),
+        0
+      );
+
+      // Create workbook
+      const wb = XLSX.utils.book_new();
+
+      // Create summary data
+      const summaryData = [
+        [
+          `SALES MANAGEMENT REPORT - ${profile?.assigned_area || "Unknown Area"
+          } (Invoice Sales Only)`,
+        ],
+        [
+          "Generated on:",
+          new Date().toLocaleDateString("en-PH", {
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+        ],
+        [""],
+        ["SUMMARY STATISTICS"],
+        ["Total Invoice Sales", totalSales, "Total invoice records"],
+        ["VAT Sales", vatSales, "VAT registered"],
+        ["Non-VAT Sales", nonVatSales, "Non-VAT registered"],
+        [
+          "Total Gross Taxable",
+          formatCurrency(totalAmount),
+          "Gross taxable amount",
+        ],
+        [
+          "Total Actual Amount",
+          formatCurrency(totalActualAmount),
+          "Total actual amount",
+        ],
+        [""],
+        ["DETAILED SALES RECORDS"],
+        [
+          "Tax Month",
+          "TIN",
+          "Name",
+          "Address",
+          "Tax Type",
+          "Sale Type",
+          "Gross Taxable",
+          "Total Actual Amount",
+          "Invoice #",
+          "Pickup Date",
+          "Files Count",
+          "Cheque Files",
+          "Voucher Files",
+          "Invoice Files",
+          "2307 Files",
+          "Deposit Files",
+        ],
+      ];
+
+      // Add invoice sales data only
+      invoiceSales.forEach((sale) => {
+        const filesCount = [
+          ...(sale.cheque || []),
+          ...(sale.voucher || []),
+          ...(sale.invoice || []),
+          ...(sale.doc_2307 || []),
+          ...(sale.deposit_slip || []),
+        ].length;
+
+        summaryData.push([
+          format(new Date(sale.tax_month), "MMM yyyy"),
+          formatTin(sale.tin),
+          sale.name,
+          sale.substreet_street_brgy || "",
+          sale.tax_type?.toUpperCase(),
+          sale.sale_type?.toUpperCase() || "INVOICE",
+          sale.gross_taxable || 0,
+          sale.total_actual_amount || 0,
+          sale.invoice_number || "",
+          sale.pickup_date
+            ? format(new Date(sale.pickup_date), "MMM dd, yyyy")
+            : "",
+          filesCount,
+          sale.cheque?.join(", ") || "",
+          sale.voucher?.join(", ") || "",
+          sale.invoice?.join(", ") || "",
+          sale.doc_2307?.join(", ") || "",
+          sale.deposit_slip?.join(", ") || "",
+        ]);
+      });
+
+      // Create worksheet
+      const ws = XLSX.utils.aoa_to_sheet(summaryData);
+
+      // Set column widths
+      ws["!cols"] = [
+        { width: 15 }, // Tax Month
+        { width: 15 }, // TIN
+        { width: 30 }, // Name
+        { width: 25 }, // Address
+        { width: 12 }, // Tax Type
+        { width: 12 }, // Sale Type
+        { width: 15 }, // Gross Taxable
+        { width: 15 }, // Total Actual Amount
+        { width: 15 }, // Invoice #
+        { width: 15 }, // Pickup Date
+        { width: 12 }, // Files Count
+        { width: 30 }, // Cheque Files
+        { width: 30 }, // Voucher Files
+        { width: 30 }, // Invoice Files
+        { width: 30 }, // 2307 Files
+        { width: 30 }, // Deposit Files
+      ];
+
+      // Style the header rows
+      const headerStyle = {
+        font: { bold: true, size: 14 },
+        fill: { fgColor: { rgb: "366092" } },
+        alignment: { horizontal: "center" },
+      };
+
+      const summaryHeaderStyle = {
+        font: { bold: true, size: 12 },
+        fill: { fgColor: { rgb: "D9E2F3" } },
+      };
+
+      // Apply styles to specific cells
+      if (ws["A1"])
+        ws["A1"].s = {
+          font: { bold: true, size: 16 },
+          alignment: { horizontal: "center" },
+        };
+      if (ws["A4"]) ws["A4"].s = summaryHeaderStyle;
+      if (ws["A11"]) ws["A11"].s = summaryHeaderStyle;
+
+      // Style the data header row
+      for (let col = 0; col < 16; col++) {
+        const cellRef = XLSX.utils.encode_cell({ r: 11, c: col });
+        if (ws[cellRef]) {
+          ws[cellRef].s = {
+            font: { bold: true },
+            fill: { fgColor: { rgb: "E7E6E6" } },
+            alignment: { horizontal: "center" },
+          };
+        }
+      }
+
+      // Add worksheet to workbook
+      XLSX.utils.book_append_sheet(wb, ws, "Invoice Sales Report");
+
+      // Generate filename with current date and area
+      const filename = `Invoice_Sales_Report_${profile?.assigned_area?.replace(
+        /\s+/g,
+        "_"
+      )}_${new Date().toISOString().split("T")[0]}.xlsx`;
+
+      /* ---- browser-safe download ---- */
+      const wbArray = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+      const blob = new Blob([wbArray], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      // Log export action
+      if (profile?.id) {
+        logNotification(supabase, {
+          action: "export_invoice_sales",
+          user_uuid: profile.id,
+          user_name: profile.full_name || profile.first_name || profile.id,
+          user_email: profile.email,
+          description: `Exported invoice sales to Excel (${invoiceSales.length} records)`,
+          user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+          meta: JSON.stringify({
+            user_id: profile.id,
+            role: profile.role || "unknown",
+            dashboard: "admin_sales",
+            export_type: "invoice_only",
+            record_count: invoiceSales.length,
+          }),
+        });
+      }
+    } catch (error) {
+      console.error("Export error:", error);
+      alert("Error exporting data. Please try again.");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  // Summary statistics from server query
+  const { totalSales, vatSales, nonVatSales, totalAmount, totalActualAmount } = stats;
 
   return (
     <ProtectedRoute allowedRoles={["admin"]}>
@@ -818,7 +965,7 @@ export default function AdminSalesPage() {
                     Sales Records
                   </CardTitle>
                   <CardDescription className="text-gray-600 mt-1">
-                    {loading ? "Loading..." : `${sales.length} records found`}
+                    {loading ? "Loading..." : `${totalCount} records found`}
                   </CardDescription>
                 </div>
                 <div className="flex gap-2">
@@ -828,16 +975,18 @@ export default function AdminSalesPage() {
                   />
                   <CustomExportModal
                     sales={sales}
+                    fetchSales={fetchAllFilteredSalesForExport}
                     userArea={profile?.assigned_area}
                   />
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={exportToExcel}
-                    className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white border-0 shadow-lg"
+                    disabled={isExporting}
+                    className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white border-0 shadow-lg disabled:opacity-50"
                   >
                     <Download className="h-4 w-4 mr-2" />
-                    Export (Invoice Only)
+                    {isExporting ? "Exporting..." : "Export (Invoice Only)"}
                   </Button>
                 </div>
               </div>
@@ -1149,6 +1298,110 @@ export default function AdminSalesPage() {
                     )}
                   </TableBody>
                 </Table>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="mt-6 shadow-lg border border-gray-200 bg-white">
+            <CardContent className="p-4">
+              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                {/* Left side - Page size selector and record count */}
+                <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-gray-700">Show:</span>
+                    <Select
+                      value={pageSize.toString()}
+                      onValueChange={(value) => {
+                        setPageSize(Number(value));
+                        setCurrentPage(1);
+                      }}
+                    >
+                      <SelectTrigger className="w-20 h-8 border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white text-gray-900">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-white border border-gray-200">
+                        <SelectItem value="10" className="text-gray-900 hover:bg-gray-100">
+                          10
+                        </SelectItem>
+                        <SelectItem value="25" className="text-gray-900 hover:bg-gray-100">
+                          25
+                        </SelectItem>
+                        <SelectItem value="50" className="text-gray-900 hover:bg-gray-100">
+                          50
+                        </SelectItem>
+                        <SelectItem value="100" className="text-gray-900 hover:bg-gray-100">
+                          100
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <span className="text-sm text-gray-700">records per page</span>
+                  </div>
+                  <div className="text-sm text-gray-600">
+                    Showing {startRecord} to {endRecord} of {totalCount} records
+                    {(searchTerm || filterTaxType !== "all" || filterMonth !== "all") && ` (filtered)`}
+                  </div>
+                </div>
+
+                {/* Right side - Pagination Controls */}
+                {totalPages > 1 && (
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(1)}
+                      disabled={currentPage === 1}
+                      className="h-8 px-2 border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="First page"
+                    >
+                      <ChevronsLeft className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                      disabled={currentPage === 1}
+                      className="h-8 px-2 border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Previous page"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    {getPageNumbers().map((pageNum) => (
+                      <Button
+                        key={pageNum}
+                        variant={currentPage === pageNum ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setCurrentPage(pageNum)}
+                        className={`h-8 px-3 min-w-[32px] ${
+                          currentPage === pageNum
+                            ? "bg-indigo-600 text-white hover:bg-indigo-700 border-indigo-600"
+                            : "border-gray-300 hover:text-gray-700 hover:bg-gray-50"
+                        }`}
+                      >
+                        {pageNum}
+                      </Button>
+                    ))}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                      disabled={currentPage === totalPages}
+                      className="h-8 px-2 border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Next page"
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(totalPages)}
+                      disabled={currentPage === totalPages}
+                      className="h-8 px-2 border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Last page"
+                    >
+                      <ChevronsRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

@@ -107,6 +107,16 @@ export default function SecretarySalesPage() {
 
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
+  const [totalCount, setTotalCount] = useState(0)
+  const [allProfiles, setAllProfiles] = useState<any[]>([])
+  const [isExporting, setIsExporting] = useState(false)
+  const [stats, setStats] = useState({
+    totalSales: 0,
+    vatSales: 0,
+    nonVatSales: 0,
+    totalAmount: 0,
+    totalActualAmount: 0,
+  })
 
   const [lightboxOpen, setLightboxOpen] = useState(false)
   const [lightboxImages, setLightboxImages] = useState<{ url: string; label: string }[]>([])
@@ -418,18 +428,50 @@ export default function SecretarySalesPage() {
     setColumnVisibility((prev) => prev.map((col) => (col.key === key ? { ...col, visible: !col.visible } : col)))
   }
 
-  // Fetch sales data - filtered by secretary's assigned area
+  // Fetch user profiles once on mount
+  const fetchProfiles = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("user_profiles")
+        .select("id, auth_user_id, assigned_area, full_name")
+
+      if (error) throw error
+      const profiles = data || []
+      setAllProfiles(profiles)
+
+      const creatorMap = new Map(profiles.map((p) => [p.id, p.full_name]))
+      setCreatorIdToName(Object.fromEntries(creatorMap))
+    } catch (error) {
+      console.error("Error fetching profiles:", error)
+    }
+  }
+
+  // Fetch sales data (server-side range pagination & parallel stats)
   const fetchSales = async () => {
     try {
       setLoading(true)
 
       if (!profile?.assigned_area) {
-        console.log("No assigned area found for secretary")
         setSales([])
+        setTotalCount(0)
         return
       }
 
-      // Build sales query
+      const areaUserIds = allProfiles
+        .filter((p) => p.assigned_area === profile.assigned_area)
+        .map((p) => p.auth_user_id)
+        .filter(Boolean)
+
+      if (allProfiles.length > 0 && areaUserIds.length === 0) {
+        setSales([])
+        setTotalCount(0)
+        return
+      }
+
+      const from = (currentPage - 1) * pageSize
+      const to = from + pageSize - 1
+
+      // Build paginated sales query
       let salesQuery = supabase
         .from("sales")
         .select(
@@ -441,20 +483,37 @@ export default function SecretarySalesPage() {
             district_city_zip
           )
         `,
+          { count: "exact" },
         )
         .eq("is_deleted", false)
         .order("created_at", { ascending: false })
-        .limit(50000)
+        .range(from, to)
+
+      // Build lightweight stats query
+      let statsQuery = supabase
+        .from("sales")
+        .select("tax_type, gross_taxable, total_actual_amount")
+        .eq("is_deleted", false)
+
+      // Scope to secretary's area users
+      if (areaUserIds.length > 0) {
+        salesQuery = salesQuery.in("user_uuid", areaUserIds)
+        statsQuery = statsQuery.in("user_uuid", areaUserIds)
+      }
 
       // Apply filters
       if (debouncedSearchTerm) {
         salesQuery = salesQuery.or(
           `name.ilike.%${debouncedSearchTerm}%,tin.ilike.%${debouncedSearchTerm}%,invoice_number.ilike.%${debouncedSearchTerm}%`,
         )
+        statsQuery = statsQuery.or(
+          `name.ilike.%${debouncedSearchTerm}%,tin.ilike.%${debouncedSearchTerm}%,invoice_number.ilike.%${debouncedSearchTerm}%`,
+        )
       }
 
       if (filterTaxType !== "all") {
         salesQuery = salesQuery.eq("tax_type", filterTaxType)
+        statsQuery = statsQuery.eq("tax_type", filterTaxType)
       }
 
       if (filterMonth !== "all") {
@@ -464,62 +523,91 @@ export default function SecretarySalesPage() {
         const nextYear = Number.parseInt(month) === 12 ? Number.parseInt(year) + 1 : Number.parseInt(year)
         const endDate = `${nextYear}-${String(nextMonth).padStart(2, "0")}-01`
         salesQuery = salesQuery.gte("tax_month", startDate).lt("tax_month", endDate)
+        statsQuery = statsQuery.gte("tax_month", startDate).lt("tax_month", endDate)
       }
 
-      // Parallelize fetching sales, commission reports, and user profiles
-      const [salesResult, reportsResult, profilesResult] = await Promise.all([
-        salesQuery,
-        supabase
-          .from("commission_report")
-          .select("report_number, sales_uuids, created_by, created_at, status, deleted_at"),
-        supabase
-          .from("user_profiles")
-          .select("id, auth_user_id, assigned_area, full_name"),
-      ])
+      // Apply remarks filter if active
+      if (showOnlyWithRemarks) {
+        const [reportsRes, salesWithRemarksRes] = await Promise.all([
+          supabase.from("commission_report").select("sales_uuids").is("deleted_at", null),
+          supabase.from("sales").select("id").eq("is_deleted", false).not("remarks", "is", null).neq("remarks", "[]"),
+        ])
+        const idsWithRemarks = new Set<string>()
+        ;(reportsRes.data || []).forEach((r) => (r.sales_uuids || []).forEach((id: string) => idsWithRemarks.add(id)))
+        ;(salesWithRemarksRes.data || []).forEach((s) => idsWithRemarks.add(s.id))
+
+        const remarkIdsList = Array.from(idsWithRemarks)
+        if (remarkIdsList.length > 0) {
+          salesQuery = salesQuery.in("id", remarkIdsList)
+          statsQuery = statsQuery.in("id", remarkIdsList)
+        } else {
+          salesQuery = salesQuery.in("id", ["00000000-0000-0000-0000-000000000000"])
+          statsQuery = statsQuery.in("id", ["00000000-0000-0000-0000-000000000000"])
+        }
+      }
+
+      // Parallel execution
+      const [salesResult, statsResult] = await Promise.all([salesQuery, statsQuery])
 
       if (salesResult.error) throw salesResult.error
-      if (reportsResult.error) throw reportsResult.error
-      if (profilesResult.error) throw profilesResult.error
+      if (statsResult.error) throw statsResult.error
 
       const salesData = salesResult.data || []
-      const reportsData = reportsResult.data || []
-      const profilesData = profilesResult.data || []
+      const total = salesResult.count || 0
+      setTotalCount(total)
 
-      // Create O(1) Fast Lookup Maps
-      const profileMap = new Map(profilesData.map((p) => [p.auth_user_id, p]))
-      const creatorMap = new Map(profilesData.map((p) => [p.id, p.full_name]))
-
-      // Combine sales data with user profiles and filter by secretary's assigned area
-      const salesWithProfiles = salesData.map((sale) => {
-        const userProfile = profileMap.get(sale.user_uuid)
-        return {
-          ...sale,
-          user_assigned_area: userProfile?.assigned_area || null,
-        }
+      // Calculate stats
+      const statsData = statsResult.data || []
+      let vat = 0
+      let nonVat = 0
+      let amount = 0
+      let actualAmount = 0
+      for (let i = 0; i < statsData.length; i++) {
+        const s = statsData[i]
+        if (s.tax_type === "vat") vat++
+        else if (s.tax_type === "non-vat") nonVat++
+        amount += s.gross_taxable || 0
+        actualAmount += s.total_actual_amount || 0
+      }
+      setStats({
+        totalSales: total,
+        vatSales: vat,
+        nonVatSales: nonVat,
+        totalAmount: amount,
+        totalActualAmount: actualAmount,
       })
 
-      // Filter to only show sales from the secretary's assigned area
-      const filteredData = salesWithProfiles.filter((sale) => sale.user_assigned_area === profile.assigned_area)
+      const profileMap = new Map(allProfiles.map((p) => [p.auth_user_id, p]))
+      const salesWithProfiles = salesData.map((sale) => ({
+        ...sale,
+        user_assigned_area: profileMap.get(sale.user_uuid)?.assigned_area || profile.assigned_area,
+      }))
+      setSales(salesWithProfiles)
 
-      setSales(filteredData)
+      // Fetch commission reports ONLY for current page
+      const pageIds = salesWithProfiles.map((s) => s.id)
+      if (pageIds.length > 0) {
+        const { data: reportsData } = await supabase
+          .from("commission_report")
+          .select("report_number, sales_uuids, created_by, created_at, status, deleted_at")
+          .overlaps("sales_uuids", pageIds)
 
-      // Map saleId to commission report info
-      const saleIdToCommissionObj: Record<string, any> = {}
-      reportsData.forEach((report) => {
-        ;(report.sales_uuids || []).forEach((saleId: string) => {
-          saleIdToCommissionObj[saleId] = {
-            report_number: report.report_number,
-            created_by: report.created_by,
-            created_at: report.created_at,
-            status: report.status,
-            deleted_at: report.deleted_at,
-          }
+        const saleIdToCommissionObj: Record<string, any> = {}
+        ;(reportsData || []).forEach((report) => {
+          ;(report.sales_uuids || []).forEach((saleId: string) => {
+            saleIdToCommissionObj[saleId] = {
+              report_number: report.report_number,
+              created_by: report.created_by,
+              created_at: report.created_at,
+              status: report.status,
+              deleted_at: report.deleted_at,
+            }
+          })
         })
-      })
-      setSaleIdToCommission(saleIdToCommissionObj)
-
-      const creatorIdToNameObj = Object.fromEntries(creatorMap)
-      setCreatorIdToName(creatorIdToNameObj)
+        setSaleIdToCommission(saleIdToCommissionObj)
+      } else {
+        setSaleIdToCommission({})
+      }
     } catch (error) {
       console.error("Error fetching sales:", error)
     } finally {
@@ -528,14 +616,19 @@ export default function SecretarySalesPage() {
   }
 
   useEffect(() => {
-    setCurrentPage(1)
-  }, [debouncedSearchTerm, filterTaxType, filterMonth])
+    fetchProfiles()
+  }, [])
 
   useEffect(() => {
     if (profile?.assigned_area) {
       fetchSales()
     }
-  }, [profile?.assigned_area, debouncedSearchTerm, filterTaxType, filterMonth])
+  }, [profile?.assigned_area, debouncedSearchTerm, filterTaxType, filterMonth, showOnlyWithRemarks, currentPage, pageSize, allProfiles])
+
+  // Reset to page 1 on filter changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [debouncedSearchTerm, filterTaxType, filterMonth, showOnlyWithRemarks])
 
   // Get tax type badge color
   const getTaxTypeBadgeColor = (taxType: string) => {
@@ -574,36 +667,9 @@ export default function SecretarySalesPage() {
 
   const monthOptions = useMemo(() => generateMonthOptions(), [])
 
-  // Pagination calculations
-  const paginatedSales = useMemo(() => {
-    let filteredSales = sales
-    if (showOnlyWithRemarks) {
-      filteredSales = sales.filter((sale) => {
-        const recentRemark = getMostRecentRemark(sale.remarks)
-        const hasCommission = saleIdToCommission[sale.id] && !saleIdToCommission[sale.id].deleted_at
-        return recentRemark || hasCommission
-      })
-    }
-
-    const startIndex = (currentPage - 1) * pageSize
-    const endIndex = startIndex + pageSize
-    return filteredSales.slice(startIndex, endIndex)
-  }, [sales, currentPage, pageSize, showOnlyWithRemarks, saleIdToCommission])
-
-  const filteredSalesCount = useMemo(() => {
-    if (showOnlyWithRemarks) {
-      return sales.filter((sale) => {
-        const recentRemark = getMostRecentRemark(sale.remarks)
-        const hasCommission = saleIdToCommission[sale.id] && !saleIdToCommission[sale.id].deleted_at
-        return recentRemark || hasCommission
-      }).length
-    }
-    return sales.length
-  }, [sales, showOnlyWithRemarks, saleIdToCommission])
-
-  const totalPages = Math.ceil(filteredSalesCount / pageSize)
-  const startRecord = filteredSalesCount === 0 ? 0 : (currentPage - 1) * pageSize + 1
-  const endRecord = Math.min(currentPage * pageSize, filteredSalesCount)
+  const totalPages = Math.ceil(totalCount / pageSize)
+  const startRecord = totalCount === 0 ? 0 : (currentPage - 1) * pageSize + 1
+  const endRecord = Math.min(currentPage * pageSize, totalCount)
 
   const getPageNumbers = () => {
     const pages = []
@@ -682,10 +748,74 @@ export default function SecretarySalesPage() {
     }
   }
 
+  // Helper to fetch all filtered sales on-demand for export
+  const fetchAllFilteredSalesForExport = async () => {
+    try {
+      if (!profile?.assigned_area) return []
+      const areaUserIds = allProfiles
+        .filter((p) => p.assigned_area === profile.assigned_area)
+        .map((p) => p.auth_user_id)
+        .filter(Boolean)
+
+      let query = supabase
+        .from("sales")
+        .select(
+          `
+          *,
+          taxpayer_listings (
+            registered_name,
+            substreet_street_brgy,
+            district_city_zip
+          )
+        `,
+        )
+        .eq("is_deleted", false)
+        .order("created_at", { ascending: false })
+        .limit(10000)
+
+      if (areaUserIds.length > 0) {
+        query = query.in("user_uuid", areaUserIds)
+      } else {
+        return []
+      }
+      if (debouncedSearchTerm) {
+        query = query.or(
+          `name.ilike.%${debouncedSearchTerm}%,tin.ilike.%${debouncedSearchTerm}%,invoice_number.ilike.%${debouncedSearchTerm}%`,
+        )
+      }
+      if (filterTaxType !== "all") {
+        query = query.eq("tax_type", filterTaxType)
+      }
+      if (filterMonth !== "all") {
+        const [year, month] = filterMonth.split("-")
+        const startDate = `${year}-${month}-01`
+        const nextMonth = Number.parseInt(month) === 12 ? 1 : Number.parseInt(month) + 1
+        const nextYear = Number.parseInt(month) === 12 ? Number.parseInt(year) + 1 : Number.parseInt(year)
+        const endDate = `${nextYear}-${String(nextMonth).padStart(2, "0")}-01`
+        query = query.gte("tax_month", startDate).lt("tax_month", endDate)
+      }
+
+      const { data, error } = await query
+      if (error) throw error
+      const profileMap = new Map(allProfiles.map((p) => [p.auth_user_id, p]))
+      return (data || []).map((sale) => ({
+        ...sale,
+        user_assigned_area: profileMap.get(sale.user_uuid)?.assigned_area || profile.assigned_area,
+      }))
+    } catch (error) {
+      console.error("Error fetching sales for export:", error)
+      return []
+    }
+  }
+
   // Export to Excel function - exclude non-invoice sales
   const exportToExcel = async () => {
-    // Filter out non-invoice sales for export
-    const invoiceSales = sales.filter((sale) => sale.sale_type === "invoice")
+    try {
+      setIsExporting(true)
+      const exportSales = await fetchAllFilteredSalesForExport()
+
+      // Filter out non-invoice sales for export
+      const invoiceSales = exportSales.filter((sale) => sale.sale_type === "invoice")
 
     // Calculate statistics for invoice sales only
     const totalSales = invoiceSales.length
@@ -873,7 +1003,13 @@ export default function SecretarySalesPage() {
         user_name: profile.full_name || profile.first_name || profile.id,
       })
     }
+  } catch (error) {
+    console.error("Export error:", error)
+    alert("Error exporting data. Please try again.")
+  } finally {
+    setIsExporting(false)
   }
+}
 
   const getStatusBadgeClass = (status: string, deleted: boolean) => {
     if (deleted) return "bg-red-100 text-red-700 border border-red-200"
@@ -892,12 +1028,8 @@ export default function SecretarySalesPage() {
     }
   }
 
-  // Calculate stats
-  const totalSales = sales.length
-  const vatSales = sales.filter((s) => s.tax_type === "vat").length
-  const nonVatSales = sales.filter((s) => s.tax_type === "non-vat").length
-  const totalAmount = sales.reduce((sum, sale) => sum + (sale.gross_taxable || 0), 0)
-  const totalActualAmount = sales.reduce((sum, sale) => sum + (sale.total_actual_amount || 0), 0)
+  // Summary statistics from server query
+  const { totalSales, vatSales, nonVatSales, totalAmount, totalActualAmount } = stats
 
   const handleRemarksUpdate = (saleId: string, updatedRemarks: any[]) => {
     setSales((prevSales) =>
@@ -1071,7 +1203,7 @@ export default function SecretarySalesPage() {
                   <CardDescription style={{ color: "#555" }} className="mt-1 text-sm sm:text-base">
                     {loading
                       ? "Loading..."
-                      : `${filteredSalesCount} records found${showOnlyWithRemarks ? " (with remarks)" : ""}`}
+                      : `${totalCount} records found${showOnlyWithRemarks ? " (with remarks)" : ""}`}
                   </CardDescription>
                 </div>
                 <div className="flex flex-col gap-2 sm:flex-row sm:gap-2 w-full sm:w-auto">
@@ -1088,17 +1220,18 @@ export default function SecretarySalesPage() {
                     <MessageSquarePlus className="h-4 w-4 mr-2" />
                     {showOnlyWithRemarks ? "Show All" : "With Remarks"}
                   </Button>
-                  <CustomExportModal sales={sales} />
+                  <CustomExportModal sales={sales} fetchSales={fetchAllFilteredSalesForExport} userArea={profile?.assigned_area} />
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={exportToExcel}
+                    disabled={isExporting}
                     style={{ background: "#001f3f", color: "#fff", border: "none" }}
-                    className="shadow-lg hover:bg-[#ee3433] bg-transparent w-full sm:w-auto flex items-center justify-center"
+                    className="shadow-lg hover:bg-[#ee3433] bg-transparent w-full sm:w-auto flex items-center justify-center disabled:opacity-50"
                   >
                     <Download className="h-4 w-4 mr-2" style={{ color: "#fff" }} />
-                    <span className="hidden xs:inline">Export (Invoice Only)</span>
-                    <span className="inline xs:hidden">Export</span>
+                    <span className="hidden xs:inline">{isExporting ? "Exporting..." : "Export (Invoice Only)"}</span>
+                    <span className="inline xs:hidden">{isExporting ? "..." : "Export"}</span>
                   </Button>
                 </div>
               </div>
@@ -1198,7 +1331,7 @@ export default function SecretarySalesPage() {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      paginatedSales.map((sale) => (
+                      sales.map((sale) => (
                         <TableRow
                           key={sale.id}
                           style={{ background: "#fff" }}
@@ -1443,7 +1576,7 @@ export default function SecretarySalesPage() {
                     <span className="text-sm text-gray-700">records per page</span>
                   </div>
                   <div className="text-sm text-gray-600">
-                    Showing {startRecord} to {endRecord} of {sales.length} records
+                    Showing {startRecord} to {endRecord} of {totalCount} records
                     {(searchTerm || filterTaxType !== "all" || filterMonth !== "all") && ` (filtered)`}
                   </div>
                 </div>
