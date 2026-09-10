@@ -40,7 +40,7 @@ interface FileUpload {
   existingUrls: string[]
 }
 
-// S3 Upload function via API route
+// Direct S3 Upload function via Presigned URL (bypasses server payload limits)
 const uploadToS3API = async (
   file: File,
   taxMonth: string,
@@ -48,68 +48,50 @@ const uploadToS3API = async (
   fileType: string,
   existingFileCount: number,
 ): Promise<string> => {
-  const taxDate = taxMonth ? new Date(taxMonth) : new Date()
-  const validTaxDate = isNaN(taxDate.getTime()) ? new Date() : taxDate
-  const taxYear = validTaxDate.getFullYear().toString()
-  const taxMonthNum = String(validTaxDate.getMonth() + 1).padStart(2, "0")
-  const taxDay = String(validTaxDate.getDate()).padStart(2, "0")
-
-  const formData = new FormData()
-  formData.append("file", file)
-  formData.append("tax_month", taxMonthNum)
-  formData.append("tax_year", taxYear)
-  formData.append("tax_date", taxDay)
-
-  // Generate unique ID for the file
-  const uniqueId =
-    typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2, 10)
-
-  // Generate filename with unique ID
-  const cleanTin = (tin || "000000000").replace(/[^0-9]/g, "") || "000000000"
-  const fileExtension = file.name.split(".").pop() || "dat"
-  const baseFileName = `${cleanTin}-${fileType}-${format(new Date(), "MMddyyyy-HHmmss")}-${uniqueId}`
-  const fileName =
-    existingFileCount > 0
-      ? `${baseFileName}-${existingFileCount + 1}.${fileExtension}`
-      : `${baseFileName}.${fileExtension}`
-
-  formData.append("file_name", fileName)
-  formData.append("tin", tin || "")
-  formData.append("file_type", fileType)
-  formData.append("existing_count", existingFileCount.toString())
-
-  const apiUrl = "/api/upload-sales-attachments"
-
   try {
-    const response = await fetch(apiUrl, {
+    // 1. Get presigned upload URL from lightweight metadata (< 1 KB)
+    const presignedRes = await fetch("/api/get-s3-upload-url", {
       method: "POST",
-      body: formData,
-      headers: {
-        Accept: "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        fileName: file.name,
+        fileType: file.type || "application/octet-stream",
+        category: "sales",
+        attachmentType: fileType,
+        taxMonth,
+        tin,
+        existingCount: existingFileCount,
+      }),
     })
 
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error("Upload error response:", errorText)
-      let errorMessage = `Upload failed: ${response.status} ${response.statusText}`
+    if (!presignedRes.ok) {
+      const errText = await presignedRes.text()
+      let msg = `Presigned URL generation failed: ${presignedRes.status}`
       try {
-        const errorJson = JSON.parse(errorText)
-        errorMessage = errorJson.error || errorMessage
+        const json = JSON.parse(errText)
+        msg = json.error || msg
       } catch {}
-      throw new Error(errorMessage)
+      throw new Error(msg)
     }
 
-    const result = await response.json()
-    const uploadedUrl = result.url || (result["0"] && result["0"].url)
+    const { uploadUrl, publicUrl } = await presignedRes.json()
 
-    if (result.success && uploadedUrl) {
-      return formatS3Url(uploadedUrl)
-    } else {
-      throw new Error(result.error || "Invalid response structure: missing URL in response")
+    // 2. Upload file directly from browser to Amazon S3
+    const s3Res = await fetch(uploadUrl, {
+      method: "PUT",
+      headers: {
+        "Content-Type": file.type || "application/octet-stream",
+      },
+      body: file,
+    })
+
+    if (!s3Res.ok) {
+      throw new Error(`Direct S3 upload failed with status ${s3Res.status} ${s3Res.statusText}`)
     }
+
+    return formatS3Url(publicUrl)
   } catch (error) {
-    console.error("Upload error:", error)
+    console.error("Direct S3 Upload error:", error)
     throw new Error(
       error instanceof Error ? error.message : "Failed to upload file to S3"
     )

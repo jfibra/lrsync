@@ -293,33 +293,54 @@ export function AddPurchasesModal({ open, onOpenChange, onPurchaseAdded }: AddPu
     if (!files || files.length === 0) return;
     setOfficialReceiptUploading(true);
     try {
-      // Prepare FormData for S3 API
-      const uploadFormData = new FormData();
-      Array.from(files).forEach(file => uploadFormData.append("files", file));
-      uploadFormData.append("tin_name", formData.name || "");
-      uploadFormData.append("tin_number", formData.tin.replace(/[^0-9]/g, "") || "");
-      uploadFormData.append("assigned_area", profile?.assigned_area || "");
-      uploadFormData.append("user_full_name", profile?.full_name || "");
+      const fileList = Array.from(files);
+      const uploaded: { name: string; url: string }[] = [];
 
-      const res = await fetch("/api/upload-official-receipt-purchases", {
-        method: "POST",
-        body: uploadFormData,
-      });
+      for (const file of fileList) {
+        // 1. Get presigned upload URL
+        const presignedRes = await fetch("/api/get-s3-upload-url", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            fileName: file.name,
+            fileType: file.type || "application/octet-stream",
+            category: "purchases",
+            tinName: formData.name || "",
+            tinNumber: formData.tin.replace(/[^0-9]/g, "") || "",
+            assignedArea: profile?.assigned_area || "",
+            userFullName: profile?.full_name || "",
+          }),
+        });
 
-      if (!res.ok) {
-        throw new Error("Failed to upload file(s) to S3.");
+        if (!presignedRes.ok) {
+          throw new Error("Failed to get S3 upload authorization");
+        }
+
+        const { uploadUrl, publicUrl, fileName } = await presignedRes.json();
+
+        // 2. Direct PUT to AWS S3
+        const s3Res = await fetch(uploadUrl, {
+          method: "PUT",
+          headers: {
+            "Content-Type": file.type || "application/octet-stream",
+          },
+          body: file,
+        });
+
+        if (!s3Res.ok) {
+          throw new Error(`Direct S3 upload failed with status ${s3Res.status}`);
+        }
+
+        uploaded.push({
+          name: fileName,
+          url: formatS3Url(publicUrl),
+        });
       }
 
-      const data = await res.json();
-      setOfficialReceiptFiles(prev => [
-        ...prev,
-        ...data.files.map((f: { name: string; url: string }) => ({
-          name: f.name,
-          url: formatS3Url(f.url),
-        })),
-      ]);
+      setOfficialReceiptFiles(prev => [...prev, ...uploaded]);
     } catch (error) {
-      alert("Error uploading official receipt.");
+      console.error("Error uploading official receipt:", error);
+      alert("Error uploading official receipt: " + (error instanceof Error ? error.message : "Upload failed"));
     } finally {
       setOfficialReceiptUploading(false);
     }
