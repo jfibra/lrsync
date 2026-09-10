@@ -67,10 +67,11 @@ const uploadToS3API = async (
   fileType: string,
   existingFileCount: number
 ): Promise<string> => {
-  const taxDate = new Date(taxMonth);
-  const taxYear = taxDate.getFullYear().toString();
-  const taxMonthNum = String(taxDate.getMonth() + 1).padStart(2, "0");
-  const taxDay = String(taxDate.getDate()).padStart(2, "0");
+  const taxDate = taxMonth ? new Date(taxMonth) : new Date();
+  const validTaxDate = isNaN(taxDate.getTime()) ? new Date() : taxDate;
+  const taxYear = validTaxDate.getFullYear().toString();
+  const taxMonthNum = String(validTaxDate.getMonth() + 1).padStart(2, "0");
+  const taxDay = String(validTaxDate.getDate()).padStart(2, "0");
 
   const formData = new FormData();
   formData.append("file", file);
@@ -79,11 +80,11 @@ const uploadToS3API = async (
   formData.append("tax_date", taxDay);
 
   // Generate unique ID for the file
-  const uniqueId = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2, 10);
+  const uniqueId = typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2, 10);
 
   // Generate filename with unique ID
-  const cleanTin = tin.replace(/-/g, "");
-  const fileExtension = file.name.split(".").pop();
+  const cleanTin = (tin || "000000000").replace(/[^0-9]/g, "") || "000000000";
+  const fileExtension = file.name.split(".").pop() || "dat";
   const baseFileName = `${cleanTin}-${fileType}-${format(new Date(), "MMddyyyy-HHmmss")}-${uniqueId}`;
   const fileName =
     existingFileCount > 0
@@ -91,7 +92,7 @@ const uploadToS3API = async (
       : `${baseFileName}.${fileExtension}`;
 
   formData.append("file_name", fileName);
-  formData.append("tin", tin);
+  formData.append("tin", tin || "");
   formData.append("file_type", fileType);
   formData.append("existing_count", existingFileCount.toString());
 
@@ -109,9 +110,12 @@ const uploadToS3API = async (
     if (!response.ok) {
       const errorText = await response.text();
       console.error("Upload error response:", errorText);
-      throw new Error(
-        `Upload failed: ${response.status} ${response.statusText}`
-      );
+      let errorMessage = `Upload failed: ${response.status} ${response.statusText}`;
+      try {
+        const errorJson = JSON.parse(errorText);
+        errorMessage = errorJson.error || errorMessage;
+      } catch {}
+      throw new Error(errorMessage);
     }
 
     const result = await response.json();
@@ -120,13 +124,12 @@ const uploadToS3API = async (
     if (result.success && uploadedUrl) {
       return formatS3Url(uploadedUrl);
     } else {
-      throw new Error("Invalid response structure: missing URL in response");
+      throw new Error(result.error || "Invalid response structure: missing URL in response");
     }
   } catch (error) {
-    console.error("Network error:", error);
+    console.error("Upload error:", error);
     throw new Error(
-      `Network error: ${error instanceof Error ? error.message : "Unknown error"
-      }`
+      error instanceof Error ? error.message : "Failed to upload file to S3"
     );
   }
 };

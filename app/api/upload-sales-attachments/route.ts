@@ -36,6 +36,10 @@ export async function POST(request: NextRequest) {
     let month = (formData.get("tax_month") as string) || "";
     let date = (formData.get("tax_date") as string) || "";
 
+    if (year === "NaN" || isNaN(Number(year))) year = "";
+    if (month === "NaN" || isNaN(Number(month))) month = "";
+    if (date === "NaN" || isNaN(Number(date))) date = "";
+
     if (month && month.includes("-")) {
       const d = new Date(month);
       if (!isNaN(d.getTime())) {
