@@ -58,6 +58,8 @@ import type { Sales } from "@/types/sales";
 import * as XLSX from "xlsx";
 import { logNotification } from "@/utils/logNotification";
 import { formatS3Url } from "@/utils/s3-url";
+import { applyTaxMonthFilter, formatDatePeriodLabel } from "@/lib/date-filter";
+import { YearSelect, MonthMultiSelect } from "@/components/date-period-filter";
 
 export default function AdminSalesPage() {
   const { profile } = useAuth();
@@ -66,7 +68,8 @@ export default function AdminSalesPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const [filterTaxType, setFilterTaxType] = useState("all");
-  const [filterMonth, setFilterMonth] = useState("all");
+  const [filterYear, setFilterYear] = useState("all");
+  const [filterMonths, setFilterMonths] = useState<string[]>([]);
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -307,23 +310,9 @@ export default function AdminSalesPage() {
         statsQuery = statsQuery.eq("tax_type", filterTaxType);
       }
 
-      if (filterMonth !== "all") {
-        const [year, month] = filterMonth.split("-");
-        const startDate = `${year}-${month}-01`;
-        const nextMonth =
-          Number.parseInt(month) === 12 ? 1 : Number.parseInt(month) + 1;
-        const nextYear =
-          Number.parseInt(month) === 12
-            ? Number.parseInt(year) + 1
-            : Number.parseInt(year);
-        const endDate = `${nextYear}-${String(nextMonth).padStart(2, "0")}-01`;
-        salesQuery = salesQuery
-          .gte("tax_month", startDate)
-          .lt("tax_month", endDate);
-        statsQuery = statsQuery
-          .gte("tax_month", startDate)
-          .lt("tax_month", endDate);
-      }
+      // Apply Year & Multi-Month filter
+      salesQuery = applyTaxMonthFilter(salesQuery, filterYear, filterMonths);
+      statsQuery = applyTaxMonthFilter(statsQuery, filterYear, filterMonths);
 
       const [salesResult, statsResult] = await Promise.all([
         salesQuery,
@@ -367,11 +356,11 @@ export default function AdminSalesPage() {
 
   useEffect(() => {
     fetchSales();
-  }, [debouncedSearchTerm, filterTaxType, filterMonth, currentPage, pageSize]);
+  }, [debouncedSearchTerm, filterTaxType, filterYear, filterMonths, currentPage, pageSize]);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [debouncedSearchTerm, filterTaxType, filterMonth]);
+  }, [debouncedSearchTerm, filterTaxType, filterYear, filterMonths]);
 
   const totalPages = Math.ceil(totalCount / pageSize);
   const startRecord = totalCount === 0 ? 0 : (currentPage - 1) * pageSize + 1;
@@ -422,35 +411,6 @@ export default function AdminSalesPage() {
         return "bg-gray-100 text-gray-800 border border-gray-200";
     }
   };
-
-  // Generate month options for filter
-  const generateMonthOptions = () => {
-    const options = [];
-    const currentDate = new Date();
-
-    for (let i = 0; i < 24; i++) {
-      const date = new Date(
-        currentDate.getFullYear(),
-        currentDate.getMonth() - i,
-        1
-      );
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, "0");
-      const monthName = date.toLocaleDateString("en-US", {
-        month: "long",
-        year: "numeric",
-      });
-
-      options.push({
-        value: `${year}-${month}`,
-        label: monthName,
-      });
-    }
-
-    return options;
-  };
-
-  const monthOptions = generateMonthOptions();
 
   // Handle view sale
   const handleViewSale = (sale: Sales) => {
@@ -539,18 +499,7 @@ export default function AdminSalesPage() {
       if (filterTaxType !== "all") {
         query = query.eq("tax_type", filterTaxType);
       }
-      if (filterMonth !== "all") {
-        const [year, month] = filterMonth.split("-");
-        const startDate = `${year}-${month}-01`;
-        const nextMonth =
-          Number.parseInt(month) === 12 ? 1 : Number.parseInt(month) + 1;
-        const nextYear =
-          Number.parseInt(month) === 12
-            ? Number.parseInt(year) + 1
-            : Number.parseInt(year);
-        const endDate = `${nextYear}-${String(nextMonth).padStart(2, "0")}-01`;
-        query = query.gte("tax_month", startDate).lt("tax_month", endDate);
-      }
+      query = applyTaxMonthFilter(query, filterYear, filterMonths);
 
       const { data, error } = await query;
       if (error) throw error;
@@ -589,10 +538,10 @@ export default function AdminSalesPage() {
       const wb = XLSX.utils.book_new();
 
       // Create summary data
+      const periodLabel = formatDatePeriodLabel(filterYear, filterMonths);
       const summaryData = [
         [
-          `SALES MANAGEMENT REPORT - ${profile?.assigned_area || "Unknown Area"
-          } (Invoice Sales Only)`,
+          `SALES MANAGEMENT REPORT - ${profile?.assigned_area || "Unknown Area"} (${periodLabel}) (Invoice Sales Only)`,
         ],
         [
           "Generated on:",
@@ -882,8 +831,8 @@ export default function AdminSalesPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="p-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="relative col-span-full sm:col-span-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                <div className="relative col-span-full sm:col-span-1 lg:col-span-1">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                   <Input
                     placeholder="Search by name, TIN, or invoice..."
@@ -917,34 +866,15 @@ export default function AdminSalesPage() {
                     </SelectItem>
                   </SelectContent>
                 </Select>
-                <Select value={filterMonth} onValueChange={setFilterMonth}>
-                  <SelectTrigger className="w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white text-gray-900">
-                    <SelectValue placeholder="Filter by month" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-white border border-gray-200">
-                    <SelectItem
-                      value="all"
-                      className="text-gray-900 hover:bg-gray-100"
-                    >
-                      All Months
-                    </SelectItem>
-                    {monthOptions.map((option) => (
-                      <SelectItem
-                        key={option.value}
-                        value={option.value}
-                        className="text-gray-900 hover:bg-gray-100"
-                      >
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <YearSelect value={filterYear} onValueChange={setFilterYear} />
+                <MonthMultiSelect selectedMonths={filterMonths} onMonthsChange={setFilterMonths} selectedYear={filterYear} />
                 <Button
                   variant="outline"
                   onClick={() => {
                     setSearchTerm("");
                     setFilterTaxType("all");
-                    setFilterMonth("all");
+                    setFilterYear("all");
+                    setFilterMonths([]);
                   }}
                   className="w-full border-0 bg-gradient-to-r from-red-500 to-pink-500 text-white font-semibold shadow-md hover:from-red-600 hover:to-pink-600 transition-all duration-150 flex items-center justify-center gap-2"
                 >
@@ -1338,7 +1268,7 @@ export default function AdminSalesPage() {
                   </div>
                   <div className="text-sm text-gray-600">
                     Showing {startRecord} to {endRecord} of {totalCount} records
-                    {(searchTerm || filterTaxType !== "all" || filterMonth !== "all") && ` (filtered)`}
+                    {(searchTerm || filterTaxType !== "all" || filterYear !== "all" || filterMonths.length > 0) && ` (filtered)`}
                   </div>
                 </div>
 

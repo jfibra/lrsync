@@ -36,6 +36,8 @@ import { PurchasesExportModal } from "@/components/purchases-export-modal"
 import { ColumnVisibilityControl } from "@/components/column-visibility-control"
 import { RemarksModalViewerPurchases } from "@/components/remarks-modal-viewer-purchases"
 import { formatS3Url } from "@/utils/s3-url"
+import { applyTaxMonthFilter, formatDatePeriodLabel } from "@/lib/date-filter"
+import { YearSelect, MonthMultiSelect } from "@/components/date-period-filter"
 
 interface Purchase {
   id: string
@@ -68,7 +70,8 @@ export default function SuperAdminPurchasesPage() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [filterTaxType, setFilterTaxType] = useState("all")
-  const [filterMonth, setFilterMonth] = useState("all")
+  const [filterYear, setFilterYear] = useState("all")
+  const [filterMonths, setFilterMonths] = useState<string[]>([])
   const [filterArea, setFilterArea] = useState("all")
   const [availableAreas, setAvailableAreas] = useState<string[]>([])
 
@@ -362,14 +365,8 @@ export default function SuperAdminPurchasesPage() {
         purchasesQuery = purchasesQuery.eq("tax_type", filterTaxType)
       }
 
-      if (filterMonth !== "all") {
-        const [year, month] = filterMonth.split("-")
-        const startDate = `${year}-${month}-01`
-        const nextMonth = Number.parseInt(month) === 12 ? 1 : Number.parseInt(month) + 1
-        const nextYear = Number.parseInt(month) === 12 ? Number.parseInt(year) + 1 : Number.parseInt(year)
-        const endDate = `${nextYear}-${String(nextMonth).padStart(2, "0")}-01`
-        purchasesQuery = purchasesQuery.gte("tax_month", startDate).lt("tax_month", endDate)
-      }
+      // Apply Year & Multi-Month filter
+      purchasesQuery = applyTaxMonthFilter(purchasesQuery, filterYear, filterMonths)
 
       if (filterCategory !== "all") {
         purchasesQuery = purchasesQuery.eq("category_id", filterCategory)
@@ -423,7 +420,7 @@ export default function SuperAdminPurchasesPage() {
 
   useEffect(() => {
     fetchPurchases()
-  }, [searchTerm, filterTaxType, filterMonth, filterArea, sortField, sortDirection, filterCategory])
+  }, [searchTerm, filterTaxType, filterYear, filterMonths, filterArea, sortField, sortDirection, filterCategory])
 
   // Format currency
   const formatCurrency = (amount: number) => {
@@ -451,28 +448,6 @@ export default function SuperAdminPurchasesPage() {
     }
   }
 
-  // Generate tax month options for filter
-  const generateTaxMonthOptions = () => {
-    const options = []
-    const currentDate = new Date()
-
-    for (let i = 0; i < 24; i++) {
-      const date = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1)
-      const year = date.getFullYear()
-      const month = date.getMonth() + 1
-      const monthName = date.toLocaleDateString("en-US", { month: "long", year: "numeric" })
-      const value = `${year}-${String(month).padStart(2, "0")}`
-
-      options.push({
-        label: monthName,
-        value: value,
-      })
-    }
-
-    return options
-  }
-
-  const taxMonthOptions = generateTaxMonthOptions()
 
   // Handle sorting
   const handleSort = (field: string) => {
@@ -573,9 +548,10 @@ export default function SuperAdminPurchasesPage() {
       XLSX.writeFile(wb, filename)
 
       if (profile?.id) {
+        const periodLabel = formatDatePeriodLabel(filterYear, filterMonths)
         await logNotification(supabase, {
           action: "purchases_exported",
-          description: `Purchases data exported to Excel (${purchases.length} records)`,
+          description: `Purchases data (${periodLabel}) exported to Excel (${purchases.length} records)`,
           ip_address: null,
           location: null,
           meta: JSON.stringify({
@@ -731,11 +707,11 @@ export default function SuperAdminPurchasesPage() {
         <CardHeader>
           <CardTitle className="text-[#001f3f]">Filters</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
-            {/* Search */}
+        <CardContent className="p-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-4">
+            {/* Search Input */}
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-[#001f3f]/50" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <Input
                 placeholder="Search by name, TIN, or invoice..."
                 value={searchTerm}
@@ -756,21 +732,6 @@ export default function SuperAdminPurchasesPage() {
               </SelectContent>
             </Select>
 
-            {/* Month Filter */}
-            <Select value={filterMonth} onValueChange={setFilterMonth}>
-              <SelectTrigger className="bg-white border-[#001f3f]/30 focus:border-[#001f3f] text-[#001f3f]">
-                <SelectValue placeholder="Tax Month" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Months</SelectItem>
-                {taxMonthOptions.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
             {/* Purchase Categories Filter */}
             <Select value={filterCategory} onValueChange={setFilterCategory}>
               <SelectTrigger className="bg-white border-[#001f3f]/30 focus:border-[#001f3f] text-[#001f3f]">
@@ -785,6 +746,12 @@ export default function SuperAdminPurchasesPage() {
                 ))}
               </SelectContent>
             </Select>
+
+            {/* Year Filter */}
+            <YearSelect value={filterYear} onValueChange={setFilterYear} />
+
+            {/* Month Filter */}
+            <MonthMultiSelect selectedMonths={filterMonths} onMonthsChange={setFilterMonths} selectedYear={filterYear} />
 
             {/* Area Filter */}
             <Select value={filterArea} onValueChange={setFilterArea}>
@@ -807,7 +774,9 @@ export default function SuperAdminPurchasesPage() {
               onClick={() => {
                 setSearchTerm("")
                 setFilterTaxType("all")
-                setFilterMonth("all")
+                setFilterCategory("all")
+                setFilterYear("all")
+                setFilterMonths([])
                 setFilterArea("all")
               }}
               className="bg-white border-[#001f3f]/30 text-[#001f3f] hover:bg-[#001f3f]/10"

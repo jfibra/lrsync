@@ -32,6 +32,8 @@ import * as XLSX from "xlsx"
 import { exportPurchasesToExcel } from "@/utils/export-purchases"
 import { RemarksModalViewerPurchases } from "@/components/remarks-modal-viewer-purchases"
 import { formatS3Url } from "@/utils/s3-url"
+import { applyTaxMonthFilter, formatDatePeriodLabel } from "@/lib/date-filter"
+import { YearSelect, MonthMultiSelect } from "@/components/date-period-filter"
 
 // Import modals
 import { AddPurchasesModal } from "@/components/add-purchases-modal"
@@ -70,7 +72,8 @@ export default function SecretaryPurchasesPage() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [filterTaxType, setFilterTaxType] = useState("all")
-  const [filterMonth, setFilterMonth] = useState("all")
+  const [filterYear, setFilterYear] = useState("all")
+  const [filterMonths, setFilterMonths] = useState<string[]>([])
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1)
@@ -352,14 +355,8 @@ export default function SecretaryPurchasesPage() {
         purchasesQuery = purchasesQuery.eq("tax_type", filterTaxType)
       }
 
-      if (filterMonth !== "all") {
-        const [year, month] = filterMonth.split("-")
-        const startDate = `${year}-${month}-01`
-        const nextMonth = Number.parseInt(month) === 12 ? 1 : Number.parseInt(month) + 1
-        const nextYear = Number.parseInt(month) === 12 ? Number.parseInt(year) + 1 : Number.parseInt(year)
-        const endDate = `${nextYear}-${String(nextMonth).padStart(2, "0")}-01`
-        purchasesQuery = purchasesQuery.gte("tax_month", startDate).lt("tax_month", endDate)
-      }
+      // Apply Year & Multi-Month filter
+      purchasesQuery = applyTaxMonthFilter(purchasesQuery, filterYear, filterMonths)
 
       const { data: purchasesData, error: purchasesError } = await purchasesQuery
 
@@ -403,13 +400,13 @@ export default function SecretaryPurchasesPage() {
 
   useEffect(() => {
     setCurrentPage(1)
-  }, [searchTerm, filterTaxType, filterMonth])
+  }, [searchTerm, filterTaxType, filterYear, filterMonths, filterCategory])
 
   useEffect(() => {
     if (profile?.assigned_area) {
       fetchPurchases()
     }
-  }, [searchTerm, filterTaxType, filterMonth, sortField, sortDirection, profile?.assigned_area, filterCategory])
+  }, [searchTerm, filterTaxType, filterYear, filterMonths, sortField, sortDirection, profile?.assigned_area, filterCategory])
 
   // Format currency
   const formatCurrency = (amount: number) => {
@@ -437,40 +434,6 @@ export default function SecretaryPurchasesPage() {
     }
   }
 
-  // Generate tax month options for filter
-  const generateTaxMonthOptions = () => {
-    const options = []
-    const currentDate = new Date()
-
-    for (let i = 0; i < 24; i++) {
-      const date = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1)
-      const year = date.getFullYear()
-      const month = date.getMonth() + 1
-      const monthName = date.toLocaleDateString("en-US", { month: "long", year: "numeric" })
-      const value = `${year}-${String(month).padStart(2, "0")}`
-
-      options.push({
-        label: monthName,
-        value: value,
-      })
-    }
-
-    return options
-  }
-
-  function s3UrlFix(url: string) {
-    // Only fix the last segment (the filename)
-    const parts = url.split("/");
-    let filename = parts[parts.length - 1];
-    // Replace spaces with +
-    filename = filename.replace(/ /g, "+");
-    // Replace # with %23 (and any other special chars if needed)
-    filename = filename.replace(/#/g, "%23");
-    parts[parts.length - 1] = filename;
-    return parts.join("/");
-  }
-
-  const taxMonthOptions = generateTaxMonthOptions()
 
   // Handle sorting
   const handleSort = (field: string) => {
@@ -581,13 +544,15 @@ export default function SecretaryPurchasesPage() {
       XLSX.utils.book_append_sheet(wb, ws, "Purchases")
 
       const timestamp = format(new Date(), "yyyy-MM-dd_HH-mm")
-      const filename = `purchases_${profile?.assigned_area}_${timestamp}.xlsx`
+      const periodSlug = (filterYear !== "all" ? `${filterYear}_` : "") + (filterMonths.length > 0 ? `${filterMonths.join("-")}_` : "")
+      const filename = `purchases_${profile?.assigned_area}_${periodSlug}${timestamp}.xlsx`
       XLSX.writeFile(wb, filename)
 
       if (profile?.id) {
+        const periodLabel = formatDatePeriodLabel(filterYear, filterMonths)
         await logNotification(supabase, {
           action: "purchases_exported",
-          description: `Purchases data exported to Excel (${purchases.length} records) for ${profile?.assigned_area}`,
+          description: `Purchases data (${periodLabel}) exported to Excel (${purchases.length} records) for ${profile?.assigned_area}`,
           ip_address: null,
           location: null,
           meta: JSON.stringify({
@@ -733,13 +698,12 @@ export default function SecretaryPurchasesPage() {
                 <Search className="h-5 w-5 text-indigo-600" />
                 Filters - {profile?.assigned_area || "Your Area"}
               </CardTitle>
-            </CardHeader>
-            <CardContent className="p-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 lg:grid-cols-5 gap-4">
-                <div className="relative col-span-full sm:col-span-1 lg:col-span-1">
+            </CardHeader>            <CardContent className="p-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+                <div className="relative col-span-full sm:col-span-1">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                   <Input
-                    placeholder="Search by name, TIN, or invoice..."
+                    placeholder="Search by name, TIN, invoice..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="pl-10 w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white text-gray-900"
@@ -761,21 +725,6 @@ export default function SecretaryPurchasesPage() {
                     </SelectItem>
                   </SelectContent>
                 </Select>
-                <Select value={filterMonth} onValueChange={setFilterMonth}>
-                  <SelectTrigger className="w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white text-gray-900">
-                    <SelectValue placeholder="Filter by month" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-white border border-gray-200">
-                    <SelectItem value="all" className="text-gray-900 hover:bg-gray-100">
-                      All Months
-                    </SelectItem>
-                    {taxMonthOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value} className="text-gray-900 hover:bg-gray-100">
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
                 <Select value={filterCategory} onValueChange={setFilterCategory}>
                   <SelectTrigger className="bg-white border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 text-gray-900">
                     <SelectValue placeholder="Category" />
@@ -789,12 +738,16 @@ export default function SecretaryPurchasesPage() {
                     ))}
                   </SelectContent>
                 </Select>
+                <YearSelect value={filterYear} onValueChange={setFilterYear} />
+                <MonthMultiSelect selectedMonths={filterMonths} onMonthsChange={setFilterMonths} selectedYear={filterYear} />
                 <Button
                   variant="outline"
                   onClick={() => {
                     setSearchTerm("")
                     setFilterTaxType("all")
-                    setFilterMonth("all")
+                    setFilterCategory("all")
+                    setFilterYear("all")
+                    setFilterMonths([])
                   }}
                   style={{ background: "#fff", color: "#001f3f", border: "1px solid #001f3f" }}
                   className="w-full font-semibold shadow-md hover:text-[#ee3433] transition-all duration-150 flex items-center justify-center gap-2"
@@ -804,6 +757,7 @@ export default function SecretaryPurchasesPage() {
                 </Button>
               </div>
             </CardContent>
+
           </Card>
 
           {selectedSales.length > 0 && (

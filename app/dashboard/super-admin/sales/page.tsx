@@ -42,6 +42,8 @@ import { logNotification } from "@/utils/logNotification"
 import { AddRemarkModal } from "@/components/add-remark-modal"
 import { RemarksModalViewer } from "@/components/remarks-modal-viewer"
 import { formatS3Url } from "@/utils/s3-url"
+import { applyTaxMonthFilter, formatDatePeriodLabel } from "@/lib/date-filter"
+import { YearSelect, MonthMultiSelect } from "@/components/date-period-filter"
 
 export default function SuperAdminSalesPage() {
   const { profile } = useAuth()
@@ -50,7 +52,8 @@ export default function SuperAdminSalesPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("")
   const [filterTaxType, setFilterTaxType] = useState("all")
-  const [filterMonth, setFilterMonth] = useState("all")
+  const [filterYear, setFilterYear] = useState("all")
+  const [filterMonths, setFilterMonths] = useState<string[]>([])
   const [filterArea, setFilterArea] = useState("all")
   const [availableAreas, setAvailableAreas] = useState<string[]>([])
 
@@ -364,16 +367,9 @@ export default function SuperAdminSalesPage() {
         statsQuery = statsQuery.eq("tax_type", filterTaxType)
       }
 
-      // Apply month filter
-      if (filterMonth !== "all") {
-        const [year, month] = filterMonth.split("-")
-        const startDate = `${year}-${month}-01`
-        const nextMonth = Number.parseInt(month) === 12 ? 1 : Number.parseInt(month) + 1
-        const nextYear = Number.parseInt(month) === 12 ? Number.parseInt(year) + 1 : Number.parseInt(year)
-        const endDate = `${nextYear}-${String(nextMonth).padStart(2, "0")}-01`
-        salesQuery = salesQuery.gte("tax_month", startDate).lt("tax_month", endDate)
-        statsQuery = statsQuery.gte("tax_month", startDate).lt("tax_month", endDate)
-      }
+      // Apply Year & Multi-Month filter
+      salesQuery = applyTaxMonthFilter(salesQuery, filterYear, filterMonths)
+      statsQuery = applyTaxMonthFilter(statsQuery, filterYear, filterMonths)
 
       // Apply area filter
       if (filterArea !== "all") {
@@ -487,12 +483,12 @@ export default function SuperAdminSalesPage() {
 
   useEffect(() => {
     fetchSales()
-  }, [debouncedSearchTerm, filterTaxType, filterMonth, filterArea, showOnlyWithRemarks, sortField, sortDirection, currentPage, pageSize, allProfiles])
+  }, [debouncedSearchTerm, filterTaxType, filterYear, filterMonths, filterArea, showOnlyWithRemarks, sortField, sortDirection, currentPage, pageSize, allProfiles])
 
   // Reset to page 1 when search or filter terms change
   useEffect(() => {
     setCurrentPage(1)
-  }, [debouncedSearchTerm, filterTaxType, filterMonth, filterArea, showOnlyWithRemarks])
+  }, [debouncedSearchTerm, filterTaxType, filterYear, filterMonths, filterArea, showOnlyWithRemarks])
 
   // Format currency
   const formatCurrency = (amount: number) => {
@@ -520,30 +516,6 @@ export default function SuperAdminSalesPage() {
     }
   }
 
-  // Generate month options for filter
-  const generateMonthOptions = () => {
-    const options = []
-    const currentDate = new Date()
-
-    for (let i = 0; i < 24; i++) {
-      const date = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1)
-      const year = date.getFullYear()
-      const month = String(date.getMonth() + 1).padStart(2, "0")
-      const monthName = date.toLocaleDateString("en-US", {
-        month: "long",
-        year: "numeric",
-      })
-
-      options.push({
-        value: `${year}-${month}`,
-        label: monthName,
-      })
-    }
-
-    return options
-  }
-
-  const monthOptions = useMemo(() => generateMonthOptions(), [])
 
   const getMostRecentRemark = (remarksJson: string | null) => {
     if (!remarksJson) return null
@@ -698,14 +670,7 @@ export default function SuperAdminSalesPage() {
       if (filterTaxType !== "all") {
         query = query.eq("tax_type", filterTaxType)
       }
-      if (filterMonth !== "all") {
-        const [year, month] = filterMonth.split("-")
-        const startDate = `${year}-${month}-01`
-        const nextMonth = Number.parseInt(month) === 12 ? 1 : Number.parseInt(month) + 1
-        const nextYear = Number.parseInt(month) === 12 ? Number.parseInt(year) + 1 : Number.parseInt(year)
-        const endDate = `${nextYear}-${String(nextMonth).padStart(2, "0")}-01`
-        query = query.gte("tax_month", startDate).lt("tax_month", endDate)
-      }
+      query = applyTaxMonthFilter(query, filterYear, filterMonths)
       if (filterArea !== "all") {
         const areaUserIds = allProfiles
           .filter((p) => p.assigned_area === filterArea)
@@ -749,10 +714,11 @@ export default function SuperAdminSalesPage() {
 
     // Create workbook
     const wb = XLSX.utils.book_new()
+    const periodLabel = formatDatePeriodLabel(filterYear, filterMonths)
 
     // Create summary data
     const summaryData = [
-      ["SALES MANAGEMENT REPORT (Invoice Sales Only)"],
+      [`SALES MANAGEMENT REPORT (${periodLabel}) (Invoice Sales Only)`],
       [
         "Generated on:",
         new Date().toLocaleDateString("en-PH", {
@@ -1113,8 +1079,8 @@ export default function SuperAdminSalesPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="p-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-                <div className="relative col-span-full sm:col-span-1 lg:col-span-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+                <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                   <Input
                     placeholder="Search by name, TIN, or invoice..."
@@ -1139,21 +1105,8 @@ export default function SuperAdminSalesPage() {
                     </SelectItem>
                   </SelectContent>
                 </Select>
-                <Select value={filterMonth} onValueChange={setFilterMonth}>
-                  <SelectTrigger className="w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white text-gray-900">
-                    <SelectValue placeholder="Filter by month" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-white border border-gray-200">
-                    <SelectItem value="all" className="text-gray-900 hover:bg-gray-100">
-                      All Months
-                    </SelectItem>
-                    {monthOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value} className="text-gray-900 hover:bg-gray-100">
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <YearSelect value={filterYear} onValueChange={setFilterYear} />
+                <MonthMultiSelect selectedMonths={filterMonths} onMonthsChange={setFilterMonths} selectedYear={filterYear} />
                 <Select value={filterArea} onValueChange={setFilterArea}>
                   <SelectTrigger className="w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white text-gray-900">
                     <SelectValue placeholder="Filter by area" />
@@ -1174,7 +1127,9 @@ export default function SuperAdminSalesPage() {
                   onClick={() => {
                     setSearchTerm("")
                     setFilterTaxType("all")
-                    setFilterMonth("all")
+                    setFilterYear("all")
+                    setFilterMonths([])
+                    setFilterArea("all")
                   }}
                   className="w-full border-0 bg-gradient-to-r from-red-500 to-pink-500 text-white font-semibold shadow-md hover:from-red-600 hover:to-pink-600 transition-all duration-150 flex items-center justify-center gap-2"
                 >
@@ -1590,7 +1545,7 @@ export default function SuperAdminSalesPage() {
 
                   <div className="text-sm text-gray-600">
                     Showing {startRecord} to {endRecord} of {totalCount} records
-                    {(searchTerm || filterTaxType !== "all" || filterMonth !== "all" || filterArea !== "all") &&
+                    {(searchTerm || filterTaxType !== "all" || filterYear !== "all" || filterMonths.length > 0 || filterArea !== "all") &&
                       ` (filtered)`}
                   </div>
                 </div>

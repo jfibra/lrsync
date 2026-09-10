@@ -42,6 +42,8 @@ import { logNotification } from "@/utils/logNotification"
 import { AddRemarkModal } from "@/components/add-remark-modal"
 import { RemarksModalViewer } from "@/components/remarks-modal-viewer"
 import { formatS3Url } from "@/utils/s3-url"
+import { applyTaxMonthFilter, formatDatePeriodLabel } from "@/lib/date-filter"
+import { YearSelect, MonthMultiSelect } from "@/components/date-period-filter"
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat("en-PH", {
@@ -82,7 +84,8 @@ export default function SecretarySalesPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("")
   const [filterTaxType, setFilterTaxType] = useState("all")
-  const [filterMonth, setFilterMonth] = useState("all")
+  const [filterYear, setFilterYear] = useState("all")
+  const [filterMonths, setFilterMonths] = useState<string[]>([])
 
   // Debounce search input to avoid re-fetching on every single keystroke
   useEffect(() => {
@@ -533,15 +536,9 @@ export default function SecretarySalesPage() {
         statsQuery = statsQuery.eq("tax_type", filterTaxType)
       }
 
-      if (filterMonth !== "all") {
-        const [year, month] = filterMonth.split("-")
-        const startDate = `${year}-${month}-01`
-        const nextMonth = Number.parseInt(month) === 12 ? 1 : Number.parseInt(month) + 1
-        const nextYear = Number.parseInt(month) === 12 ? Number.parseInt(year) + 1 : Number.parseInt(year)
-        const endDate = `${nextYear}-${String(nextMonth).padStart(2, "0")}-01`
-        salesQuery = salesQuery.gte("tax_month", startDate).lt("tax_month", endDate)
-        statsQuery = statsQuery.gte("tax_month", startDate).lt("tax_month", endDate)
-      }
+      // Apply Year & Multi-Month filter
+      salesQuery = applyTaxMonthFilter(salesQuery, filterYear, filterMonths)
+      statsQuery = applyTaxMonthFilter(statsQuery, filterYear, filterMonths)
 
       // Apply remarks filter if active
       if (showOnlyWithRemarks) {
@@ -640,12 +637,12 @@ export default function SecretarySalesPage() {
     if (profile?.assigned_area) {
       fetchSales()
     }
-  }, [profile?.assigned_area, debouncedSearchTerm, filterTaxType, filterMonth, showOnlyWithRemarks, currentPage, pageSize])
+  }, [profile?.assigned_area, debouncedSearchTerm, filterTaxType, filterYear, filterMonths, showOnlyWithRemarks, currentPage, pageSize])
 
   // Reset to page 1 on filter changes
   useEffect(() => {
     setCurrentPage(1)
-  }, [debouncedSearchTerm, filterTaxType, filterMonth, showOnlyWithRemarks])
+  }, [debouncedSearchTerm, filterTaxType, filterYear, filterMonths, showOnlyWithRemarks])
 
   // Get tax type badge color
   const getTaxTypeBadgeColor = (taxType: string) => {
@@ -658,31 +655,6 @@ export default function SecretarySalesPage() {
         return "bg-gray-100 text-gray-800 border border-gray-200"
     }
   }
-
-  // Generate month options for filter
-  const generateMonthOptions = () => {
-    const options = []
-    const currentDate = new Date()
-
-    for (let i = 0; i < 24; i++) {
-      const date = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1)
-      const year = date.getFullYear()
-      const month = String(date.getMonth() + 1).padStart(2, "0")
-      const monthName = date.toLocaleDateString("en-US", {
-        month: "long",
-        year: "numeric",
-      })
-
-      options.push({
-        value: `${year}-${month}`,
-        label: monthName,
-      })
-    }
-
-    return options
-  }
-
-  const monthOptions = useMemo(() => generateMonthOptions(), [])
 
   const totalPages = Math.ceil(totalCount / pageSize)
   const startRecord = totalCount === 0 ? 0 : (currentPage - 1) * pageSize + 1
@@ -808,14 +780,7 @@ export default function SecretarySalesPage() {
       if (filterTaxType !== "all") {
         query = query.eq("tax_type", filterTaxType)
       }
-      if (filterMonth !== "all") {
-        const [year, month] = filterMonth.split("-")
-        const startDate = `${year}-${month}-01`
-        const nextMonth = Number.parseInt(month) === 12 ? 1 : Number.parseInt(month) + 1
-        const nextYear = Number.parseInt(month) === 12 ? Number.parseInt(year) + 1 : Number.parseInt(year)
-        const endDate = `${nextYear}-${String(nextMonth).padStart(2, "0")}-01`
-        query = query.gte("tax_month", startDate).lt("tax_month", endDate)
-      }
+      query = applyTaxMonthFilter(query, filterYear, filterMonths)
 
       const { data, error } = await query
       if (error) throw error
@@ -848,10 +813,11 @@ export default function SecretarySalesPage() {
 
     // Create workbook
     const wb = XLSX.utils.book_new()
+    const periodLabel = formatDatePeriodLabel(filterYear, filterMonths)
 
     // Create summary data
     const summaryData = [
-      [`SALES MANAGEMENT REPORT - ${profile?.assigned_area || "Area"} (Invoice Sales Only)`],
+      [`SALES MANAGEMENT REPORT - ${profile?.assigned_area || "Area"} (${periodLabel}) (Invoice Sales Only)`],
       [
         "Generated on:",
         new Date().toLocaleDateString("en-PH", {
@@ -1152,14 +1118,14 @@ export default function SecretarySalesPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="p-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                <div className="relative col-span-full sm:col-span-1 lg:col-span-1">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                   <Input
                     placeholder="Search by name, TIN, or invoice..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10 w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white text-gray-900"
+                    className="pl-10 border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white text-gray-900"
                   />
                 </div>
                 <Select value={filterTaxType} onValueChange={setFilterTaxType}>
@@ -1178,27 +1144,15 @@ export default function SecretarySalesPage() {
                     </SelectItem>
                   </SelectContent>
                 </Select>
-                <Select value={filterMonth} onValueChange={setFilterMonth}>
-                  <SelectTrigger className="w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white text-gray-900">
-                    <SelectValue placeholder="Filter by month" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-white border border-gray-200">
-                    <SelectItem value="all" className="text-gray-900 hover:bg-gray-100">
-                      All Months
-                    </SelectItem>
-                    {monthOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value} className="text-gray-900 hover:bg-gray-100">
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <YearSelect value={filterYear} onValueChange={setFilterYear} />
+                <MonthMultiSelect selectedMonths={filterMonths} onMonthsChange={setFilterMonths} selectedYear={filterYear} />
                 <Button
                   variant="outline"
                   onClick={() => {
                     setSearchTerm("")
                     setFilterTaxType("all")
-                    setFilterMonth("all")
+                    setFilterYear("all")
+                    setFilterMonths([])
                   }}
                   style={{ background: "#fff", color: "#001f3f", border: "1px solid #001f3f" }}
                   className="w-full font-semibold shadow-md hover:text-[#ee3433] transition-all duration-150 flex items-center justify-center gap-2"
@@ -1599,7 +1553,7 @@ export default function SecretarySalesPage() {
                   </div>
                   <div className="text-sm text-gray-600">
                     Showing {startRecord} to {endRecord} of {totalCount} records
-                    {(searchTerm || filterTaxType !== "all" || filterMonth !== "all") && ` (filtered)`}
+                    {(searchTerm || filterTaxType !== "all" || filterYear !== "all" || filterMonths.length > 0) && ` (filtered)`}
                   </div>
                 </div>
                 {/* Right side - Pagination Controls */}
