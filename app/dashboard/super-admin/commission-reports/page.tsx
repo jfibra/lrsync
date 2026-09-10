@@ -315,30 +315,57 @@ export default function SuperAdminCommissionReportsPage() {
     setUploadError(null)
 
     try {
-      const formData = new FormData()
-      selectedFiles.forEach((file) => {
-        formData.append("files", file)
-      })
-      formData.append("reportId", uploadReport.uuid)
-      formData.append("assigned_area", uploadReport.user_profiles?.assigned_area || "Unknown")
-      formData.append("created_date", uploadReport.created_at)
-      formData.append("report_number", uploadReport.report_number?.toString() || "")
+      const assigned_area = uploadReport.user_profiles?.assigned_area || "Unknown"
+      const report_number = uploadReport.report_number?.toString() || ""
       const existingData = uploadReport.accounting_pot ? JSON.parse(uploadReport.accounting_pot) : []
-      formData.append("existing_count", Array.isArray(existingData) ? existingData.length.toString() : "0")
+      const existingCount = Array.isArray(existingData) ? existingData.length : 0
 
-      const response = await fetch("/api/upload-to-s3", {
-        method: "POST",
-        body: formData,
-      })
+      const successfulUploads: { name: string; url: string }[] = []
+      const failedUploads: { name: string }[] = []
 
-      const result = await response.json()
+      for (let i = 0; i < selectedFiles.length; i++) {
+        const file = selectedFiles[i]
+        try {
+          const presignedRes = await fetch("/api/get-s3-upload-url", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              fileName: file.name,
+              fileType: file.type || "application/octet-stream",
+              category: "commission-report",
+              reportNumber: report_number,
+              assignedArea: assigned_area,
+              existingCount: existingCount,
+              fileIndex: i,
+              isSecretary: false,
+            }),
+          })
 
-      if (!response.ok) {
-        throw new Error(result.error || "Upload failed")
+          if (!presignedRes.ok) {
+            const err = await presignedRes.json().catch(() => ({}))
+            throw new Error(err.error || `Failed to get upload URL (${presignedRes.status})`)
+          }
+
+          const { uploadUrl, publicUrl, fileName } = await presignedRes.json()
+
+          const s3Res = await fetch(uploadUrl, {
+            method: "PUT",
+            headers: {
+              "Content-Type": file.type || "application/octet-stream",
+            },
+            body: file,
+          })
+
+          if (!s3Res.ok) {
+            throw new Error(`S3 upload failed with status ${s3Res.status}`)
+          }
+
+          successfulUploads.push({ name: fileName, url: publicUrl })
+        } catch (fileErr) {
+          console.error(`Failed to upload ${file.name}:`, fileErr)
+          failedUploads.push({ name: file.name })
+        }
       }
-
-      const successfulUploads = result.files.filter((file: any) => file.url)
-      const failedUploads = result.files.filter((file: any) => !file.url)
 
       if (failedUploads.length > 0) {
         console.warn("Some files failed to upload:", failedUploads)

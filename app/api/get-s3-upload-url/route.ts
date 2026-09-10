@@ -36,6 +36,10 @@ export async function POST(request: NextRequest) {
       tinNumber = "Unknown",
       assignedArea = "Unknown",
       userFullName = "Unknown",
+      // Commission report metadata
+      reportNumber = "Unknown",
+      isSecretary = false,
+      fileIndex = 0,
     } = body;
 
     const ext = rawFileName ? rawFileName.split(".").pop() || "dat" : "dat";
@@ -44,7 +48,32 @@ export async function POST(request: NextRequest) {
     let s3Key = "";
     let finalFileName = "";
 
-    if (category === "purchases") {
+    if (category === "commission-report" || category === "commission-report-secretary") {
+      const safeReport = (reportNumber || "Unknown").replace(/[^\w\-]+/g, "_");
+      const safeArea = (assignedArea || "Unknown").replace(/[^\w\- ]+/g, "_");
+      const secretaryMode = category === "commission-report-secretary" || Boolean(isSecretary);
+
+      let typeLabel = "Attachment";
+      if (contentType === "application/pdf") {
+        typeLabel = secretaryMode ? "Secreatary_PDF_Attachment" : "Accounting_PDF_Attachment";
+      } else if (contentType.startsWith("image/")) {
+        typeLabel = secretaryMode ? "Secreatary_Image_Attachment" : "Accounting_Image_Attachment";
+      }
+
+      const now = new Date();
+      const fileDate = new Date(now.getTime() + (Number(fileIndex) || 0) * 1000);
+      const yyyy = fileDate.getFullYear();
+      const MM = String(fileDate.getMonth() + 1).padStart(2, "0");
+      const dd = String(fileDate.getDate()).padStart(2, "0");
+      const HH = String(fileDate.getHours()).padStart(2, "0");
+      const mm = String(fileDate.getMinutes()).padStart(2, "0");
+      const ss = String(fileDate.getSeconds()).padStart(2, "0");
+      const datetime = `${yyyy}${MM}${dd}-${HH}${mm}${ss}`;
+
+      const seq = (Number(existingCount) || 0) + (Number(fileIndex) || 0) + 1;
+      finalFileName = `CR_${safeReport}-${typeLabel}_${seq}-${datetime}.${ext}`;
+      s3Key = `lrsync/commission_report_attachments/${safeArea}/CR_${safeReport}/${finalFileName}`;
+    } else if (category === "purchases") {
       const now = new Date();
       const year = now.getFullYear();
       const month = String(now.getMonth() + 1).padStart(2, "0");
