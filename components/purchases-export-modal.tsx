@@ -301,7 +301,12 @@ export function PurchasesExportModal({ open, onOpenChange, purchases, role = "ad
               <strong>{selectedFields.length}</strong> fields selected • <strong>{purchases.length}</strong> records
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isExporting}>
+              <Button
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                disabled={isExporting}
+                className="border-[#001f3f] text-[#001f3f] hover:bg-[#001f3f]/10 bg-white"
+              >
                 Cancel
               </Button>
               <Button

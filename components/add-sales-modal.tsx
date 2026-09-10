@@ -756,12 +756,12 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
                 <SelectTrigger className="w-full bg-white text-[#001f3f] border-[#001f3f]">
                   <SelectValue placeholder="Select tax month..." />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-white">
                   {taxMonthOptions.map((option) => (
                     <SelectItem
                       key={option.value}
                       value={option.value}
-                      className="text-white"
+                      className="text-[#001f3f] hover:bg-gray-100"
                     >
                       {option.label}
                     </SelectItem>
@@ -785,11 +785,11 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
                 <SelectTrigger className="bg-white text-[#001f3f] border-[#001f3f]">
                   <SelectValue placeholder="Select tax type..." />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="vat" className="text-white">
+                <SelectContent className="bg-white">
+                  <SelectItem value="vat" className="text-[#001f3f] hover:bg-gray-100">
                     VAT
                   </SelectItem>
-                  <SelectItem value="non-vat" className="text-white">
+                  <SelectItem value="non-vat" className="text-[#001f3f] hover:bg-gray-100">
                     Non-VAT
                   </SelectItem>
                 </SelectContent>
@@ -811,11 +811,11 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
                 <SelectTrigger className="bg-white text-[#001f3f] border-[#001f3f]">
                   <SelectValue placeholder="Select sale type..." />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="invoice" className="text-white">
+                <SelectContent className="bg-white">
+                  <SelectItem value="invoice" className="text-[#001f3f] hover:bg-gray-100">
                     Invoice
                   </SelectItem>
-                  <SelectItem value="non-invoice" className="text-white">
+                  <SelectItem value="non-invoice" className="text-[#001f3f] hover:bg-gray-100">
                     Non-Invoice
                   </SelectItem>
                 </SelectContent>
@@ -1099,7 +1099,7 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
               type="button"
               variant="outline"
               onClick={() => setOpen(false)}
-              className="px-6 border-[#001f3f] text-white hover:bg-[#001f3f]/10"
+              className="px-6 border-[#001f3f] text-[#001f3f] hover:bg-[#001f3f]/10 bg-white"
             >
               Cancel
             </Button>

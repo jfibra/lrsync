@@ -506,11 +506,11 @@ export function EditSalesModal({ open, onOpenChange, sale, onSaleUpdated }: Edit
                 <SelectTrigger className="border-[#001f3f] focus:border-blue-500 focus:ring-blue-500 text-[#001f3f] bg-white">
                   <SelectValue placeholder="Select tax type..." />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="vat" className="text-white">
+                <SelectContent className="bg-white">
+                  <SelectItem value="vat" className="text-[#001f3f] hover:bg-gray-100">
                     VAT
                   </SelectItem>
-                  <SelectItem value="non-vat" className="text-white">
+                  <SelectItem value="non-vat" className="text-[#001f3f] hover:bg-gray-100">
                     Non-VAT
                   </SelectItem>
                 </SelectContent>
@@ -526,11 +526,11 @@ export function EditSalesModal({ open, onOpenChange, sale, onSaleUpdated }: Edit
                 <SelectTrigger className="border-[#001f3f] focus:border-blue-500 focus:ring-blue-500 text-[#001f3f] bg-white">
                   <SelectValue placeholder="Select sale type..." />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="invoice" className="text-white">
+                <SelectContent className="bg-white">
+                  <SelectItem value="invoice" className="text-[#001f3f] hover:bg-gray-100">
                     Invoice
                   </SelectItem>
-                  <SelectItem value="non-invoice" className="text-white">
+                  <SelectItem value="non-invoice" className="text-[#001f3f] hover:bg-gray-100">
                     No Invoice
                   </SelectItem>
                 </SelectContent>
@@ -761,7 +761,7 @@ export function EditSalesModal({ open, onOpenChange, sale, onSaleUpdated }: Edit
               variant="outline"
               onClick={() => onOpenChange(false)}
               disabled={loading}
-              className="border-[#001f3f] hover:bg-[#001f3f]/10 text-white"
+              className="border-[#001f3f] bg-white hover:bg-[#001f3f]/10 text-[#001f3f]"
             >
               Cancel
             </Button>

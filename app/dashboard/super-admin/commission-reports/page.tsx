@@ -1595,7 +1595,12 @@ export default function SuperAdminCommissionReportsPage() {
             </div>
             {statusError && <div className="text-red-600 text-sm mb-2">{statusError}</div>}
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setStatusModalOpen(false)} disabled={statusSaving}>
+              <Button
+                variant="outline"
+                onClick={() => setStatusModalOpen(false)}
+                disabled={statusSaving}
+                className="border-[#001f3f] text-[#001f3f] hover:bg-[#001f3f]/10 bg-white"
+              >
                 Cancel
               </Button>
               <Button

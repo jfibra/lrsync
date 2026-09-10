@@ -275,8 +275,12 @@ export function RemarksModalViewerPurchases({
                     )}
                 </div>
 
-                <div className="flex justify-end text-white pt-4 border-t">
-                    <Button variant="outline" onClick={onClose}>
+                <div className="flex justify-end pt-4 border-t">
+                    <Button
+                        variant="outline"
+                        onClick={onClose}
+                        className="border-[#001f3f] text-[#001f3f] hover:bg-[#001f3f]/10 bg-white"
+                    >
                         Close
                     </Button>
                 </div>

@@ -310,7 +310,7 @@ export default function AdminSettingsPage() {
                 />
               </div>
               <DialogFooter>
-                <Button variant="outline" className="bg-white" onClick={() => setIsEditModalOpen(false)}>
+                <Button variant="outline" className="bg-white border-[#001f3f] text-[#001f3f] hover:bg-[#001f3f]/10" onClick={() => setIsEditModalOpen(false)}>
                   Cancel
                 </Button>
                 <Button onClick={handleEditCategory} className="bg-blue-600 hover:bg-blue-700">

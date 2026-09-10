@@ -311,7 +311,7 @@ export function CustomExportModal({ sales, fetchSales, userArea }: CustomExportM
           <Button
             variant="outline"
             onClick={() => setOpen(false)}
-            className="border-[#001f3f] text-white hover:bg-[#001f3f]/10"
+            className="border-[#001f3f] text-[#001f3f] hover:bg-[#001f3f]/10 bg-white"
           >
             Cancel
           </Button>
