@@ -17,6 +17,7 @@ import { ColumnVisibilityControl } from "@/components/column-visibility-control"
 import { CommissionGenerationModal } from "@/components/commission-generation-modal"
 import type { Sales } from "@/types/sales"
 import { logNotification } from "@/utils/logNotification";
+import { SortableTableHead, sortData } from "@/components/ui/sortable-header"
 
 export default function AdminCommissionPage() {
   const { profile } = useAuth()
@@ -28,7 +29,21 @@ export default function AdminCommissionPage() {
   const [filterArea, setFilterArea] = useState("all")
   const [availableAreas, setAvailableAreas] = useState<string[]>([])
   const [selectedSales, setSelectedSales] = useState<string[]>([])
+  const [currentPage, setCurrentPage] = useState(1)
+  const [recordsPerPage, setRecordsPerPage] = useState(10)
+  const [sortField, setSortField] = useState<string>("tax_month")
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc")
   const [showCommissionModal, setShowCommissionModal] = useState(false)
+
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc")
+    } else {
+      setSortField(field)
+      setSortDirection("asc")
+    }
+    setCurrentPage(1)
+  }
 
   // Column visibility state
   const [columnVisibility, setColumnVisibility] = useState([
@@ -49,9 +64,6 @@ export default function AdminCommissionPage() {
     { key: "files", label: "Files", visible: true },
   ])
 
-  // Pagination state
-  const [currentPage, setCurrentPage] = useState(1)
-  const [recordsPerPage, setRecordsPerPage] = useState(10)
 
   // Toggle column visibility
   const toggleColumnVisibility = (key: string) => {
@@ -240,7 +252,8 @@ export default function AdminCommissionPage() {
   const totalPages = Math.ceil(sales.length / recordsPerPage)
   const startIndex = (currentPage - 1) * recordsPerPage
   const endIndex = startIndex + recordsPerPage
-  const currentSales = sales.slice(startIndex, endIndex)
+  const sortedSales = sortData(sales, sortField, sortDirection)
+  const currentSales = sortedSales.slice(startIndex, endIndex)
 
   // Reset to first page when filters change
   useEffect(() => {
@@ -445,31 +458,103 @@ export default function AdminCommissionPage() {
                   <TableHeader>
                     <TableRow className="bg-gray-50 border-b border-gray-200">
                       {columnVisibility.find((col) => col.key === "tax_month")?.visible && (
-                        <TableHead className="min-w-[120px] font-semibold text-gray-900">Tax Month</TableHead>
+                        <SortableTableHead
+                          field="tax_month"
+                          currentSortField={sortField}
+                          currentSortDirection={sortDirection}
+                          onSort={handleSort}
+                          className="min-w-[120px] font-semibold text-gray-900"
+                        >
+                          Tax Month
+                        </SortableTableHead>
                       )}
                       {columnVisibility.find((col) => col.key === "tin")?.visible && (
-                        <TableHead className="min-w-[120px] font-semibold text-gray-900">TIN</TableHead>
+                        <SortableTableHead
+                          field="tin"
+                          currentSortField={sortField}
+                          currentSortDirection={sortDirection}
+                          onSort={handleSort}
+                          className="min-w-[120px] font-semibold text-gray-900"
+                        >
+                          TIN
+                        </SortableTableHead>
                       )}
                       {columnVisibility.find((col) => col.key === "name")?.visible && (
-                        <TableHead className="min-w-[180px] font-semibold text-gray-900">Name</TableHead>
+                        <SortableTableHead
+                          field="name"
+                          currentSortField={sortField}
+                          currentSortDirection={sortDirection}
+                          onSort={handleSort}
+                          className="min-w-[180px] font-semibold text-gray-900"
+                        >
+                          Name
+                        </SortableTableHead>
                       )}
                       {columnVisibility.find((col) => col.key === "tax_type")?.visible && (
-                        <TableHead className="min-w-[100px] font-semibold text-gray-900">Tax Type</TableHead>
+                        <SortableTableHead
+                          field="tax_type"
+                          currentSortField={sortField}
+                          currentSortDirection={sortDirection}
+                          onSort={handleSort}
+                          className="min-w-[100px] font-semibold text-gray-900"
+                        >
+                          Tax Type
+                        </SortableTableHead>
                       )}
                       {columnVisibility.find((col) => col.key === "sale_type")?.visible && (
-                        <TableHead className="min-w-[100px] font-semibold text-gray-900">Sale Type</TableHead>
+                        <SortableTableHead
+                          field="sale_type"
+                          currentSortField={sortField}
+                          currentSortDirection={sortDirection}
+                          onSort={handleSort}
+                          className="min-w-[100px] font-semibold text-gray-900"
+                        >
+                          Sale Type
+                        </SortableTableHead>
                       )}
                       {columnVisibility.find((col) => col.key === "gross_taxable")?.visible && (
-                        <TableHead className="min-w-[120px] font-semibold text-gray-900">Gross Taxable</TableHead>
+                        <SortableTableHead
+                          field="gross_taxable"
+                          currentSortField={sortField}
+                          currentSortDirection={sortDirection}
+                          onSort={handleSort}
+                          className="min-w-[120px] font-semibold text-gray-900"
+                        >
+                          Gross Taxable
+                        </SortableTableHead>
                       )}
                       {columnVisibility.find((col) => col.key === "total_actual_amount")?.visible && (
-                        <TableHead className="min-w-[140px] font-semibold text-gray-900">Total Actual Amount</TableHead>
+                        <SortableTableHead
+                          field="total_actual_amount"
+                          currentSortField={sortField}
+                          currentSortDirection={sortDirection}
+                          onSort={handleSort}
+                          className="min-w-[140px] font-semibold text-gray-900"
+                        >
+                          Total Actual Amount
+                        </SortableTableHead>
                       )}
                       {columnVisibility.find((col) => col.key === "invoice_number")?.visible && (
-                        <TableHead className="min-w-[120px] font-semibold text-gray-900">Invoice #</TableHead>
+                        <SortableTableHead
+                          field="invoice_number"
+                          currentSortField={sortField}
+                          currentSortDirection={sortDirection}
+                          onSort={handleSort}
+                          className="min-w-[120px] font-semibold text-gray-900"
+                        >
+                          Invoice #
+                        </SortableTableHead>
                       )}
                       {columnVisibility.find((col) => col.key === "pickup_date")?.visible && (
-                        <TableHead className="min-w-[120px] font-semibold text-gray-900">Pickup Date</TableHead>
+                        <SortableTableHead
+                          field="pickup_date"
+                          currentSortField={sortField}
+                          currentSortDirection={sortDirection}
+                          onSort={handleSort}
+                          className="min-w-[120px] font-semibold text-gray-900"
+                        >
+                          Pickup Date
+                        </SortableTableHead>
                       )}
                       {columnVisibility.find((col) => col.key === "area")?.visible && (
                         <TableHead className="min-w-[100px] font-semibold text-gray-900">Area</TableHead>

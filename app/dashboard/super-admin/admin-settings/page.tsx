@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { ProtectedRoute } from "@/components/protected-route"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { useAuth } from "@/contexts/auth-context"
@@ -19,6 +19,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { SortableTableHead, sortData } from "@/components/ui/sortable-header"
 import { Plus, Edit, Trash2, Settings, Package } from "lucide-react"
 import { toast } from "sonner"
 
@@ -42,6 +43,22 @@ export default function AdminSettingsPage() {
   const [selectedCategory, setSelectedCategory] = useState<PurchaseCategory | null>(null)
   const [newCategoryName, setNewCategoryName] = useState("")
   const [editCategoryName, setEditCategoryName] = useState("")
+
+  const [sortField, setSortField] = useState("category")
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc")
+
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc")
+    } else {
+      setSortField(field)
+      setSortDirection("asc")
+    }
+  }
+
+  const sortedCategories = useMemo(() => {
+    return sortData(categories, sortField, sortDirection)
+  }, [categories, sortField, sortDirection])
 
   const fetchCategories = async () => {
     try {
@@ -243,15 +260,15 @@ export default function AdminSettingsPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Category Name</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Created By</TableHead>
-                      <TableHead>Created Date</TableHead>
+                      <SortableTableHead field="category" currentSort={sortField} direction={sortDirection} onSort={handleSort}>Category Name</SortableTableHead>
+                      <SortableTableHead field="is_default" currentSort={sortField} direction={sortDirection} onSort={handleSort}>Type</SortableTableHead>
+                      <SortableTableHead field="user_full_name" currentSort={sortField} direction={sortDirection} onSort={handleSort}>Created By</SortableTableHead>
+                      <SortableTableHead field="created_at" currentSort={sortField} direction={sortDirection} onSort={handleSort}>Created Date</SortableTableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {categories.map((category) => (
+                    {sortedCategories.map((category) => (
                       <TableRow key={category.id}>
                         <TableCell className="font-medium text-[#001f3f]">{category.category}</TableCell>
                         <TableCell>

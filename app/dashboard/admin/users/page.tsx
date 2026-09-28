@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { SortableTableHead, sortData } from "@/components/ui/sortable-header"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Dialog,
@@ -60,6 +61,18 @@ export default function AdminUserManagement() {
   const [searchTerm, setSearchTerm] = useState("")
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
+
+  const [sortField, setSortField] = useState<string>("full_name")
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc")
+
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc")
+    } else {
+      setSortField(field)
+      setSortDirection("asc")
+    }
+  }
 
   // Modal states
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
@@ -120,13 +133,17 @@ export default function AdminUserManagement() {
     }
   }, [error])
 
-  const filteredUsers = users.filter(
-    (user) =>
-      user.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.first_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.last_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.assigned_area?.toLowerCase().includes(searchTerm.toLowerCase()),
+  const filteredUsers = sortData(
+    users.filter(
+      (user) =>
+        user.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        user.first_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        user.last_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        user.assigned_area?.toLowerCase().includes(searchTerm.toLowerCase()),
+    ),
+    sortField,
+    sortDirection
   )
 
   const validateEmail = (email: string): boolean => {
@@ -656,12 +673,12 @@ export default function AdminUserManagement() {
                     <Table>
                       <TableHeader>
                         <TableRow className="bg-rose-100 hover:bg-rose-100">
-                          <TableHead className="text-navy">Name</TableHead>
-                          <TableHead className="text-navy">Email</TableHead>
-                          <TableHead className="text-navy">Role</TableHead>
-                          <TableHead className="text-navy">Status</TableHead>
-                          <TableHead className="text-navy">Assigned Area</TableHead>
-                          <TableHead className="text-navy">Created</TableHead>
+                          <SortableTableHead field="full_name" currentSort={sortField} direction={sortDirection} onSort={handleSort} className="text-navy">Name</SortableTableHead>
+                          <SortableTableHead field="email" currentSort={sortField} direction={sortDirection} onSort={handleSort} className="text-navy">Email</SortableTableHead>
+                          <SortableTableHead field="role" currentSort={sortField} direction={sortDirection} onSort={handleSort} className="text-navy">Role</SortableTableHead>
+                          <SortableTableHead field="status" currentSort={sortField} direction={sortDirection} onSort={handleSort} className="text-navy">Status</SortableTableHead>
+                          <SortableTableHead field="assigned_area" currentSort={sortField} direction={sortDirection} onSort={handleSort} className="text-navy">Assigned Area</SortableTableHead>
+                          <SortableTableHead field="created_at" currentSort={sortField} direction={sortDirection} onSort={handleSort} className="text-navy">Created</SortableTableHead>
                           <TableHead className="text-navy">Actions</TableHead>
                         </TableRow>
                       </TableHeader>

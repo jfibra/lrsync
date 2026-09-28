@@ -43,6 +43,7 @@ import { AddRemarkModal } from "@/components/add-remark-modal"
 import { RemarksModalViewer } from "@/components/remarks-modal-viewer"
 import { formatS3Url } from "@/utils/s3-url"
 import { applyTaxMonthFilter, formatDatePeriodLabel } from "@/lib/date-filter"
+import { SortableTableHead } from "@/components/ui/sortable-header"
 import { YearSelect, MonthMultiSelect } from "@/components/date-period-filter"
 
 const formatCurrency = (amount: number) => {
@@ -60,25 +61,33 @@ const formatTin = (tin: string) => {
   return cleanTin.replace(/(\d{3})(\d{3})(\d{3})(\d{3})/, "$1-$2-$3-$4")
 }
 
-const getMostRecentRemark = (remarks: string | any[] | null) => {
-  if (!remarks) return null
-  let remarksArr: any[] = []
+const parseRemarksSafe = (remarks: any): any[] => {
+  if (!remarks) return []
+  if (Array.isArray(remarks)) return remarks
   if (typeof remarks === "string") {
     try {
-      remarksArr = JSON.parse(remarks)
+      const parsed = JSON.parse(remarks)
+      return Array.isArray(parsed) ? parsed : []
     } catch {
-      return null
+      return []
     }
-  } else if (Array.isArray(remarks)) {
-    remarksArr = remarks
   }
-  if (!Array.isArray(remarksArr) || remarksArr.length === 0) return null
-  const sortedRemarks = remarksArr.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-  return sortedRemarks[0]
+  return []
+}
+
+const getMostRecentRemark = (remarks: string | any[] | null) => {
+  const list = parseRemarksSafe(remarks)
+  if (list.length === 0) return null
+  const sortedRemarks = [...list].sort((a, b) => {
+    const timeA = a?.date ? new Date(a.date).getTime() : 0
+    const timeB = b?.date ? new Date(b.date).getTime() : 0
+    return (isNaN(timeB) ? 0 : timeB) - (isNaN(timeA) ? 0 : timeA)
+  })
+  return sortedRemarks[0] || null
 }
 
 export default function SecretarySalesPage() {
-  const { profile } = useAuth()
+  const { user, profile } = useAuth()
   const [sales, setSales] = useState<Sales[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
@@ -111,6 +120,18 @@ export default function SecretarySalesPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
   const [totalCount, setTotalCount] = useState(0)
+  const [sortField, setSortField] = useState<string>("created_at")
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc")
+
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc")
+    } else {
+      setSortField(field)
+      setSortDirection("asc")
+    }
+    setCurrentPage(1)
+  }
   const [allProfiles, setAllProfiles] = useState<any[]>([])
   const [isExporting, setIsExporting] = useState(false)
   const [stats, setStats] = useState({
@@ -319,11 +340,58 @@ export default function SecretarySalesPage() {
     onCommissionClick?: (commission: any) => void
     sale?: any
   }) => {
-    const hasRemarks = sale?.remarks && JSON.parse(sale.remarks || "[]").length > 0
+    const remarksList = parseRemarksSafe(sale?.remarks)
+    const hasRemarks = remarksList.length > 0
+    const hasContent = remark || commission
 
-    if (remark) {
+    if (!hasContent && !hasRemarks) {
       return (
         <div className="space-y-2">
+          <div className="text-gray-400 text-sm italic">No remarks</div>
+        </div>
+      )
+    }
+
+    return (
+      <div className="space-y-2">
+        {commission && (() => {
+          const isDeleted = commission.deleted_at
+          const statusColor =
+            commission.status === "approved"
+              ? "text-green-600"
+              : commission.status === "rejected"
+                ? "text-red-600"
+                : "text-yellow-600"
+
+          return (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-3 max-w-xs">
+              <div className="flex items-start gap-2">
+                <div className="w-2 h-2 bg-green-500 rounded-full mt-2 flex-shrink-0"></div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-gray-800 font-medium mb-1">
+                    {isDeleted ? (
+                      <span className="text-red-600">Commission Report #{commission.report_number} (Deleted)</span>
+                    ) : (
+                      <button
+                        onClick={() => onCommissionClick?.(commission)}
+                        className="text-blue-600 hover:text-blue-800 underline font-semibold"
+                      >
+                        Commission Report #{commission.report_number}
+                      </button>
+                    )}
+                  </p>
+                  <div className="flex items-center gap-2 text-xs text-gray-600">
+                    <span className={`font-medium ${statusColor}`}>{commission.status?.toUpperCase() || "PENDING"}</span>
+                    <span>•</span>
+                    <span>{format(new Date(commission.created_at), "MMM dd, yyyy")}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )
+        })()}
+
+        {remark && (
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 max-w-xs">
             <div className="flex items-start gap-2">
               <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
@@ -337,78 +405,8 @@ export default function SecretarySalesPage() {
               </div>
             </div>
           </div>
-          {hasRemarks && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                setSelectedSaleForRemarks(sale)
-                setRemarksModalOpen(true)
-              }}
-              className="text-xs text-blue-600 bg-white hover:text-white hover:bg-[#001f3f] border-purple-200 hover:border-purple-300"
-            >
-              View All Remarks
-            </Button>
-          )}
-        </div>
-      )
-    }
+        )}
 
-    if (commission) {
-      const isDeleted = commission.deleted_at
-      const statusColor =
-        commission.status === "approved"
-          ? "text-green-600"
-          : commission.status === "rejected"
-            ? "text-red-600"
-            : "text-yellow-600"
-
-      return (
-        <div className="space-y-2">
-          <div className="bg-green-50 border border-green-200 rounded-lg p-3 max-w-xs">
-            <div className="flex items-start gap-2">
-              <div className="w-2 h-2 bg-green-500 rounded-full mt-2 flex-shrink-0"></div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm text-gray-800 font-medium mb-1">
-                  {isDeleted ? (
-                    <span className="text-red-600">Commission Report #{commission.report_number} (Deleted)</span>
-                  ) : (
-                    <button
-                      onClick={() => onCommissionClick?.(commission)}
-                      className="text-blue-600 hover:text-blue-800 underline"
-                    >
-                      Commission Report #{commission.report_number}
-                    </button>
-                  )}
-                </p>
-                <div className="flex items-center gap-2 text-xs text-gray-600">
-                  <span className={`font-medium ${statusColor}`}>{commission.status?.toUpperCase() || "PENDING"}</span>
-                  <span>•</span>
-                  <span>{format(new Date(commission.created_at), "MMM dd, yyyy")}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-          {hasRemarks && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                setSelectedSaleForRemarks(sale)
-                setRemarksModalOpen(true)
-              }}
-              className="text-xs text-purple-600 hover:text-purple-800 border-purple-200 hover:border-purple-300"
-            >
-              View All Remarks
-            </Button>
-          )}
-        </div>
-      )
-    }
-
-    return (
-      <div className="space-y-2">
-        <div className="text-gray-400 text-sm italic">No remarks</div>
         {hasRemarks && (
           <Button
             size="sm"
@@ -417,9 +415,9 @@ export default function SecretarySalesPage() {
               setSelectedSaleForRemarks(sale)
               setRemarksModalOpen(true)
             }}
-            className="text-xs text-purple-600 hover:text-purple-800 border-purple-200 hover:border-purple-300"
+            className="text-xs text-blue-600 bg-white hover:text-white hover:bg-[#001f3f] border-purple-200 hover:border-purple-300"
           >
-            View All Remarks
+            View All Remarks {remarksList.length > 1 ? `(${remarksList.length})` : ""}
           </Button>
         )}
       </div>
@@ -479,13 +477,10 @@ export default function SecretarySalesPage() {
         setCreatorIdToName(Object.fromEntries(creatorMap))
       }
 
-      // Identify all user IDs in secretary's assigned area
-      const areaUserIds = profiles
-        .filter((p) => p.assigned_area === profile.assigned_area)
-        .map((p) => p.auth_user_id)
-        .filter(Boolean)
+      // Secretary only sees sales encoded by themselves
+      const myUserIds = [profile.auth_user_id, profile.id, user?.id].filter(Boolean) as string[]
 
-      if (areaUserIds.length === 0) {
+      if (myUserIds.length === 0) {
         setSales([])
         setTotalCount(0)
         setStats({ totalSales: 0, vatSales: 0, nonVatSales: 0, totalAmount: 0, totalActualAmount: 0 })
@@ -495,7 +490,7 @@ export default function SecretarySalesPage() {
       const from = (currentPage - 1) * pageSize
       const to = from + pageSize - 1
 
-      // Build paginated sales query strictly filtered by area user IDs
+      // Build paginated sales query strictly filtered by secretary's own user IDs
       let salesQuery = supabase
         .from("sales")
         .select(
@@ -510,16 +505,16 @@ export default function SecretarySalesPage() {
           { count: "exact" },
         )
         .eq("is_deleted", false)
-        .in("user_uuid", areaUserIds)
-        .order("created_at", { ascending: false })
+        .in("user_uuid", myUserIds)
+        .order(sortField, { ascending: sortDirection === "asc" })
         .range(from, to)
 
-      // Build lightweight stats query strictly filtered by area user IDs
+      // Build lightweight stats query strictly filtered by secretary's own user IDs
       let statsQuery = supabase
         .from("sales")
         .select("tax_type, gross_taxable, total_actual_amount")
         .eq("is_deleted", false)
-        .in("user_uuid", areaUserIds)
+        .in("user_uuid", myUserIds)
 
       // Apply filters
       if (debouncedSearchTerm) {
@@ -542,22 +537,8 @@ export default function SecretarySalesPage() {
 
       // Apply remarks filter if active
       if (showOnlyWithRemarks) {
-        const [reportsRes, salesWithRemarksRes] = await Promise.all([
-          supabase.from("commission_report").select("sales_uuids").is("deleted_at", null),
-          supabase.from("sales").select("id").eq("is_deleted", false).not("remarks", "is", null).neq("remarks", "[]"),
-        ])
-        const idsWithRemarks = new Set<string>()
-        ;(reportsRes.data || []).forEach((r) => (r.sales_uuids || []).forEach((id: string) => idsWithRemarks.add(id)))
-        ;(salesWithRemarksRes.data || []).forEach((s) => idsWithRemarks.add(s.id))
-
-        const remarkIdsList = Array.from(idsWithRemarks)
-        if (remarkIdsList.length > 0) {
-          salesQuery = salesQuery.in("id", remarkIdsList)
-          statsQuery = statsQuery.in("id", remarkIdsList)
-        } else {
-          salesQuery = salesQuery.in("id", ["00000000-0000-0000-0000-000000000000"])
-          statsQuery = statsQuery.in("id", ["00000000-0000-0000-0000-000000000000"])
-        }
+        salesQuery = salesQuery.not("remarks", "is", null).neq("remarks", "[]").neq("remarks", "")
+        statsQuery = statsQuery.not("remarks", "is", null).neq("remarks", "[]").neq("remarks", "")
       }
 
       // Parallel execution
@@ -605,16 +586,21 @@ export default function SecretarySalesPage() {
           .from("commission_report")
           .select("report_number, sales_uuids, created_by, created_at, status, deleted_at")
           .overlaps("sales_uuids", pageIds)
+          .order("created_at", { ascending: true })
 
         const saleIdToCommissionObj: Record<string, any> = {}
         ;(reportsData || []).forEach((report) => {
           ;(report.sales_uuids || []).forEach((saleId: string) => {
-            saleIdToCommissionObj[saleId] = {
-              report_number: report.report_number,
-              created_by: report.created_by,
-              created_at: report.created_at,
-              status: report.status,
-              deleted_at: report.deleted_at,
+            const existing = saleIdToCommissionObj[saleId]
+            // Prioritize active reports over deleted reports
+            if (!existing || (existing.deleted_at && !report.deleted_at) || (!existing.deleted_at && !report.deleted_at)) {
+              saleIdToCommissionObj[saleId] = {
+                report_number: report.report_number,
+                created_by: report.created_by,
+                created_at: report.created_at,
+                status: report.status,
+                deleted_at: report.deleted_at,
+              }
             }
           })
         })
@@ -634,10 +620,10 @@ export default function SecretarySalesPage() {
   }, [])
 
   useEffect(() => {
-    if (profile?.assigned_area) {
+    if (profile) {
       fetchSales()
     }
-  }, [profile?.assigned_area, debouncedSearchTerm, filterTaxType, filterYear, filterMonths, showOnlyWithRemarks, currentPage, pageSize])
+  }, [profile, debouncedSearchTerm, filterTaxType, filterYear, filterMonths, showOnlyWithRemarks, currentPage, pageSize, sortField, sortDirection])
 
   // Reset to page 1 on filter changes
   useEffect(() => {
@@ -749,12 +735,8 @@ export default function SecretarySalesPage() {
         profiles = pData || []
       }
 
-      const areaUserIds = profiles
-        .filter((p) => p.assigned_area === profile.assigned_area)
-        .map((p) => p.auth_user_id)
-        .filter(Boolean)
-
-      if (areaUserIds.length === 0) return []
+      const myUserIds = [profile.auth_user_id, profile.id, user?.id].filter(Boolean) as string[]
+      if (myUserIds.length === 0) return []
 
       let query = supabase
         .from("sales")
@@ -769,7 +751,7 @@ export default function SecretarySalesPage() {
         `,
         )
         .eq("is_deleted", false)
-        .in("user_uuid", areaUserIds)
+        .in("user_uuid", myUserIds)
         .order("created_at", { ascending: false })
         .limit(10000)
       if (debouncedSearchTerm) {
@@ -781,6 +763,9 @@ export default function SecretarySalesPage() {
         query = query.eq("tax_type", filterTaxType)
       }
       query = applyTaxMonthFilter(query, filterYear, filterMonths)
+      if (showOnlyWithRemarks) {
+        query = query.not("remarks", "is", null).neq("remarks", "[]").neq("remarks", "")
+      }
 
       const { data, error } = await query
       if (error) throw error
@@ -1153,6 +1138,8 @@ export default function SecretarySalesPage() {
                     setFilterTaxType("all")
                     setFilterYear("all")
                     setFilterMonths([])
+                    setShowOnlyWithRemarks(false)
+                    setCurrentPage(1)
                   }}
                   style={{ background: "#fff", color: "#001f3f", border: "1px solid #001f3f" }}
                   className="w-full font-semibold shadow-md hover:text-[#ee3433] transition-all duration-150 flex items-center justify-center gap-2"
@@ -1187,7 +1174,10 @@ export default function SecretarySalesPage() {
                   <Button
                     variant={showOnlyWithRemarks ? "default" : "outline"}
                     size="sm"
-                    onClick={() => setShowOnlyWithRemarks(!showOnlyWithRemarks)}
+                    onClick={() => {
+                      setShowOnlyWithRemarks(!showOnlyWithRemarks)
+                      setCurrentPage(1)
+                    }}
                     className={`border-gray-300 ${showOnlyWithRemarks
                       ? "bg-purple-600 text-white hover:bg-purple-700"
                       : "text-gray-700 hover:text-gray-700 hover:bg-gray-50 bg-transparent"
@@ -1218,49 +1208,112 @@ export default function SecretarySalesPage() {
                   <TableHeader>
                     <TableRow style={{ background: "#fff", borderBottom: "1px solid #e0e0e0" }}>
                       {columnVisibility.find((col) => col.key === "tax_month")?.visible && (
-                        <TableHead className="min-w-[120px] font-semibold" style={{ color: "#001f3f" }}>
+                        <SortableTableHead
+                          field="tax_month"
+                          currentSortField={sortField}
+                          currentSortDirection={sortDirection}
+                          onSort={handleSort}
+                          className="min-w-[120px] font-semibold"
+                          style={{ color: "#001f3f" }}
+                        >
                           Tax Month
-                        </TableHead>
+                        </SortableTableHead>
                       )}
                       {columnVisibility.find((col) => col.key === "tin")?.visible && (
-                        <TableHead className="min-w-[120px] font-semibold" style={{ color: "#001f3f" }}>
+                        <SortableTableHead
+                          field="tin"
+                          currentSortField={sortField}
+                          currentSortDirection={sortDirection}
+                          onSort={handleSort}
+                          className="min-w-[120px] font-semibold"
+                          style={{ color: "#001f3f" }}
+                        >
                           TIN
-                        </TableHead>
+                        </SortableTableHead>
                       )}
                       {columnVisibility.find((col) => col.key === "name")?.visible && (
-                        <TableHead className="min-w-[180px] font-semibold" style={{ color: "#001f3f" }}>
+                        <SortableTableHead
+                          field="name"
+                          currentSortField={sortField}
+                          currentSortDirection={sortDirection}
+                          onSort={handleSort}
+                          className="min-w-[180px] font-semibold"
+                          style={{ color: "#001f3f" }}
+                        >
                           Name
-                        </TableHead>
+                        </SortableTableHead>
                       )}
                       {columnVisibility.find((col) => col.key === "tax_type")?.visible && (
-                        <TableHead className="min-w-[100px] font-semibold" style={{ color: "#001f3f" }}>
+                        <SortableTableHead
+                          field="tax_type"
+                          currentSortField={sortField}
+                          currentSortDirection={sortDirection}
+                          onSort={handleSort}
+                          className="min-w-[100px] font-semibold"
+                          style={{ color: "#001f3f" }}
+                        >
                           Tax Type
-                        </TableHead>
+                        </SortableTableHead>
                       )}
                       {columnVisibility.find((col) => col.key === "sale_type")?.visible && (
-                        <TableHead className="min-w-[100px] font-semibold" style={{ color: "#001f3f" }}>
+                        <SortableTableHead
+                          field="sale_type"
+                          currentSortField={sortField}
+                          currentSortDirection={sortDirection}
+                          onSort={handleSort}
+                          className="min-w-[100px] font-semibold"
+                          style={{ color: "#001f3f" }}
+                        >
                           Sale Type
-                        </TableHead>
+                        </SortableTableHead>
                       )}
                       {columnVisibility.find((col) => col.key === "gross_taxable")?.visible && (
-                        <TableHead className="min-w-[120px] font-semibold" style={{ color: "#001f3f" }}>
+                        <SortableTableHead
+                          field="gross_taxable"
+                          currentSortField={sortField}
+                          currentSortDirection={sortDirection}
+                          onSort={handleSort}
+                          className="min-w-[120px] font-semibold"
+                          style={{ color: "#001f3f" }}
+                        >
                           Gross Taxable
-                        </TableHead>
+                        </SortableTableHead>
                       )}
                       {columnVisibility.find((col) => col.key === "total_actual_amount")?.visible && (
-                        <TableHead className="min-w-[140px] font-semibold" style={{ color: "#001f3f" }}>
+                        <SortableTableHead
+                          field="total_actual_amount"
+                          currentSortField={sortField}
+                          currentSortDirection={sortDirection}
+                          onSort={handleSort}
+                          className="min-w-[140px] font-semibold"
+                          style={{ color: "#001f3f" }}
+                        >
                           Total Actual Amount
-                        </TableHead>
+                        </SortableTableHead>
                       )}
                       {columnVisibility.find((col) => col.key === "invoice_number")?.visible && (
-                        <TableHead className="min-w-[120px] font-semibold" style={{ color: "#001f3f" }}>
+                        <SortableTableHead
+                          field="invoice_number"
+                          currentSortField={sortField}
+                          currentSortDirection={sortDirection}
+                          onSort={handleSort}
+                          className="min-w-[120px] font-semibold"
+                          style={{ color: "#001f3f" }}
+                        >
                           Invoice #
-                        </TableHead>
+                        </SortableTableHead>
                       )}
                       {columnVisibility.find((col) => col.key === "pickup_date")?.visible && (
-                        <TableHead className="min-w-[120px] font-semibold" style={{ color: "#001f3f" }}>
+                        <SortableTableHead
+                          field="pickup_date"
+                          currentSortField={sortField}
+                          currentSortDirection={sortDirection}
+                          onSort={handleSort}
+                          className="min-w-[120px] font-semibold"
+                          style={{ color: "#001f3f" }}
+                        >
                           Pickup Date
-                        </TableHead>
+                        </SortableTableHead>
                       )}
                       {columnVisibility.find((col) => col.key === "recent_remark")?.visible && (
                         <TableHead className="min-w-[200px] font-semibold" style={{ color: "#001f3f" }}>

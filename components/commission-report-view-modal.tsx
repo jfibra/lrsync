@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { useRef } from "react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { SortableTableHead, sortData } from "@/components/ui/sortable-header"
 import { Separator } from "@/components/ui/separator"
 import { X, FileText, User, Calendar, Hash, DollarSign } from "lucide-react"
 import { supabase } from "@/lib/supabase/client"
@@ -89,7 +90,21 @@ interface CommissionReportViewModalProps {
 export function CommissionReportViewModal({ isOpen, onClose, report }: CommissionReportViewModalProps) {
   const [commissionDetails, setCommissionDetails] = useState<CommissionDetail[]>([])
   const [loading, setLoading] = useState(false)
-  // Removed status update modal and related state
+  const [sortField, setSortField] = useState("agent_name")
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc")
+
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc")
+    } else {
+      setSortField(field)
+      setSortDirection("asc")
+    }
+  }
+
+  const sortedCommissionDetails = useMemo(() => {
+    return sortData(commissionDetails, sortField, sortDirection)
+  }, [commissionDetails, sortField, sortDirection])
 
   const fetchCommissionDetails = async () => {
     if (!report.uuid) return
@@ -319,17 +334,17 @@ export function CommissionReportViewModal({ isOpen, onClose, report }: Commissio
                     <Table>
                       <TableHeader>
                         <TableRow style={{ backgroundColor: '#001f3f' }}>
-                          <TableHead style={{ color: 'white', textAlign:'center' }}>Agent</TableHead>
-                          <TableHead style={{ color: 'white', textAlign:'center' }}>Client</TableHead>
-                          <TableHead style={{ color: 'white', textAlign:'center' }}>Developer</TableHead>
-                          <TableHead style={{ color: 'white', textAlign:'center' }}>Reservation Date</TableHead>
-                          <TableHead style={{ color: 'white', textAlign:'center' }}>Commission</TableHead>
-                          <TableHead style={{ color: 'white', textAlign:'center' }}>Type</TableHead>
-                          <TableHead style={{ color: 'white', textAlign:'center' }}>Status</TableHead>
+                          <SortableTableHead field="agent_name" currentSort={sortField} direction={sortDirection} onSort={handleSort} style={{ color: 'white', textAlign:'center' }}>Agent</SortableTableHead>
+                          <SortableTableHead field="client" currentSort={sortField} direction={sortDirection} onSort={handleSort} style={{ color: 'white', textAlign:'center' }}>Client</SortableTableHead>
+                          <SortableTableHead field="developer" currentSort={sortField} direction={sortDirection} onSort={handleSort} style={{ color: 'white', textAlign:'center' }}>Developer</SortableTableHead>
+                          <SortableTableHead field="reservation_date" currentSort={sortField} direction={sortDirection} onSort={handleSort} style={{ color: 'white', textAlign:'center' }}>Reservation Date</SortableTableHead>
+                          <SortableTableHead field="comm" currentSort={sortField} direction={sortDirection} onSort={handleSort} style={{ color: 'white', textAlign:'center' }}>Commission</SortableTableHead>
+                          <SortableTableHead field="comm_type" currentSort={sortField} direction={sortDirection} onSort={handleSort} style={{ color: 'white', textAlign:'center' }}>Type</SortableTableHead>
+                          <SortableTableHead field="status" currentSort={sortField} direction={sortDirection} onSort={handleSort} style={{ color: 'white', textAlign:'center' }}>Status</SortableTableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {commissionDetails.map((detail) => (
+                        {sortedCommissionDetails.map((detail) => (
                           <TableRow key={detail.uuid}>
                             <TableCell className="font-medium" style={{ color: '#001f3f' }}>{detail.agent_name}</TableCell>
                             <TableCell style={{ color: '#001f3f' }}>{detail.client}</TableCell>
@@ -365,17 +380,17 @@ export function CommissionReportViewModal({ isOpen, onClose, report }: Commissio
                     <Table>
                       <TableHeader>
                         <TableRow style={{ backgroundColor: '#001f3f' }}>
-                          <TableHead style={{ color: 'white', textAlign:'center' }}>Agent</TableHead>
-                          <TableHead style={{ color: 'white', textAlign:'center' }}>Client</TableHead>
-                          <TableHead style={{ color: 'white', textAlign:'center' }}>Calculation Type</TableHead>
-                          <TableHead style={{ color: 'white', textAlign:'center' }}>Amount</TableHead>
-                          <TableHead style={{ color: 'white', textAlign:'center' }}>VAT</TableHead>
-                          <TableHead style={{ color: 'white', textAlign:'center' }}>EWT</TableHead>
-                          <TableHead style={{ color: 'white', textAlign:'center' }}>Net Commission</TableHead>
+                          <SortableTableHead field="agent_name" currentSort={sortField} direction={sortDirection} onSort={handleSort} style={{ color: 'white', textAlign:'center' }}>Agent</SortableTableHead>
+                          <SortableTableHead field="client" currentSort={sortField} direction={sortDirection} onSort={handleSort} style={{ color: 'white', textAlign:'center' }}>Client</SortableTableHead>
+                          <SortableTableHead field="calculation_type" currentSort={sortField} direction={sortDirection} onSort={handleSort} style={{ color: 'white', textAlign:'center' }}>Calculation Type</SortableTableHead>
+                          <SortableTableHead field="agent_amount" currentSort={sortField} direction={sortDirection} onSort={handleSort} style={{ color: 'white', textAlign:'center' }}>Amount</SortableTableHead>
+                          <SortableTableHead field="agent_vat" currentSort={sortField} direction={sortDirection} onSort={handleSort} style={{ color: 'white', textAlign:'center' }}>VAT</SortableTableHead>
+                          <SortableTableHead field="agent_ewt" currentSort={sortField} direction={sortDirection} onSort={handleSort} style={{ color: 'white', textAlign:'center' }}>EWT</SortableTableHead>
+                          <SortableTableHead field="agent_net_comm" currentSort={sortField} direction={sortDirection} onSort={handleSort} style={{ color: 'white', textAlign:'center' }}>Net Commission</SortableTableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {commissionDetails.map((detail) => (
+                        {sortedCommissionDetails.map((detail) => (
                           <TableRow key={detail.uuid}>
                             <TableCell className="font-medium" style={{ color: '#001f3f' }}>{detail.agent_name}</TableCell>
                             <TableCell style={{ color: '#001f3f' }}>{detail.client}</TableCell>
@@ -412,17 +427,17 @@ export function CommissionReportViewModal({ isOpen, onClose, report }: Commissio
                     <Table>
                       <TableHeader>
                         <TableRow style={{ backgroundColor: '#001f3f' }}>
-                          <TableHead style={{ color: 'white', textAlign:'center' }}>UM Name</TableHead>
-                          <TableHead style={{ color: 'white', textAlign:'center' }}>Client</TableHead>
-                          <TableHead style={{ color: 'white', textAlign:'center' }}>Calculation Type</TableHead>
-                          <TableHead style={{ color: 'white', textAlign:'center' }}>Amount</TableHead>
-                          <TableHead style={{ color: 'white', textAlign:'center' }}>VAT</TableHead>
-                          <TableHead style={{ color: 'white', textAlign:'center' }}>EWT</TableHead>
-                          <TableHead style={{ color: 'white', textAlign:'center' }}>Net Commission</TableHead>
+                          <SortableTableHead field="um_name" currentSort={sortField} direction={sortDirection} onSort={handleSort} style={{ color: 'white', textAlign:'center' }}>UM Name</SortableTableHead>
+                          <SortableTableHead field="client" currentSort={sortField} direction={sortDirection} onSort={handleSort} style={{ color: 'white', textAlign:'center' }}>Client</SortableTableHead>
+                          <SortableTableHead field="um_calculation_type" currentSort={sortField} direction={sortDirection} onSort={handleSort} style={{ color: 'white', textAlign:'center' }}>Calculation Type</SortableTableHead>
+                          <SortableTableHead field="um_amount" currentSort={sortField} direction={sortDirection} onSort={handleSort} style={{ color: 'white', textAlign:'center' }}>Amount</SortableTableHead>
+                          <SortableTableHead field="um_vat" currentSort={sortField} direction={sortDirection} onSort={handleSort} style={{ color: 'white', textAlign:'center' }}>VAT</SortableTableHead>
+                          <SortableTableHead field="um_ewt" currentSort={sortField} direction={sortDirection} onSort={handleSort} style={{ color: 'white', textAlign:'center' }}>EWT</SortableTableHead>
+                          <SortableTableHead field="um_net_comm" currentSort={sortField} direction={sortDirection} onSort={handleSort} style={{ color: 'white', textAlign:'center' }}>Net Commission</SortableTableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {commissionDetails.map((detail) => (
+                        {sortedCommissionDetails.map((detail) => (
                           <TableRow key={detail.uuid}>
                             <TableCell className="font-medium" style={{ color: '#001f3f' }}>{detail.um_name}</TableCell>
                             <TableCell style={{ color: '#001f3f' }}>{detail.client}</TableCell>

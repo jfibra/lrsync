@@ -43,6 +43,7 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  MessageSquarePlus,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useAuth } from "@/contexts/auth-context";
@@ -54,12 +55,15 @@ import { ViewSalesModal } from "@/components/view-sales-modal";
 import { EditSalesModal } from "@/components/edit-sales-modal";
 import { CustomExportModal } from "@/components/custom-export-modal";
 import { ColumnVisibilityControl } from "@/components/column-visibility-control";
+import { AddRemarkModal } from "@/components/add-remark-modal";
+import { RemarksModalViewer } from "@/components/remarks-modal-viewer";
 import type { Sales } from "@/types/sales";
 import * as XLSX from "xlsx";
 import { logNotification } from "@/utils/logNotification";
 import { formatS3Url } from "@/utils/s3-url";
 import { applyTaxMonthFilter, formatDatePeriodLabel } from "@/lib/date-filter";
 import { YearSelect, MonthMultiSelect } from "@/components/date-period-filter";
+import { SortableTableHead } from "@/components/ui/sortable-header";
 
 export default function AdminSalesPage() {
   const { profile } = useAuth();
@@ -75,6 +79,18 @@ export default function AdminSalesPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [totalCount, setTotalCount] = useState(0);
+  const [sortField, setSortField] = useState<string>("created_at");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
+
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortDirection("asc");
+    }
+    setCurrentPage(1);
+  };
   const [isExporting, setIsExporting] = useState(false);
   const [stats, setStats] = useState({
     totalSales: 0,
@@ -99,6 +115,15 @@ export default function AdminSalesPage() {
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxImages, setLightboxImages] = useState<{ url: string; label: string }[]>([]);
   const [lightboxIndex, setLightboxIndex] = useState(0);
+
+  const [showOnlyWithRemarks, setShowOnlyWithRemarks] = useState(false);
+  const [saleIdToCommission, setSaleIdToCommission] = useState<Record<string, any>>({});
+  const [commissionModalOpen, setCommissionModalOpen] = useState(false);
+  const [selectedCommission, setSelectedCommission] = useState<any>(null);
+  const [remarksModalOpen, setRemarksModalOpen] = useState(false);
+  const [selectedSaleForRemarks, setSelectedSaleForRemarks] = useState<Sales | null>(null);
+  const [addRemarkModalOpen, setAddRemarkModalOpen] = useState(false);
+  const [selectedSaleForRemark, setSelectedSaleForRemark] = useState<Sales | null>(null);
 
   const isImageFile = (url: string) => {
     const cleanUrl = url.split("?")[0].toLowerCase();
@@ -250,6 +275,7 @@ export default function AdminSalesPage() {
     },
     { key: "invoice_number", label: "Invoice #", visible: true },
     { key: "pickup_date", label: "Pickup Date", visible: true },
+    { key: "recent_remark", label: "Recent Remark", visible: true },
     { key: "files", label: "Files", visible: true },
     { key: "actions", label: "Actions", visible: true },
   ]);
@@ -286,7 +312,7 @@ export default function AdminSalesPage() {
           { count: "exact" }
         )
         .eq("is_deleted", false)
-        .order("created_at", { ascending: false })
+        .order(sortField, { ascending: sortDirection === "asc" })
         .range(from, to);
 
       // Lightweight stats query
@@ -314,6 +340,11 @@ export default function AdminSalesPage() {
       salesQuery = applyTaxMonthFilter(salesQuery, filterYear, filterMonths);
       statsQuery = applyTaxMonthFilter(statsQuery, filterYear, filterMonths);
 
+      if (showOnlyWithRemarks) {
+        salesQuery = salesQuery.not("remarks", "is", null).neq("remarks", "[]").neq("remarks", "");
+        statsQuery = statsQuery.not("remarks", "is", null).neq("remarks", "[]").neq("remarks", "");
+      }
+
       const [salesResult, statsResult] = await Promise.all([
         salesQuery,
         statsQuery,
@@ -326,6 +357,31 @@ export default function AdminSalesPage() {
       const total = salesResult.count || 0;
       setTotalCount(total);
       setSales(salesData);
+
+      // Fetch commission reports for displayed sales
+      const pageIds = salesData.map((s) => s.id);
+      if (pageIds.length > 0) {
+        const { data: reportsData } = await supabase
+          .from("commission_report")
+          .select("report_number, sales_uuids, created_by, created_at, status, deleted_at")
+          .overlaps("sales_uuids", pageIds);
+
+        const saleIdToCommissionObj: Record<string, any> = {};
+        (reportsData || []).forEach((report) => {
+          (report.sales_uuids || []).forEach((saleId: string) => {
+            saleIdToCommissionObj[saleId] = {
+              report_number: report.report_number,
+              created_by: report.created_by,
+              created_at: report.created_at,
+              status: report.status,
+              deleted_at: report.deleted_at,
+            };
+          });
+        });
+        setSaleIdToCommission(saleIdToCommissionObj);
+      } else {
+        setSaleIdToCommission({});
+      }
 
       // Calculate stats from lightweight projection
       const statsData = statsResult.data || [];
@@ -356,7 +412,7 @@ export default function AdminSalesPage() {
 
   useEffect(() => {
     fetchSales();
-  }, [debouncedSearchTerm, filterTaxType, filterYear, filterMonths, currentPage, pageSize]);
+  }, [debouncedSearchTerm, filterTaxType, filterYear, filterMonths, currentPage, pageSize, sortField, sortDirection, showOnlyWithRemarks]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -422,6 +478,134 @@ export default function AdminSalesPage() {
   const handleEditSale = (sale: Sales) => {
     setSelectedSale(sale);
     setEditModalOpen(true);
+  };
+
+  const handleAddRemark = (sale: Sales) => {
+    setSelectedSaleForRemark(sale);
+    setAddRemarkModalOpen(true);
+  };
+
+  const handleRemarkAdded = () => {
+    fetchSales();
+  };
+
+  const handleRemarksUpdate = (saleId: string, updatedRemarks: any[]) => {
+    setSales((prevSales) =>
+      prevSales.map((sale) => (sale.id === saleId ? { ...sale, remarks: JSON.stringify(updatedRemarks) } : sale))
+    );
+  };
+
+  const getStatusBadgeClass = (status: string, deleted: boolean) => {
+    if (deleted) return "bg-red-100 text-red-700 border border-red-200";
+    switch ((status || "").toLowerCase()) {
+      case "approved":
+      case "completed":
+        return "bg-green-100 text-green-700 border border-green-200";
+      case "pending":
+      case "new":
+        return "bg-yellow-100 text-yellow-800 border border-yellow-200";
+      case "rejected":
+      case "cancelled":
+        return "bg-gray-200 text-gray-700 border border-gray-300";
+      default:
+        return "bg-blue-100 text-blue-800 border border-blue-200";
+    }
+  };
+
+  const parseRemarksSafe = (remarks: any): any[] => {
+    if (!remarks) return [];
+    if (Array.isArray(remarks)) return remarks;
+    if (typeof remarks === "string") {
+      try {
+        const parsed = JSON.parse(remarks);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  };
+
+  const getMostRecentRemark = (remarks: any) => {
+    const list = parseRemarksSafe(remarks);
+    if (list.length === 0) return null;
+
+    const sortedRemarks = [...list].sort((a, b) => {
+      const timeA = a?.date ? new Date(a.date).getTime() : 0;
+      const timeB = b?.date ? new Date(b.date).getTime() : 0;
+      return (isNaN(timeB) ? 0 : timeB) - (isNaN(timeA) ? 0 : timeA);
+    });
+    return sortedRemarks[0] || null;
+  };
+
+  const RecentRemarkDisplay = ({
+    remark,
+    commission,
+    onCommissionClick,
+    sale,
+  }: {
+    remark: any;
+    commission?: { report_number: number; created_by: string; created_at: string; status?: string; deleted_at?: string };
+    onCommissionClick?: (commission: any) => void;
+    sale?: any;
+  }) => {
+    const remarksList = parseRemarksSafe(sale?.remarks);
+    const hasRemarks = remarksList.length > 0;
+    const hasReport = Boolean(commission && !commission.deleted_at);
+
+    if (!hasRemarks && !hasReport) {
+      return (
+        <div className="space-y-2">
+          <div className="text-gray-400 text-sm italic">No remarks</div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-2">
+        {hasReport && (
+          <div>
+            <Badge
+              variant="outline"
+              className={getStatusBadgeClass(commission.status, false) + " cursor-pointer"}
+              onClick={() => onCommissionClick?.(commission)}
+              style={{ cursor: "pointer" }}
+            >
+              Report #{commission.report_number}
+            </Badge>
+          </div>
+        )}
+
+        {remark && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 max-w-xs">
+            <div className="flex items-start gap-2">
+              <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-gray-800 font-medium mb-1 line-clamp-2">{remark.remark}</p>
+                <div className="flex items-center justify-between text-xs text-gray-600">
+                  <span className="font-medium">{remark.name}</span>
+                  <span>{remark.date ? format(new Date(remark.date), "MMM dd, yyyy") : ""}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {hasRemarks && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              setSelectedSaleForRemarks(sale);
+              setRemarksModalOpen(true);
+            }}
+            className="text-xs text-blue-600 bg-white hover:text-white hover:bg-[#001f3f] border-purple-200 hover:border-purple-300"
+          >
+            View All Remarks {remarksList.length > 1 ? `(${remarksList.length})` : ""}
+          </Button>
+        )}
+      </div>
+    );
   };
 
   // Handle soft delete
@@ -500,6 +684,9 @@ export default function AdminSalesPage() {
         query = query.eq("tax_type", filterTaxType);
       }
       query = applyTaxMonthFilter(query, filterYear, filterMonths);
+      if (showOnlyWithRemarks) {
+        query = query.not("remarks", "is", null).neq("remarks", "[]").neq("remarks", "");
+      }
 
       const { data, error } = await query;
       if (error) throw error;
@@ -875,6 +1062,8 @@ export default function AdminSalesPage() {
                     setFilterTaxType("all");
                     setFilterYear("all");
                     setFilterMonths([]);
+                    setShowOnlyWithRemarks(false);
+                    setCurrentPage(1);
                   }}
                   className="w-full border-0 bg-gradient-to-r from-red-500 to-pink-500 text-white font-semibold shadow-md hover:from-red-600 hover:to-pink-600 transition-all duration-150 flex items-center justify-center gap-2"
                 >
@@ -895,7 +1084,7 @@ export default function AdminSalesPage() {
                     Sales Records
                   </CardTitle>
                   <CardDescription className="text-gray-600 mt-1">
-                    {loading ? "Loading..." : `${totalCount} records found`}
+                    {loading ? "Loading..." : `${totalCount} records found${showOnlyWithRemarks ? " (with remarks)" : ""}`}
                   </CardDescription>
                 </div>
                 <div className="flex gap-2">
@@ -903,6 +1092,22 @@ export default function AdminSalesPage() {
                     columns={columnVisibility}
                     onColumnToggle={toggleColumnVisibility}
                   />
+                  <Button
+                    variant={showOnlyWithRemarks ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => {
+                      setShowOnlyWithRemarks(!showOnlyWithRemarks);
+                      setCurrentPage(1);
+                    }}
+                    className={`border-gray-300 ${
+                      showOnlyWithRemarks
+                        ? "bg-indigo-600 text-white hover:bg-indigo-700"
+                        : "text-gray-700 hover:text-gray-700 hover:bg-gray-50 bg-transparent"
+                    }`}
+                  >
+                    <MessageSquarePlus className="h-4 w-4 mr-2" />
+                    {showOnlyWithRemarks ? "Show All" : "With Remarks"}
+                  </Button>
                   <CustomExportModal
                     sales={sales}
                     fetchSales={fetchAllFilteredSalesForExport}
@@ -928,59 +1133,119 @@ export default function AdminSalesPage() {
                     <TableRow className="bg-gray-50 border-b border-gray-200">
                       {columnVisibility.find((col) => col.key === "tax_month")
                         ?.visible && (
-                          <TableHead className="min-w-[120px] font-semibold text-gray-900">
+                          <SortableTableHead
+                            field="tax_month"
+                            currentSortField={sortField}
+                            currentSortDirection={sortDirection}
+                            onSort={handleSort}
+                            className="min-w-[120px] font-semibold text-gray-900"
+                          >
                             Tax Month
-                          </TableHead>
+                          </SortableTableHead>
                         )}
                       {columnVisibility.find((col) => col.key === "tin")
                         ?.visible && (
-                          <TableHead className="min-w-[120px] font-semibold text-gray-900">
+                          <SortableTableHead
+                            field="tin"
+                            currentSortField={sortField}
+                            currentSortDirection={sortDirection}
+                            onSort={handleSort}
+                            className="min-w-[120px] font-semibold text-gray-900"
+                          >
                             TIN
-                          </TableHead>
+                          </SortableTableHead>
                         )}
                       {columnVisibility.find((col) => col.key === "name")
                         ?.visible && (
-                          <TableHead className="min-w-[180px] font-semibold text-gray-900">
+                          <SortableTableHead
+                            field="name"
+                            currentSortField={sortField}
+                            currentSortDirection={sortDirection}
+                            onSort={handleSort}
+                            className="min-w-[180px] font-semibold text-gray-900"
+                          >
                             Name
-                          </TableHead>
+                          </SortableTableHead>
                         )}
                       {columnVisibility.find((col) => col.key === "tax_type")
                         ?.visible && (
-                          <TableHead className="min-w-[100px] font-semibold text-gray-900">
+                          <SortableTableHead
+                            field="tax_type"
+                            currentSortField={sortField}
+                            currentSortDirection={sortDirection}
+                            onSort={handleSort}
+                            className="min-w-[100px] font-semibold text-gray-900"
+                          >
                             Tax Type
-                          </TableHead>
+                          </SortableTableHead>
                         )}
                       {columnVisibility.find((col) => col.key === "sale_type")
                         ?.visible && (
-                          <TableHead className="min-w-[100px] font-semibold text-gray-900">
+                          <SortableTableHead
+                            field="sale_type"
+                            currentSortField={sortField}
+                            currentSortDirection={sortDirection}
+                            onSort={handleSort}
+                            className="min-w-[100px] font-semibold text-gray-900"
+                          >
                             Sale Type
-                          </TableHead>
+                          </SortableTableHead>
                         )}
                       {columnVisibility.find(
                         (col) => col.key === "gross_taxable"
                       )?.visible && (
-                          <TableHead className="min-w-[120px] font-semibold text-gray-900">
+                          <SortableTableHead
+                            field="gross_taxable"
+                            currentSortField={sortField}
+                            currentSortDirection={sortDirection}
+                            onSort={handleSort}
+                            className="min-w-[120px] font-semibold text-gray-900"
+                          >
                             Gross Taxable
-                          </TableHead>
+                          </SortableTableHead>
                         )}
                       {columnVisibility.find(
                         (col) => col.key === "total_actual_amount"
                       )?.visible && (
-                          <TableHead className="min-w-[140px] font-semibold text-gray-900">
+                          <SortableTableHead
+                            field="total_actual_amount"
+                            currentSortField={sortField}
+                            currentSortDirection={sortDirection}
+                            onSort={handleSort}
+                            className="min-w-[140px] font-semibold text-gray-900"
+                          >
                             Total Actual Amount
-                          </TableHead>
+                          </SortableTableHead>
                         )}
                       {columnVisibility.find(
                         (col) => col.key === "invoice_number"
                       )?.visible && (
-                          <TableHead className="min-w-[120px] font-semibold text-gray-900">
+                          <SortableTableHead
+                            field="invoice_number"
+                            currentSortField={sortField}
+                            currentSortDirection={sortDirection}
+                            onSort={handleSort}
+                            className="min-w-[120px] font-semibold text-gray-900"
+                          >
                             Invoice #
-                          </TableHead>
+                          </SortableTableHead>
                         )}
                       {columnVisibility.find((col) => col.key === "pickup_date")
                         ?.visible && (
-                          <TableHead className="min-w-[120px] font-semibold text-gray-900">
+                          <SortableTableHead
+                            field="pickup_date"
+                            currentSortField={sortField}
+                            currentSortDirection={sortDirection}
+                            onSort={handleSort}
+                            className="min-w-[120px] font-semibold text-gray-900"
+                          >
                             Pickup Date
+                          </SortableTableHead>
+                        )}
+                      {columnVisibility.find((col) => col.key === "recent_remark")
+                        ?.visible && (
+                          <TableHead className="min-w-[150px] font-semibold text-gray-900">
+                            Recent Remark
                           </TableHead>
                         )}
                       {columnVisibility.find((col) => col.key === "files")
@@ -1119,6 +1384,20 @@ export default function AdminSalesPage() {
                                   : "-"}
                               </TableCell>
                             )}
+                          {columnVisibility.find((col) => col.key === "recent_remark")
+                            ?.visible && (
+                              <TableCell>
+                                <RecentRemarkDisplay
+                                  remark={getMostRecentRemark(sale.remarks)}
+                                  commission={saleIdToCommission[sale.id]}
+                                  onCommissionClick={(commission) => {
+                                    setSelectedCommission(commission);
+                                    setCommissionModalOpen(true);
+                                  }}
+                                  sale={sale}
+                                />
+                              </TableCell>
+                            )}
                           {columnVisibility.find((col) => col.key === "files")
                             ?.visible && (
                               <TableCell>
@@ -1211,6 +1490,15 @@ export default function AdminSalesPage() {
                                     className="h-8 w-8 p-0 hover:bg-green-100"
                                   >
                                     <Edit className="h-4 w-4 text-green-600" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleAddRemark(sale)}
+                                    className="h-8 w-8 p-0 hover:bg-purple-100"
+                                    title="Add Remark"
+                                  >
+                                    <MessageSquarePlus className="h-4 w-4 text-purple-600" />
                                   </Button>
                                   <Button
                                     variant="ghost"
@@ -1362,6 +1650,72 @@ export default function AdminSalesPage() {
             onClose={() => setLightboxOpen(false)}
           />
         )}
+
+        {commissionModalOpen &&
+          selectedCommission &&
+          (() => {
+            return (
+              <div
+                className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4"
+                onClick={() => setCommissionModalOpen(false)}
+              >
+                <div
+                  className="bg-white rounded-lg p-6 max-w-md w-full shadow-xl"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <h3 className="text-lg font-bold mb-4">Commission Report Details</h3>
+                  <div className="space-y-2 text-sm">
+                    <div>
+                      <span className="font-semibold">Report Number:</span> #{selectedCommission.report_number}
+                    </div>
+                    <div>
+                      <span className="font-semibold">Created By:</span> {selectedCommission.created_by}
+                    </div>
+                    <div>
+                      <span className="font-semibold">Created Date:</span>{" "}
+                      {selectedCommission.created_at
+                        ? format(new Date(selectedCommission.created_at), "MMM dd, yyyy")
+                        : "N/A"}
+                    </div>
+                    <div>
+                      <span className="font-semibold">Status:</span>{" "}
+                      <span
+                        className={
+                          getStatusBadgeClass(selectedCommission.status, false) +
+                          " px-2 py-1 rounded font-semibold text-xs capitalize"
+                        }
+                      >
+                        {selectedCommission.status || "N/A"}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex justify-end mt-4">
+                    <Button onClick={() => setCommissionModalOpen(false)}>Close</Button>
+                  </div>
+                </div>
+              </div>
+            )
+          })()}
+
+        <AddRemarkModal
+          open={addRemarkModalOpen}
+          onOpenChange={setAddRemarkModalOpen}
+          saleId={selectedSaleForRemark?.id || ""}
+          onRemarkAdded={handleRemarkAdded}
+        />
+
+        <RemarksModalViewer
+          isOpen={remarksModalOpen}
+          onClose={() => {
+            setRemarksModalOpen(false);
+            setSelectedSaleForRemarks(null);
+          }}
+          saleId={selectedSaleForRemarks?.id || ""}
+          remarks={selectedSaleForRemarks?.remarks || null}
+          onRemarksUpdate={handleRemarksUpdate}
+          roleColor="blue"
+          userRole={profile?.role}
+        />
       </div>
     </ProtectedRoute>
   );

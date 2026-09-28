@@ -21,6 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { SortableTableHead, sortData } from "@/components/ui/sortable-header";
 import {
   Select,
   SelectContent,
@@ -97,9 +98,20 @@ export default function UserManagement() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+
+  const [sortField, setSortField] = useState<string>("full_name");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortDirection("asc");
+    }
+  };
 
   // Modal states
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -168,13 +180,17 @@ export default function UserManagement() {
     }
   }, [error]);
 
-  const filteredUsers = users.filter(
-    (user) =>
-      user.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.first_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.last_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.assigned_area?.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredUsers = sortData(
+    users.filter(
+      (user) =>
+        user.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        user.first_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        user.last_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        user.assigned_area?.toLowerCase().includes(searchTerm.toLowerCase())
+    ),
+    sortField,
+    sortDirection
   );
 
   // Pagination calculations
@@ -1401,24 +1417,24 @@ export default function UserManagement() {
                         <Table>
                           <TableHeader>
                             <TableRow className="bg-[#f9f9f9] border-b border-[#e0e0e0]">
-                              <TableHead className="font-semibold text-[#001f3f]">
+                              <SortableTableHead field="full_name" currentSort={sortField} direction={sortDirection} onSort={handleSort} className="font-semibold text-[#001f3f]">
                                 Name
-                              </TableHead>
-                              <TableHead className="font-semibold text-[#001f3f]">
+                              </SortableTableHead>
+                              <SortableTableHead field="email" currentSort={sortField} direction={sortDirection} onSort={handleSort} className="font-semibold text-[#001f3f]">
                                 Email
-                              </TableHead>
-                              <TableHead className="font-semibold text-[#001f3f]">
+                              </SortableTableHead>
+                              <SortableTableHead field="role" currentSort={sortField} direction={sortDirection} onSort={handleSort} className="font-semibold text-[#001f3f]">
                                 Role
-                              </TableHead>
-                              <TableHead className="font-semibold text-[#001f3f]">
+                              </SortableTableHead>
+                              <SortableTableHead field="status" currentSort={sortField} direction={sortDirection} onSort={handleSort} className="font-semibold text-[#001f3f]">
                                 Status
-                              </TableHead>
-                              <TableHead className="font-semibold text-[#001f3f]">
+                              </SortableTableHead>
+                              <SortableTableHead field="assigned_area" currentSort={sortField} direction={sortDirection} onSort={handleSort} className="font-semibold text-[#001f3f]">
                                 Assigned Area
-                              </TableHead>
-                              <TableHead className="font-semibold text-[#001f3f]">
+                              </SortableTableHead>
+                              <SortableTableHead field="created_at" currentSort={sortField} direction={sortDirection} onSort={handleSort} className="font-semibold text-[#001f3f]">
                                 Created
-                              </TableHead>
+                              </SortableTableHead>
                               <TableHead className="font-semibold text-[#001f3f]">
                                 Actions
                               </TableHead>

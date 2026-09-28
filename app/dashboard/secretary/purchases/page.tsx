@@ -34,6 +34,7 @@ import { RemarksModalViewerPurchases } from "@/components/remarks-modal-viewer-p
 import { formatS3Url } from "@/utils/s3-url"
 import { applyTaxMonthFilter, formatDatePeriodLabel } from "@/lib/date-filter"
 import { YearSelect, MonthMultiSelect } from "@/components/date-period-filter"
+import { SortableTableHead } from "@/components/ui/sortable-header"
 
 // Import modals
 import { AddPurchasesModal } from "@/components/add-purchases-modal"
@@ -67,7 +68,7 @@ interface Purchase {
 }
 
 export default function SecretaryPurchasesPage() {
-  const { profile } = useAuth()
+  const { user, profile } = useAuth()
   const [purchases, setPurchases] = useState<Purchase[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
@@ -97,6 +98,7 @@ export default function SecretaryPurchasesPage() {
 
   const [remarksModalOpen, setRemarksModalOpen] = useState(false)
   const [selectedPurchaseForRemarks, setSelectedPurchaseForRemarks] = useState<any>(null)
+  const [showOnlyWithRemarks, setShowOnlyWithRemarks] = useState(false)
 
   const handleRemarksUpdate = (purchaseId: string, updatedRemarks: any[]) => {
     setPurchases((prev) =>
@@ -310,26 +312,47 @@ export default function SecretaryPurchasesPage() {
     )
   }
 
-  const getMostRecentRemark = (remarksJson: string | null) => {
-    if (!remarksJson) return null
-    try {
-      const remarks = JSON.parse(remarksJson)
-      if (Array.isArray(remarks) && remarks.length > 0) {
-        return remarks[remarks.length - 1]
+  const parseRemarksSafe = (remarks: any): any[] => {
+    if (!remarks) return []
+    if (Array.isArray(remarks)) return remarks
+    if (typeof remarks === "string") {
+      try {
+        const parsed = JSON.parse(remarks)
+        return Array.isArray(parsed) ? parsed : []
+      } catch {
+        return []
       }
-    } catch {
-      return null
     }
-    return null
+    return []
+  }
+
+  const getMostRecentRemark = (remarksJson: string | any[] | null) => {
+    const list = parseRemarksSafe(remarksJson)
+    if (list.length === 0) return null
+    const sorted = [...list].sort((a, b) => {
+      const timeA = a?.date ? new Date(a.date).getTime() : 0
+      const timeB = b?.date ? new Date(b.date).getTime() : 0
+      return (isNaN(timeB) ? 0 : timeB) - (isNaN(timeA) ? 0 : timeA)
+    })
+    return sorted[0] || null
   }
 
   const fetchPurchases = async () => {
     try {
       setLoading(true)
 
-      if (!profile?.assigned_area) {
-        console.log("No assigned area found for secretary")
+      if (!profile) {
         setPurchases([])
+        setLoading(false)
+        return
+      }
+
+      // Secretary only sees purchases encoded by themselves
+      const myUserIds = [profile.auth_user_id, profile.id, user?.id].filter(Boolean) as string[]
+
+      if (myUserIds.length === 0) {
+        setPurchases([])
+        setLoading(false)
         return
       }
 
@@ -337,6 +360,7 @@ export default function SecretaryPurchasesPage() {
         .from("purchases")
         .select("*")
         .eq("is_deleted", false)
+        .in("user_uuid", myUserIds)
         .order(sortField, { ascending: sortDirection === "asc" })
         .limit(50000)
 
@@ -358,39 +382,20 @@ export default function SecretaryPurchasesPage() {
       // Apply Year & Multi-Month filter
       purchasesQuery = applyTaxMonthFilter(purchasesQuery, filterYear, filterMonths)
 
+      if (showOnlyWithRemarks) {
+        purchasesQuery = purchasesQuery.not("remarks", "is", null).neq("remarks", "[]").neq("remarks", "")
+      }
+
       const { data: purchasesData, error: purchasesError } = await purchasesQuery
 
       if (purchasesError) throw purchasesError
 
-      // Get user profiles for the users who created these purchases
-      const userUuids = [...new Set(purchasesData?.map((purchase) => purchase.user_uuid).filter(Boolean))]
+      const purchasesWithProfiles = (purchasesData || []).map((purchase) => ({
+        ...purchase,
+        user_assigned_area: profile.assigned_area || null,
+      }))
 
-      let userProfiles = []
-      if (userUuids.length > 0) {
-        const { data: profilesData, error: profilesError } = await supabase
-          .from("user_profiles")
-          .select("auth_user_id, assigned_area, full_name")
-          .in("auth_user_id", userUuids)
-
-        if (profilesError) throw profilesError
-        userProfiles = profilesData || []
-      }
-
-      // Combine purchases data with user profiles
-      const purchasesWithProfiles =
-        purchasesData?.map((purchase) => {
-          const userProfile = userProfiles.find((profile) => profile.auth_user_id === purchase.user_uuid)
-          return {
-            ...purchase,
-            user_assigned_area: userProfile?.assigned_area || null,
-          }
-        }) || []
-
-      const filteredData = purchasesWithProfiles.filter(
-        (purchase) => purchase.user_assigned_area === profile.assigned_area,
-      )
-
-      setPurchases(filteredData)
+      setPurchases(purchasesWithProfiles)
     } catch (error) {
       console.error("Error fetching purchases:", error)
     } finally {
@@ -403,10 +408,10 @@ export default function SecretaryPurchasesPage() {
   }, [searchTerm, filterTaxType, filterYear, filterMonths, filterCategory])
 
   useEffect(() => {
-    if (profile?.assigned_area) {
+    if (profile) {
       fetchPurchases()
     }
-  }, [searchTerm, filterTaxType, filterYear, filterMonths, sortField, sortDirection, profile?.assigned_area, filterCategory])
+  }, [searchTerm, filterTaxType, filterYear, filterMonths, sortField, sortDirection, profile, filterCategory, showOnlyWithRemarks])
 
   // Format currency
   const formatCurrency = (amount: number) => {
@@ -748,6 +753,8 @@ export default function SecretaryPurchasesPage() {
                     setFilterCategory("all")
                     setFilterYear("all")
                     setFilterMonths([])
+                    setShowOnlyWithRemarks(false)
+                    setCurrentPage(1)
                   }}
                   style={{ background: "#fff", color: "#001f3f", border: "1px solid #001f3f" }}
                   className="w-full font-semibold shadow-md hover:text-[#ee3433] transition-all duration-150 flex items-center justify-center gap-2"
@@ -786,7 +793,7 @@ export default function SecretaryPurchasesPage() {
                   <CardDescription style={{ color: "#555" }} className="mt-1 text-sm sm:text-base">
                     {loading
                       ? "Loading..."
-                      : `${purchases.length} records found in ${profile?.assigned_area || "your area"}`}
+                      : `${purchases.length} records found in ${profile?.assigned_area || "your area"}${showOnlyWithRemarks ? " (with remarks)" : ""}`}
                   </CardDescription>
                 </div>
                 <div className="flex flex-col gap-2 w-full sm:w-auto sm:flex-row sm:items-center sm:gap-2">
@@ -803,6 +810,22 @@ export default function SecretaryPurchasesPage() {
                     <Download className="h-4 w-4 mr-2" />
                     <span className="hidden xs:inline">Export</span>
                     <span className="inline xs:hidden">Export</span>
+                  </Button>
+                  <Button
+                    variant={showOnlyWithRemarks ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => {
+                      setShowOnlyWithRemarks(!showOnlyWithRemarks)
+                      setCurrentPage(1)
+                    }}
+                    className={`border-[#001f3f]/30 ${
+                      showOnlyWithRemarks
+                        ? "bg-[#001f3f] text-white hover:bg-[#001f3f]/90"
+                        : "text-[#001f3f] hover:bg-[#001f3f]/10 bg-white"
+                    }`}
+                  >
+                    <MessageSquarePlus className="h-4 w-4 mr-2" />
+                    {showOnlyWithRemarks ? "Show All" : "With Remarks"}
                   </Button>
                   <Button
                     variant="outline"
@@ -822,11 +845,28 @@ export default function SecretaryPurchasesPage() {
                 <Table>
                   <TableHeader>
                     <TableRow style={{ background: "#fff", borderBottom: "1px solid #e0e0e0" }}>
-                      {columns.filter(col => col.visible).map(col => (
-                        <TableHead key={col.key} className="min-w-[120px] font-semibold text-[#001f3f]">
-                          {col.label}
-                        </TableHead>
-                      ))}
+                      {columns.filter(col => col.visible).map(col => {
+                        const isSortable = ["tax_month", "tin", "name", "tax_type", "gross_taxable", "total_actual_amount", "invoice_number"].includes(col.key);
+                        if (isSortable) {
+                          return (
+                            <SortableTableHead
+                              key={col.key}
+                              field={col.key}
+                              currentSortField={sortField}
+                              currentSortDirection={sortDirection as any}
+                              onSort={handleSort}
+                              className="min-w-[120px] font-semibold text-[#001f3f]"
+                            >
+                              {col.label}
+                            </SortableTableHead>
+                          );
+                        }
+                        return (
+                          <TableHead key={col.key} className="min-w-[120px] font-semibold text-[#001f3f]">
+                            {col.label}
+                          </TableHead>
+                        );
+                      })}
                     </TableRow>
                   </TableHeader>
                   <TableBody>

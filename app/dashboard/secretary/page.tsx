@@ -43,6 +43,8 @@ export default function SecretaryDashboard() {
       const { monday, sunday } = getWeekRange(new Date())
       const { firstDay, lastDay } = getMonthRange(new Date())
 
+      const userIds = [profile.auth_user_id, profile.id].filter(Boolean) as string[]
+
       const [salesWeekRes, salesUpdatedRes, commReportsRes, activitiesRes] = await Promise.all([
         // 1. Total Sales Encoded This Week
         supabase
@@ -50,13 +52,13 @@ export default function SecretaryDashboard() {
           .select("*", { count: "exact", head: true })
           .gte("created_at", monday.toISOString())
           .lte("created_at", sunday.toISOString())
-          .eq("user_uuid", profile.id)
+          .in("user_uuid", userIds)
           .eq("is_deleted", false),
         // 2. Sales Updated This Month (from notifications)
         supabase
           .from("notifications")
           .select("*", { count: "exact", head: true })
-          .eq("user_uuid", profile.id)
+          .in("user_uuid", userIds)
           .eq("action", "sales_updated")
           .gte("created_at", firstDay.toISOString())
           .lte("created_at", lastDay.toISOString()),
@@ -64,7 +66,7 @@ export default function SecretaryDashboard() {
         supabase
           .from("notifications")
           .select("*", { count: "exact", head: true })
-          .eq("user_uuid", profile.id)
+          .in("user_uuid", userIds)
           .eq("action", "commission_report_generated")
           .gte("created_at", firstDay.toISOString())
           .lte("created_at", lastDay.toISOString()),
@@ -72,7 +74,7 @@ export default function SecretaryDashboard() {
         supabase
           .from("notifications")
           .select("*", { count: "exact", head: true })
-          .eq("user_uuid", profile.id)
+          .in("user_uuid", userIds)
           .gte("created_at", monday.toISOString())
           .lte("created_at", sunday.toISOString()),
       ])
@@ -85,7 +87,7 @@ export default function SecretaryDashboard() {
       })
     }
     fetchStats()
-  }, [profile?.id])
+  }, [profile?.id, profile?.auth_user_id])
 
   const StatCard = ({
     icon,

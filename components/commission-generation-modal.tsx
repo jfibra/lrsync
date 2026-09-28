@@ -25,6 +25,7 @@ interface CommissionGenerationModalProps {
   selectedSales: Sales[]
   userArea?: string
   userFullName?: string
+  onSuccess?: () => void
 }
 
 interface SearchResult {
@@ -134,6 +135,7 @@ export function CommissionGenerationModal({
   selectedSales,
   userArea,
   userFullName,
+  onSuccess,
 }: CommissionGenerationModalProps) {
   const currentYear = new Date().getFullYear()
   const [searchData, setSearchData] = useState({
@@ -1037,6 +1039,10 @@ export function CommissionGenerationModal({
       }
 
       toast.success(`Commission report #${reportData.report_number} saved successfully!`)
+      if (onSuccess) {
+        onSuccess()
+      }
+      onClose()
     } catch (error) {
       console.error("Unexpected error saving commission report:", error)
       toast.error("An unexpected error occurred while saving the report")

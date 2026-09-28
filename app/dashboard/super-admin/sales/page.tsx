@@ -43,6 +43,7 @@ import { AddRemarkModal } from "@/components/add-remark-modal"
 import { RemarksModalViewer } from "@/components/remarks-modal-viewer"
 import { formatS3Url } from "@/utils/s3-url"
 import { applyTaxMonthFilter, formatDatePeriodLabel } from "@/lib/date-filter"
+import { SortableTableHead } from "@/components/ui/sortable-header"
 import { YearSelect, MonthMultiSelect } from "@/components/date-period-filter"
 
 export default function SuperAdminSalesPage() {
@@ -389,22 +390,8 @@ export default function SuperAdminSalesPage() {
 
       // Apply remarks filter if active
       if (showOnlyWithRemarks) {
-        const [reportsRes, salesWithRemarksRes] = await Promise.all([
-          supabase.from("commission_report").select("sales_uuids").is("deleted_at", null),
-          supabase.from("sales").select("id").eq("is_deleted", false).not("remarks", "is", null).neq("remarks", "[]"),
-        ])
-        const idsWithRemarks = new Set<string>()
-        ;(reportsRes.data || []).forEach((r) => (r.sales_uuids || []).forEach((id: string) => idsWithRemarks.add(id)))
-        ;(salesWithRemarksRes.data || []).forEach((s) => idsWithRemarks.add(s.id))
-
-        const remarkIdsList = Array.from(idsWithRemarks)
-        if (remarkIdsList.length > 0) {
-          salesQuery = salesQuery.in("id", remarkIdsList)
-          statsQuery = statsQuery.in("id", remarkIdsList)
-        } else {
-          salesQuery = salesQuery.in("id", ["00000000-0000-0000-0000-000000000000"])
-          statsQuery = statsQuery.in("id", ["00000000-0000-0000-0000-000000000000"])
-        }
+        salesQuery = salesQuery.not("remarks", "is", null).neq("remarks", "[]").neq("remarks", "")
+        statsQuery = statsQuery.not("remarks", "is", null).neq("remarks", "[]").neq("remarks", "")
       }
 
       // Execute paginated query and stats query in parallel
@@ -517,20 +504,30 @@ export default function SuperAdminSalesPage() {
   }
 
 
-  const getMostRecentRemark = (remarksJson: string | null) => {
-    if (!remarksJson) return null
-
-    try {
-      const remarks = JSON.parse(remarksJson)
-      if (!Array.isArray(remarks) || remarks.length === 0) return null
-
-      // Sort by date descending and get the most recent
-      const sortedRemarks = remarks.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-      return sortedRemarks[0]
-    } catch (error) {
-      console.error("Error parsing remarks JSON:", error)
-      return null
+  const parseRemarksSafe = (remarks: any): any[] => {
+    if (!remarks) return []
+    if (Array.isArray(remarks)) return remarks
+    if (typeof remarks === "string") {
+      try {
+        const parsed = JSON.parse(remarks)
+        return Array.isArray(parsed) ? parsed : []
+      } catch {
+        return []
+      }
     }
+    return []
+  }
+
+  const getMostRecentRemark = (remarks: any) => {
+    const list = parseRemarksSafe(remarks)
+    if (list.length === 0) return null
+
+    const sortedRemarks = [...list].sort((a, b) => {
+      const timeA = a?.date ? new Date(a.date).getTime() : 0
+      const timeB = b?.date ? new Date(b.date).getTime() : 0
+      return (isNaN(timeB) ? 0 : timeB) - (isNaN(timeA) ? 0 : timeA)
+    })
+    return sortedRemarks[0] || null
   }
 
   const totalPages = Math.ceil(totalCount / pageSize)
@@ -671,6 +668,9 @@ export default function SuperAdminSalesPage() {
         query = query.eq("tax_type", filterTaxType)
       }
       query = applyTaxMonthFilter(query, filterYear, filterMonths)
+      if (showOnlyWithRemarks) {
+        query = query.not("remarks", "is", null).neq("remarks", "[]").neq("remarks", "")
+      }
       if (filterArea !== "all") {
         const areaUserIds = allProfiles
           .filter((p) => p.assigned_area === filterArea)
@@ -917,11 +917,34 @@ export default function SuperAdminSalesPage() {
     onCommissionClick?: (commission: any) => void
     sale?: any
   }) => {
-    const hasRemarks = sale?.remarks && JSON.parse(sale.remarks || "[]").length > 0
+    const remarksList = parseRemarksSafe(sale?.remarks)
+    const hasRemarks = remarksList.length > 0
+    const hasReport = Boolean(commission && !commission.deleted_at)
 
-    if (remark) {
+    if (!hasRemarks && !hasReport) {
       return (
         <div className="space-y-2">
+          <div className="text-gray-400 text-sm italic">No remarks</div>
+        </div>
+      )
+    }
+
+    return (
+      <div className="space-y-2">
+        {hasReport && (
+          <div>
+            <Badge
+              variant="outline"
+              className={getStatusBadgeClass(commission.status, false) + " cursor-pointer"}
+              onClick={() => onCommissionClick?.(commission)}
+              style={{ cursor: "pointer" }}
+            >
+              Report #{commission.report_number}
+            </Badge>
+          </div>
+        )}
+
+        {remark && (
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 max-w-xs">
             <div className="flex items-start gap-2">
               <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
@@ -929,59 +952,13 @@ export default function SuperAdminSalesPage() {
                 <p className="text-sm text-gray-800 font-medium mb-1 line-clamp-2">{remark.remark}</p>
                 <div className="flex items-center justify-between text-xs text-gray-600">
                   <span className="font-medium">{remark.name}</span>
-                  <span>{format(new Date(remark.date), "MMM dd, yyyy")}</span>
+                  <span>{remark.date ? format(new Date(remark.date), "MMM dd, yyyy") : ""}</span>
                 </div>
               </div>
             </div>
           </div>
-          {hasRemarks && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                setSelectedSaleForRemarks(sale)
-                setRemarksModalOpen(true)
-              }}
-              className="text-xs text-blue-600 bg-white hover:text-white hover:bg-[#001f3f] border-purple-200 hover:border-purple-300"
-            >
-              View All Remarks
-            </Button>
-          )}
-        </div>
-      )
-    }
+        )}
 
-    if (commission && !commission.deleted_at) {
-      return (
-        <div className="space-y-2">
-          <Badge
-            variant="outline"
-            className={getStatusBadgeClass(commission.status, false) + " cursor-pointer"}
-            onClick={() => onCommissionClick?.(commission)}
-            style={{ cursor: "pointer" }}
-          >
-            Report #{commission.report_number}
-          </Badge>
-          {hasRemarks && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                setSelectedSaleForRemarks(sale)
-                setRemarksModalOpen(true)
-              }}
-              className="text-xs text-blue-600 hover:text-blue-800 border-blue-200 hover:border-blue-300"
-            >
-              View All Remarks
-            </Button>
-          )}
-        </div>
-      )
-    }
-
-    return (
-      <div className="space-y-2">
-        <div className="text-gray-400 text-sm italic">No remarks</div>
         {hasRemarks && (
           <Button
             size="sm"
@@ -990,9 +967,9 @@ export default function SuperAdminSalesPage() {
               setSelectedSaleForRemarks(sale)
               setRemarksModalOpen(true)
             }}
-            className="text-xs text-blue-600 hover:text-blue-800 border-blue-200 hover:border-blue-300"
+            className="text-xs text-blue-600 bg-white hover:text-white hover:bg-[#001f3f] border-purple-200 hover:border-purple-300"
           >
-            View All Remarks
+            View All Remarks {remarksList.length > 1 ? `(${remarksList.length})` : ""}
           </Button>
         )}
       </div>
@@ -1130,6 +1107,8 @@ export default function SuperAdminSalesPage() {
                     setFilterYear("all")
                     setFilterMonths([])
                     setFilterArea("all")
+                    setShowOnlyWithRemarks(false)
+                    setCurrentPage(1)
                   }}
                   className="w-full border-0 bg-gradient-to-r from-red-500 to-pink-500 text-white font-semibold shadow-md hover:from-red-600 hover:to-pink-600 transition-all duration-150 flex items-center justify-center gap-2"
                 >
@@ -1160,9 +1139,12 @@ export default function SuperAdminSalesPage() {
                   <Button
                     variant={showOnlyWithRemarks ? "default" : "outline"}
                     size="sm"
-                    onClick={() => setShowOnlyWithRemarks(!showOnlyWithRemarks)}
+                    onClick={() => {
+                      setShowOnlyWithRemarks(!showOnlyWithRemarks)
+                      setCurrentPage(1)
+                    }}
                     className={`border-gray-300 ${showOnlyWithRemarks
-                      ? "bg-indigo-600 text-black hover:bg-indigo-700"
+                      ? "bg-indigo-600 text-white hover:bg-indigo-700"
                       : "text-gray-700 hover:text-gray-700 hover:bg-gray-50 bg-transparent"
                       }`}
                   >
@@ -1190,77 +1172,103 @@ export default function SuperAdminSalesPage() {
                   <TableHeader>
                     <TableRow className="bg-gray-50 border-b border-gray-200">
                       {columnVisibility.find((col) => col.key === "tax_month")?.visible && (
-                        <TableHead
-                          className="min-w-[120px] font-semibold text-gray-900 cursor-pointer select-none"
-                          onClick={() => handleSort("tax_month")}
+                        <SortableTableHead
+                          field="tax_month"
+                          currentSortField={sortField}
+                          currentSortDirection={sortDirection}
+                          onSort={handleSort}
+                          className="min-w-[120px] font-semibold text-gray-900"
                         >
                           Tax Month
-                          {sortField === "tax_month" && (
-                            <span className="ml-1">{sortDirection === "asc" ? "▲" : "▼"}</span>
-                          )}
-                        </TableHead>
+                        </SortableTableHead>
                       )}
                       {columnVisibility.find((col) => col.key === "tin")?.visible && (
-                        <TableHead
-                          className="min-w-[120px] font-semibold text-gray-900 cursor-pointer select-none"
-                          onClick={() => handleSort("tin")}
+                        <SortableTableHead
+                          field="tin"
+                          currentSortField={sortField}
+                          currentSortDirection={sortDirection}
+                          onSort={handleSort}
+                          className="min-w-[120px] font-semibold text-gray-900"
                         >
                           TIN
-                          {sortField === "tin" && <span className="ml-1">{sortDirection === "asc" ? "▲" : "▼"}</span>}
-                        </TableHead>
+                        </SortableTableHead>
                       )}
                       {columnVisibility.find((col) => col.key === "name")?.visible && (
-                        <TableHead className="min-w-[180px] font-semibold text-gray-900">Name</TableHead>
+                        <SortableTableHead
+                          field="name"
+                          currentSortField={sortField}
+                          currentSortDirection={sortDirection}
+                          onSort={handleSort}
+                          className="min-w-[180px] font-semibold text-gray-900"
+                        >
+                          Name
+                        </SortableTableHead>
                       )}
                       {columnVisibility.find((col) => col.key === "tax_type")?.visible && (
-                        <TableHead className="min-w-[100px] font-semibold text-gray-900">Tax Type</TableHead>
+                        <SortableTableHead
+                          field="tax_type"
+                          currentSortField={sortField}
+                          currentSortDirection={sortDirection}
+                          onSort={handleSort}
+                          className="min-w-[100px] font-semibold text-gray-900"
+                        >
+                          Tax Type
+                        </SortableTableHead>
                       )}
                       {columnVisibility.find((col) => col.key === "sale_type")?.visible && (
-                        <TableHead className="min-w-[100px] font-semibold text-gray-900">Sale Type</TableHead>
+                        <SortableTableHead
+                          field="sale_type"
+                          currentSortField={sortField}
+                          currentSortDirection={sortDirection}
+                          onSort={handleSort}
+                          className="min-w-[100px] font-semibold text-gray-900"
+                        >
+                          Sale Type
+                        </SortableTableHead>
                       )}
                       {columnVisibility.find((col) => col.key === "gross_taxable")?.visible && (
-                        <TableHead
-                          className="min-w-[120px] font-semibold text-gray-900 cursor-pointer select-none"
-                          onClick={() => handleSort("gross_taxable")}
+                        <SortableTableHead
+                          field="gross_taxable"
+                          currentSortField={sortField}
+                          currentSortDirection={sortDirection}
+                          onSort={handleSort}
+                          className="min-w-[120px] font-semibold text-gray-900"
                         >
                           Gross Taxable
-                          {sortField === "gross_taxable" && (
-                            <span className="ml-1">{sortDirection === "asc" ? "▲" : "▼"}</span>
-                          )}
-                        </TableHead>
+                        </SortableTableHead>
                       )}
                       {columnVisibility.find((col) => col.key === "total_actual_amount")?.visible && (
-                        <TableHead
-                          className="min-w-[120px] font-semibold text-gray-900 cursor-pointer select-none"
-                          onClick={() => handleSort("total_actual_amount")}
+                        <SortableTableHead
+                          field="total_actual_amount"
+                          currentSortField={sortField}
+                          currentSortDirection={sortDirection}
+                          onSort={handleSort}
+                          className="min-w-[120px] font-semibold text-gray-900"
                         >
                           Total Actual Amount
-                          {sortField === "total_actual_amount" && (
-                            <span className="ml-1">{sortDirection === "asc" ? "▲" : "▼"}</span>
-                          )}
-                        </TableHead>
+                        </SortableTableHead>
                       )}
                       {columnVisibility.find((col) => col.key === "invoice_number")?.visible && (
-                        <TableHead
-                          className="min-w-[120px] font-semibold text-gray-900 cursor-pointer select-none"
-                          onClick={() => handleSort("invoice_number")}
+                        <SortableTableHead
+                          field="invoice_number"
+                          currentSortField={sortField}
+                          currentSortDirection={sortDirection}
+                          onSort={handleSort}
+                          className="min-w-[120px] font-semibold text-gray-900"
                         >
                           Invoice #
-                          {sortField === "invoice_number" && (
-                            <span className="ml-1">{sortDirection === "asc" ? "▲" : "▼"}</span>
-                          )}
-                        </TableHead>
+                        </SortableTableHead>
                       )}
                       {columnVisibility.find((col) => col.key === "pickup_date")?.visible && (
-                        <TableHead
-                          className="min-w-[120px] font-semibold text-gray-900 cursor-pointer select-none"
-                          onClick={() => handleSort("pickup_date")}
+                        <SortableTableHead
+                          field="pickup_date"
+                          currentSortField={sortField}
+                          currentSortDirection={sortDirection}
+                          onSort={handleSort}
+                          className="min-w-[120px] font-semibold text-gray-900"
                         >
                           Pickup Date
-                          {sortField === "pickup_date" && (
-                            <span className="ml-1">{sortDirection === "asc" ? "▲" : "▼"}</span>
-                          )}
-                        </TableHead>
+                        </SortableTableHead>
                       )}
                       {columnVisibility.find((col) => col.key === "area")?.visible && (
                         <TableHead className="min-w-[150px] font-semibold text-gray-900">Area</TableHead>

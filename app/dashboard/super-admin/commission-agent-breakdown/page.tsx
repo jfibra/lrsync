@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { SortableTableHead } from "@/components/ui/sortable-header"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -121,6 +122,19 @@ export default function CommissionAgentBreakdownPage() {
   const [reportNumbers, setReportNumbers] = useState<number[]>([])
   const [selectedReportNumbers, setSelectedReportNumbers] = useState<number[]>([])
   const [refreshing, setRefreshing] = useState(false)
+  const [sortField, setSortField] = useState("commission_report_number")
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc")
+
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc")
+    } else {
+      setSortField(field)
+      setSortDirection("asc")
+    }
+    setCurrentPage(1)
+  }
+
   const [selectedRecord, setSelectedRecord] = useState<CommissionAgentBreakdown | null>(null)
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
@@ -161,7 +175,7 @@ export default function CommissionAgentBreakdownPage() {
         .from("commission_agent_breakdown")
         .select("*", { count: "exact" })
         .is("deleted_at", null)
-        .order("created_at", { ascending: false })
+        .order(sortField, { ascending: sortDirection === "asc" })
 
       if (selectedReportNumbers.length > 0) {
         query = query.in("commission_report_number", selectedReportNumbers)
@@ -344,7 +358,7 @@ export default function CommissionAgentBreakdownPage() {
 
   useEffect(() => {
     fetchRecords()
-  }, [currentPage, pageSize, searchTerm, statusFilter, selectedReportNumbers])
+  }, [currentPage, pageSize, searchTerm, statusFilter, selectedReportNumbers, sortField, sortDirection])
 
   const totalPages = Math.ceil(totalCount / pageSize)
   const startRecord = (currentPage - 1) * pageSize + 1
@@ -553,14 +567,14 @@ export default function CommissionAgentBreakdownPage() {
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-[#001f3f]">
-                      <TableHead className="text-white font-semibold">Report #</TableHead>
-                      <TableHead className="text-white font-semibold">Agent</TableHead>
-                      <TableHead className="text-white font-semibold">Developer</TableHead>
-                      <TableHead className="text-white font-semibold">Client</TableHead>
-                      <TableHead className="text-white font-semibold">Commission</TableHead>
-                      <TableHead className="text-white font-semibold">Agent Rate</TableHead>
-                      <TableHead className="text-white font-semibold">Net Commission</TableHead>
-                      <TableHead className="text-white font-semibold">Status</TableHead>
+                      <SortableTableHead field="commission_report_number" currentSort={sortField} direction={sortDirection} onSort={handleSort} className="text-white font-semibold">Report #</SortableTableHead>
+                      <SortableTableHead field="agent_name" currentSort={sortField} direction={sortDirection} onSort={handleSort} className="text-white font-semibold">Agent</SortableTableHead>
+                      <SortableTableHead field="developer" currentSort={sortField} direction={sortDirection} onSort={handleSort} className="text-white font-semibold">Developer</SortableTableHead>
+                      <SortableTableHead field="client" currentSort={sortField} direction={sortDirection} onSort={handleSort} className="text-white font-semibold">Client</SortableTableHead>
+                      <SortableTableHead field="comm" currentSort={sortField} direction={sortDirection} onSort={handleSort} className="text-white font-semibold">Commission</SortableTableHead>
+                      <SortableTableHead field="agents_rate" currentSort={sortField} direction={sortDirection} onSort={handleSort} className="text-white font-semibold">Agent Rate</SortableTableHead>
+                      <SortableTableHead field="agent_net_comm" currentSort={sortField} direction={sortDirection} onSort={handleSort} className="text-white font-semibold">Net Commission</SortableTableHead>
+                      <SortableTableHead field="status" currentSort={sortField} direction={sortDirection} onSort={handleSort} className="text-white font-semibold">Status</SortableTableHead>
                       <TableHead className="text-white font-semibold">Actions</TableHead>
                     </TableRow>
                   </TableHeader>

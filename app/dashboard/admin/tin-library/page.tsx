@@ -33,6 +33,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { SortableTableHead, sortData } from "@/components/ui/sortable-header"
 import { Textarea } from "@/components/ui/textarea"
 import { logNotification } from "@/utils/logNotification";
 import type { TaxpayerFormData, TaxpayerListing, TaxpayerType } from "@/types/taxpayer"
@@ -95,6 +96,18 @@ export default function AdminTinLibraryPage() {
   const [isUpdating, setIsUpdating] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
 
+  const [sortField, setSortField] = useState<string>("registered_name")
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc")
+
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc")
+    } else {
+      setSortField(field)
+      setSortDirection("asc")
+    }
+  }
+
   // ──────────────────────────────────────────────────────────────────────────
   // Effects
   // ──────────────────────────────────────────────────────────────────────────
@@ -121,7 +134,7 @@ export default function AdminTinLibraryPage() {
   // Derived data
   // ──────────────────────────────────────────────────────────────────────────
   const filteredTaxpayers = useMemo(() => {
-    return taxpayers.filter((taxpayer) => {
+    const filtered = taxpayers.filter((taxpayer) => {
       const matchesSearch =
         taxpayer.tin.toLowerCase().includes(searchTerm.toLowerCase()) ||
         taxpayer.registered_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -133,7 +146,9 @@ export default function AdminTinLibraryPage() {
 
       return matchesSearch && matchesType && matchesArea
     })
-  }, [taxpayers, searchTerm, filterType, filterArea])
+
+    return sortData(filtered, sortField, sortDirection)
+  }, [taxpayers, searchTerm, filterType, filterArea, sortField, sortDirection])
 
   // Simple stats
   const stats = useMemo(
@@ -622,12 +637,12 @@ export default function AdminTinLibraryPage() {
                   <Table>
                     <TableHeader>
                       <TableRow className="bg-gray-50">
-                        <TableHead className="min-w-[120px]">TIN</TableHead>
-                        <TableHead className="min-w-[180px]">Registered Name</TableHead>
-                        <TableHead className="min-w-[80px]">Type</TableHead>
+                        <SortableTableHead field="tin" currentSort={sortField} direction={sortDirection} onSort={handleSort} className="min-w-[120px]">TIN</SortableTableHead>
+                        <SortableTableHead field="registered_name" currentSort={sortField} direction={sortDirection} onSort={handleSort} className="min-w-[180px]">Registered Name</SortableTableHead>
+                        <SortableTableHead field="type" currentSort={sortField} direction={sortDirection} onSort={handleSort} className="min-w-[80px]">Type</SortableTableHead>
                         <TableHead className="min-w-[250px]">Address</TableHead>
-                        <TableHead className="min-w-[100px]">Area</TableHead>
-                        <TableHead className="min-w-[120px]">Date Added</TableHead>
+                        <SortableTableHead field="user_profiles.assigned_area" currentSort={sortField} direction={sortDirection} onSort={handleSort} className="min-w-[100px]">Area</SortableTableHead>
+                        <SortableTableHead field="created_at" currentSort={sortField} direction={sortDirection} onSort={handleSort} className="min-w-[120px]">Date Added</SortableTableHead>
                         <TableHead className="min-w-[120px]">Actions</TableHead>
                       </TableRow>
                     </TableHeader>

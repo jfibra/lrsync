@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { SortableTableHead, sortData } from "@/components/ui/sortable-header"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Dialog,
@@ -81,6 +82,18 @@ export default function SecretaryTinLibraryPage() {
 
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [sortField, setSortField] = useState<string>("registered_name");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortDirection("asc");
+    }
+    setCurrentPage(1);
+  };
 
   // Form data
   const [formData, setFormData] = useState<TaxpayerFormData>(initialFormData)
@@ -165,7 +178,9 @@ export default function SecretaryTinLibraryPage() {
   const startRecord = filteredTaxpayers.length === 0 ? 0 : (currentPage - 1) * pageSize + 1;
   const endRecord = Math.min(currentPage * pageSize, filteredTaxpayers.length);
 
-  const paginatedTaxpayers = filteredTaxpayers.slice(
+  const sortedTaxpayers = sortData(filteredTaxpayers, sortField, sortDirection);
+
+  const paginatedTaxpayers = sortedTaxpayers.slice(
     (currentPage - 1) * pageSize,
     currentPage * pageSize
   );
@@ -738,16 +753,52 @@ export default function SecretaryTinLibraryPage() {
                       <Table>
                         <TableHeader>
                           <TableRow style={{ background: '#fff', borderBottom: '1px solid #e0e0e0' }}>
-                            <TableHead className="min-w-[120px] font-semibold" style={{ color: '#001f3f' }}>TIN</TableHead>
-                            <TableHead className="min-w-[180px] font-semibold" style={{ color: '#001f3f' }}>Registered Name</TableHead>
-                            <TableHead className="min-w-[80px] font-semibold" style={{ color: '#001f3f' }}>Type</TableHead>
+                            <SortableTableHead
+                              field="tin"
+                              currentSortField={sortField}
+                              currentSortDirection={sortDirection}
+                              onSort={handleSort}
+                              className="min-w-[120px] font-semibold"
+                              style={{ color: '#001f3f' }}
+                            >
+                              TIN
+                            </SortableTableHead>
+                            <SortableTableHead
+                              field="registered_name"
+                              currentSortField={sortField}
+                              currentSortDirection={sortDirection}
+                              onSort={handleSort}
+                              className="min-w-[180px] font-semibold"
+                              style={{ color: '#001f3f' }}
+                            >
+                              Registered Name
+                            </SortableTableHead>
+                            <SortableTableHead
+                              field="type"
+                              currentSortField={sortField}
+                              currentSortDirection={sortDirection}
+                              onSort={handleSort}
+                              className="min-w-[80px] font-semibold"
+                              style={{ color: '#001f3f' }}
+                            >
+                              Type
+                            </SortableTableHead>
                             <TableHead className="min-w-[250px] font-semibold" style={{ color: '#001f3f' }}>Address</TableHead>
-                            <TableHead className="min-w-[120px] font-semibold" style={{ color: '#001f3f' }}>Date Added</TableHead>
+                            <SortableTableHead
+                              field="created_at"
+                              currentSortField={sortField}
+                              currentSortDirection={sortDirection}
+                              onSort={handleSort}
+                              className="min-w-[120px] font-semibold"
+                              style={{ color: '#001f3f' }}
+                            >
+                              Date Added
+                            </SortableTableHead>
                             <TableHead className="min-w-[120px] font-semibold" style={{ color: '#001f3f' }}>Actions</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {filteredTaxpayers.map((taxpayer) => (
+                          {paginatedTaxpayers.map((taxpayer) => (
                             <TableRow key={taxpayer.id} style={{ background: '#fff' }} className="hover:bg-[#f9f9f9] transition-colors">
                               <TableCell className="font-mono font-medium" style={{ color: '#001f3f' }}>
                                 <div className="flex items-center gap-2">

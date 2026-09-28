@@ -43,6 +43,7 @@ import * as XLSX from "xlsx"
 import { format } from "date-fns"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { useRouter } from "next/navigation"
+import { SortableTableHead, sortData } from "@/components/ui/sortable-header"
 import { formatS3Url } from "@/utils/s3-url"
 
 interface CommissionReport {
@@ -108,6 +109,20 @@ export default function SuperAdminCommissionReportsPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [recordsPerPage, setRecordsPerPage] = useState(10)
   const [totalRecords, setTotalRecords] = useState(0)
+  const [sortField, setSortField] = useState<string>("created_at")
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc")
+  const [breakdownSortField, setBreakdownSortField] = useState<string>("tin")
+  const [breakdownSortDirection, setBreakdownSortDirection] = useState<"asc" | "desc">("asc")
+
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc")
+    } else {
+      setSortField(field)
+      setSortDirection("asc")
+    }
+    setCurrentPage(1)
+  }
   const [selectedReport, setSelectedReport] = useState<CommissionReport | null>(null)
   const [viewModalOpen, setViewModalOpen] = useState(false)
   const { profile } = useAuth()
@@ -806,9 +821,25 @@ export default function SuperAdminCommissionReportsPage() {
     const fetchReports = async () => {
       setLoading(true)
 
+      // Fetch user profiles first for creator mapping
+      const { data: profilesData } = await supabase
+        .from("user_profiles")
+        .select("id, auth_user_id, full_name, assigned_area")
+
+      const profileMap = new Map<string, { full_name: string; assigned_area: string }>()
+      profilesData?.forEach((p) => {
+        if (p.id) profileMap.set(p.id, { full_name: p.full_name || "", assigned_area: p.assigned_area || "" })
+        if (p.auth_user_id) profileMap.set(p.auth_user_id, { full_name: p.full_name || "", assigned_area: p.assigned_area || "" })
+      })
+
+      const enrichReport = (r: any) => ({
+        ...r,
+        user_profiles: profileMap.get(r.created_by) || { full_name: "Unknown User", assigned_area: "Unknown" },
+      })
+
       let query = supabase
         .from("commission_report")
-        .select("*, user_profiles:created_by(full_name,assigned_area)", { count: "exact" })
+        .select("*", { count: "exact" })
         .is("deleted_at", null)
         .order("created_at", { ascending: false })
 
@@ -819,24 +850,23 @@ export default function SuperAdminCommissionReportsPage() {
 
       let data: any[] = []
       let count = 0
-      const error = null
 
       if (searchTerm) {
         // Search by report_number or remarks
         const { data: reportsByNumber } = await supabase
           .from("commission_report")
-          .select("*, user_profiles:created_by(full_name,assigned_area)")
+          .select("*")
           .ilike("report_number", `%${searchTerm}%`)
           .is("deleted_at", null)
           .limit(50000)
         const { data: reportsByRemarks } = await supabase
           .from("commission_report")
-          .select("*, user_profiles:created_by(full_name,assigned_area)")
+          .select("*")
           .ilike("remarks", `%${searchTerm}%`)
           .is("deleted_at", null)
           .limit(50000)
 
-        let merged = [...(reportsByNumber || []), ...(reportsByRemarks || [])]
+        let merged = [...(reportsByNumber || []), ...(reportsByRemarks || [])].map(enrichReport)
         // Remove duplicates
         merged = merged.filter((v, i, a) => a.findIndex((t) => t.uuid === v.uuid) === i)
 
@@ -851,13 +881,15 @@ export default function SuperAdminCommissionReportsPage() {
         }
 
         count = merged.length
-        // Apply pagination AFTER all filters
+        // Apply sorting across all filtered records
+        merged = sortData(merged, sortField, sortDirection)
+        // Apply pagination AFTER all filters and sorting
         const from = (currentPage - 1) * recordsPerPage
         data = merged.slice(from, from + recordsPerPage)
       } else {
         const { data: allData, error: fetchError } = await supabase
           .from("commission_report")
-          .select("*, user_profiles:created_by(full_name,assigned_area)")
+          .select("*")
           .is("deleted_at", null)
           .order("created_at", { ascending: false })
           .limit(50000)
@@ -870,7 +902,7 @@ export default function SuperAdminCommissionReportsPage() {
           return
         }
 
-        let filteredData = allData || []
+        let filteredData = (allData || []).map(enrichReport)
 
         // Apply status filter
         if (statusFilter !== "all") {
@@ -885,7 +917,9 @@ export default function SuperAdminCommissionReportsPage() {
         }
 
         count = filteredData.length
-        // Apply pagination AFTER all filters
+        // Apply sorting across all filtered records
+        filteredData = sortData(filteredData, sortField, sortDirection)
+        // Apply pagination AFTER all filters and sorting
         const from = (currentPage - 1) * recordsPerPage
         data = filteredData.slice(from, from + recordsPerPage)
       }
@@ -916,7 +950,7 @@ export default function SuperAdminCommissionReportsPage() {
     }
     fetchAllAreas()
     fetchReports()
-  }, [currentPage, recordsPerPage, searchTerm, statusFilter, assignedAreaFilter])
+  }, [currentPage, recordsPerPage, searchTerm, statusFilter, assignedAreaFilter, sortField, sortDirection])
 
   // Status badge helper (updated for new statuses)
 
@@ -1195,38 +1229,62 @@ export default function SuperAdminCommissionReportsPage() {
                       <TableHeader>
                         <TableRow className="bg-blue-50 border-b border-blue-200">
                           {columnVisibility.find((col) => col.key === "report_number")?.visible && (
-                            <TableHead className="text-blue-700 font-semibold border-b border-blue-200">
-                              <div className="flex items-center gap-2">
-                                <Hash className="h-4 w-4" />
-                                Report #
-                              </div>
-                            </TableHead>
+                            <SortableTableHead
+                              field="report_number"
+                              currentSortField={sortField}
+                              currentSortDirection={sortDirection}
+                              onSort={handleSort}
+                              className="text-blue-700 font-semibold border-b border-blue-200"
+                              icon={<Hash className="h-4 w-4" />}
+                            >
+                              Report #
+                            </SortableTableHead>
                           )}
                           {columnVisibility.find((col) => col.key === "created_by")?.visible && (
-                            <TableHead className="text-blue-700 font-semibold border-b border-blue-200">
-                              <div className="flex items-center gap-2">
-                                <User className="h-4 w-4" />
-                                Created By
-                              </div>
-                            </TableHead>
+                            <SortableTableHead
+                              field="user_profiles.full_name"
+                              currentSortField={sortField}
+                              currentSortDirection={sortDirection}
+                              onSort={handleSort}
+                              className="text-blue-700 font-semibold border-b border-blue-200"
+                              icon={<User className="h-4 w-4" />}
+                            >
+                              Created By
+                            </SortableTableHead>
                           )}
                           {columnVisibility.find((col) => col.key === "assigned_area")?.visible && (
-                            <TableHead className="text-blue-700 font-semibold border-b border-blue-200">
+                            <SortableTableHead
+                              field="user_profiles.assigned_area"
+                              currentSortField={sortField}
+                              currentSortDirection={sortDirection}
+                              onSort={handleSort}
+                              className="text-blue-700 font-semibold border-b border-blue-200"
+                            >
                               Assigned Area
-                            </TableHead>
+                            </SortableTableHead>
                           )}
                           {columnVisibility.find((col) => col.key === "created_date")?.visible && (
-                            <TableHead className="text-blue-700 font-semibold border-b border-blue-200">
-                              <div className="flex items-center gap-2">
-                                <Calendar className="h-4 w-4" />
-                                Created Date
-                              </div>
-                            </TableHead>
+                            <SortableTableHead
+                              field="created_at"
+                              currentSortField={sortField}
+                              currentSortDirection={sortDirection}
+                              onSort={handleSort}
+                              className="text-blue-700 font-semibold border-b border-blue-200"
+                              icon={<Calendar className="h-4 w-4" />}
+                            >
+                              Created Date
+                            </SortableTableHead>
                           )}
                           {columnVisibility.find((col) => col.key === "sales_count")?.visible && (
-                            <TableHead className="text-blue-700 font-semibold border-b border-blue-200">
+                            <SortableTableHead
+                              field="sales_uuids.length"
+                              currentSortField={sortField}
+                              currentSortDirection={sortDirection}
+                              onSort={handleSort}
+                              className="text-blue-700 font-semibold border-b border-blue-200"
+                            >
                               Sales Count
-                            </TableHead>
+                            </SortableTableHead>
                           )}
                           {columnVisibility.find((col) => col.key === "accounting_attachments")?.visible && (
                             <TableHead className="text-blue-700 font-semibold border-b border-blue-200">
@@ -1239,9 +1297,15 @@ export default function SuperAdminCommissionReportsPage() {
                             </TableHead>
                           )}
                           {columnVisibility.find((col) => col.key === "status")?.visible && (
-                            <TableHead className="text-blue-700 font-semibold border-b border-blue-200">
+                            <SortableTableHead
+                              field="status"
+                              currentSortField={sortField}
+                              currentSortDirection={sortDirection}
+                              onSort={handleSort}
+                              className="text-blue-700 font-semibold border-b border-blue-200"
+                            >
                               Status
-                            </TableHead>
+                            </SortableTableHead>
                           )}
                           {columnVisibility.find((col) => col.key === "remarks")?.visible && (
                             <TableHead className="text-blue-700 font-semibold border-b border-blue-200">
@@ -1875,19 +1939,154 @@ export default function SuperAdminCommissionReportsPage() {
                 <Table>
                   <TableHeader>
                     <TableRow style={{ backgroundColor: "#001f3f" }}>
-                      <TableHead style={{ color: "white", textAlign: "center" }}>TIN</TableHead>
-                      <TableHead style={{ color: "white", textAlign: "center" }}>Taxpayer Name</TableHead>
-                      <TableHead style={{ color: "white", textAlign: "center" }}>Tax Month</TableHead>
-                      <TableHead style={{ color: "white", textAlign: "center" }}>Type</TableHead>
-                      <TableHead style={{ color: "white", textAlign: "center" }}>Gross Taxable</TableHead>
-                      <TableHead style={{ color: "white", textAlign: "center" }}>Total Amount</TableHead>
-                      <TableHead style={{ color: "white", textAlign: "center" }}>Invoice #</TableHead>
-                      <TableHead style={{ color: "white", textAlign: "center" }}>Pickup Date</TableHead>
-                      <TableHead style={{ color: "white", textAlign: "center" }}>Sale Type</TableHead>
+                      <SortableTableHead
+                        field="tin"
+                        currentSortField={breakdownSortField}
+                        currentSortDirection={breakdownSortDirection}
+                        onSort={(f) => {
+                          if (breakdownSortField === f) {
+                            setBreakdownSortDirection(breakdownSortDirection === "asc" ? "desc" : "asc")
+                          } else {
+                            setBreakdownSortField(f)
+                            setBreakdownSortDirection("asc")
+                          }
+                        }}
+                        style={{ color: "white" }}
+                      >
+                        TIN
+                      </SortableTableHead>
+                      <SortableTableHead
+                        field="name"
+                        currentSortField={breakdownSortField}
+                        currentSortDirection={breakdownSortDirection}
+                        onSort={(f) => {
+                          if (breakdownSortField === f) {
+                            setBreakdownSortDirection(breakdownSortDirection === "asc" ? "desc" : "asc")
+                          } else {
+                            setBreakdownSortField(f)
+                            setBreakdownSortDirection("asc")
+                          }
+                        }}
+                        style={{ color: "white" }}
+                      >
+                        Taxpayer Name
+                      </SortableTableHead>
+                      <SortableTableHead
+                        field="tax_month"
+                        currentSortField={breakdownSortField}
+                        currentSortDirection={breakdownSortDirection}
+                        onSort={(f) => {
+                          if (breakdownSortField === f) {
+                            setBreakdownSortDirection(breakdownSortDirection === "asc" ? "desc" : "asc")
+                          } else {
+                            setBreakdownSortField(f)
+                            setBreakdownSortDirection("asc")
+                          }
+                        }}
+                        style={{ color: "white" }}
+                      >
+                        Tax Month
+                      </SortableTableHead>
+                      <SortableTableHead
+                        field="tax_type"
+                        currentSortField={breakdownSortField}
+                        currentSortDirection={breakdownSortDirection}
+                        onSort={(f) => {
+                          if (breakdownSortField === f) {
+                            setBreakdownSortDirection(breakdownSortDirection === "asc" ? "desc" : "asc")
+                          } else {
+                            setBreakdownSortField(f)
+                            setBreakdownSortDirection("asc")
+                          }
+                        }}
+                        style={{ color: "white" }}
+                      >
+                        Type
+                      </SortableTableHead>
+                      <SortableTableHead
+                        field="gross_taxable"
+                        currentSortField={breakdownSortField}
+                        currentSortDirection={breakdownSortDirection}
+                        onSort={(f) => {
+                          if (breakdownSortField === f) {
+                            setBreakdownSortDirection(breakdownSortDirection === "asc" ? "desc" : "asc")
+                          } else {
+                            setBreakdownSortField(f)
+                            setBreakdownSortDirection("asc")
+                          }
+                        }}
+                        style={{ color: "white" }}
+                      >
+                        Gross Taxable
+                      </SortableTableHead>
+                      <SortableTableHead
+                        field="total_actual_amount"
+                        currentSortField={breakdownSortField}
+                        currentSortDirection={breakdownSortDirection}
+                        onSort={(f) => {
+                          if (breakdownSortField === f) {
+                            setBreakdownSortDirection(breakdownSortDirection === "asc" ? "desc" : "asc")
+                          } else {
+                            setBreakdownSortField(f)
+                            setBreakdownSortDirection("asc")
+                          }
+                        }}
+                        style={{ color: "white" }}
+                      >
+                        Total Amount
+                      </SortableTableHead>
+                      <SortableTableHead
+                        field="invoice_number"
+                        currentSortField={breakdownSortField}
+                        currentSortDirection={breakdownSortDirection}
+                        onSort={(f) => {
+                          if (breakdownSortField === f) {
+                            setBreakdownSortDirection(breakdownSortDirection === "asc" ? "desc" : "asc")
+                          } else {
+                            setBreakdownSortField(f)
+                            setBreakdownSortDirection("asc")
+                          }
+                        }}
+                        style={{ color: "white" }}
+                      >
+                        Invoice #
+                      </SortableTableHead>
+                      <SortableTableHead
+                        field="pickup_date"
+                        currentSortField={breakdownSortField}
+                        currentSortDirection={breakdownSortDirection}
+                        onSort={(f) => {
+                          if (breakdownSortField === f) {
+                            setBreakdownSortDirection(breakdownSortDirection === "asc" ? "desc" : "asc")
+                          } else {
+                            setBreakdownSortField(f)
+                            setBreakdownSortDirection("asc")
+                          }
+                        }}
+                        style={{ color: "white" }}
+                      >
+                        Pickup Date
+                      </SortableTableHead>
+                      <SortableTableHead
+                        field="sale_type"
+                        currentSortField={breakdownSortField}
+                        currentSortDirection={breakdownSortDirection}
+                        onSort={(f) => {
+                          if (breakdownSortField === f) {
+                            setBreakdownSortDirection(breakdownSortDirection === "asc" ? "desc" : "asc")
+                          } else {
+                            setBreakdownSortField(f)
+                            setBreakdownSortDirection("asc")
+                          }
+                        }}
+                        style={{ color: "white" }}
+                      >
+                        Sale Type
+                      </SortableTableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {selectedSalesData.map((sale) => (
+                    {sortData(selectedSalesData, breakdownSortField, breakdownSortDirection).map((sale) => (
                       <TableRow key={sale.id}>
                         <TableCell className="font-medium" style={{ color: "#001f3f" }}>
                           {sale.tin}

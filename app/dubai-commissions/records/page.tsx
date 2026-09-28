@@ -1,10 +1,11 @@
 "use client"
 
-import { useEffect, useState, useRef } from "react"
+import { useEffect, useState, useRef, useMemo } from "react"
 import { supabase } from "@/lib/supabase/client"
 import { format } from "date-fns"
 import jsPDF from "jspdf"
 import html2canvas from "html2canvas"
+import { SortableTableHead, sortData } from "@/components/ui/sortable-header"
 
 interface InvoiceRecord {
     id: string
@@ -45,6 +46,17 @@ export default function InvoiceRecordsPage() {
     const [loading, setLoading] = useState(true)
     const [search, setSearch] = useState("")
     const [selectedInvoice, setSelectedInvoice] = useState<InvoiceRecord | null>(null)
+    const [sortField, setSortField] = useState("created_at")
+    const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc")
+
+    const handleSort = (field: string) => {
+        if (sortField === field) {
+            setSortDirection(sortDirection === "asc" ? "desc" : "asc")
+        } else {
+            setSortField(field)
+            setSortDirection("asc")
+        }
+    }
 
     useEffect(() => {
         const fetchInvoices = async () => {
@@ -59,12 +71,16 @@ export default function InvoiceRecordsPage() {
         fetchInvoices()
     }, [])
 
-    // Filter invoices by invoice number or client name
-    const filtered = invoices.filter(
-        (inv) =>
-            inv.invoice_number?.toLowerCase().includes(search.toLowerCase()) ||
-            inv.client_name?.toLowerCase().includes(search.toLowerCase())
-    )
+    // Filter and sort invoices
+    const filtered = useMemo(() => {
+        const result = invoices.filter(
+            (inv) =>
+                inv.invoice_number?.toLowerCase().includes(search.toLowerCase()) ||
+                inv.client_name?.toLowerCase().includes(search.toLowerCase()) ||
+                inv.company_name?.toLowerCase().includes(search.toLowerCase())
+        )
+        return sortData(result, sortField, sortDirection)
+    }, [invoices, search, sortField, sortDirection])
 
     const printRef = useRef<HTMLDivElement>(null)
 
@@ -177,15 +193,15 @@ export default function InvoiceRecordsPage() {
                         <table className="min-w-full">
                             <thead className="sticky top-0 z-10">
                                 <tr className="bg-[#e6f2fb] text-[#002244]">
-                                    <th className="py-3 px-4 border-b text-left font-semibold">Invoice #</th>
-                                    <th className="py-3 px-4 border-b text-left font-semibold">Date</th>
-                                    <th className="py-3 px-4 border-b text-left font-semibold">Client</th>
-                                    <th className="py-3 px-4 border-b text-left font-semibold">Company</th>
-                                    <th className="py-3 px-4 border-b text-right font-semibold">Total</th>
-                                    <th className="py-3 px-4 border-b text-right font-semibold">Balance Due</th>
-                                    <th className="py-3 px-4 border-b text-left font-semibold">Currency</th>
-                                    <th className="py-3 px-4 border-b text-left font-semibold">Created</th>
-                                    <th className="py-3 px-4 border-b text-center font-semibold">Action</th>
+                                    <SortableTableHead field="invoice_number" currentSort={sortField} direction={sortDirection} onSort={handleSort} className="py-3 px-4 border-b text-left font-semibold text-[#002244]">Invoice #</SortableTableHead>
+                                    <SortableTableHead field="invoice_date" currentSort={sortField} direction={sortDirection} onSort={handleSort} className="py-3 px-4 border-b text-left font-semibold text-[#002244]">Date</SortableTableHead>
+                                    <SortableTableHead field="client_name" currentSort={sortField} direction={sortDirection} onSort={handleSort} className="py-3 px-4 border-b text-left font-semibold text-[#002244]">Client</SortableTableHead>
+                                    <SortableTableHead field="company_name" currentSort={sortField} direction={sortDirection} onSort={handleSort} className="py-3 px-4 border-b text-left font-semibold text-[#002244]">Company</SortableTableHead>
+                                    <SortableTableHead field="total" currentSort={sortField} direction={sortDirection} onSort={handleSort} className="py-3 px-4 border-b text-right font-semibold text-[#002244]">Total</SortableTableHead>
+                                    <SortableTableHead field="balance_due" currentSort={sortField} direction={sortDirection} onSort={handleSort} className="py-3 px-4 border-b text-right font-semibold text-[#002244]">Balance Due</SortableTableHead>
+                                    <SortableTableHead field="currency" currentSort={sortField} direction={sortDirection} onSort={handleSort} className="py-3 px-4 border-b text-left font-semibold text-[#002244]">Currency</SortableTableHead>
+                                    <SortableTableHead field="created_at" currentSort={sortField} direction={sortDirection} onSort={handleSort} className="py-3 px-4 border-b text-left font-semibold text-[#002244]">Created</SortableTableHead>
+                                    <th className="py-3 px-4 border-b text-center font-semibold text-[#002244]">Action</th>
                                 </tr>
                             </thead>
                             <tbody>

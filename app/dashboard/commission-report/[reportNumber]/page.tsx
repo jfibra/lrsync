@@ -2,13 +2,14 @@
 
 import * as XLSX from "xlsx";
 import { format } from "date-fns";
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase/client"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { SortableTableHead, sortData } from "@/components/ui/sortable-header"
 import { ArrowLeft, User, Calendar, Hash, FileText, PhilippinePeso, Users, Building2, MapPin } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { AgentEditModal } from "@/components/agent-edit-modal";
@@ -133,6 +134,38 @@ export default function CommissionReportViewer() {
   };
 
   const [authUserId, setAuthUserId] = useState<string | null>(null)
+
+  const [agentSortField, setAgentSortField] = useState("agent_name")
+  const [agentSortDirection, setAgentSortDirection] = useState<"asc" | "desc">("asc")
+
+  const handleAgentSort = (field: string) => {
+    if (agentSortField === field) {
+      setAgentSortDirection(agentSortDirection === "asc" ? "desc" : "asc")
+    } else {
+      setAgentSortField(field)
+      setAgentSortDirection("asc")
+    }
+  }
+
+  const [salesSortField, setSalesSortField] = useState("tax_month")
+  const [salesSortDirection, setSalesSortDirection] = useState<"asc" | "desc">("desc")
+
+  const handleSalesSort = (field: string) => {
+    if (salesSortField === field) {
+      setSalesSortDirection(salesSortDirection === "asc" ? "desc" : "asc")
+    } else {
+      setSalesSortField(field)
+      setSalesSortDirection("asc")
+    }
+  }
+
+  const sortedAgentBreakdown = useMemo(() => {
+    return sortData(agentBreakdown, agentSortField, agentSortDirection)
+  }, [agentBreakdown, agentSortField, agentSortDirection])
+
+  const sortedSalesData = useMemo(() => {
+    return sortData(salesData, salesSortField, salesSortDirection)
+  }, [salesData, salesSortField, salesSortDirection])
 
   useEffect(() => {
     const getUser = async () => {
@@ -487,19 +520,27 @@ export default function CommissionReportViewer() {
       console.log("Fetching report data for", reportNumber);
 
       // Fetch commission report
-      const { data: reportData, error: reportError } = await supabase
+      const { data: rawReportData, error: reportError } = await supabase
         .from("commission_report")
-        .select(`
-          *,
-          user_profiles (
-            full_name,
-            assigned_area
-          )
-        `)
+        .select("*")
         .eq("report_number", reportNumber)
         .single()
 
-      if (reportError || !reportData) throw reportError || new Error("Report not found")
+      if (reportError || !rawReportData) throw reportError || new Error("Report not found")
+
+      let reportData = { ...rawReportData, user_profiles: { full_name: "Unknown User", assigned_area: "Unknown" } }
+      if (rawReportData.created_by) {
+        const { data: pData } = await supabase
+          .from("user_profiles")
+          .select("full_name, assigned_area")
+          .or(`id.eq.${rawReportData.created_by},auth_user_id.eq.${rawReportData.created_by}`)
+          .maybeSingle()
+
+        if (pData) {
+          reportData.user_profiles = pData
+        }
+      }
+
       setReport(reportData)
       console.log("Report data:", reportData);
 
@@ -732,26 +773,26 @@ export default function CommissionReportViewer() {
               <Table>
                 <TableHeader>
                   <TableRow className="border-gray-200">
-                    <TableHead className="text-[#001f3f] font-semibold">Agent</TableHead>
-                    <TableHead className="text-[#001f3f] font-semibold">Developer</TableHead>
-                    <TableHead className="text-[#001f3f] font-semibold">Client</TableHead>
-                    <TableHead className="text-[#001f3f] font-semibold">Commission</TableHead>
-                    <TableHead className="text-[#001f3f] font-semibold">Agent Rate</TableHead>
-                    <TableHead className="text-[#001f3f] font-semibold">Net Commission</TableHead>
-                    <TableHead className="text-[#001f3f] font-semibold">Status</TableHead>
+                    <SortableTableHead field="agent_name" currentSort={agentSortField} direction={agentSortDirection} onSort={handleAgentSort} className="text-[#001f3f] font-semibold">Agent</SortableTableHead>
+                    <SortableTableHead field="developer" currentSort={agentSortField} direction={agentSortDirection} onSort={handleAgentSort} className="text-[#001f3f] font-semibold">Developer</SortableTableHead>
+                    <SortableTableHead field="client" currentSort={agentSortField} direction={agentSortDirection} onSort={handleAgentSort} className="text-[#001f3f] font-semibold">Client</SortableTableHead>
+                    <SortableTableHead field="comm" currentSort={agentSortField} direction={agentSortDirection} onSort={handleAgentSort} className="text-[#001f3f] font-semibold">Commission</SortableTableHead>
+                    <SortableTableHead field="agents_rate" currentSort={agentSortField} direction={agentSortDirection} onSort={handleAgentSort} className="text-[#001f3f] font-semibold">Agent Rate</SortableTableHead>
+                    <SortableTableHead field="agent_net_comm" currentSort={agentSortField} direction={agentSortDirection} onSort={handleAgentSort} className="text-[#001f3f] font-semibold">Net Commission</SortableTableHead>
+                    <SortableTableHead field="status" currentSort={agentSortField} direction={agentSortDirection} onSort={handleAgentSort} className="text-[#001f3f] font-semibold">Status</SortableTableHead>
                     <TableHead className="text-[#001f3f] font-semibold">Remarks (Secretary)</TableHead>
                     <TableHead className="text-[#001f3f] font-semibold">Remarks (Accounting)</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {agentBreakdown.length === 0 ? (
+                  {sortedAgentBreakdown.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={9} className="text-center py-8 text-gray-400">
                         No agent breakdown data found
                       </TableCell>
                     </TableRow>
                   ) : (
-                    agentBreakdown.map((agent) => (
+                    sortedAgentBreakdown.map((agent) => (
                       <TableRow
                         key={agent.uuid}
                         className="border-gray-100 cursor-pointer hover:bg-blue-50"
@@ -790,27 +831,27 @@ export default function CommissionReportViewer() {
               <Table>
                 <TableHeader>
                   <TableRow className="border-gray-200">
-                    <TableHead className="text-[#001f3f] font-semibold">Sale ID</TableHead>
-                    <TableHead className="text-[#001f3f] font-semibold">Tax Month</TableHead>
-                    <TableHead className="text-[#001f3f] font-semibold">TIN</TableHead>
-                    <TableHead className="text-[#001f3f] font-semibold">Taxpayer Name</TableHead>
+                    <SortableTableHead field="id" currentSort={salesSortField} direction={salesSortDirection} onSort={handleSalesSort} className="text-[#001f3f] font-semibold">Sale ID</SortableTableHead>
+                    <SortableTableHead field="tax_month" currentSort={salesSortField} direction={salesSortDirection} onSort={handleSalesSort} className="text-[#001f3f] font-semibold">Tax Month</SortableTableHead>
+                    <SortableTableHead field="tin" currentSort={salesSortField} direction={salesSortDirection} onSort={handleSalesSort} className="text-[#001f3f] font-semibold">TIN</SortableTableHead>
+                    <SortableTableHead field="name" currentSort={salesSortField} direction={salesSortDirection} onSort={handleSalesSort} className="text-[#001f3f] font-semibold">Taxpayer Name</SortableTableHead>
                     <TableHead className="text-[#001f3f] font-semibold">Address</TableHead>
-                    <TableHead className="text-[#001f3f] font-semibold">Gross Taxable</TableHead>
-                    <TableHead className="text-[#001f3f] font-semibold">Tax Type</TableHead>
-                    <TableHead className="text-[#001f3f] font-semibold">Invoice Number</TableHead>
-                    <TableHead className="text-[#001f3f] font-semibold">Actual Amount</TableHead>
+                    <SortableTableHead field="gross_taxable" currentSort={salesSortField} direction={salesSortDirection} onSort={handleSalesSort} className="text-[#001f3f] font-semibold">Gross Taxable</SortableTableHead>
+                    <SortableTableHead field="tax_type" currentSort={salesSortField} direction={salesSortDirection} onSort={handleSalesSort} className="text-[#001f3f] font-semibold">Tax Type</SortableTableHead>
+                    <SortableTableHead field="invoice_number" currentSort={salesSortField} direction={salesSortDirection} onSort={handleSalesSort} className="text-[#001f3f] font-semibold">Invoice Number</SortableTableHead>
+                    <SortableTableHead field="total_actual_amount" currentSort={salesSortField} direction={salesSortDirection} onSort={handleSalesSort} className="text-[#001f3f] font-semibold">Actual Amount</SortableTableHead>
                     <TableHead className="text-[#001f3f] font-semibold">Created By</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {salesData.length === 0 ? (
+                  {sortedSalesData.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={9} className="text-center py-8 text-gray-400">
                         No sales data found
                       </TableCell>
                     </TableRow>
                   ) : (
-                    salesData.map((sale) => (
+                    sortedSalesData.map((sale) => (
                       <TableRow key={sale.id} className="border-gray-100">
                         <TableCell className="text-gray-700">{sale.id}</TableCell>
                         <TableCell className="text-gray-700">{formatTaxMonth(sale.tax_month)}</TableCell>

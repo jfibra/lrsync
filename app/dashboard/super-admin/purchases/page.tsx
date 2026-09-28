@@ -38,6 +38,7 @@ import { RemarksModalViewerPurchases } from "@/components/remarks-modal-viewer-p
 import { formatS3Url } from "@/utils/s3-url"
 import { applyTaxMonthFilter, formatDatePeriodLabel } from "@/lib/date-filter"
 import { YearSelect, MonthMultiSelect } from "@/components/date-period-filter"
+import { SortableTableHead } from "@/components/ui/sortable-header"
 
 interface Purchase {
   id: string
@@ -101,6 +102,7 @@ export default function SuperAdminPurchasesPage() {
 
   const [remarksModalOpen, setRemarksModalOpen] = useState(false)
   const [selectedPurchaseForRemarks, setSelectedPurchaseForRemarks] = useState<any>(null)
+  const [showOnlyWithRemarks, setShowOnlyWithRemarks] = useState(false)
 
   const handleRemarksUpdate = (purchaseId: string, updatedRemarks: any[]) => {
     setPurchases((prev) =>
@@ -293,17 +295,29 @@ export default function SuperAdminPurchasesPage() {
   const vatPurchases = purchases.filter((p) => p.tax_type === "vat").length
   const nonVatPurchases = purchases.filter((p) => p.tax_type === "non-vat").length
 
-  const getMostRecentRemark = (remarksJson: string | null) => {
-    if (!remarksJson) return null
-    try {
-      const remarks = JSON.parse(remarksJson)
-      if (Array.isArray(remarks) && remarks.length > 0) {
-        return remarks[remarks.length - 1]
+  const parseRemarksSafe = (remarks: any): any[] => {
+    if (!remarks) return []
+    if (Array.isArray(remarks)) return remarks
+    if (typeof remarks === "string") {
+      try {
+        const parsed = JSON.parse(remarks)
+        return Array.isArray(parsed) ? parsed : []
+      } catch {
+        return []
       }
-    } catch {
-      return null
     }
-    return null
+    return []
+  }
+
+  const getMostRecentRemark = (remarksJson: string | any[] | null) => {
+    const list = parseRemarksSafe(remarksJson)
+    if (list.length === 0) return null
+    const sorted = [...list].sort((a, b) => {
+      const timeA = a?.date ? new Date(a.date).getTime() : 0
+      const timeB = b?.date ? new Date(b.date).getTime() : 0
+      return (isNaN(timeB) ? 0 : timeB) - (isNaN(timeA) ? 0 : timeA)
+    })
+    return sorted[0] || null
   }
 
   // Fetch available areas
@@ -372,6 +386,10 @@ export default function SuperAdminPurchasesPage() {
         purchasesQuery = purchasesQuery.eq("category_id", filterCategory)
       }
 
+      if (showOnlyWithRemarks) {
+        purchasesQuery = purchasesQuery.not("remarks", "is", null).neq("remarks", "[]").neq("remarks", "")
+      }
+
       const { data: purchasesData, error: purchasesError } = await purchasesQuery
 
       if (purchasesError) throw purchasesError
@@ -420,7 +438,7 @@ export default function SuperAdminPurchasesPage() {
 
   useEffect(() => {
     fetchPurchases()
-  }, [searchTerm, filterTaxType, filterYear, filterMonths, filterArea, sortField, sortDirection, filterCategory])
+  }, [searchTerm, filterTaxType, filterYear, filterMonths, filterArea, sortField, sortDirection, filterCategory, showOnlyWithRemarks])
 
   // Format currency
   const formatCurrency = (amount: number) => {
@@ -778,6 +796,8 @@ export default function SuperAdminPurchasesPage() {
                 setFilterYear("all")
                 setFilterMonths([])
                 setFilterArea("all")
+                setShowOnlyWithRemarks(false)
+                setCurrentPage(1)
               }}
               className="bg-white border-[#001f3f]/30 text-[#001f3f] hover:bg-[#001f3f]/10"
             >
@@ -809,7 +829,7 @@ export default function SuperAdminPurchasesPage() {
                 Purchase Records
               </CardTitle>
               <CardDescription className="text-[#001f3f]/70 mt-1 text-sm sm:text-base">
-                {loading ? "Loading..." : `${purchases.length} records found`}
+                {loading ? "Loading..." : `${purchases.length} records found${showOnlyWithRemarks ? " (with remarks)" : ""}`}
               </CardDescription>
             </div>
             {/* Export and column visibility controls */}
@@ -829,6 +849,22 @@ export default function SuperAdminPurchasesPage() {
                 <span className="inline xs:hidden">Export</span>
               </Button>
               <Button
+                variant={showOnlyWithRemarks ? "default" : "outline"}
+                size="sm"
+                onClick={() => {
+                  setShowOnlyWithRemarks(!showOnlyWithRemarks)
+                  setCurrentPage(1)
+                }}
+                className={`border-[#001f3f]/30 ${
+                  showOnlyWithRemarks
+                    ? "bg-[#001f3f] text-white hover:bg-[#001f3f]/90"
+                    : "text-[#001f3f] hover:bg-[#001f3f]/10 bg-white"
+                }`}
+              >
+                <MessageSquarePlus className="h-4 w-4 mr-2" />
+                {showOnlyWithRemarks ? "Show All" : "With Remarks"}
+              </Button>
+              <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setExportModalOpen(true)}
@@ -846,11 +882,28 @@ export default function SuperAdminPurchasesPage() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-[#001f3f]/5 border-b border-[#001f3f]/20">
-                  {columns.filter(col => col.visible).map(col => (
-                    <TableHead key={col.key} className="min-w-[120px] font-semibold text-[#001f3f]">
-                      {col.label}
-                    </TableHead>
-                  ))}
+                  {columns.filter(col => col.visible).map(col => {
+                    const isSortable = ["tax_month", "tin", "name", "tax_type", "gross_taxable", "total_actual_amount", "invoice_number"].includes(col.key);
+                    if (isSortable) {
+                      return (
+                        <SortableTableHead
+                          key={col.key}
+                          field={col.key}
+                          currentSortField={sortField}
+                          currentSortDirection={sortDirection as any}
+                          onSort={handleSort}
+                          className="min-w-[120px] font-semibold text-[#001f3f]"
+                        >
+                          {col.label}
+                        </SortableTableHead>
+                      );
+                    }
+                    return (
+                      <TableHead key={col.key} className="min-w-[120px] font-semibold text-[#001f3f]">
+                        {col.label}
+                      </TableHead>
+                    );
+                  })}
                 </TableRow>
               </TableHeader>
               <TableBody>

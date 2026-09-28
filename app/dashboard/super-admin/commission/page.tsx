@@ -17,6 +17,7 @@ import { ColumnVisibilityControl } from "@/components/column-visibility-control"
 import { CommissionGenerationModal } from "@/components/commission-generation-modal"
 import type { Sales } from "@/types/sales"
 import { logNotification } from "@/utils/logNotification";
+import { SortableTableHead, sortData } from "@/components/ui/sortable-header"
 
 export default function SuperAdminCommissionPage() {
   const { profile } = useAuth()
@@ -30,7 +31,19 @@ export default function SuperAdminCommissionPage() {
   const [selectedSales, setSelectedSales] = useState<string[]>([])
   const [currentPage, setCurrentPage] = useState(1)
   const [recordsPerPage, setRecordsPerPage] = useState(10)
+  const [sortField, setSortField] = useState<string>("tax_month")
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc")
   const [showCommissionModal, setShowCommissionModal] = useState(false)
+
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc")
+    } else {
+      setSortField(field)
+      setSortDirection("asc")
+    }
+    setCurrentPage(1)
+  }
 
   const [saleIdToCommission, setSaleIdToCommission] = useState<Record<string, any>>({});
   const [commissionModalOpen, setCommissionModalOpen] = useState(false);
@@ -225,37 +238,40 @@ export default function SuperAdminCommissionPage() {
     commission?: { report_number: number; created_by: string; created_at: string; status?: string; deleted_at?: string }
     onCommissionClick?: (commission: any) => void
   }) => {
-    if (remark) {
-      return (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 max-w-xs">
-          <div className="flex items-start gap-2">
-            <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm text-gray-800 font-medium mb-1 line-clamp-2">{remark.remark}</p>
-              <div className="flex items-center justify-between text-xs text-gray-600">
-                <span className="font-medium">{remark.name}</span>
-                <span>{remark.date ? format(new Date(remark.date), "MMM dd, yyyy") : ""}</span>
+    if (!remark && (!commission || commission.deleted_at)) {
+      return <div className="text-gray-400 text-sm italic">No remarks</div>
+    }
+
+    return (
+      <div className="space-y-1">
+        {commission && !commission.deleted_at && (
+          <div>
+            <Badge
+              variant="outline"
+              className="bg-yellow-50 text-yellow-800 border-yellow-300 cursor-pointer hover:bg-yellow-100"
+              onClick={() => onCommissionClick?.(commission)}
+              style={{ cursor: "pointer" }}
+            >
+              Report #{commission.report_number}
+            </Badge>
+          </div>
+        )}
+        {remark && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 max-w-xs">
+            <div className="flex items-start gap-2">
+              <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-gray-800 font-medium mb-1 line-clamp-2">{remark.remark}</p>
+                <div className="flex items-center justify-between text-xs text-gray-600">
+                  <span className="font-medium">{remark.name}</span>
+                  <span>{remark.date ? format(new Date(remark.date), "MMM dd, yyyy") : ""}</span>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )
-    }
-
-    if (commission && !commission.deleted_at) {
-      return (
-        <Badge
-          variant="outline"
-          className="bg-yellow-50 text-yellow-800 border-yellow-300 cursor-pointer"
-          onClick={() => onCommissionClick?.(commission)}
-          style={{ cursor: "pointer" }}
-        >
-          Report #{commission.report_number}
-        </Badge>
-      )
-    }
-
-    return <div className="text-gray-400 text-sm italic">No remarks</div>
+        )}
+      </div>
+    )
   }
 
   // Returns the most recent remark from a JSON string or array
@@ -272,9 +288,12 @@ export default function SuperAdminCommissionPage() {
       remarksArr = remarks;
     }
     if (!Array.isArray(remarksArr) || remarksArr.length === 0) return null;
-    // Sort by date descending and return the first
-    remarksArr.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    return remarksArr[0];
+    const sorted = [...remarksArr].sort((a, b) => {
+      const timeA = a?.date ? new Date(a.date).getTime() : 0;
+      const timeB = b?.date ? new Date(b.date).getTime() : 0;
+      return (isNaN(timeB) ? 0 : timeB) - (isNaN(timeA) ? 0 : timeA);
+    });
+    return sorted[0] || null;
   }
 
   // Format currency
@@ -339,7 +358,8 @@ export default function SuperAdminCommissionPage() {
   const totalPages = Math.ceil(sales.length / recordsPerPage)
   const startIndex = (currentPage - 1) * recordsPerPage
   const endIndex = startIndex + recordsPerPage
-  const currentSales = sales.slice(startIndex, endIndex)
+  const sortedSales = sortData(sales, sortField, sortDirection)
+  const currentSales = sortedSales.slice(startIndex, endIndex)
 
   // Reset to first page when filters change
   useEffect(() => {
@@ -544,31 +564,103 @@ export default function SuperAdminCommissionPage() {
                   <TableHeader>
                     <TableRow className="bg-gray-50 border-b border-gray-200">
                       {columnVisibility.find((col) => col.key === "tax_month")?.visible && (
-                        <TableHead className="min-w-[120px] font-semibold text-gray-900">Tax Month</TableHead>
+                        <SortableTableHead
+                          field="tax_month"
+                          currentSortField={sortField}
+                          currentSortDirection={sortDirection}
+                          onSort={handleSort}
+                          className="min-w-[120px] font-semibold text-gray-900"
+                        >
+                          Tax Month
+                        </SortableTableHead>
                       )}
                       {columnVisibility.find((col) => col.key === "tin")?.visible && (
-                        <TableHead className="min-w-[120px] font-semibold text-gray-900">TIN</TableHead>
+                        <SortableTableHead
+                          field="tin"
+                          currentSortField={sortField}
+                          currentSortDirection={sortDirection}
+                          onSort={handleSort}
+                          className="min-w-[120px] font-semibold text-gray-900"
+                        >
+                          TIN
+                        </SortableTableHead>
                       )}
                       {columnVisibility.find((col) => col.key === "name")?.visible && (
-                        <TableHead className="min-w-[180px] font-semibold text-gray-900">Name</TableHead>
+                        <SortableTableHead
+                          field="name"
+                          currentSortField={sortField}
+                          currentSortDirection={sortDirection}
+                          onSort={handleSort}
+                          className="min-w-[180px] font-semibold text-gray-900"
+                        >
+                          Name
+                        </SortableTableHead>
                       )}
                       {columnVisibility.find((col) => col.key === "tax_type")?.visible && (
-                        <TableHead className="min-w-[100px] font-semibold text-gray-900">Tax Type</TableHead>
+                        <SortableTableHead
+                          field="tax_type"
+                          currentSortField={sortField}
+                          currentSortDirection={sortDirection}
+                          onSort={handleSort}
+                          className="min-w-[100px] font-semibold text-gray-900"
+                        >
+                          Tax Type
+                        </SortableTableHead>
                       )}
                       {columnVisibility.find((col) => col.key === "sale_type")?.visible && (
-                        <TableHead className="min-w-[100px] font-semibold text-gray-900">Sale Type</TableHead>
+                        <SortableTableHead
+                          field="sale_type"
+                          currentSortField={sortField}
+                          currentSortDirection={sortDirection}
+                          onSort={handleSort}
+                          className="min-w-[100px] font-semibold text-gray-900"
+                        >
+                          Sale Type
+                        </SortableTableHead>
                       )}
                       {columnVisibility.find((col) => col.key === "gross_taxable")?.visible && (
-                        <TableHead className="min-w-[120px] font-semibold text-gray-900">Gross Taxable</TableHead>
+                        <SortableTableHead
+                          field="gross_taxable"
+                          currentSortField={sortField}
+                          currentSortDirection={sortDirection}
+                          onSort={handleSort}
+                          className="min-w-[120px] font-semibold text-gray-900"
+                        >
+                          Gross Taxable
+                        </SortableTableHead>
                       )}
                       {columnVisibility.find((col) => col.key === "total_actual_amount")?.visible && (
-                        <TableHead className="min-w-[140px] font-semibold text-gray-900">Total Actual Amount</TableHead>
+                        <SortableTableHead
+                          field="total_actual_amount"
+                          currentSortField={sortField}
+                          currentSortDirection={sortDirection}
+                          onSort={handleSort}
+                          className="min-w-[140px] font-semibold text-gray-900"
+                        >
+                          Total Actual Amount
+                        </SortableTableHead>
                       )}
                       {columnVisibility.find((col) => col.key === "invoice_number")?.visible && (
-                        <TableHead className="min-w-[120px] font-semibold text-gray-900">Invoice #</TableHead>
+                        <SortableTableHead
+                          field="invoice_number"
+                          currentSortField={sortField}
+                          currentSortDirection={sortDirection}
+                          onSort={handleSort}
+                          className="min-w-[120px] font-semibold text-gray-900"
+                        >
+                          Invoice #
+                        </SortableTableHead>
                       )}
                       {columnVisibility.find((col) => col.key === "pickup_date")?.visible && (
-                        <TableHead className="min-w-[120px] font-semibold text-gray-900">Pickup Date</TableHead>
+                        <SortableTableHead
+                          field="pickup_date"
+                          currentSortField={sortField}
+                          currentSortDirection={sortDirection}
+                          onSort={handleSort}
+                          className="min-w-[120px] font-semibold text-gray-900"
+                        >
+                          Pickup Date
+                        </SortableTableHead>
                       )}
                       {columnVisibility.find((col) => col.key === "area")?.visible && (
                         <TableHead className="min-w-[100px] font-semibold text-gray-900">Area</TableHead>
@@ -778,6 +870,10 @@ export default function SuperAdminCommissionPage() {
         onClose={() => setShowCommissionModal(false)}
         selectedSales={selectedSalesData}
         userFullName={profile?.full_name}
+        onSuccess={() => {
+          setSelectedSales([])
+          fetchSales()
+        }}
       />
       {commissionModalOpen && selectedCommission && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">

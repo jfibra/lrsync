@@ -1,10 +1,11 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { SortableTableHead, sortData } from "@/components/ui/sortable-header"
 import { Badge } from "@/components/ui/badge"
 import { Edit2, Trash2, Save, X } from "lucide-react"
 import { format } from "date-fns"
@@ -50,8 +51,22 @@ export function RemarksModalViewerPurchases({
         }
     }
 
+    const [sortField, setSortField] = useState("date")
+    const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc")
+
+    const handleSort = (field: string) => {
+        if (sortField === field) {
+            setSortDirection(sortDirection === "asc" ? "desc" : "asc")
+        } else {
+            setSortField(field)
+            setSortDirection("asc")
+        }
+    }
+
     const remarksArray = parseRemarks(remarks)
-    const sortedRemarks = [...remarksArray].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    const sortedRemarks = useMemo(() => {
+        return sortData(remarksArray, sortField, sortDirection)
+    }, [remarksArray, sortField, sortDirection])
 
     const handleEdit = (index: number, remark: string) => {
         setEditingIndex(index)
@@ -184,9 +199,9 @@ export function RemarksModalViewerPurchases({
                             <TableHeader>
                                 <TableRow>
                                     <TableHead className="w-12">#</TableHead>
-                                    <TableHead>Remark</TableHead>
-                                    <TableHead className="w-40">Created By</TableHead>
-                                    <TableHead className="w-32">Date</TableHead>
+                                    <SortableTableHead field="remark" currentSort={sortField} direction={sortDirection} onSort={handleSort}>Remark</SortableTableHead>
+                                    <SortableTableHead field="name" currentSort={sortField} direction={sortDirection} onSort={handleSort} className="w-40">Created By</SortableTableHead>
+                                    <SortableTableHead field="date" currentSort={sortField} direction={sortDirection} onSort={handleSort} className="w-32">Date</SortableTableHead>
                                     <TableHead className="w-24">Actions</TableHead>
                                 </TableRow>
                             </TableHeader>

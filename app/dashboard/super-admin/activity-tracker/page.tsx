@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { SortableTableHead } from "@/components/ui/sortable-header"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -78,6 +79,18 @@ export default function ActivityTrackerPage() {
     const [searchTerm, setSearchTerm] = useState("")
     const [actionFilter, setActionFilter] = useState("all")
     const [refreshing, setRefreshing] = useState(false)
+    const [sortField, setSortField] = useState("created_at")
+    const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc")
+
+    const handleSort = (field: string) => {
+        if (sortField === field) {
+            setSortDirection(sortDirection === "asc" ? "desc" : "asc")
+        } else {
+            setSortField(field)
+            setSortDirection("asc")
+        }
+        setCurrentPage(1)
+    }
 
     const fetchNotifications = async () => {
         try {
@@ -104,7 +117,7 @@ export default function ActivityTrackerPage() {
                     `,
                     { count: "exact" },
                 )
-                .order("created_at", { ascending: false })
+                .order(sortField, { ascending: sortDirection === "asc" })
 
             // Apply filters
             if (searchTerm) {
@@ -151,7 +164,7 @@ export default function ActivityTrackerPage() {
 
     useEffect(() => {
         fetchNotifications()
-    }, [currentPage, pageSize, searchTerm, actionFilter])
+    }, [currentPage, pageSize, searchTerm, actionFilter, sortField, sortDirection])
 
     useEffect(() => {
         // Fetch all notifications for the current month for statistics/charts
@@ -794,12 +807,12 @@ export default function ActivityTrackerPage() {
                                 <Table>
                                     <TableHeader>
                                         <TableRow className="bg-gray-50">
-                                            <TableHead className="text-gray-700 font-semibold">User</TableHead>
+                                            <SortableTableHead field="user_name" currentSort={sortField} direction={sortDirection} onSort={handleSort} className="text-gray-700 font-semibold">User</SortableTableHead>
                                             <TableHead className="text-gray-700 font-semibold">Role & Area</TableHead>
-                                            <TableHead className="text-gray-700 font-semibold">Action</TableHead>
-                                            <TableHead className="text-gray-700 font-semibold">Description</TableHead>
+                                            <SortableTableHead field="action" currentSort={sortField} direction={sortDirection} onSort={handleSort} className="text-gray-700 font-semibold">Action</SortableTableHead>
+                                            <SortableTableHead field="description" currentSort={sortField} direction={sortDirection} onSort={handleSort} className="text-gray-700 font-semibold">Description</SortableTableHead>
                                             <TableHead className="text-gray-700 font-semibold">Location</TableHead>
-                                            <TableHead className="text-gray-700 font-semibold">Date & Time</TableHead>
+                                            <SortableTableHead field="created_at" currentSort={sortField} direction={sortDirection} onSort={handleSort} className="text-gray-700 font-semibold">Date & Time</SortableTableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>

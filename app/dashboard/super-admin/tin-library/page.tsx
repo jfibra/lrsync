@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { SortableTableHead, sortData } from "@/components/ui/sortable-header"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Dialog,
@@ -89,6 +90,18 @@ export default function TinLibraryPage() {
   const [areas, setAreas] = useState<string[]>([])
   const [filterArea, setFilterArea] = useState<string>("all")
 
+  const [sortField, setSortField] = useState<string>("registered_name")
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc")
+
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc")
+    } else {
+      setSortField(field)
+      setSortDirection("asc")
+    }
+  }
+
   const fetchTaxpayers = async () => {
     try {
       setLoading(true)
@@ -150,19 +163,23 @@ export default function TinLibraryPage() {
     }
   }
 
-  const filteredTaxpayers = taxpayers.filter((taxpayer) => {
-    const matchesSearch =
-      taxpayer.tin.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      taxpayer.registered_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      taxpayer.substreet_street_brgy?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      taxpayer.district_city_zip?.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredTaxpayers = sortData(
+    taxpayers.filter((taxpayer) => {
+      const matchesSearch =
+        taxpayer.tin.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        taxpayer.registered_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        taxpayer.substreet_street_brgy?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        taxpayer.district_city_zip?.toLowerCase().includes(searchTerm.toLowerCase())
 
-    const matchesType = filterType === "all" || taxpayer.type === filterType
+      const matchesType = filterType === "all" || taxpayer.type === filterType
 
-    const matchesArea = filterArea === "all" || taxpayer.user_profiles?.assigned_area === filterArea
+      const matchesArea = filterArea === "all" || taxpayer.user_profiles?.assigned_area === filterArea
 
-    return matchesSearch && matchesType && matchesArea
-  })
+      return matchesSearch && matchesType && matchesArea
+    }),
+    sortField,
+    sortDirection
+  )
 
   const totalPages = Math.ceil(filteredTaxpayers.length / pageSize);
   const startRecord = filteredTaxpayers.length === 0 ? 0 : (currentPage - 1) * pageSize + 1;
@@ -735,12 +752,12 @@ export default function TinLibraryPage() {
                       <Table>
                         <TableHeader>
                           <TableRow className="bg-[#f0f7ff] border-b border-[#e0e0e0]">
-                            <TableHead className="min-w-[120px] font-semibold text-[#001f3f]">TIN</TableHead>
-                            <TableHead className="min-w-[180px] font-semibold text-[#001f3f]">Registered Name</TableHead>
-                            <TableHead className="min-w-[80px] font-semibold text-[#001f3f]">Type</TableHead>
+                            <SortableTableHead field="tin" currentSort={sortField} direction={sortDirection} onSort={handleSort} className="min-w-[120px] font-semibold text-[#001f3f]">TIN</SortableTableHead>
+                            <SortableTableHead field="registered_name" currentSort={sortField} direction={sortDirection} onSort={handleSort} className="min-w-[180px] font-semibold text-[#001f3f]">Registered Name</SortableTableHead>
+                            <SortableTableHead field="type" currentSort={sortField} direction={sortDirection} onSort={handleSort} className="min-w-[80px] font-semibold text-[#001f3f]">Type</SortableTableHead>
                             <TableHead className="min-w-[250px] font-semibold text-[#001f3f]">Address</TableHead>
-                            <TableHead className="min-w-[100px] font-semibold text-[#001f3f]">Area</TableHead>
-                            <TableHead className="min-w-[120px] font-semibold text-[#001f3f]">Date Added</TableHead>
+                            <SortableTableHead field="user_profiles.assigned_area" currentSort={sortField} direction={sortDirection} onSort={handleSort} className="min-w-[100px] font-semibold text-[#001f3f]">Area</SortableTableHead>
+                            <SortableTableHead field="created_at" currentSort={sortField} direction={sortDirection} onSort={handleSort} className="min-w-[120px] font-semibold text-[#001f3f]">Date Added</SortableTableHead>
                             <TableHead className="min-w-[120px] font-semibold text-[#001f3f]">Actions</TableHead>
                           </TableRow>
                         </TableHeader>
