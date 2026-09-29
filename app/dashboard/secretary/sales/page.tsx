@@ -25,6 +25,8 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronsRight,
+  User,
+  Users,
 } from "lucide-react"
 import { format } from "date-fns"
 import { useAuth } from "@/contexts/auth-context"
@@ -167,6 +169,7 @@ export default function SecretarySalesPage() {
   ])
 
   const [showOnlyWithRemarks, setShowOnlyWithRemarks] = useState(false)
+  const [viewScope, setViewScope] = useState<"me" | "area">("me")
 
   const [remarksModalOpen, setRemarksModalOpen] = useState(false)
   const [selectedSaleForRemarks, setSelectedSaleForRemarks] = useState<any>(null)
@@ -477,10 +480,19 @@ export default function SecretarySalesPage() {
         setCreatorIdToName(Object.fromEntries(creatorMap))
       }
 
-      // Secretary only sees sales encoded by themselves
+      // Determine target user IDs based on view scope: only me vs all users from the secretary's area
       const myUserIds = [profile.auth_user_id, profile.id, user?.id].filter(Boolean) as string[]
+      const areaUserIds = [
+        ...new Set(
+          profiles
+            .filter((p) => p.assigned_area === profile.assigned_area)
+            .flatMap((p) => [p.auth_user_id, p.id])
+            .filter(Boolean)
+        )
+      ] as string[]
+      const targetUserIds = viewScope === "me" ? myUserIds : (areaUserIds.length > 0 ? areaUserIds : myUserIds)
 
-      if (myUserIds.length === 0) {
+      if (targetUserIds.length === 0) {
         setSales([])
         setTotalCount(0)
         setStats({ totalSales: 0, vatSales: 0, nonVatSales: 0, totalAmount: 0, totalActualAmount: 0 })
@@ -490,7 +502,7 @@ export default function SecretarySalesPage() {
       const from = (currentPage - 1) * pageSize
       const to = from + pageSize - 1
 
-      // Build paginated sales query strictly filtered by secretary's own user IDs
+      // Build paginated sales query filtered by target user IDs
       let salesQuery = supabase
         .from("sales")
         .select(
@@ -505,16 +517,16 @@ export default function SecretarySalesPage() {
           { count: "exact" },
         )
         .eq("is_deleted", false)
-        .in("user_uuid", myUserIds)
+        .in("user_uuid", targetUserIds)
         .order(sortField, { ascending: sortDirection === "asc" })
         .range(from, to)
 
-      // Build lightweight stats query strictly filtered by secretary's own user IDs
+      // Build lightweight stats query filtered by target user IDs
       let statsQuery = supabase
         .from("sales")
         .select("tax_type, gross_taxable, total_actual_amount")
         .eq("is_deleted", false)
-        .in("user_uuid", myUserIds)
+        .in("user_uuid", targetUserIds)
 
       // Apply filters
       if (debouncedSearchTerm) {
@@ -623,12 +635,12 @@ export default function SecretarySalesPage() {
     if (profile) {
       fetchSales()
     }
-  }, [profile, debouncedSearchTerm, filterTaxType, filterYear, filterMonths, showOnlyWithRemarks, currentPage, pageSize, sortField, sortDirection])
+  }, [profile, debouncedSearchTerm, filterTaxType, filterYear, filterMonths, showOnlyWithRemarks, currentPage, pageSize, sortField, sortDirection, viewScope])
 
   // Reset to page 1 on filter changes
   useEffect(() => {
     setCurrentPage(1)
-  }, [debouncedSearchTerm, filterTaxType, filterYear, filterMonths, showOnlyWithRemarks])
+  }, [debouncedSearchTerm, filterTaxType, filterYear, filterMonths, showOnlyWithRemarks, viewScope])
 
   // Get tax type badge color
   const getTaxTypeBadgeColor = (taxType: string) => {
@@ -736,7 +748,16 @@ export default function SecretarySalesPage() {
       }
 
       const myUserIds = [profile.auth_user_id, profile.id, user?.id].filter(Boolean) as string[]
-      if (myUserIds.length === 0) return []
+      const areaUserIds = [
+        ...new Set(
+          profiles
+            .filter((p) => p.assigned_area === profile.assigned_area)
+            .flatMap((p) => [p.auth_user_id, p.id])
+            .filter(Boolean)
+        )
+      ] as string[]
+      const targetUserIds = viewScope === "me" ? myUserIds : (areaUserIds.length > 0 ? areaUserIds : myUserIds)
+      if (targetUserIds.length === 0) return []
 
       let query = supabase
         .from("sales")
@@ -751,7 +772,7 @@ export default function SecretarySalesPage() {
         `,
         )
         .eq("is_deleted", false)
-        .in("user_uuid", myUserIds)
+        .in("user_uuid", targetUserIds)
         .order("created_at", { ascending: false })
         .limit(10000)
       if (debouncedSearchTerm) {
@@ -1166,10 +1187,50 @@ export default function SecretarySalesPage() {
                   <CardDescription style={{ color: "#555" }} className="mt-1 text-sm sm:text-base">
                     {loading
                       ? "Loading..."
-                      : `${totalCount} records found in ${profile?.assigned_area || "your area"}${showOnlyWithRemarks ? " (with remarks)" : ""}`}
+                      : viewScope === "me"
+                        ? `${totalCount} records encoded by you${showOnlyWithRemarks ? " (with remarks)" : ""}`
+                        : `${totalCount} records in ${profile?.assigned_area || "your area"}${showOnlyWithRemarks ? " (with remarks)" : ""}`}
                   </CardDescription>
                 </div>
-                <div className="flex flex-col gap-2 sm:flex-row sm:gap-2 w-full sm:w-auto">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2 w-full sm:w-auto">
+                  {/* Scope Toggle: Encoded by Me vs All Area Records */}
+                  <div className="inline-flex items-center rounded-lg border border-gray-300 p-0.5 bg-gray-100 shadow-sm">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (viewScope !== "me") {
+                          setViewScope("me")
+                          setCurrentPage(1)
+                        }
+                      }}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md transition-all duration-150 ${
+                        viewScope === "me"
+                          ? "bg-[#001f3f] text-white shadow-sm"
+                          : "text-gray-600 hover:text-gray-900 hover:bg-white/60"
+                      }`}
+                    >
+                      <User className="h-3.5 w-3.5" />
+                      Encoded by Me
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (viewScope !== "area") {
+                          setViewScope("area")
+                          setCurrentPage(1)
+                        }
+                      }}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md transition-all duration-150 ${
+                        viewScope === "area"
+                          ? "bg-[#001f3f] text-white shadow-sm"
+                          : "text-gray-600 hover:text-gray-900 hover:bg-white/60"
+                      }`}
+                    >
+                      <Users className="h-3.5 w-3.5" />
+                      All {profile?.assigned_area || "Area"} Records
+                    </button>
+                  </div>
+
                   <ColumnVisibilityControl columns={columnVisibility} onColumnToggle={toggleColumnVisibility} />
                   <Button
                     variant={showOnlyWithRemarks ? "default" : "outline"}

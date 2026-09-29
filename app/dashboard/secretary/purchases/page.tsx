@@ -19,6 +19,8 @@ import {
   Trash2,
   Download,
   FileSpreadsheet,
+  User,
+  Users,
 } from "lucide-react"
 import { format } from "date-fns"
 import { useAuth } from "@/contexts/auth-context"
@@ -99,6 +101,8 @@ export default function SecretaryPurchasesPage() {
   const [remarksModalOpen, setRemarksModalOpen] = useState(false)
   const [selectedPurchaseForRemarks, setSelectedPurchaseForRemarks] = useState<any>(null)
   const [showOnlyWithRemarks, setShowOnlyWithRemarks] = useState(false)
+  const [viewScope, setViewScope] = useState<"me" | "area">("me")
+  const [allProfiles, setAllProfiles] = useState<any[]>([])
 
   const handleRemarksUpdate = (purchaseId: string, updatedRemarks: any[]) => {
     setPurchases((prev) =>
@@ -347,10 +351,31 @@ export default function SecretaryPurchasesPage() {
         return
       }
 
-      // Secretary only sees purchases encoded by themselves
-      const myUserIds = [profile.auth_user_id, profile.id, user?.id].filter(Boolean) as string[]
+      // Ensure allProfiles is populated to resolve area users
+      let profiles = allProfiles
+      if (!profiles || profiles.length === 0) {
+        const { data: pData, error: pError } = await supabase
+          .from("user_profiles")
+          .select("id, auth_user_id, assigned_area, full_name")
 
-      if (myUserIds.length === 0) {
+        if (pError) throw pError
+        profiles = pData || []
+        setAllProfiles(profiles)
+      }
+
+      // Secretary can toggle between purchases encoded by themselves ("me") or all records from their area ("area")
+      const myUserIds = [profile.auth_user_id, profile.id, user?.id].filter(Boolean) as string[]
+      const areaUserIds = [
+        ...new Set(
+          profiles
+            .filter((p) => p.assigned_area === profile.assigned_area)
+            .flatMap((p) => [p.auth_user_id, p.id])
+            .filter(Boolean)
+        )
+      ] as string[]
+      const targetUserIds = viewScope === "me" ? myUserIds : (areaUserIds.length > 0 ? areaUserIds : myUserIds)
+
+      if (targetUserIds.length === 0) {
         setPurchases([])
         setLoading(false)
         return
@@ -360,7 +385,7 @@ export default function SecretaryPurchasesPage() {
         .from("purchases")
         .select("*")
         .eq("is_deleted", false)
-        .in("user_uuid", myUserIds)
+        .in("user_uuid", targetUserIds)
         .order(sortField, { ascending: sortDirection === "asc" })
         .limit(50000)
 
@@ -390,10 +415,20 @@ export default function SecretaryPurchasesPage() {
 
       if (purchasesError) throw purchasesError
 
-      const purchasesWithProfiles = (purchasesData || []).map((purchase) => ({
-        ...purchase,
-        user_assigned_area: profile.assigned_area || null,
-      }))
+      const profileMap = new Map<string, any>()
+      profiles.forEach((p) => {
+        if (p.id) profileMap.set(p.id, p)
+        if (p.auth_user_id) profileMap.set(p.auth_user_id, p)
+      })
+
+      const purchasesWithProfiles = (purchasesData || []).map((purchase) => {
+        const creator = purchase.user_uuid ? profileMap.get(purchase.user_uuid) : null
+        return {
+          ...purchase,
+          user_assigned_area: creator?.assigned_area || profile.assigned_area || null,
+          user_full_name: creator?.full_name || purchase.user_full_name || null,
+        }
+      })
 
       setPurchases(purchasesWithProfiles)
     } catch (error) {
@@ -405,13 +440,13 @@ export default function SecretaryPurchasesPage() {
 
   useEffect(() => {
     setCurrentPage(1)
-  }, [searchTerm, filterTaxType, filterYear, filterMonths, filterCategory])
+  }, [searchTerm, filterTaxType, filterYear, filterMonths, filterCategory, viewScope])
 
   useEffect(() => {
     if (profile) {
       fetchPurchases()
     }
-  }, [searchTerm, filterTaxType, filterYear, filterMonths, sortField, sortDirection, profile, filterCategory, showOnlyWithRemarks])
+  }, [searchTerm, filterTaxType, filterYear, filterMonths, sortField, sortDirection, profile, filterCategory, showOnlyWithRemarks, viewScope])
 
   // Format currency
   const formatCurrency = (amount: number) => {
@@ -793,10 +828,50 @@ export default function SecretaryPurchasesPage() {
                   <CardDescription style={{ color: "#555" }} className="mt-1 text-sm sm:text-base">
                     {loading
                       ? "Loading..."
-                      : `${purchases.length} records found in ${profile?.assigned_area || "your area"}${showOnlyWithRemarks ? " (with remarks)" : ""}`}
+                      : viewScope === "me"
+                        ? `${purchases.length} records encoded by you${showOnlyWithRemarks ? " (with remarks)" : ""}`
+                        : `${purchases.length} records in ${profile?.assigned_area || "your area"}${showOnlyWithRemarks ? " (with remarks)" : ""}`}
                   </CardDescription>
                 </div>
                 <div className="flex flex-col gap-2 w-full sm:w-auto sm:flex-row sm:items-center sm:gap-2">
+                  {/* Scope Toggle: Encoded by Me vs All Area Records */}
+                  <div className="inline-flex items-center rounded-lg border border-gray-300 p-0.5 bg-gray-100 shadow-sm">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (viewScope !== "me") {
+                          setViewScope("me")
+                          setCurrentPage(1)
+                        }
+                      }}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md transition-all duration-150 ${
+                        viewScope === "me"
+                          ? "bg-[#001f3f] text-white shadow-sm"
+                          : "text-gray-600 hover:text-gray-900 hover:bg-white/60"
+                      }`}
+                    >
+                      <User className="h-3.5 w-3.5" />
+                      Encoded by Me
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (viewScope !== "area") {
+                          setViewScope("area")
+                          setCurrentPage(1)
+                        }
+                      }}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md transition-all duration-150 ${
+                        viewScope === "area"
+                          ? "bg-[#001f3f] text-white shadow-sm"
+                          : "text-gray-600 hover:text-gray-900 hover:bg-white/60"
+                      }`}
+                    >
+                      <Users className="h-3.5 w-3.5" />
+                      All {profile?.assigned_area || "Area"} Records
+                    </button>
+                  </div>
+
                   <ColumnVisibilityControl
                     columns={columns}
                     onColumnToggle={handleColumnToggle}
