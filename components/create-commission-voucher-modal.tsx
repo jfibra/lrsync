@@ -639,195 +639,158 @@ export function CreateCommissionVoucherModal({
               )}
             </div>
 
-            {/* 2. Top Controls: Project & Slip Type */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold text-slate-600">Project</Label>
-                <Input
-                  value={projectName}
-                  onChange={(e) => setProjectName(e.target.value)}
-                  placeholder="Enter or select project name..."
-                  className="bg-white text-[#001f3f] border-slate-300 font-medium"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold text-slate-600">Slip Type *</Label>
-                <Select
-                  value={slipType}
-                  onValueChange={(val) => setSlipType(val as SlipTypeOption)}
-                >
-                  <SelectTrigger className="bg-white text-[#001f3f] border-slate-300 font-semibold">
-                    <SelectValue placeholder="Select slip type..." />
-                  </SelectTrigger>
-                  <SelectContent className="bg-white">
-                    <SelectItem value="Non-VAT">Non-VAT</SelectItem>
-                    <SelectItem value="VAT w/ Invoice">VAT w/ Invoice</SelectItem>
-                    <SelectItem value="VAT w/o Invoice">VAT w/o Invoice</SelectItem>
-                    <SelectItem value="W/o Invoice">W/o Invoice</SelectItem>
-                    <SelectItem value="Rate w/o Invoice">Rate w/o Invoice</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            {/* 3. Commission Slip Card (Matches screenshots) */}
-            <div className="border border-slate-200 rounded-xl p-5 bg-white shadow-sm space-y-5">
-              {/* Slip Header */}
-              <div className="flex flex-wrap items-center justify-between gap-4 pb-3 border-b border-slate-100">
+            {/* 2. Commission Slip Details Card */}
+            <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+              {/* Card Header */}
+              <div className="bg-[#001f3f] text-white px-5 py-3.5 flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-2.5">
-                  <FileText className="w-5 h-5 text-[#001f3f]" />
-                  <span className="text-lg font-extrabold tracking-tight text-[#001f3f]">
-                    COMMISSION SLIP
-                  </span>
+                  <FileText className="w-5 h-5 text-sky-300" />
+                  <div>
+                    <h3 className="text-base font-bold tracking-tight">Commission Slip Details</h3>
+                    <p className="text-[11px] text-slate-300">
+                      Configure rates, slip calculation type, unit number, and released amount
+                    </p>
+                  </div>
                 </div>
-                <div className="w-48">
+
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-sky-200">Voucher No. *</span>
                   <Input
                     value={voucherNumber}
                     onChange={(e) => setVoucherNumber(e.target.value)}
-                    placeholder="Voucher No."
-                    className="bg-white text-[#001f3f] border-slate-300 font-bold text-center"
+                    placeholder="e.g. 123"
+                    className="w-36 h-8 bg-white text-[#001f3f] border-0 font-bold text-center"
                   />
                 </div>
               </div>
 
-              {/* Developer + Developer Rate */}
-              <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end pb-3 border-b border-slate-100">
-                <div className="md:col-span-8 space-y-1">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
-                    Developer
-                  </span>
-                  <Input
-                    value={developerName}
-                    onChange={(e) => setDeveloperName(e.target.value)}
-                    placeholder="Developer Name"
-                    className="border-0 border-b border-slate-200 rounded-none px-0 shadow-none focus-visible:ring-0 text-sm font-semibold text-[#001f3f]"
-                  />
-                </div>
-                <div className="md:col-span-4 space-y-1">
-                  <Label className="text-xs text-slate-500">Rate (%)</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={developerRate}
-                    onChange={(e) => setDeveloperRate(e.target.value)}
-                    className="bg-white text-[#001f3f] border-slate-300"
-                  />
-                </div>
-              </div>
-
-              {/* Salesperson + Agent Rate */}
-              <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end pb-3 border-b border-slate-100">
-                <div className="md:col-span-8 space-y-1">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
-                    Salesperson
-                  </span>
-                  <Input
-                    value={agentName}
-                    onChange={(e) => setAgentName(e.target.value)}
-                    placeholder="Salesperson / Agent Name"
-                    className="border-0 border-b border-slate-200 rounded-none px-0 shadow-none focus-visible:ring-0 text-sm font-semibold text-[#001f3f]"
-                  />
-                </div>
-                <div className="md:col-span-4 space-y-1">
-                  <Label className="text-xs text-slate-500">Rate (%)</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={agentRate}
-                    onChange={(e) => setAgentRate(e.target.value)}
-                    className="bg-white text-[#001f3f] border-slate-300"
-                  />
-                </div>
-              </div>
-
-              {/* Project + Unit No. */}
-              <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end pb-3 border-b border-slate-100">
-                <div className="md:col-span-8 space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                      Project
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setEditingProject(!editingProject)}
-                      className="text-slate-500 hover:text-[#001f3f]"
-                      title="Edit Project Name"
-                    >
-                      <Pencil className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                  {editingProject ? (
+              <div className="p-5 space-y-5">
+                {/* Row 1: Project, Unit No, Slip Type */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-[#001f3f]">Project</Label>
                     <Input
                       value={projectName}
                       onChange={(e) => setProjectName(e.target.value)}
-                      placeholder="Project Name"
-                      className="bg-white text-[#001f3f] border-slate-300"
+                      placeholder="Enter or select project..."
+                      className="bg-white text-[#001f3f] border-slate-300 font-medium"
                     />
-                  ) : (
-                    <div className="text-sm font-semibold text-[#001f3f] py-1.5">
-                      {projectName || <span className="text-slate-400 font-normal">Select a sale or edit project</span>}
-                    </div>
-                  )}
-                </div>
+                  </div>
 
-                <div className="md:col-span-4 space-y-1">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-xs text-slate-500">Unit No.</Label>
-                    {availableUnitOptions.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => setManualUnitMode(!manualUnitMode)}
-                        className="text-[11px] text-[#0284c7] hover:underline font-medium"
-                      >
-                        {manualUnitMode ? "Select encoded unit" : "Manual input"}
-                      </button>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-semibold text-[#001f3f]">Unit No.</Label>
+                      {availableUnitOptions.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setManualUnitMode(!manualUnitMode)}
+                          className="text-[11px] text-[#0284c7] hover:underline font-semibold"
+                        >
+                          {manualUnitMode ? "Select encoded unit" : "Manual input"}
+                        </button>
+                      )}
+                    </div>
+                    {!manualUnitMode && availableUnitOptions.length > 0 ? (
+                      <Select value={unitNumber} onValueChange={setUnitNumber}>
+                        <SelectTrigger className="bg-white text-[#001f3f] border-slate-300">
+                          <SelectValue placeholder="Select Unit No." />
+                        </SelectTrigger>
+                        <SelectContent className="bg-white">
+                          {availableUnitOptions.map((u) => (
+                            <SelectItem key={u} value={u}>
+                              {u}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input
+                        value={unitNumber}
+                        onChange={(e) => setUnitNumber(e.target.value)}
+                        placeholder="Enter Unit No."
+                        className="bg-white text-[#001f3f] border-slate-300"
+                      />
                     )}
                   </div>
 
-                  {!manualUnitMode && availableUnitOptions.length > 0 ? (
-                    <Select value={unitNumber} onValueChange={setUnitNumber}>
-                      <SelectTrigger className="bg-white text-[#001f3f] border-slate-300">
-                        <SelectValue placeholder="Select Unit No." />
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-[#001f3f]">Slip Type (Formula) *</Label>
+                    <Select
+                      value={slipType}
+                      onValueChange={(val) => setSlipType(val as SlipTypeOption)}
+                    >
+                      <SelectTrigger className="bg-white text-[#001f3f] border-slate-300 font-semibold">
+                        <SelectValue placeholder="Select slip type..." />
                       </SelectTrigger>
                       <SelectContent className="bg-white">
-                        {availableUnitOptions.map((u) => (
-                          <SelectItem key={u} value={u}>
-                            {u}
-                          </SelectItem>
-                        ))}
+                        <SelectItem value="Non-VAT">Non-VAT</SelectItem>
+                        <SelectItem value="VAT w/ Invoice">VAT w/ Invoice</SelectItem>
+                        <SelectItem value="VAT w/o Invoice">VAT w/o Invoice</SelectItem>
+                        <SelectItem value="W/o Invoice">W/o Invoice</SelectItem>
+                        <SelectItem value="Rate w/o Invoice">Rate w/o Invoice</SelectItem>
                       </SelectContent>
                     </Select>
-                  ) : (
-                    <Input
-                      value={unitNumber}
-                      onChange={(e) => setUnitNumber(e.target.value)}
-                      placeholder="Enter Unit No."
-                      className="bg-white text-[#001f3f] border-slate-300"
-                    />
-                  )}
+                  </div>
                 </div>
-              </div>
 
-              {/* Client */}
-              <div className="space-y-1 pb-3 border-b border-slate-100">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
-                  Client
-                </span>
-                <Input
-                  value={clientName}
-                  onChange={(e) => setClientName(e.target.value)}
-                  placeholder="Client Name"
-                  className="border-0 border-b border-slate-200 rounded-none px-0 shadow-none focus-visible:ring-0 text-sm font-semibold text-[#001f3f]"
-                />
-              </div>
+                {/* Row 2: Developer + Rate | Agent + Rate */}
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+                  <div className="md:col-span-4 space-y-1.5">
+                    <Label className="text-xs font-semibold text-[#001f3f]">Developer *</Label>
+                    <Input
+                      value={developerName}
+                      onChange={(e) => setDeveloperName(e.target.value)}
+                      placeholder="Developer Name"
+                      className="bg-white text-[#001f3f] border-slate-300 font-medium"
+                    />
+                  </div>
+                  <div className="md:col-span-2 space-y-1.5">
+                    <Label className="text-xs font-semibold text-[#001f3f]">Dev Rate (%)</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={developerRate}
+                      onChange={(e) => setDeveloperRate(e.target.value)}
+                      className="bg-white text-[#001f3f] border-slate-300 font-semibold"
+                    />
+                  </div>
 
-              {/* Financial Calculations Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-4">
-                  <div className="space-y-1">
-                    <Label className="text-xs font-semibold text-slate-600">
-                      Amount Released (from Developer)
+                  <div className="md:col-span-4 space-y-1.5">
+                    <Label className="text-xs font-semibold text-[#001f3f]">Salesperson / Agent *</Label>
+                    <Input
+                      value={agentName}
+                      onChange={(e) => setAgentName(e.target.value)}
+                      placeholder="Agent Name"
+                      className="bg-white text-[#001f3f] border-slate-300 font-medium"
+                    />
+                  </div>
+                  <div className="md:col-span-2 space-y-1.5">
+                    <Label className="text-xs font-semibold text-[#001f3f]">Agent Rate (%)</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={agentRate}
+                      onChange={(e) => setAgentRate(e.target.value)}
+                      className="bg-white text-[#001f3f] border-slate-300 font-semibold"
+                    />
+                  </div>
+                </div>
+
+                {/* Row 3: Client Name & Amount Released */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-[#001f3f]">Client Name</Label>
+                    <Input
+                      value={clientName}
+                      onChange={(e) => setClientName(e.target.value)}
+                      placeholder="Client Name"
+                      className="bg-white text-[#001f3f] border-slate-300 font-medium"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-[#001f3f]">
+                      Amount Released from Developer *
                     </Label>
                     <Input
                       type="text"
@@ -838,42 +801,43 @@ export function CreateCommissionVoucherModal({
                         setAmountReleased(cleaned)
                       }}
                       placeholder="0.00"
-                      className="bg-white text-[#001f3f] border-slate-300 font-bold text-base"
+                      className="bg-white text-[#001f3f] border-[#0284c7] font-extrabold text-base"
                     />
-                  </div>
-
-                  <div className="pt-2 border-t border-slate-100">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
-                      Exclusive of VAT
-                    </span>
-                    <div className="text-base font-bold text-[#001f3f] mt-0.5">
-                      {formatNum(calculations.exclusiveOfVat)}
-                    </div>
                   </div>
                 </div>
 
-                <div className="space-y-4">
-                  <div className="pt-1">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
-                      TOTAL (Total for Release)
+                {/* Row 4: Computed Commission Breakdown Summary Cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50 border border-slate-200 rounded-xl p-4">
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 block">
+                      Total for Release
                     </span>
                     <div className="text-xl font-extrabold text-emerald-700 mt-0.5">
-                      {formatNum(calculations.total)}
+                      ₱{formatNum(calculations.total)}
                     </div>
                   </div>
 
-                  <div className="pt-2 border-t border-slate-100">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
-                      {slipType === "VAT w/ Invoice"
-                        ? "WITHHOLDING TAX (10%) / For BIR 2307"
-                        : slipType === "Non-VAT"
-                        ? "WITHHOLDING TAX (5%) / For BIR 2307"
-                        : slipType === "VAT w/o Invoice"
-                        ? "VAT DEDUCTION (12%)"
-                        : "WITHHOLDING TAX (0%)"}
+                  <div className="bg-white border border-slate-200 rounded-lg p-3">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
+                      Exclusive of VAT
                     </span>
-                    <div className="text-base font-bold text-[#001f3f] mt-0.5">
-                      {formatNum(
+                    <div className="text-lg font-bold text-[#001f3f] mt-0.5">
+                      ₱{formatNum(calculations.exclusiveOfVat)}
+                    </div>
+                  </div>
+
+                  <div className="bg-white border border-slate-200 rounded-lg p-3">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
+                      {slipType === "VAT w/ Invoice"
+                        ? "Withholding Tax (10%) / BIR 2307"
+                        : slipType === "Non-VAT"
+                        ? "Withholding Tax (5%) / BIR 2307"
+                        : slipType === "VAT w/o Invoice"
+                        ? "VAT Deduction (12%)"
+                        : "Withholding Tax (0%)"}
+                    </span>
+                    <div className="text-lg font-bold text-[#001f3f] mt-0.5">
+                      ₱{formatNum(
                         slipType === "VAT w/o Invoice"
                           ? calculations.vatAmount
                           : calculations.withholdingTax
@@ -881,149 +845,185 @@ export function CreateCommissionVoucherModal({
                     </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Commission Status */}
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold text-slate-600">Commission Status</Label>
-                <Textarea
-                  value={commissionStatus}
-                  onChange={(e) => setCommissionStatus(e.target.value)}
-                  placeholder="Enter commission status / tranche / remarks..."
-                  className="bg-white text-[#001f3f] border-slate-300 h-20"
-                />
-              </div>
+                {/* Row 5: Commission Status */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-[#001f3f]">Commission Status / Remarks</Label>
+                  <Textarea
+                    value={commissionStatus}
+                    onChange={(e) => setCommissionStatus(e.target.value)}
+                    placeholder="Optional commission status, tranche, or remarks..."
+                    className="bg-white text-[#001f3f] border-slate-300 h-16"
+                  />
+                </div>
 
-              {/* Attached File Chips */}
-              {(voucherAttachment || headerAttachment) && (
+                {/* Row 6: Document Attachments (Voucher & Header) with Cropping */}
                 <div className="space-y-2">
-                  {voucherAttachment && (
-                    <div className="flex items-center justify-between bg-slate-100 border border-slate-200 px-3 py-2 rounded-lg text-xs">
-                      <div className="flex items-center gap-2">
-                        <img
-                          src={voucherAttachment.dataUrl}
-                          alt="Cropped Voucher"
-                          className="h-8 w-12 object-cover rounded border bg-white"
-                        />
-                        <span className="font-semibold text-slate-800">
-                          Attached voucher ({voucherAttachment.fileName} &bull;{" "}
-                          {(voucherAttachment.fileSize / 1024).toFixed(2)} KB)
-                        </span>
+                  <Label className="text-xs font-bold uppercase tracking-wider text-[#001f3f] block">
+                    Bondpaper Attachments (Upload PDF or PNG &amp; Crop)
+                  </Label>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Voucher Attachment Card */}
+                    <div className="border-2 border-dashed border-slate-300 rounded-xl p-3.5 bg-slate-50/60 flex flex-col justify-between gap-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="text-xs font-bold text-[#001f3f]">1. Voucher Document</div>
+                          <div className="text-[11px] text-slate-500">
+                            Placed on the upper section of the bondpaper
+                          </div>
+                        </div>
+                        <label className="cursor-pointer inline-flex items-center gap-1.5 bg-[#001f3f] hover:bg-[#001f3f]/90 text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-sm">
+                          <Paperclip className="w-3.5 h-3.5" />
+                          <span>{voucherAttachment ? "Replace" : "Upload & Crop"}</span>
+                          <input
+                            type="file"
+                            accept="application/pdf,image/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              handleFilePick("voucher", e.target.files)
+                              e.target.value = ""
+                            }}
+                          />
+                        </label>
                       </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 text-slate-500 hover:text-red-600"
-                        onClick={() => setVoucherAttachment(null)}
-                      >
-                        <X className="w-4 h-4" />
-                      </Button>
+                      {voucherAttachment && (
+                        <div className="flex items-center justify-between bg-white border border-slate-200 px-3 py-2 rounded-lg text-xs">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <img
+                              src={voucherAttachment.dataUrl}
+                              alt="Cropped Voucher"
+                              className="h-10 w-14 object-contain rounded border bg-slate-50 shrink-0"
+                            />
+                            <div className="truncate">
+                              <div className="font-semibold text-slate-800 truncate">
+                                {voucherAttachment.fileName}
+                              </div>
+                              <div className="text-[10px] text-emerald-700 font-medium">
+                                Cropped &bull; {(voucherAttachment.fileSize / 1024).toFixed(1)} KB
+                              </div>
+                            </div>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-slate-400 hover:text-red-600 shrink-0"
+                            onClick={() => setVoucherAttachment(null)}
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      )}
                     </div>
-                  )}
 
-                  {headerAttachment && (
-                    <div className="flex items-center justify-between bg-slate-100 border border-slate-200 px-3 py-2 rounded-lg text-xs">
-                      <div className="flex items-center gap-2">
-                        <img
-                          src={headerAttachment.dataUrl}
-                          alt="Cropped Header"
-                          className="h-8 w-12 object-cover rounded border bg-white"
-                        />
-                        <span className="font-semibold text-slate-800">
-                          Attached header ({headerAttachment.fileName} &bull;{" "}
-                          {(headerAttachment.fileSize / 1024).toFixed(2)} KB)
-                        </span>
+                    {/* Header Attachment Card */}
+                    <div className="border-2 border-dashed border-slate-300 rounded-xl p-3.5 bg-slate-50/60 flex flex-col justify-between gap-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="text-xs font-bold text-[#001f3f]">2. Header Document</div>
+                          <div className="text-[11px] text-slate-500">
+                            Placed above the voucher on the bondpaper
+                          </div>
+                        </div>
+                        <label className="cursor-pointer inline-flex items-center gap-1.5 bg-[#0284c7] hover:bg-[#0369a1] text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-sm">
+                          <Paperclip className="w-3.5 h-3.5" />
+                          <span>{headerAttachment ? "Replace" : "Upload & Crop"}</span>
+                          <input
+                            type="file"
+                            accept="application/pdf,image/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              handleFilePick("header", e.target.files)
+                              e.target.value = ""
+                            }}
+                          />
+                        </label>
                       </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 text-slate-500 hover:text-red-600"
-                        onClick={() => setHeaderAttachment(null)}
-                      >
-                        <X className="w-4 h-4" />
-                      </Button>
+                      {headerAttachment && (
+                        <div className="flex items-center justify-between bg-white border border-slate-200 px-3 py-2 rounded-lg text-xs">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <img
+                              src={headerAttachment.dataUrl}
+                              alt="Cropped Header"
+                              className="h-10 w-14 object-contain rounded border bg-slate-50 shrink-0"
+                            />
+                            <div className="truncate">
+                              <div className="font-semibold text-slate-800 truncate">
+                                {headerAttachment.fileName}
+                              </div>
+                              <div className="text-[10px] text-emerald-700 font-medium">
+                                Cropped &bull; {(headerAttachment.fileSize / 1024).toFixed(1)} KB
+                              </div>
+                            </div>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-slate-400 hover:text-red-600 shrink-0"
+                            onClick={() => setHeaderAttachment(null)}
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      )}
                     </div>
-                  )}
+                  </div>
                 </div>
-              )}
 
-              {/* Attach Voucher & Attach Header Buttons */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-0 border border-slate-300 rounded-lg overflow-hidden">
-                <label className="cursor-pointer flex items-center justify-center gap-2 py-2.5 px-4 text-xs font-bold uppercase tracking-wider transition-colors bg-emerald-800 hover:bg-emerald-900 text-white border-b sm:border-b-0 sm:border-r border-slate-300">
-                  <Paperclip className="w-4 h-4" />
-                  <span>Attach Voucher {voucherAttachment ? "(1)" : "(PDF / PNG)"}</span>
-                  <input
-                    type="file"
-                    accept="application/pdf,image/*"
-                    className="hidden"
-                    onChange={(e) => {
-                      handleFilePick("voucher", e.target.files)
-                      e.target.value = ""
-                    }}
-                  />
-                </label>
+                {/* Live Inline Bondpaper Preview Toggle */}
+                <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowLiveBondpaper(!showLiveBondpaper)}
+                    className="text-xs text-[#0284c7] px-2"
+                  >
+                    <Eye className="w-3.5 h-3.5 mr-1.5" />
+                    {showLiveBondpaper ? "Hide Bondpaper Layout Preview" : "Show Bondpaper Layout Preview"}
+                  </Button>
 
-                <label className="cursor-pointer flex items-center justify-center gap-2 py-2.5 px-4 text-xs font-bold uppercase tracking-wider transition-colors bg-red-700 hover:bg-red-800 text-white">
-                  <Paperclip className="w-4 h-4" />
-                  <span>Attach Header {headerAttachment ? "(1)" : "(PDF / PNG)"}</span>
-                  <input
-                    type="file"
-                    accept="application/pdf,image/*"
-                    className="hidden"
-                    onChange={(e) => {
-                      handleFilePick("header", e.target.files)
-                      e.target.value = ""
-                    }}
-                  />
-                </label>
-              </div>
-
-              {/* Optional Toggle to inspect Bondpaper Layout inline */}
-              <div className="flex justify-end">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowLiveBondpaper(!showLiveBondpaper)}
-                  className="text-xs text-[#0284c7]"
-                >
-                  {showLiveBondpaper ? "Hide Bondpaper Layout Preview" : "Show Bondpaper Layout Preview"}
-                </Button>
-              </div>
-
-              {showLiveBondpaper && (
-                <div className="bg-slate-200 p-4 rounded-xl overflow-x-auto border border-slate-300">
-                  <VoucherBondpaperDocument
-                    voucher={voucherModel}
-                    containerId="create-voucher-bondpaper-inline-preview"
-                  />
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => onOpenChange(false)}
+                      disabled={saving || previewing}
+                      className="border-slate-300 text-slate-700 bg-white"
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handlePreviewPdf}
+                      disabled={previewing || saving}
+                      className="border-[#001f3f] text-[#001f3f] hover:bg-slate-100 bg-white font-semibold"
+                    >
+                      <Eye className="w-4 h-4 mr-2" />
+                      {previewing ? "Generating PDF..." : "Preview PDF"}
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={handleSaveVoucher}
+                      disabled={saving || previewing}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-md"
+                    >
+                      <Save className="w-4 h-4 mr-2" />
+                      {saving ? "Saving & Generating PDF..." : "Save Voucher & Attach PDF"}
+                    </Button>
+                  </div>
                 </div>
-              )}
 
-              {/* Preview & Save Action Buttons */}
-              <div className="space-y-2.5 pt-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handlePreviewPdf}
-                  disabled={previewing || saving}
-                  className="w-full border-[#001f3f] text-[#001f3f] hover:bg-slate-100 bg-white font-bold py-5"
-                >
-                  <Eye className="w-4 h-4 mr-2" />
-                  {previewing ? "Generating PDF Preview..." : "PREVIEW BONDPAPER PDF"}
-                </Button>
-
-                <Button
-                  type="button"
-                  onClick={handleSaveVoucher}
-                  disabled={saving || previewing}
-                  className="w-full bg-[#001f3f] hover:bg-[#001f3f]/90 text-white font-bold py-5 shadow-md"
-                >
-                  <Save className="w-4 h-4 mr-2" />
-                  {saving ? "Generating PDF & Saving Voucher..." : "SAVE VOUCHER & ATTACH GENERATED PDF"}
-                </Button>
+                {showLiveBondpaper && (
+                  <div className="bg-slate-200 p-4 rounded-xl overflow-x-auto border border-slate-300">
+                    <VoucherBondpaperDocument
+                      voucher={voucherModel}
+                      containerId="create-voucher-bondpaper-inline-preview"
+                    />
+                  </div>
+                )}
               </div>
             </div>
           </div>
