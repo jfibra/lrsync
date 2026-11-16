@@ -25,6 +25,8 @@ import { format } from "date-fns"
 import { useAuth } from "@/contexts/auth-context"
 import { supabase } from "@/lib/supabase/client"
 import { logNotification } from "@/utils/logNotification"
+import { ProtectedRoute } from "@/components/protected-route"
+import { DashboardHeader } from "@/components/dashboard-header"
 import * as XLSX from "xlsx"
 import { exportPurchasesToExcel } from "@/utils/export-purchases"
 
@@ -669,8 +671,11 @@ export default function SuperAdminPurchasesPage() {
   ])
 
   return (
-    <div className="space-y-6 p-6 bg-white min-h-screen">
-      {/* Header */}
+    <ProtectedRoute allowedRoles={["super_admin"]}>
+      <div className="min-h-screen bg-white">
+        <DashboardHeader />
+        <div className="pt-20 px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+          {/* Header */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-[#001f3f]">Purchases Management</h1>
@@ -1290,6 +1295,8 @@ export default function SuperAdminPurchasesPage() {
           userRole={profile?.role}
         />
       )}
-    </div>
+        </div>
+      </div>
+    </ProtectedRoute>
   )
 }
