@@ -75,10 +75,11 @@ export function CreateCommissionVoucherModal({
     agentName: "",
     developerName: "",
     clientName: "",
-    year: currentYear.toString(),
+    year: "all",
   })
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
   const [isSearching, setIsSearching] = useState(false)
+  const [hasSearched, setHasSearched] = useState(false)
   const [selectedSale, setSelectedSale] = useState<SearchResult | null>(null)
 
   // Commission Slip Details
@@ -129,6 +130,7 @@ export function CreateCommissionVoucherModal({
   useEffect(() => {
     if (!open) return
     setSearchResults([])
+    setHasSearched(false)
     setSelectedSale(null)
     setVoucherNumber("")
     setSlipType("VAT w/ Invoice")
@@ -155,12 +157,13 @@ export function CreateCommissionVoucherModal({
       return
     }
     setIsSearching(true)
+    setHasSearched(true)
     try {
       const params = new URLSearchParams()
-      if (searchData.agentName) params.append("name", searchData.agentName)
-      if (searchData.year) params.append("year", searchData.year)
-      if (searchData.developerName) params.append("developer", searchData.developerName)
-      if (searchData.clientName) params.append("clientfamilyname", searchData.clientName)
+      if (searchData.agentName.trim()) params.append("name", searchData.agentName.trim())
+      if (searchData.year && searchData.year !== "all") params.append("year", searchData.year)
+      if (searchData.developerName.trim()) params.append("developer", searchData.developerName.trim())
+      if (searchData.clientName.trim()) params.append("clientfamilyname", searchData.clientName.trim())
 
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_NEXT_API_ROUTE_LR}/search-sales-report?${params}`
@@ -194,8 +197,10 @@ export function CreateCommissionVoucherModal({
       setUnitNumber("")
       setManualUnitMode(true)
     }
-    if (sale.compercent && !isNaN(Number(sale.compercent))) {
+    if (sale.compercent && Number(sale.compercent) > 0) {
       setDeveloperRate(String(sale.compercent))
+    } else {
+      setDeveloperRate("5")
     }
   }
 
@@ -530,6 +535,7 @@ export function CreateCommissionVoucherModal({
                       <SelectValue placeholder="Select year" />
                     </SelectTrigger>
                     <SelectContent className="bg-white">
+                      <SelectItem value="all">All Years</SelectItem>
                       {yearOptions.map((yr) => (
                         <SelectItem key={yr} value={yr.toString()}>
                           {yr}
@@ -557,11 +563,12 @@ export function CreateCommissionVoucherModal({
                     variant="outline"
                     onClick={() => {
                       setSearchResults([])
+                      setHasSearched(false)
                       setSearchData({
                         agentName: "",
                         developerName: "",
                         clientName: "",
-                        year: currentYear.toString(),
+                        year: "all",
                       })
                     }}
                     className="border-slate-300 text-slate-700 bg-white"
@@ -622,6 +629,12 @@ export function CreateCommissionVoucherModal({
                       )
                     })}
                   </div>
+                </div>
+              )}
+
+              {hasSearched && !isSearching && searchResults.length === 0 && (
+                <div className="border-t border-slate-200 pt-3 text-center text-xs text-slate-500">
+                  No sales found matching your search criteria. Try setting <strong>Year</strong> to <strong>All Years</strong> or broadening your search.
                 </div>
               )}
             </div>
