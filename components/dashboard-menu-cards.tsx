@@ -3,19 +3,25 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Users, Banknote, Building2, Calculator, ClipboardList, Eye, ShoppingCart, Contact } from "lucide-react"
+import { Users, Banknote, Building2, Calculator, ClipboardList, Eye, ShoppingCart, Contact, Receipt, ShieldCheck } from "lucide-react"
 import Link from "next/link"
 import type { UserRole } from "@/types/auth"
+import { useAuth } from "@/contexts/auth-context"
 
 interface DashboardMenuCardsProps {
   userRole: UserRole
 }
 
 export function DashboardMenuCards({ userRole }: DashboardMenuCardsProps) {
+  const { user, profile } = useAuth()
+  const isAnthonyLeuterio =
+    user?.email?.toLowerCase() === "mindworth@gmail.com" ||
+    profile?.email?.toLowerCase() === "mindworth@gmail.com"
+
   const getMenuItems = () => {
     switch (userRole) {
-      case "super_admin":
-        return [
+      case "super_admin": {
+        const items = [
           {
             title: "Sales Records",
             description: "View and manage all sales data",
@@ -36,6 +42,32 @@ export function DashboardMenuCards({ userRole }: DashboardMenuCardsProps) {
             badge: "All Areas",
             badgeColor: "bg-red-100 text-red-800",
           },
+          {
+            title: "Expense Request",
+            description: "Encode itemized expense requests, generate invoices, send to email, and convert approved invoices to purchases",
+            icon: Receipt,
+            href: "/dashboard/super-admin/expense-request",
+            color: "from-sky-500 to-blue-600",
+            bgColor: "bg-sky-50/80 border-sky-200",
+            badge: "Approval Flow",
+            badgeColor: "bg-sky-100 text-sky-800",
+          },
+        ]
+
+        if (isAnthonyLeuterio) {
+          items.push({
+            title: "Expense Invoice Approvals",
+            description: "Exclusive portal for Sir Anthony Leuterio to review and digitally sign expense request invoices",
+            icon: ShieldCheck,
+            href: "/dashboard/super-admin/expense-approvals",
+            color: "from-amber-500 to-amber-600",
+            bgColor: "bg-amber-50/80 border-amber-300",
+            badge: "Boss Exclusive",
+            badgeColor: "bg-amber-100 text-amber-800",
+          })
+        }
+
+        items.push(
           {
             title: "TIN Library",
             description: "Manage taxpayer identification numbers",
@@ -116,7 +148,9 @@ export function DashboardMenuCards({ userRole }: DashboardMenuCardsProps) {
             badge: "Your Area",
             badgeColor: "bg-green-100 text-green-800",
           },
-        ]
+        )
+        return items
+      }
 
       case "admin":
         return [
@@ -183,6 +217,16 @@ export function DashboardMenuCards({ userRole }: DashboardMenuCardsProps) {
             bgColor: "bg-red-50/80 border-red-200",
             badge: "Your Area",
             badgeColor: "bg-red-100 text-red-800",
+          },
+          {
+            title: "Expense Request",
+            description: "Input itemized expense requests, create invoices for approval, and convert approved invoices to purchases",
+            icon: Receipt,
+            href: "/dashboard/secretary/expense-request",
+            color: "from-sky-500 to-blue-600",
+            bgColor: "bg-sky-50/80 border-sky-200",
+            badge: "Approval Flow",
+            badgeColor: "bg-sky-100 text-sky-800",
           },
           {
             title: "TIN Library",

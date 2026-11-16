@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -675,7 +676,13 @@ export default function SecretaryPurchasesPage() {
                   </p>
                 </div>
               </div>
-              <div className="mt-4 sm:mt-0">
+              <div className="mt-4 sm:mt-0 flex flex-wrap items-center gap-3">
+                <Link href="/dashboard/secretary/expense-request">
+                  <Button variant="outline" className="border-[#0284c7] text-[#0284c7] hover:bg-sky-50 bg-white font-semibold">
+                    <FileSpreadsheet className="h-4 w-4 mr-2" />
+                    Expense Requests &amp; Invoices
+                  </Button>
+                </Link>
                 <Button onClick={() => setAddModalOpen(true)} className="bg-[#001f3f] hover:bg-[#001f3f]/90 text-white">
                   <Plus className="h-4 w-4 mr-2" />
                   Add Purchase Record

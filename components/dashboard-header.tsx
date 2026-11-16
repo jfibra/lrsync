@@ -15,6 +15,8 @@ import {
   UserCog,
   BarChart3,
   Bell,
+  Receipt,
+  ShieldCheck,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -76,6 +78,19 @@ export function DashboardHeader() {
         roles: ["super_admin", "secretary"],
       },
       {
+        label: "Expense Request",
+        href: (role: string) => `/dashboard/${role.replace("_", "-")}/expense-request`,
+        icon: Receipt,
+        roles: ["super_admin", "secretary"],
+      },
+      {
+        label: "Expense Approvals",
+        href: () => `/dashboard/super-admin/expense-approvals`,
+        icon: ShieldCheck,
+        roles: ["super_admin"],
+        exclusiveEmail: "mindworth@gmail.com",
+      },
+      {
         label: "TIN Library",
         href: (role: string) => `/dashboard/${role.replace("_", "-")}/tin-library`,
         icon: BookText,
@@ -111,8 +126,15 @@ export function DashboardHeader() {
 
   const filteredNavItems = React.useMemo(() => {
     if (!profile?.role) return []
-    return navItems.filter((item) => item.roles.includes(profile.role))
-  }, [profile?.role, navItems])
+    const currentEmail = (user?.email || profile?.email || "").toLowerCase()
+    return navItems.filter((item: any) => {
+      if (!item.roles.includes(profile.role)) return false
+      if (item.exclusiveEmail && currentEmail !== item.exclusiveEmail.toLowerCase()) {
+        return false
+      }
+      return true
+    })
+  }, [profile?.role, profile?.email, user?.email, navItems])
 
   const getDashboardLink = () => {
     if (profile?.role) {

@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
       const seq = (Number(existingCount) || 0) + (Number(fileIndex) || 0) + 1;
       finalFileName = `CR_${safeReport}-${typeLabel}_${seq}-${datetime}.${ext}`;
       s3Key = `lrsync/commission_report_attachments/${safeArea}/CR_${safeReport}/${finalFileName}`;
-    } else if (category === "purchases") {
+    } else if (category === "purchases" || category === "expense-request") {
       const now = new Date();
       const year = now.getFullYear();
       const month = String(now.getMonth() + 1).padStart(2, "0");
@@ -85,8 +85,17 @@ export async function POST(request: NextRequest) {
       const safeAssignedArea = assignedArea.replace(/[^\w\s\-]/g, "").replace(/\s+/g, " ").trim();
       const safeUserFullName = userFullName.replace(/[^\w\s\-]/g, "").replace(/\s+/g, " ").trim();
 
+      const folder = category === "expense-request" ? "expense_requests" : "purchases";
       finalFileName = `OR ${orNumber} - ${safeTinName} - ${safeTinNumber} (${safeAssignedArea} - ${safeUserFullName}).${ext}`;
-      s3Key = `lrsync/purchases/${year}/${month}/${date}/${finalFileName}`;
+      s3Key = `lrsync/${folder}/${year}/${month}/${date}/${finalFileName}`;
+    } else if (category === "expense-invoice") {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, "0");
+      const date = String(now.getDate()).padStart(2, "0");
+      const safeInvoiceNo = (reportNumber || tinNumber || generate8DigitNumber()).replace(/[^\w\-]/g, "_");
+      finalFileName = `Expense_Invoice_${safeInvoiceNo}_${Date.now()}.${ext}`;
+      s3Key = `lrsync/expense_invoices/${year}/${month}/${date}/${finalFileName}`;
     } else {
       // Sales category
       let year = "";

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -675,10 +676,18 @@ export default function SuperAdminPurchasesPage() {
           <h1 className="text-3xl font-bold text-[#001f3f]">Purchases Management</h1>
           <p className="text-[#001f3f]/70 mt-1">Manage and track all purchase records</p>
         </div>
-        <Button onClick={() => setAddModalOpen(true)} className="bg-[#001f3f] hover:bg-[#001f3f]/90 text-white">
-          <Plus className="h-4 w-4 mr-2" />
-          Add Purchase Record
-        </Button>
+        <div className="flex flex-wrap items-center gap-3">
+          <Link href="/dashboard/super-admin/expense-request">
+            <Button variant="outline" className="border-[#0284c7] text-[#0284c7] hover:bg-sky-50 bg-white font-semibold">
+              <FileSpreadsheet className="h-4 w-4 mr-2" />
+              Expense Requests &amp; Invoices
+            </Button>
+          </Link>
+          <Button onClick={() => setAddModalOpen(true)} className="bg-[#001f3f] hover:bg-[#001f3f]/90 text-white">
+            <Plus className="h-4 w-4 mr-2" />
+            Add Purchase Record
+          </Button>
+        </div>
       </div>
 
       {/* Statistics Cards */}
