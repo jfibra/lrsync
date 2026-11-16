@@ -164,6 +164,13 @@ export function DashboardHeader() {
         group: "commissions",
       },
       {
+        label: "Vouchers",
+        href: (slug) => `/dashboard/${slug}/vouchers`,
+        icon: Receipt,
+        roles: ["super_admin", "secretary"],
+        group: "commissions",
+      },
+      {
         label: "User Management",
         shortLabel: "Users",
         href: (slug) => `/dashboard/${slug}/users`,

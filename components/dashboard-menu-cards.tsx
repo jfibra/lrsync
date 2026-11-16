@@ -99,6 +99,16 @@ export function DashboardMenuCards({ userRole }: DashboardMenuCardsProps) {
             badgeColor: "bg-indigo-100 text-indigo-800",
           },
           {
+            title: "Commission Vouchers",
+            description: "Create commission slips with cropped voucher & header bondpaper PDFs",
+            icon: Receipt,
+            href: "/dashboard/super-admin/vouchers",
+            color: "from-cyan-500 to-blue-600",
+            bgColor: "bg-cyan-50/80 border-cyan-200",
+            badge: "Vouchers",
+            badgeColor: "bg-cyan-100 text-cyan-800",
+          },
+          {
             title: "Commission Agent Breakdown",
             description: "Manage commission agent breakdown records",
             icon: Users,
@@ -257,6 +267,16 @@ export function DashboardMenuCards({ userRole }: DashboardMenuCardsProps) {
             bgColor: "bg-indigo-50/80 border-indigo-200",
             badge: "View Only",
             badgeColor: "bg-indigo-100 text-indigo-800",
+          },
+          {
+            title: "Commission Vouchers",
+            description: "Create commission slips with cropped voucher & header bondpaper PDFs",
+            icon: Receipt,
+            href: "/dashboard/secretary/vouchers",
+            color: "from-cyan-500 to-blue-600",
+            bgColor: "bg-cyan-50/80 border-cyan-200",
+            badge: "Vouchers",
+            badgeColor: "bg-cyan-100 text-cyan-800",
           },
         ]
 

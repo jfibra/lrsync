@@ -96,6 +96,15 @@ export async function POST(request: NextRequest) {
       const safeInvoiceNo = (reportNumber || tinNumber || generate8DigitNumber()).replace(/[^\w\-]/g, "_");
       finalFileName = `Expense_Invoice_${safeInvoiceNo}_${Date.now()}.${ext}`;
       s3Key = `lrsync/expense_invoices/${year}/${month}/${date}/${finalFileName}`;
+    } else if (category === "voucher") {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, "0");
+      const date = String(now.getDate()).padStart(2, "0");
+      const safeVoucherNo = (reportNumber || tinNumber || generate8DigitNumber()).replace(/[^\w\-]/g, "_");
+      const safeAgent = (tinName || "Agent").replace(/[^\w\s\-]/g, "").replace(/\s+/g, "_").trim();
+      finalFileName = `Voucher_${safeVoucherNo}_${safeAgent}_${Date.now()}.${ext}`;
+      s3Key = `lrsync/vouchers/${year}/${month}/${date}/${finalFileName}`;
     } else {
       // Sales category
       let year = "";
