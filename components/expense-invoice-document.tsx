@@ -204,11 +204,13 @@ export function ExpenseInvoiceDocument({
           <div style={{ flex: 1 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 10 }}>
               <img
-                src="/invoice-fhi-logo.jpeg"
-                alt="Company Logo"
+                src="/leuteriorealty.svg"
+                alt="Leuterio Realty Logo"
+                width={96}
+                height={56}
                 style={{
-                  height: 54,
-                  width: "auto",
+                  height: 56,
+                  width: 96,
                   objectFit: "contain",
                   borderRadius: 6,
                 }}
