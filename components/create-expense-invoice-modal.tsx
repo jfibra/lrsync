@@ -79,7 +79,7 @@ export function CreateExpenseInvoiceModal({
             ? uniqueNames[0]
             : first.name || first.item_name || "Internal Expense Request"
         )
-        setPayeeTin(first.tin || "000000000000")
+        setPayeeTin(first.tin || "000")
         setPayeeSubstreet(first.substreet_street_brgy || profile?.assigned_area || "Cebu City")
         setPayeeDistrict(first.district_city_zip || profile?.assigned_area || "Cebu City")
         setPurpose(

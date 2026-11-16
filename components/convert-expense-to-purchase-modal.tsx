@@ -52,6 +52,7 @@ export function ConvertExpenseToPurchaseModal({
   const { profile } = useAuth()
   const [loading, setLoading] = useState(false)
   const [attachSignedPdf, setAttachSignedPdf] = useState(true)
+  const [isPayeeNotApplicable, setIsPayeeNotApplicable] = useState(false)
 
   const [formData, setFormData] = useState({
     tin: "",
@@ -152,7 +153,10 @@ export function ConvertExpenseToPurchaseModal({
       taxMonthOptions[0]?.value ||
       format(new Date(), "yyyy-MM-dd")
 
-    const defaultTin = invoice.payee_tin || firstReq?.tin || firstItem?.tin || "000000000000"
+    const rawTin = invoice.payee_tin || firstReq?.tin || firstItem?.tin || "000"
+    const isNoCompany = rawTin === "000" || rawTin === "0"
+    setIsPayeeNotApplicable(isNoCompany)
+    const defaultTin = isNoCompany ? "000" : rawTin
     const defaultName =
       invoice.payee_name ||
       firstReq?.name ||
@@ -427,14 +431,16 @@ export function ConvertExpenseToPurchaseModal({
         }
       }
 
-      const taxpayerListingId = await getOrCreateTaxpayerListing({
-        tin: formData.tin,
-        name: formData.name,
-        substreet_street_brgy: formData.substreet_street_brgy,
-        district_city_zip: formData.district_city_zip,
-      })
+      const cleanTin = isPayeeNotApplicable
+        ? "000"
+        : formData.tin.replace(/[^0-9]/g, "") || "000"
 
-      const cleanTin = formData.tin.replace(/[^0-9]/g, "") || "0"
+      const taxpayerListingId = await getOrCreateTaxpayerListing({
+        tin: cleanTin,
+        name: formData.name,
+        substreet_street_brgy: formData.substreet_street_brgy || "N/A",
+        district_city_zip: formData.district_city_zip || "N/A",
+      })
       const structuredRemarks = formData.remarks.trim()
         ? JSON.stringify([
             {
@@ -658,11 +664,39 @@ export function ConvertExpenseToPurchaseModal({
           </div>
 
           {/* TIN & Name */}
+          <div className="flex items-center justify-between bg-slate-100 px-3.5 py-2.5 rounded-lg border border-slate-200">
+            <span className="text-xs font-bold uppercase tracking-wider text-[#001f3f]">
+              Payee / Company Accreditation
+            </span>
+            <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-[#001f3f]">
+              <input
+                type="checkbox"
+                checked={isPayeeNotApplicable}
+                onChange={(e) => {
+                  const checked = e.target.checked
+                  setIsPayeeNotApplicable(checked)
+                  if (checked) {
+                    setFormData((prev) => ({
+                      ...prev,
+                      tin: "000",
+                      tax_type: "non-vat",
+                      substreet_street_brgy: prev.substreet_street_brgy || profile?.assigned_area || "N/A",
+                      district_city_zip: prev.district_city_zip || profile?.assigned_area || "N/A",
+                    }))
+                  }
+                }}
+                className="rounded border-slate-300 text-[#0284c7]"
+              />
+              Not Applicable (No Company / Auto-set TIN to <code className="bg-amber-100 text-amber-900 px-1 py-0.5 rounded font-mono">000</code>)
+            </label>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2 relative">
               <Label className="text-sm font-medium text-[#001f3f]">TIN *</Label>
               <Input
-                value={formData.tin}
+                value={isPayeeNotApplicable ? "000" : formData.tin}
+                disabled={isPayeeNotApplicable}
                 onChange={(e) => {
                   const formatted = formatTinInput(e.target.value)
                   setFormData({ ...formData, tin: formatted })
@@ -672,7 +706,7 @@ export function ConvertExpenseToPurchaseModal({
                 }}
                 placeholder="000-000-000-000"
                 required
-                className="bg-white text-[#001f3f] border-[#001f3f]"
+                className="bg-white text-[#001f3f] border-[#001f3f] disabled:bg-slate-100 disabled:font-bold"
                 onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
               />
               {showSuggestions && taxpayerSuggestions.length > 0 && (

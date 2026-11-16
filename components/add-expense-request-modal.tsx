@@ -91,6 +91,7 @@ export function AddExpenseRequestModal({
   const [loading, setLoading] = useState(false)
 
   // Shared Purchase-identical fields
+  const [isPayeeNotApplicable, setIsPayeeNotApplicable] = useState(false)
   const [formData, setFormData] = useState({
     tin: "000-000-000-000",
     name: "",
@@ -203,8 +204,10 @@ export function AddExpenseRequestModal({
         // keep string
       }
 
+      const isNoCompany = editRecord.tin === "000" || editRecord.tin === "0"
+      setIsPayeeNotApplicable(isNoCompany)
       setFormData({
-        tin: formatTinDisplay(editRecord.tin || "000000000000"),
+        tin: isNoCompany ? "000" : formatTinDisplay(editRecord.tin || "000000000000"),
         name: editRecord.name || "",
         substreet_street_brgy: editRecord.substreet_street_brgy || "",
         district_city_zip: editRecord.district_city_zip || "",
@@ -245,6 +248,7 @@ export function AddExpenseRequestModal({
         }))
       )
     } else {
+      setIsPayeeNotApplicable(false)
       setFormData({
         tin: "000-000-000-000",
         name: "",
@@ -485,14 +489,24 @@ export function AddExpenseRequestModal({
 
     setLoading(true)
     try {
-      const effectiveSupplierName = formData.name.trim() || validRows[0].item_name.trim()
-      const cleanTin = formData.tin.replace(/[^0-9]/g, "") || "0"
+      const effectiveSupplierName = isPayeeNotApplicable
+        ? validRows[0].item_name.trim()
+        : formData.name.trim() || validRows[0].item_name.trim()
+      const cleanTin = isPayeeNotApplicable
+        ? "000"
+        : formData.tin.replace(/[^0-9]/g, "") || "000"
+      const effectiveSubstreet = isPayeeNotApplicable
+        ? formData.substreet_street_brgy || profile?.assigned_area || "N/A"
+        : formData.substreet_street_brgy || "N/A"
+      const effectiveDistrict = isPayeeNotApplicable
+        ? formData.district_city_zip || profile?.assigned_area || "N/A"
+        : formData.district_city_zip || "N/A"
 
       const taxpayerListingId = await getOrCreateTaxpayerListing({
         tin: cleanTin,
         name: effectiveSupplierName,
-        substreet_street_brgy: formData.substreet_street_brgy || "N/A",
-        district_city_zip: formData.district_city_zip || "N/A",
+        substreet_street_brgy: effectiveSubstreet,
+        district_city_zip: effectiveDistrict,
       })
 
       const formattedRemarks = formData.remarks.trim()
@@ -519,13 +533,13 @@ export function AddExpenseRequestModal({
           tin_id: taxpayerListingId,
           tin: cleanTin,
           name: effectiveSupplierName,
-          substreet_street_brgy: formData.substreet_street_brgy || null,
-          district_city_zip: formData.district_city_zip || null,
+          substreet_street_brgy: effectiveSubstreet,
+          district_city_zip: effectiveDistrict,
           gross_taxable: gross,
           total_actual_amount: actual,
           category_id: row.category_id || null,
           invoice_number: row.invoice_number || "0",
-          tax_type: formData.tax_type,
+          tax_type: isPayeeNotApplicable ? "non-vat" : formData.tax_type,
           official_receipt: officialReceiptFiles.map((f) => f.url),
           remarks: formattedRemarks,
           updated_at: new Date().toISOString(),
@@ -541,7 +555,9 @@ export function AddExpenseRequestModal({
         const rowsToInsert = validRows.map((row) => {
           const gross = Number.parseFloat(row.gross_taxable.replace(/,/g, "")) || 0
           const actual = Number.parseFloat(row.total_actual_amount.replace(/,/g, "")) || gross
-          const rowSupplierName = formData.name.trim() || row.item_name.trim()
+          const rowSupplierName = isPayeeNotApplicable
+            ? row.item_name.trim()
+            : formData.name.trim() || row.item_name.trim()
 
           return {
             item_name: row.item_name.trim(),
@@ -552,13 +568,13 @@ export function AddExpenseRequestModal({
             tin_id: taxpayerListingId,
             tin: cleanTin,
             name: rowSupplierName,
-            substreet_street_brgy: formData.substreet_street_brgy || null,
-            district_city_zip: formData.district_city_zip || null,
+            substreet_street_brgy: effectiveSubstreet,
+            district_city_zip: effectiveDistrict,
             gross_taxable: gross,
             total_actual_amount: actual,
             category_id: row.category_id || null,
             invoice_number: row.invoice_number || "0",
-            tax_type: formData.tax_type,
+            tax_type: isPayeeNotApplicable ? "non-vat" : formData.tax_type,
             official_receipt: officialReceiptFiles.map((f) => f.url),
             date_added: format(new Date(), "yyyy-MM-dd"),
             user_uuid: profile?.auth_user_id || profile?.id || null,
@@ -675,9 +691,9 @@ export function AddExpenseRequestModal({
                           updateItemRow(row.id, "gross_taxable", formatNumberWithCommas(rawValue))
                         }
                       }}
-                      placeholder="1,000"
+                      placeholder="0.00"
                       required
-                      className="bg-white text-[#001f3f] border-slate-300 font-semibold"
+                      className="bg-white text-[#001f3f] border-slate-300 font-semibold placeholder:text-slate-300"
                     />
                   </div>
 
@@ -691,9 +707,9 @@ export function AddExpenseRequestModal({
                           updateItemRow(row.id, "total_actual_amount", formatNumberWithCommas(rawValue))
                         }
                       }}
-                      placeholder="1,000"
+                      placeholder="0.00"
                       required
-                      className="bg-white text-[#001f3f] border-slate-300 font-semibold"
+                      className="bg-white text-[#001f3f] border-slate-300 font-semibold placeholder:text-slate-300"
                     />
                   </div>
 
@@ -752,149 +768,221 @@ export function AddExpenseRequestModal({
 
           {/* Purchase Fields Section */}
           <div className="space-y-4">
-            <h3 className="text-sm font-bold uppercase tracking-wider text-[#001f3f]">
-              2. Purchase / BIR Tax &amp; Payee Details
-            </h3>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Tax Month */}
-              <div className="space-y-2">
-                <Label className="text-sm font-medium text-[#001f3f]">Tax Month *</Label>
-                <Select
-                  value={formData.tax_month}
-                  onValueChange={(value) => setFormData({ ...formData, tax_month: value })}
-                  required
-                >
-                  <SelectTrigger className="bg-white text-[#001f3f] border-[#001f3f]">
-                    <SelectValue placeholder="Select tax month..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {taxMonthOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+            <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-100/80 border border-slate-200 px-4 py-3 rounded-xl">
+              <div>
+                <h3 className="text-sm font-bold uppercase tracking-wider text-[#001f3f]">
+                  2. Purchase / BIR Tax &amp; Payee Details
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Check &ldquo;Not Applicable&rdquo; if this expense has no company to accredit to (e.g., Petty Cash).
+                </p>
               </div>
 
-              {/* Tax Type */}
-              <div className="space-y-2">
-                <Label className="text-sm font-medium text-[#001f3f]">Tax Type *</Label>
-                <Select
-                  value={formData.tax_type}
-                  onValueChange={(value) => setFormData({ ...formData, tax_type: value })}
-                  required
-                >
-                  <SelectTrigger className="bg-white text-[#001f3f] border-[#001f3f]">
-                    <SelectValue placeholder="Select tax type..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="vat">VAT</SelectItem>
-                    <SelectItem value="non-vat">Non-VAT</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* TIN Search */}
-              <div className="space-y-2 relative">
-                <Label className="text-sm font-medium text-[#001f3f]">TIN (or 000-000-000-000) *</Label>
-                <Input
-                  value={formData.tin}
-                  onChange={(e) => handleTinChange(e.target.value)}
-                  placeholder="000-000-000-000"
-                  required
-                  className="bg-white text-[#001f3f] border-[#001f3f]"
-                  onFocus={() => {
-                    if (taxpayerSuggestions.length > 0) setShowSuggestions(true)
-                  }}
-                  onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-                />
-                {showSuggestions && taxpayerSuggestions.length > 0 && (
-                  <div className="absolute top-full left-0 right-0 z-50 bg-white border border-[#001f3f] rounded-md shadow-lg max-h-48 overflow-y-auto">
-                    {taxpayerSuggestions.map((suggestion, index) => (
-                      <div
-                        key={index}
-                        className="p-3 hover:bg-[#e6f0ff] cursor-pointer border-b border-gray-100 last:border-b-0"
-                        onClick={() => handleSuggestionSelect(suggestion)}
-                      >
-                        <div className="font-medium text-[#001f3f]">{formatTinDisplay(suggestion.tin)}</div>
-                        <div className="text-sm text-[#001f3f]/80">{suggestion.registered_name}</div>
-                        <div className="text-xs text-[#001f3f]/60">
-                          {suggestion.substreet_street_brgy}, {suggestion.district_city_zip}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Supplier / Payee Name */}
-              <div className="space-y-2 relative">
-                <Label className="text-sm font-medium text-[#001f3f]">
-                  Supplier / Payee Name (defaults to Item Name if blank)
-                </Label>
-                <Input
-                  value={formData.name}
+              <label className="flex items-center gap-2.5 bg-white border-2 border-[#0284c7] px-3.5 py-2 rounded-lg cursor-pointer shadow-sm hover:bg-sky-50 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={isPayeeNotApplicable}
                   onChange={(e) => {
-                    setFormData({ ...formData, name: e.target.value })
-                    if (e.target.value.length >= 3) {
-                      searchTaxpayersByName(e.target.value)
+                    const checked = e.target.checked
+                    setIsPayeeNotApplicable(checked)
+                    if (checked) {
+                      setFormData((prev) => ({
+                        ...prev,
+                        tin: "000",
+                        name: "",
+                        tax_type: "non-vat",
+                        substreet_street_brgy: prev.substreet_street_brgy || profile?.assigned_area || "N/A",
+                        district_city_zip: prev.district_city_zip || profile?.assigned_area || "N/A",
+                      }))
                     } else {
-                      setNameSuggestions([])
-                      setShowNameSuggestions(false)
+                      setFormData((prev) => ({
+                        ...prev,
+                        tin: prev.tin === "000" ? "000-000-000-000" : prev.tin,
+                      }))
                     }
                   }}
-                  placeholder="Company / Payee / Vendor Name"
-                  className="bg-white text-[#001f3f] border-[#001f3f]"
-                  onFocus={() => {
-                    if (nameSuggestions.length > 0) setShowNameSuggestions(true)
-                  }}
-                  onBlur={() => setTimeout(() => setShowNameSuggestions(false), 200)}
+                  className="h-4 w-4 rounded border-slate-300 text-[#0284c7] focus:ring-[#0284c7] cursor-pointer"
                 />
-                {showNameSuggestions && nameSuggestions.length > 0 && (
-                  <div className="absolute top-full left-0 right-0 z-50 bg-white border border-[#001f3f] rounded-md shadow-lg max-h-48 overflow-y-auto">
-                    {nameSuggestions.map((suggestion, index) => (
-                      <div
-                        key={index}
-                        className="p-3 hover:bg-[#e6f0ff] cursor-pointer border-b border-gray-100 last:border-b-0"
-                        onClick={() => handleSuggestionSelect(suggestion)}
-                      >
-                        <div className="font-medium text-[#001f3f]">{suggestion.registered_name}</div>
-                        <div className="text-sm text-[#001f3f]/80">{formatTinDisplay(suggestion.tin)}</div>
-                        <div className="text-xs text-[#001f3f]/60">
-                          {suggestion.substreet_street_brgy}, {suggestion.district_city_zip}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-sm font-medium text-[#001f3f]">Substreet/Street/Barangay *</Label>
-                <Input
-                  value={formData.substreet_street_brgy}
-                  onChange={(e) => setFormData({ ...formData, substreet_street_brgy: e.target.value })}
-                  placeholder="Address line 1"
-                  required
-                  className="bg-white text-[#001f3f] border-[#001f3f]"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-sm font-medium text-[#001f3f]">District/City/ZIP *</Label>
-                <Input
-                  value={formData.district_city_zip}
-                  onChange={(e) => setFormData({ ...formData, district_city_zip: e.target.value })}
-                  placeholder="Address line 2"
-                  required
-                  className="bg-white text-[#001f3f] border-[#001f3f]"
-                />
-              </div>
+                <span className="text-xs sm:text-sm font-bold text-[#001f3f]">
+                  Not Applicable (No Company / Auto-set TIN to <code className="bg-amber-100 text-amber-900 px-1.5 py-0.5 rounded font-mono">000</code>)
+                </span>
+              </label>
             </div>
+
+            {isPayeeNotApplicable ? (
+              <div className="bg-amber-50/80 border border-amber-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div className="text-xs text-amber-900 space-y-1">
+                  <div className="font-bold text-sm text-amber-950">
+                    ✓ Company / Payee Details Skipped (Not Applicable)
+                  </div>
+                  <p>
+                    TIN is automatically set to <strong>000</strong> (no company to accredit to), Tax Type is set to <strong>Non-VAT</strong>, and each itemized entry will use its Item Description as the record name.
+                  </p>
+                </div>
+
+                <div className="w-full sm:w-64 shrink-0 space-y-1">
+                  <Label className="text-xs font-semibold text-amber-950">Tax Month *</Label>
+                  <Select
+                    value={formData.tax_month}
+                    onValueChange={(value) => setFormData({ ...formData, tax_month: value })}
+                    required
+                  >
+                    <SelectTrigger className="bg-white text-[#001f3f] border-amber-300">
+                      <SelectValue placeholder="Select tax month..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {taxMonthOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Tax Month */}
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-[#001f3f]">Tax Month *</Label>
+                    <Select
+                      value={formData.tax_month}
+                      onValueChange={(value) => setFormData({ ...formData, tax_month: value })}
+                      required
+                    >
+                      <SelectTrigger className="bg-white text-[#001f3f] border-[#001f3f]">
+                        <SelectValue placeholder="Select tax month..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {taxMonthOptions.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Tax Type */}
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-[#001f3f]">Tax Type *</Label>
+                    <Select
+                      value={formData.tax_type}
+                      onValueChange={(value) => setFormData({ ...formData, tax_type: value })}
+                      required
+                    >
+                      <SelectTrigger className="bg-white text-[#001f3f] border-[#001f3f]">
+                        <SelectValue placeholder="Select tax type..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="vat">VAT</SelectItem>
+                        <SelectItem value="non-vat">Non-VAT</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* TIN Search */}
+                  <div className="space-y-2 relative">
+                    <Label className="text-sm font-medium text-[#001f3f]">TIN (or 000) *</Label>
+                    <Input
+                      value={formData.tin}
+                      onChange={(e) => handleTinChange(e.target.value)}
+                      placeholder="000-000-000-000"
+                      required
+                      className="bg-white text-[#001f3f] border-[#001f3f]"
+                      onFocus={() => {
+                        if (taxpayerSuggestions.length > 0) setShowSuggestions(true)
+                      }}
+                      onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                    />
+                    {showSuggestions && taxpayerSuggestions.length > 0 && (
+                      <div className="absolute top-full left-0 right-0 z-50 bg-white border border-[#001f3f] rounded-md shadow-lg max-h-48 overflow-y-auto">
+                        {taxpayerSuggestions.map((suggestion, index) => (
+                          <div
+                            key={index}
+                            className="p-3 hover:bg-[#e6f0ff] cursor-pointer border-b border-gray-100 last:border-b-0"
+                            onClick={() => handleSuggestionSelect(suggestion)}
+                          >
+                            <div className="font-medium text-[#001f3f]">{formatTinDisplay(suggestion.tin)}</div>
+                            <div className="text-sm text-[#001f3f]/80">{suggestion.registered_name}</div>
+                            <div className="text-xs text-[#001f3f]/60">
+                              {suggestion.substreet_street_brgy}, {suggestion.district_city_zip}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Supplier / Payee Name */}
+                  <div className="space-y-2 relative">
+                    <Label className="text-sm font-medium text-[#001f3f]">
+                      Supplier / Payee Name (defaults to Item Name if blank)
+                    </Label>
+                    <Input
+                      value={formData.name}
+                      onChange={(e) => {
+                        setFormData({ ...formData, name: e.target.value })
+                        if (e.target.value.length >= 3) {
+                          searchTaxpayersByName(e.target.value)
+                        } else {
+                          setNameSuggestions([])
+                          setShowNameSuggestions(false)
+                        }
+                      }}
+                      placeholder="Company / Payee / Vendor Name"
+                      className="bg-white text-[#001f3f] border-[#001f3f]"
+                      onFocus={() => {
+                        if (nameSuggestions.length > 0) setShowNameSuggestions(true)
+                      }}
+                      onBlur={() => setTimeout(() => setShowNameSuggestions(false), 200)}
+                    />
+                    {showNameSuggestions && nameSuggestions.length > 0 && (
+                      <div className="absolute top-full left-0 right-0 z-50 bg-white border border-[#001f3f] rounded-md shadow-lg max-h-48 overflow-y-auto">
+                        {nameSuggestions.map((suggestion, index) => (
+                          <div
+                            key={index}
+                            className="p-3 hover:bg-[#e6f0ff] cursor-pointer border-b border-gray-100 last:border-b-0"
+                            onClick={() => handleSuggestionSelect(suggestion)}
+                          >
+                            <div className="font-medium text-[#001f3f]">{suggestion.registered_name}</div>
+                            <div className="text-sm text-[#001f3f]/80">{formatTinDisplay(suggestion.tin)}</div>
+                            <div className="text-xs text-[#001f3f]/60">
+                              {suggestion.substreet_street_brgy}, {suggestion.district_city_zip}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-[#001f3f]">Substreet/Street/Barangay *</Label>
+                    <Input
+                      value={formData.substreet_street_brgy}
+                      onChange={(e) => setFormData({ ...formData, substreet_street_brgy: e.target.value })}
+                      placeholder="Address line 1"
+                      required
+                      className="bg-white text-[#001f3f] border-[#001f3f]"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-[#001f3f]">District/City/ZIP *</Label>
+                    <Input
+                      value={formData.district_city_zip}
+                      onChange={(e) => setFormData({ ...formData, district_city_zip: e.target.value })}
+                      placeholder="Address line 2"
+                      required
+                      className="bg-white text-[#001f3f] border-[#001f3f]"
+                    />
+                  </div>
+                </div>
+              </>
+            )}
 
             {/* Remarks & Attachments */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
