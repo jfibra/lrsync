@@ -467,8 +467,25 @@ export function CreateCommissionVoucherModal({
 
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-6xl max-h-[94vh] overflow-y-auto bg-white text-[#001f3f]">
+      <Dialog
+        open={open}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen && cropperOpen) return
+          onOpenChange(nextOpen)
+        }}
+      >
+        <DialogContent
+          className="max-w-6xl max-h-[94vh] overflow-y-auto bg-white text-[#001f3f]"
+          onInteractOutside={(e) => {
+            if (cropperOpen) e.preventDefault()
+          }}
+          onPointerDownOutside={(e) => {
+            if (cropperOpen) e.preventDefault()
+          }}
+          onEscapeKeyDown={(e) => {
+            if (cropperOpen) e.preventDefault()
+          }}
+        >
           <DialogHeader>
             <DialogTitle className="text-2xl font-bold text-[#001f3f]">
               Create Commission Voucher

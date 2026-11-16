@@ -475,18 +475,24 @@ export function VoucherDocumentCropper({
           ) : null}
         </div>
 
-        <div className="flex justify-end gap-3 pt-2">
+        <div className="flex justify-end gap-3 pt-2" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
           <Button
             type="button"
             variant="outline"
-            onClick={() => onOpenChange(false)}
+            onClick={(e) => {
+              e.stopPropagation()
+              onOpenChange(false)
+            }}
             className="border-slate-300 text-slate-700 bg-white"
           >
             Cancel
           </Button>
           <Button
             type="button"
-            onClick={handleConfirmCrop}
+            onClick={(e) => {
+              e.stopPropagation()
+              handleConfirmCrop()
+            }}
             disabled={!sourceImageUrl || loadingDoc}
             className="bg-[#001f3f] hover:bg-[#001f3f]/90 text-white font-semibold"
           >
