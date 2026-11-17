@@ -25,6 +25,7 @@ import {
   Users,
   Calculator,
   Building2,
+  Video,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -139,6 +140,14 @@ export function DashboardHeader() {
         shortLabel: "TIN",
         href: (slug) => `/dashboard/${slug}/tin-library`,
         icon: Building2,
+        roles: ["super_admin", "admin", "secretary"],
+        group: "main",
+      },
+      {
+        label: "Tutorials",
+        shortLabel: "Tutorials",
+        href: () => `/dashboard/tutorials`,
+        icon: Video,
         roles: ["super_admin", "admin", "secretary"],
         group: "main",
       },
