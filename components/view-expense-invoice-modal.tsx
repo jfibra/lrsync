@@ -74,14 +74,40 @@ export function ViewExpenseInvoiceModal({
     if (!invoice.id) return
     setSendingEmail(true)
     try {
+      let pdfUrl = ""
       let pdfBase64 = ""
       const el = document.getElementById(docContainerId)
       if (el) {
         try {
           const pdfData = await generateExpenseInvoicePdfData(el)
-          pdfBase64 = pdfData.base64
+          try {
+            const presignedRes = await fetch("/api/get-s3-upload-url", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                fileName: `Expense-Invoice-${invoice.invoice_number}.pdf`,
+                fileType: "application/pdf",
+                category: "expense-invoice",
+                reportNumber: invoice.invoice_number,
+              }),
+            })
+            if (presignedRes.ok) {
+              const { uploadUrl, publicUrl } = await presignedRes.json()
+              const putRes = await fetch(uploadUrl, {
+                method: "PUT",
+                headers: { "Content-Type": "application/pdf" },
+                body: pdfData.blob,
+              })
+              if (putRes.ok) pdfUrl = publicUrl
+            }
+          } catch (s3Err) {
+            console.warn("S3 PDF upload fallback:", s3Err)
+          }
+          if (!pdfUrl && pdfData.base64 && pdfData.base64.length < 3_000_000) {
+            pdfBase64 = pdfData.base64
+          }
         } catch (e) {
-          console.warn("Could not attach PDF base64:", e)
+          console.warn("Could not attach PDF:", e)
         }
       }
 
@@ -90,11 +116,18 @@ export function ViewExpenseInvoiceModal({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           invoiceId: invoice.id,
-          pdfBase64,
+          pdfUrl: pdfUrl || undefined,
+          pdfBase64: pdfBase64 || undefined,
           baseUrl: typeof window !== "undefined" ? window.location.origin : undefined,
         }),
       })
-      const data = await res.json()
+      const rawText = await res.text()
+      let data: any = {}
+      try {
+        data = rawText ? JSON.parse(rawText) : {}
+      } catch {
+        data = { error: rawText || `HTTP ${res.status}` }
+      }
       if (!res.ok) throw new Error(data.error || "Failed to send email")
 
       alert(`Email sent successfully to ${data.sentTo}!`)

@@ -82,12 +82,12 @@ export async function generateExpenseInvoicePdfData(element: HTMLElement): Promi
   blob: Blob
 }> {
   const canvas = await html2canvas(element, {
-    scale: 2,
+    scale: 1.5,
     useCORS: true,
     allowTaint: true,
     backgroundColor: "#ffffff",
   })
-  const imgData = canvas.toDataURL("image/png")
+  const imgData = canvas.toDataURL("image/jpeg", 0.85)
   const pdf = new jsPDF({
     orientation: "portrait",
     unit: "mm",
@@ -101,13 +101,13 @@ export async function generateExpenseInvoicePdfData(element: HTMLElement): Promi
   let heightLeft = pdfHeight
   let position = 0
 
-  pdf.addImage(imgData, "PNG", 0, position, pdfWidth, pdfHeight)
+  pdf.addImage(imgData, "JPEG", 0, position, pdfWidth, pdfHeight)
   heightLeft -= pageHeight
 
   while (heightLeft > 5) {
     position = heightLeft - pdfHeight
     pdf.addPage()
-    pdf.addImage(imgData, "PNG", 0, position, pdfWidth, pdfHeight)
+    pdf.addImage(imgData, "JPEG", 0, position, pdfWidth, pdfHeight)
     heightLeft -= pageHeight
   }
 

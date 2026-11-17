@@ -14,7 +14,7 @@ const EXCLUSIVE_BOSS_EMAIL = "johnryfibra2@gmail.com";
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { invoiceId, pdfBase64, baseUrl } = body;
+    const { invoiceId, pdfBase64, pdfUrl, baseUrl } = body;
 
     if (!invoiceId) {
       return NextResponse.json({ error: "Invoice ID is required" }, { status: 400 });
@@ -246,7 +246,21 @@ export async function POST(request: NextRequest) {
     });
 
     const attachments: any[] = [];
-    if (pdfBase64 && typeof pdfBase64 === "string") {
+    if (pdfUrl && typeof pdfUrl === "string") {
+      try {
+        const pdfRes = await fetch(pdfUrl);
+        if (pdfRes.ok) {
+          const arrayBuf = await pdfRes.arrayBuffer();
+          attachments.push({
+            filename: `Expense-Invoice-${invoice.invoice_number}.pdf`,
+            content: Buffer.from(arrayBuf),
+            contentType: "application/pdf",
+          });
+        }
+      } catch (e) {
+        console.warn("Could not fetch PDF from pdfUrl:", e);
+      }
+    } else if (pdfBase64 && typeof pdfBase64 === "string") {
       const cleanBase64 = pdfBase64.replace(/^data:application\/pdf;base64,/, "");
       attachments.push({
         filename: `Expense-Invoice-${invoice.invoice_number}.pdf`,

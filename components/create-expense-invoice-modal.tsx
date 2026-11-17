@@ -228,33 +228,67 @@ export function CreateExpenseInvoiceModal({
 
       if (linkError) throw linkError
 
-      // Log notification
+      // Log notification (non-blocking)
       if (profile?.id) {
-        await logNotification(supabase, {
-          action: "expense_invoice_created",
-          description: `Expense Invoice #${createdInvoice.invoice_number} (₱${total.toLocaleString()}) created from ${requestIds.length} itemized record(s)`,
-          ip_address: null,
-          location: null,
-          meta: JSON.stringify({
-            invoice_id: createdInvoice.id,
-            invoice_number: createdInvoice.invoice_number,
-            total,
-            item_count: requestIds.length,
-          }),
-          user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
-          user_email: profile.email,
-          user_name: profile.full_name || profile.first_name || profile.id,
-          user_uuid: profile.id,
-        })
+        try {
+          await logNotification(supabase, {
+            action: "expense_invoice_created",
+            description: `Expense Invoice #${createdInvoice.invoice_number} (₱${total.toLocaleString()}) created from ${requestIds.length} itemized record(s)`,
+            ip_address: null,
+            location: null,
+            meta: JSON.stringify({
+              invoice_id: createdInvoice.id,
+              invoice_number: createdInvoice.invoice_number,
+              total,
+              item_count: requestIds.length,
+            }),
+            user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+            user_email: profile.email,
+            user_name: profile.full_name || profile.first_name || profile.id,
+            user_uuid: profile.id,
+          })
+        } catch (notifErr) {
+          console.warn("Non-blocking notification log error:", notifErr)
+        }
       }
 
       if (shouldSendEmail) {
+        let pdfUrl = ""
         let pdfBase64 = ""
         const docEl = document.getElementById("create-expense-invoice-preview-doc")
         if (docEl) {
           try {
             const pdfData = await generateExpenseInvoicePdfData(docEl)
-            pdfBase64 = pdfData.base64
+            // Upload PDF directly to S3 to avoid Vercel 4.5MB 413 payload limit
+            try {
+              const presignedRes = await fetch("/api/get-s3-upload-url", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  fileName: `Expense-Invoice-${createdInvoice.invoice_number}.pdf`,
+                  fileType: "application/pdf",
+                  category: "expense-invoice",
+                  reportNumber: createdInvoice.invoice_number,
+                }),
+              })
+              if (presignedRes.ok) {
+                const { uploadUrl, publicUrl } = await presignedRes.json()
+                const putRes = await fetch(uploadUrl, {
+                  method: "PUT",
+                  headers: { "Content-Type": "application/pdf" },
+                  body: pdfData.blob,
+                })
+                if (putRes.ok) {
+                  pdfUrl = publicUrl
+                }
+              }
+            } catch (s3Err) {
+              console.warn("S3 PDF upload fallback to base64:", s3Err)
+            }
+
+            if (!pdfUrl && pdfData.base64 && pdfData.base64.length < 3_000_000) {
+              pdfBase64 = pdfData.base64
+            }
           } catch (pdfErr) {
             console.warn("Could not generate PDF attachment, sending HTML email:", pdfErr)
           }
@@ -265,12 +299,19 @@ export function CreateExpenseInvoiceModal({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             invoiceId: createdInvoice.id,
-            pdfBase64,
+            pdfUrl: pdfUrl || undefined,
+            pdfBase64: pdfBase64 || undefined,
             baseUrl: typeof window !== "undefined" ? window.location.origin : undefined,
           }),
         })
 
-        const emailData = await emailRes.json()
+        const rawText = await emailRes.text()
+        let emailData: any = {}
+        try {
+          emailData = rawText ? JSON.parse(rawText) : {}
+        } catch {
+          emailData = { error: rawText || `HTTP ${emailRes.status}` }
+        }
         if (!emailRes.ok) {
           alert(
             `Invoice #${createdInvoice.invoice_number} was created, but sending email encountered an error: ${emailData.error || "Unknown error"}`
