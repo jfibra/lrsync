@@ -300,7 +300,14 @@ export function CommissionVouchersManager({ role }: CommissionVouchersManagerPro
                           <div className="text-[10px] text-slate-500">Unit: {v.unit_number}</div>
                         )}
                       </TableCell>
-                      <TableCell className="text-xs text-slate-700">{v.client_name || "-"}</TableCell>
+                      <TableCell className="text-xs text-slate-700">
+                        <div>{v.client_name || "-"}</div>
+                        {v.reservation_date && (
+                          <div className="text-[10px] text-slate-500">
+                            Res. Date: {v.reservation_date}
+                          </div>
+                        )}
+                      </TableCell>
                       <TableCell className="text-right text-xs font-medium text-slate-700">
                         {formatCurrency(v.amount_released)}
                       </TableCell>

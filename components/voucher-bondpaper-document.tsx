@@ -17,6 +17,7 @@ export interface CommissionVoucherData {
   project_name: string
   unit_number: string
   client_name: string
+  reservation_date?: string | null
   amount_released: number
   total_amount: number
   exclusive_of_vat: number
@@ -360,6 +361,33 @@ export function VoucherBondpaperDocument({
                 {voucher.client_name || ""}
               </div>
             </div>
+
+            {voucher.reservation_date ? (
+              <div style={{ display: "flex", alignItems: "baseline", marginBottom: 4 }}>
+                <span
+                  style={{
+                    fontStyle: "italic",
+                    fontWeight: 700,
+                    color: "#111827",
+                    whiteSpace: "nowrap",
+                    marginRight: 6,
+                  }}
+                >
+                  Reservation Date:
+                </span>
+                <div
+                  style={{
+                    flex: 1,
+                    borderBottom: "1px solid #6b7280",
+                    fontWeight: 800,
+                    color: "#000000",
+                    paddingBottom: 1,
+                  }}
+                >
+                  {voucher.reservation_date}
+                </div>
+              </div>
+            ) : null}
 
             {/* Optional Commission Status row */}
             {voucher.commission_status && (

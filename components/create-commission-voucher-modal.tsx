@@ -94,6 +94,8 @@ export function CreateCommissionVoucherModal({
   const [unitNumber, setUnitNumber] = useState("")
   const [manualUnitMode, setManualUnitMode] = useState(false)
   const [clientName, setClientName] = useState("")
+  const [reservationDate, setReservationDate] = useState("")
+  const [selectedAgentId, setSelectedAgentId] = useState<number | null>(null)
   const [amountReleased, setAmountReleased] = useState("0")
   const [commissionStatus, setCommissionStatus] = useState("")
 
@@ -126,12 +128,27 @@ export function CreateCommissionVoucherModal({
       .filter(Boolean)
   }, [selectedSale])
 
+  // Unique agents extracted from searchResults for manual/unencoded sale selection
+  const uniqueAgents = useMemo(() => {
+    const map = new Map<string, { name: string; agentid: number }>()
+    for (const r of searchResults) {
+      const n = (r.name || "").trim()
+      if (!n) continue
+      const key = `${r.agentid || 0}-${n.toLowerCase()}`
+      if (!map.has(key)) {
+        map.set(key, { name: n, agentid: r.agentid })
+      }
+    }
+    return Array.from(map.values())
+  }, [searchResults])
+
   // Reset form on open
   useEffect(() => {
     if (!open) return
     setSearchResults([])
     setHasSearched(false)
     setSelectedSale(null)
+    setSelectedAgentId(null)
     setVoucherNumber("")
     setSlipType("VAT w/ Invoice")
     setDeveloperName("")
@@ -143,6 +160,7 @@ export function CreateCommissionVoucherModal({
     setUnitNumber("")
     setManualUnitMode(false)
     setClientName("")
+    setReservationDate("")
     setAmountReleased("0")
     setCommissionStatus("")
     setVoucherAttachment(null)
@@ -184,10 +202,12 @@ export function CreateCommissionVoucherModal({
 
   const handleSelectSale = (sale: SearchResult) => {
     setSelectedSale(sale)
+    setSelectedAgentId(sale.agentid || null)
     setDeveloperName(sale.developer || "")
     setAgentName(sale.name || "")
     setProjectName(sale.projectname || "")
     setClientName(sale.clientfamilyname || "")
+    setReservationDate(sale.reservationdate || "")
     const saleUnit = (sale.unitnum || "").trim()
     if (saleUnit) {
       const firstUnit = saleUnit.split(/[,;/]+/)[0]?.trim() || saleUnit
@@ -202,6 +222,38 @@ export function CreateCommissionVoucherModal({
     } else {
       setDeveloperRate("5")
     }
+  }
+
+  const handleSelectAgentOnly = (agent: { name: string; agentid: number }) => {
+    setSelectedSale(null)
+    setSelectedAgentId(agent.agentid || null)
+    setAgentName(agent.name)
+    setDeveloperName("")
+    setDeveloperRate("5")
+    setProjectName("")
+    setEditingProject(true)
+    setUnitNumber("")
+    setManualUnitMode(true)
+    setClientName("")
+    setReservationDate("")
+    setAmountReleased("0")
+    setCommissionStatus("")
+  }
+
+  const handleStartManualSale = () => {
+    setSelectedSale(null)
+    setSelectedAgentId(null)
+    setAgentName("")
+    setDeveloperName("")
+    setDeveloperRate("5")
+    setProjectName("")
+    setEditingProject(true)
+    setUnitNumber("")
+    setManualUnitMode(true)
+    setClientName("")
+    setReservationDate("")
+    setAmountReleased("0")
+    setCommissionStatus("")
   }
 
   // Exact Commission Generator formulas applied to the slip
@@ -277,7 +329,7 @@ export function CreateCommissionVoucherModal({
     voucher_number: voucherNumber,
     slip_type: slipType,
     lrsales_id: selectedSale?.id || null,
-    member_id: selectedSale?.agentid || null,
+    member_id: selectedSale?.agentid || selectedAgentId || null,
     developer_name: developerName,
     developer_rate: Number.parseFloat(developerRate) || 5,
     agent_name: agentName,
@@ -285,6 +337,7 @@ export function CreateCommissionVoucherModal({
     project_name: projectName,
     unit_number: unitNumber,
     client_name: clientName,
+    reservation_date: reservationDate.trim() || null,
     amount_released: calculations.comm,
     total_amount: calculations.total,
     exclusive_of_vat: calculations.exclusiveOfVat,
@@ -407,7 +460,7 @@ export function CreateCommissionVoucherModal({
         voucher_number: voucherNumber.trim(),
         slip_type: slipType,
         lrsales_id: selectedSale?.id || null,
-        member_id: selectedSale?.agentid || null,
+        member_id: selectedSale?.agentid || selectedAgentId || null,
         developer_name: developerName.trim(),
         developer_rate: Number.parseFloat(developerRate) || 5,
         agent_name: agentName.trim(),
@@ -415,6 +468,7 @@ export function CreateCommissionVoucherModal({
         project_name: projectName.trim(),
         unit_number: unitNumber.trim(),
         client_name: clientName.trim(),
+        reservation_date: reservationDate.trim() || null,
         amount_released: calculations.comm,
         total_amount: calculations.total,
         exclusive_of_vat: calculations.exclusiveOfVat,
@@ -432,7 +486,12 @@ export function CreateCommissionVoucherModal({
         assigned_area: profile?.assigned_area || null,
       }
 
-      const { error } = await supabase.from("commission_vouchers").insert([insertPayload])
+      let { error } = await supabase.from("commission_vouchers").insert([insertPayload])
+      if (error && /reservation_date/i.test(error.message || "")) {
+        const { reservation_date: _omitted, ...fallbackPayload } = insertPayload
+        const retry = await supabase.from("commission_vouchers").insert([fallbackPayload])
+        error = retry.error
+      }
       if (error) throw error
 
       if (profile?.id) {
@@ -498,17 +557,33 @@ export function CreateCommissionVoucherModal({
           <div className="space-y-6">
             {/* 1. Search Commission Records (copied from CommissionGenerationModal) */}
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <h3 className="text-sm font-bold text-[#001f3f] flex items-center gap-2">
                   <Search className="w-4 h-4 text-[#0284c7]" />
                   Search Commission Records (Agent &amp; Sale)
                 </h3>
-                {selectedSale && (
-                  <Badge className="bg-emerald-100 text-emerald-800 border border-emerald-300">
-                    <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
-                    Selected: {selectedSale.name} &bull; {selectedSale.clientfamilyname}
-                  </Badge>
-                )}
+                <div className="flex flex-wrap items-center gap-2">
+                  {selectedSale ? (
+                    <Badge className="bg-emerald-100 text-emerald-800 border border-emerald-300">
+                      <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
+                      Selected: {selectedSale.name} &bull; {selectedSale.clientfamilyname}
+                    </Badge>
+                  ) : selectedAgentId && agentName ? (
+                    <Badge className="bg-amber-100 text-amber-900 border border-amber-300">
+                      <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
+                      Manual Sale for Agent: {agentName} (ID: {selectedAgentId})
+                    </Badge>
+                  ) : null}
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={handleStartManualSale}
+                    className="h-7 text-xs border-slate-300 text-[#001f3f] bg-white hover:bg-slate-100"
+                  >
+                    Manual / Unencoded Sale
+                  </Button>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
@@ -597,8 +672,40 @@ export function CreateCommissionVoucherModal({
 
               {/* Search Results */}
               {searchResults.length > 0 && (
-                <div className="border-t border-slate-200 pt-3">
-                  <div className="text-xs font-semibold text-slate-600 mb-2">
+                <div className="border-t border-slate-200 pt-3 space-y-3">
+                  {uniqueAgents.length > 0 && (
+                    <div className="bg-amber-50/70 border border-amber-200 rounded-lg p-2.5 space-y-1.5">
+                      <div className="text-[11px] font-semibold text-amber-900">
+                        Select Agent Only (Encode Unencoded Sale Manually):
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {uniqueAgents.map((agent) => {
+                          const isAgentOnly =
+                            !selectedSale &&
+                            selectedAgentId === agent.agentid &&
+                            agentName.toLowerCase() === agent.name.toLowerCase()
+                          return (
+                            <Button
+                              key={`${agent.agentid}-${agent.name}`}
+                              type="button"
+                              size="sm"
+                              variant={isAgentOnly ? "default" : "outline"}
+                              onClick={() => handleSelectAgentOnly(agent)}
+                              className={
+                                isAgentOnly
+                                  ? "h-7 text-xs bg-amber-600 hover:bg-amber-700 text-white"
+                                  : "h-7 text-xs bg-white border-amber-300 text-amber-900 hover:bg-amber-100"
+                              }
+                            >
+                              {agent.name} (ID: {agent.agentid})
+                            </Button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="text-xs font-semibold text-slate-600">
                     Search Results ({searchResults.length}) — Click a record to populate the Commission Slip:
                   </div>
                   <div className="max-h-52 overflow-y-auto space-y-2 pr-1">
@@ -793,14 +900,24 @@ export function CreateCommissionVoucherModal({
                   </div>
                 </div>
 
-                {/* Row 3: Client Name & Amount Released */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Row 3: Client Name, Reservation Date & Amount Released */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="space-y-1.5">
                     <Label className="text-xs font-semibold text-[#001f3f]">Client Name</Label>
                     <Input
                       value={clientName}
                       onChange={(e) => setClientName(e.target.value)}
                       placeholder="Client Name"
+                      className="bg-white text-[#001f3f] border-slate-300 font-medium"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-[#001f3f]">Reservation Date</Label>
+                    <Input
+                      value={reservationDate}
+                      onChange={(e) => setReservationDate(e.target.value)}
+                      placeholder="e.g. 2026-03-15 or Mar 15, 2026"
                       className="bg-white text-[#001f3f] border-slate-300 font-medium"
                     />
                   </div>
