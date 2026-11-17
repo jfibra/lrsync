@@ -200,6 +200,18 @@ export function CreateCommissionVoucherModal({
     }
   }
 
+  const normalizeDateForInput = (raw?: string | null): string => {
+    const trimmed = (raw || "").trim()
+    if (!trimmed) return ""
+    if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) return trimmed.slice(0, 10)
+    const parsed = new Date(trimmed)
+    if (Number.isNaN(parsed.getTime())) return ""
+    const y = parsed.getFullYear()
+    const m = String(parsed.getMonth() + 1).padStart(2, "0")
+    const d = String(parsed.getDate()).padStart(2, "0")
+    return `${y}-${m}-${d}`
+  }
+
   const handleSelectSale = (sale: SearchResult) => {
     setSelectedSale(sale)
     setSelectedAgentId(sale.agentid || null)
@@ -207,7 +219,7 @@ export function CreateCommissionVoucherModal({
     setAgentName(sale.name || "")
     setProjectName(sale.projectname || "")
     setClientName(sale.clientfamilyname || "")
-    setReservationDate(sale.reservationdate || "")
+    setReservationDate(normalizeDateForInput(sale.reservationdate))
     const saleUnit = (sale.unitnum || "").trim()
     if (saleUnit) {
       const firstUnit = saleUnit.split(/[,;/]+/)[0]?.trim() || saleUnit
@@ -915,9 +927,9 @@ export function CreateCommissionVoucherModal({
                   <div className="space-y-1.5">
                     <Label className="text-xs font-semibold text-[#001f3f]">Reservation Date</Label>
                     <Input
+                      type="date"
                       value={reservationDate}
                       onChange={(e) => setReservationDate(e.target.value)}
-                      placeholder="e.g. 2026-03-15 or Mar 15, 2026"
                       className="bg-white text-[#001f3f] border-slate-300 font-medium"
                     />
                   </div>
