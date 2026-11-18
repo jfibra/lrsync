@@ -60,13 +60,16 @@ interface CreateCommissionVoucherModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onVoucherSaved: () => void
+  editVoucher?: CommissionVoucherData | null
 }
 
 export function CreateCommissionVoucherModal({
   open,
   onOpenChange,
   onVoucherSaved,
+  editVoucher,
 }: CreateCommissionVoucherModalProps) {
+  const isEditMode = Boolean(editVoucher?.id)
   const { profile } = useAuth()
   const currentYear = new Date().getFullYear()
 
@@ -142,12 +145,55 @@ export function CreateCommissionVoucherModal({
     return Array.from(map.values())
   }, [searchResults])
 
-  // Reset form on open
+  // Reset or populate form on open
   useEffect(() => {
     if (!open) return
     setSearchResults([])
     setHasSearched(false)
     setSelectedSale(null)
+    setShowLiveBondpaper(false)
+
+    if (editVoucher) {
+      setSelectedAgentId(editVoucher.member_id || null)
+      setVoucherNumber(editVoucher.voucher_number || "")
+      setSlipType((editVoucher.slip_type as SlipTypeOption) || "VAT w/ Invoice")
+      setDeveloperName(editVoucher.developer_name || "")
+      setDeveloperRate(String(editVoucher.developer_rate ?? 5))
+      setAgentName(editVoucher.agent_name || "")
+      setAgentRate(String(editVoucher.agent_rate ?? 4))
+      setProjectName(editVoucher.project_name || "")
+      setEditingProject(true)
+      setUnitNumber(editVoucher.unit_number || "")
+      setManualUnitMode(true)
+      setClientName(editVoucher.client_name || "")
+      setReservationDate(normalizeDateForInput(editVoucher.reservation_date))
+      setAmountReleased(String(editVoucher.amount_released ?? 0))
+      setCommissionStatus(editVoucher.commission_status || "")
+      setVoucherAttachment(
+        editVoucher.voucher_attachment_url
+          ? {
+              dataUrl: formatS3Url(editVoucher.voucher_attachment_url),
+              fileName: "Existing Voucher Attachment",
+              fileSize: 0,
+              width: 0,
+              height: 0,
+            }
+          : null
+      )
+      setHeaderAttachment(
+        editVoucher.header_attachment_url
+          ? {
+              dataUrl: formatS3Url(editVoucher.header_attachment_url),
+              fileName: "Existing Header Attachment",
+              fileSize: 0,
+              width: 0,
+              height: 0,
+            }
+          : null
+      )
+      return
+    }
+
     setSelectedAgentId(null)
     setVoucherNumber("")
     setSlipType("VAT w/ Invoice")
@@ -165,8 +211,7 @@ export function CreateCommissionVoucherModal({
     setCommissionStatus("")
     setVoucherAttachment(null)
     setHeaderAttachment(null)
-    setShowLiveBondpaper(false)
-  }, [open])
+  }, [open, editVoucher])
 
   // Search commission records using the exact same endpoint as CommissionGenerationModal
   const handleSearch = async () => {
@@ -430,26 +475,34 @@ export function CreateCommissionVoucherModal({
 
     setSaving(true)
     try {
-      // 1. Upload cropped voucher & header images to S3 (if provided)
+      // 1. Upload cropped voucher & header images to S3 (only if newly cropped data URL; preserve existing S3 URL)
       let voucherImgUrl: string | null = null
       let headerImgUrl: string | null = null
 
       if (voucherAttachment?.dataUrl) {
-        const vBlob = await dataUrlToBlob(voucherAttachment.dataUrl)
-        voucherImgUrl = await uploadBlobToS3(
-          vBlob,
-          `voucher-crop-${voucherNumber}.png`,
-          "image/png"
-        )
+        if (voucherAttachment.dataUrl.startsWith("data:")) {
+          const vBlob = await dataUrlToBlob(voucherAttachment.dataUrl)
+          voucherImgUrl = await uploadBlobToS3(
+            vBlob,
+            `voucher-crop-${voucherNumber}.png`,
+            "image/png"
+          )
+        } else {
+          voucherImgUrl = voucherAttachment.dataUrl
+        }
       }
 
       if (headerAttachment?.dataUrl) {
-        const hBlob = await dataUrlToBlob(headerAttachment.dataUrl)
-        headerImgUrl = await uploadBlobToS3(
-          hBlob,
-          `header-crop-${voucherNumber}.png`,
-          "image/png"
-        )
+        if (headerAttachment.dataUrl.startsWith("data:")) {
+          const hBlob = await dataUrlToBlob(headerAttachment.dataUrl)
+          headerImgUrl = await uploadBlobToS3(
+            hBlob,
+            `header-crop-${voucherNumber}.png`,
+            "image/png"
+          )
+        } else {
+          headerImgUrl = headerAttachment.dataUrl
+        }
       }
 
       // 2. Generate the A4 Bondpaper PDF and upload it to S3 as the voucher's PDF attachment
@@ -471,8 +524,8 @@ export function CreateCommissionVoucherModal({
       const insertPayload = {
         voucher_number: voucherNumber.trim(),
         slip_type: slipType,
-        lrsales_id: selectedSale?.id || null,
-        member_id: selectedSale?.agentid || selectedAgentId || null,
+        lrsales_id: selectedSale?.id ?? editVoucher?.lrsales_id ?? null,
+        member_id: selectedSale?.agentid ?? selectedAgentId ?? editVoucher?.member_id ?? null,
         developer_name: developerName.trim(),
         developer_rate: Number.parseFloat(developerRate) || 5,
         agent_name: agentName.trim(),
@@ -492,24 +545,35 @@ export function CreateCommissionVoucherModal({
         header_attachment_url: headerImgUrl,
         generated_pdf_url: generatedPdfUrl,
         attachments: attachmentsList,
-        created_by_uuid: profile?.auth_user_id || profile?.id || null,
-        created_by_name: profile?.full_name || null,
-        created_by_email: profile?.email || null,
-        assigned_area: profile?.assigned_area || null,
+        ...(isEditMode
+          ? {}
+          : {
+              created_by_uuid: profile?.auth_user_id || profile?.id || null,
+              created_by_name: profile?.full_name || null,
+              created_by_email: profile?.email || null,
+              assigned_area: profile?.assigned_area || null,
+            }),
       }
 
-      let { error } = await supabase.from("commission_vouchers").insert([insertPayload])
+      const executeMutation = async (payload: Record<string, any>) => {
+        if (isEditMode && editVoucher?.id) {
+          return supabase.from("commission_vouchers").update(payload).eq("id", editVoucher.id)
+        }
+        return supabase.from("commission_vouchers").insert([payload])
+      }
+
+      let { error } = await executeMutation(insertPayload)
       if (error && /reservation_date/i.test(error.message || "")) {
         const { reservation_date: _omitted, ...fallbackPayload } = insertPayload
-        const retry = await supabase.from("commission_vouchers").insert([fallbackPayload])
+        const retry = await executeMutation(fallbackPayload)
         error = retry.error
       }
       if (error) throw error
 
       if (profile?.id) {
         await logNotification(supabase, {
-          action: "commission_voucher_created",
-          description: `Commission Voucher #${voucherNumber} created for ${agentName} (${developerName} - ${clientName})`,
+          action: isEditMode ? "commission_voucher_updated" : "commission_voucher_created",
+          description: `Commission Voucher #${voucherNumber} ${isEditMode ? "updated" : "created"} for ${agentName} (${developerName} - ${clientName})`,
           ip_address: null,
           location: null,
           meta: JSON.stringify({
@@ -525,7 +589,9 @@ export function CreateCommissionVoucherModal({
         })
       }
 
-      alert(`Commission Voucher #${voucherNumber} saved with generated PDF attachment!`)
+      alert(
+        `Commission Voucher #${voucherNumber} ${isEditMode ? "updated" : "saved"} with generated PDF attachment!`
+      )
       onOpenChange(false)
       onVoucherSaved()
     } catch (error: any) {
@@ -559,7 +625,7 @@ export function CreateCommissionVoucherModal({
         >
           <DialogHeader>
             <DialogTitle className="text-2xl font-bold text-[#001f3f]">
-              Create Commission Voucher
+              {isEditMode ? `Edit Commission Voucher #${editVoucher?.voucher_number}` : "Create Commission Voucher"}
             </DialogTitle>
             <p className="text-sm text-slate-600">
               Search for the agent &amp; sale record, configure the commission slip details, attach &amp; crop the voucher and header, and generate the single-page bondpaper PDF.
@@ -1157,7 +1223,13 @@ export function CreateCommissionVoucherModal({
                       className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-md"
                     >
                       <Save className="w-4 h-4 mr-2" />
-                      {saving ? "Saving & Generating PDF..." : "Save Voucher & Attach PDF"}
+                      {saving
+                        ? isEditMode
+                          ? "Updating & Regenerating PDF..."
+                          : "Saving & Generating PDF..."
+                        : isEditMode
+                        ? "Update Voucher & Regenerate PDF"
+                        : "Save Voucher & Attach PDF"}
                     </Button>
                   </div>
                 </div>

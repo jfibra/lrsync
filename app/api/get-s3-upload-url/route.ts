@@ -105,6 +105,15 @@ export async function POST(request: NextRequest) {
       const safeAgent = (tinName || "Agent").replace(/[^\w\s\-]/g, "").replace(/\s+/g, "_").trim();
       finalFileName = `Voucher_${safeVoucherNo}_${safeAgent}_${Date.now()}.${ext}`;
       s3Key = `lrsync/vouchers/${year}/${month}/${date}/${finalFileName}`;
+    } else if (category === "release") {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, "0");
+      const date = String(now.getDate()).padStart(2, "0");
+      const safeRelease = (reportNumber || tinNumber || generate8DigitNumber()).replace(/[^\w\-]/g, "_");
+      const safeBase = (rawFileName || "file").replace(/\.[^/.]+$/, "").replace(/[^\w\-]/g, "_").slice(0, 60);
+      finalFileName = `Release_${safeRelease}_${safeBase}_${Date.now()}.${ext}`;
+      s3Key = `lrsync/releases/${year}/${month}/${date}/${finalFileName}`;
     } else {
       // Sales category
       let year = "";

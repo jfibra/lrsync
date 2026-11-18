@@ -1,9 +1,13 @@
 "use client"
 
 import React, { useState, useEffect, useMemo } from "react"
+import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -14,13 +18,17 @@ import {
   FileText,
   Download,
   Eye,
+  Pencil,
   Trash2,
   ExternalLink,
   Receipt,
+  Layers,
+  X,
 } from "lucide-react"
 import { format } from "date-fns"
 import { useAuth } from "@/contexts/auth-context"
 import { supabase } from "@/lib/supabase/client"
+import { logNotification } from "@/utils/logNotification"
 import { formatS3Url } from "@/utils/s3-url"
 import { CreateCommissionVoucherModal } from "@/components/create-commission-voucher-modal"
 import {
@@ -41,8 +49,18 @@ export function CommissionVouchersManager({ role }: CommissionVouchersManagerPro
   const [filterSlipType, setFilterSlipType] = useState("all")
 
   const [createModalOpen, setCreateModalOpen] = useState(false)
+  const [editVoucher, setEditVoucher] = useState<CommissionVoucherData | null>(null)
   const [viewVoucher, setViewVoucher] = useState<CommissionVoucherData | null>(null)
   const [downloadingPdf, setDownloadingPdf] = useState(false)
+
+  // Multi-select & Merge into Releases state
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [mergeModalOpen, setMergeModalOpen] = useState(false)
+  const [releaseTitle, setReleaseTitle] = useState("")
+  const [releaseRemarks, setReleaseRemarks] = useState("")
+  const [merging, setMerging] = useState(false)
+
+  const roleSlug = role === "super_admin" ? "super-admin" : "secretary"
 
   const fetchVouchers = async () => {
     setLoading(true)
@@ -120,9 +138,161 @@ export function CommissionVouchersManager({ role }: CommissionVouchersManagerPro
         .update({ is_deleted: true, deleted_at: new Date().toISOString() })
         .eq("id", voucher.id)
       if (error) throw error
+      setSelectedIds((prev) => prev.filter((id) => id !== voucher.id))
       fetchVouchers()
     } catch (err: any) {
       alert("Error deleting voucher: " + (err?.message || "Failed"))
+    }
+  }
+
+  const selectedVouchers = useMemo(
+    () => vouchers.filter((v) => v.id && selectedIds.includes(v.id)),
+    [vouchers, selectedIds]
+  )
+
+  const selectedTotals = useMemo(() => {
+    const gross = selectedVouchers.reduce((s, v) => s + (Number(v.amount_released) || 0), 0)
+    const net = selectedVouchers.reduce((s, v) => s + (Number(v.total_amount) || 0), 0)
+    return { gross, net }
+  }, [selectedVouchers])
+
+  const toggleSelect = (id?: string) => {
+    if (!id) return
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    )
+  }
+
+  const allVisibleIds = useMemo(
+    () => filteredVouchers.map((v) => v.id).filter((id): id is string => Boolean(id)),
+    [filteredVouchers]
+  )
+
+  const allVisibleSelected =
+    allVisibleIds.length > 0 && allVisibleIds.every((id) => selectedIds.includes(id))
+
+  const toggleSelectAll = () => {
+    if (allVisibleSelected) {
+      setSelectedIds((prev) => prev.filter((id) => !allVisibleIds.includes(id)))
+    } else {
+      setSelectedIds((prev) => Array.from(new Set([...prev, ...allVisibleIds])))
+    }
+  }
+
+  const openMergeModal = () => {
+    if (selectedVouchers.length === 0) return
+    setReleaseTitle("")
+    setReleaseRemarks("")
+    setMergeModalOpen(true)
+  }
+
+  const handleMergeIntoRelease = async () => {
+    if (!releaseTitle.trim()) {
+      alert("Please enter a Release Title.")
+      return
+    }
+    if (selectedVouchers.length === 0) return
+
+    setMerging(true)
+    try {
+      const pdfUrls = selectedVouchers
+        .map((v) => (v.generated_pdf_url ? formatS3Url(v.generated_pdf_url) : ""))
+        .filter(Boolean)
+
+      let combinedPdfUrl: string | null = null
+
+      if (pdfUrls.length > 0) {
+        const mergeRes = await fetch("/api/merge-release-pdfs", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pdfUrls }),
+        })
+
+        if (!mergeRes.ok) {
+          const errJson = await mergeRes.json().catch(() => ({}))
+          throw new Error(errJson?.error || "Failed to combine voucher PDFs.")
+        }
+
+        const mergedBlob = await mergeRes.blob()
+        const presignedRes = await fetch("/api/get-s3-upload-url", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            fileName: `${releaseTitle.trim().replace(/[^\w\-]+/g, "_")}.pdf`,
+            fileType: "application/pdf",
+            category: "release",
+            reportNumber: releaseTitle.trim(),
+            tinName: profile?.full_name || "Accounting",
+            assignedArea: profile?.assigned_area || "Cebu",
+            userFullName: profile?.full_name || "Accounting",
+          }),
+        })
+
+        if (!presignedRes.ok) {
+          throw new Error("Failed to get S3 upload authorization for merged PDF.")
+        }
+
+        const { uploadUrl, publicUrl } = await presignedRes.json()
+        const putRes = await fetch(uploadUrl, {
+          method: "PUT",
+          headers: { "Content-Type": "application/pdf" },
+          body: mergedBlob,
+        })
+        if (!putRes.ok) {
+          throw new Error(`S3 upload failed (${putRes.status})`)
+        }
+        combinedPdfUrl = formatS3Url(publicUrl)
+      }
+
+      const voucherIds = selectedVouchers.map((v) => v.id!).filter(Boolean)
+      const voucherNumbers = selectedVouchers.map((v) => v.voucher_number).filter(Boolean)
+
+      const { error } = await supabase.from("commission_releases").insert([
+        {
+          title: releaseTitle.trim(),
+          remarks: releaseRemarks.trim() || null,
+          voucher_ids: voucherIds,
+          voucher_numbers: voucherNumbers,
+          total_gross_comm: selectedTotals.gross,
+          total_net_comm: selectedTotals.net,
+          combined_pdf_url: combinedPdfUrl,
+          pot_files: [],
+          created_by_uuid: profile?.auth_user_id || profile?.id || null,
+          created_by_name: profile?.full_name || null,
+          created_by_email: profile?.email || null,
+          assigned_area: profile?.assigned_area || null,
+        },
+      ])
+
+      if (error) throw error
+
+      if (profile?.id) {
+        await logNotification(supabase, {
+          action: "commission_release_created",
+          description: `Commission Release "${releaseTitle.trim()}" created from ${selectedVouchers.length} voucher(s)`,
+          ip_address: null,
+          location: null,
+          meta: JSON.stringify({
+            title: releaseTitle.trim(),
+            voucherNumbers,
+            totalGrossComm: selectedTotals.gross,
+            totalNetComm: selectedTotals.net,
+          }),
+          user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+          user_email: profile.email,
+          user_name: profile.full_name || profile.first_name || profile.id,
+          user_uuid: profile.id,
+        })
+      }
+
+      setSelectedIds([])
+      setMergeModalOpen(false)
+      alert(`Release "${releaseTitle.trim()}" created and grouped under Commission > Releases!`)
+    } catch (err: any) {
+      console.error("Error merging vouchers into release:", err)
+      alert("Error creating release: " + (err?.message || "Please try again."))
+    } finally {
+      setMerging(false)
     }
   }
 
@@ -230,19 +400,71 @@ export function CommissionVouchersManager({ role }: CommissionVouchersManagerPro
         </CardContent>
       </Card>
 
+      {/* Selection Action Bar */}
+      {selectedIds.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 bg-[#001f3f] text-white px-4 py-3 rounded-xl shadow-md">
+          <div className="flex flex-wrap items-center gap-3">
+            <Badge className="bg-sky-500 text-white border-0 font-bold px-2.5 py-1">
+              {selectedIds.length} Selected
+            </Badge>
+            <span className="text-xs sm:text-sm text-slate-200">
+              Total Gross: <strong className="text-white">{formatCurrency(selectedTotals.gross)}</strong> &bull;{" "}
+              Total Net: <strong className="text-emerald-300">{formatCurrency(selectedTotals.net)}</strong>
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={() => setSelectedIds([])}
+              className="text-slate-200 hover:text-white hover:bg-white/10"
+            >
+              <X className="w-4 h-4 mr-1" />
+              Clear
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              onClick={openMergeModal}
+              className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold"
+            >
+              <Layers className="w-4 h-4 mr-1.5" />
+              Merge into Release
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Vouchers Table */}
       <Card className="bg-white border-slate-200 shadow-sm overflow-hidden">
-        <CardHeader className="pb-3 border-b border-slate-100">
-          <CardTitle className="text-lg font-bold text-[#001f3f]">Saved Commission Vouchers</CardTitle>
-          <CardDescription>
-            Each saved voucher includes its generated single-page bondpaper PDF attachment.
-          </CardDescription>
+        <CardHeader className="pb-3 border-b border-slate-100 flex flex-row flex-wrap items-center justify-between gap-2">
+          <div>
+            <CardTitle className="text-lg font-bold text-[#001f3f]">Saved Commission Vouchers</CardTitle>
+            <CardDescription>
+              Highlight/check vouchers to merge them into a Release, or view/edit individual vouchers.
+            </CardDescription>
+          </div>
+          <Link href={`/dashboard/${roleSlug}/releases`}>
+            <Button variant="outline" size="sm" className="border-[#001f3f] text-[#001f3f] bg-white">
+              <Layers className="w-4 h-4 mr-1.5" />
+              Go to Commission Releases
+            </Button>
+          </Link>
         </CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow className="bg-[#001f3f] hover:bg-[#001f3f]">
+                  <TableHead className="w-10 text-center">
+                    <Checkbox
+                      checked={allVisibleSelected}
+                      onCheckedChange={toggleSelectAll}
+                      aria-label="Select all visible vouchers"
+                      className="border-white data-[state=checked]:bg-emerald-500 data-[state=checked]:border-emerald-500"
+                    />
+                  </TableHead>
                   <TableHead className="text-white font-semibold">Voucher #</TableHead>
                   <TableHead className="text-white font-semibold">Slip Type</TableHead>
                   <TableHead className="text-white font-semibold">Developer</TableHead>
@@ -258,19 +480,31 @@ export function CommissionVouchersManager({ role }: CommissionVouchersManagerPro
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={10} className="text-center py-12 text-slate-500">
+                    <TableCell colSpan={11} className="text-center py-12 text-slate-500">
                       Loading commission vouchers...
                     </TableCell>
                   </TableRow>
                 ) : filteredVouchers.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={10} className="text-center py-12 text-slate-500">
+                    <TableCell colSpan={11} className="text-center py-12 text-slate-500">
                       No commission vouchers found. Click &ldquo;Create Voucher&rdquo; to generate one.
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredVouchers.map((v) => (
-                    <TableRow key={v.id} className="hover:bg-slate-50">
+                  filteredVouchers.map((v) => {
+                    const isSelected = Boolean(v.id && selectedIds.includes(v.id))
+                    return (
+                    <TableRow
+                      key={v.id}
+                      className={isSelected ? "bg-sky-50/90 hover:bg-sky-100/70" : "hover:bg-slate-50"}
+                    >
+                      <TableCell className="text-center">
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={() => toggleSelect(v.id)}
+                          aria-label={`Select Voucher #${v.voucher_number}`}
+                        />
+                      </TableCell>
                       <TableCell className="font-extrabold text-[#001f3f]">
                         #{v.voucher_number}
                         {v.created_at && (
@@ -342,6 +576,18 @@ export function CommissionVouchersManager({ role }: CommissionVouchersManagerPro
                             View
                           </Button>
                           <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setEditVoucher(v)
+                              setCreateModalOpen(true)
+                            }}
+                            className="h-7 text-xs border-amber-500 text-amber-700 hover:bg-amber-50 bg-white"
+                          >
+                            <Pencil className="w-3.5 h-3.5 mr-1" />
+                            Edit
+                          </Button>
+                          <Button
                             size="icon"
                             variant="ghost"
                             onClick={() => handleDelete(v)}
@@ -352,7 +598,8 @@ export function CommissionVouchersManager({ role }: CommissionVouchersManagerPro
                         </div>
                       </TableCell>
                     </TableRow>
-                  ))
+                    )
+                  })
                 )}
               </TableBody>
             </Table>
@@ -360,12 +607,84 @@ export function CommissionVouchersManager({ role }: CommissionVouchersManagerPro
         </CardContent>
       </Card>
 
-      {/* Create Voucher Modal */}
+      {/* Create / Edit Voucher Modal */}
       <CreateCommissionVoucherModal
         open={createModalOpen}
-        onOpenChange={setCreateModalOpen}
+        onOpenChange={(o) => {
+          setCreateModalOpen(o)
+          if (!o) setEditVoucher(null)
+        }}
         onVoucherSaved={fetchVouchers}
+        editVoucher={editVoucher}
       />
+
+      {/* Merge Selected Vouchers into Release Modal */}
+      <Dialog open={mergeModalOpen} onOpenChange={(o) => !merging && setMergeModalOpen(o)}>
+        <DialogContent className="max-w-lg bg-white text-[#001f3f]">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold text-[#001f3f] flex items-center gap-2">
+              <Layers className="w-5 h-5 text-emerald-600" />
+              Merge Vouchers into Release
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs space-y-1">
+              <div className="font-semibold text-slate-700">
+                Selected Vouchers ({selectedVouchers.length}):{" "}
+                <span className="text-[#001f3f]">
+                  {selectedVouchers.map((v) => `#${v.voucher_number}`).join(", ")}
+                </span>
+              </div>
+              <div className="flex justify-between text-slate-600 pt-1">
+                <span>Total Gross Comm.: <strong className="text-[#001f3f]">{formatCurrency(selectedTotals.gross)}</strong></span>
+                <span>Total Net Comm.: <strong className="text-emerald-700">{formatCurrency(selectedTotals.net)}</strong></span>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-[#001f3f]">Release Title *</Label>
+              <Input
+                value={releaseTitle}
+                onChange={(e) => setReleaseTitle(e.target.value)}
+                placeholder="e.g. FHVIP RELEASE 11.7.24"
+                className="bg-white text-[#001f3f] border-slate-300"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-[#001f3f]">Remarks (Optional)</Label>
+              <Textarea
+                value={releaseRemarks}
+                onChange={(e) => setReleaseRemarks(e.target.value)}
+                placeholder="Enter release notes or remarks..."
+                rows={3}
+                className="bg-white text-[#001f3f] border-slate-300"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setMergeModalOpen(false)}
+                disabled={merging}
+                className="border-slate-300 text-slate-700 bg-white"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                onClick={handleMergeIntoRelease}
+                disabled={merging}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+              >
+                <Layers className="w-4 h-4 mr-1.5" />
+                {merging ? "Merging PDFs & Saving..." : "Merge & Save Release"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* View Voucher Bondpaper Modal */}
       <Dialog open={Boolean(viewVoucher)} onOpenChange={(o) => !o && setViewVoucher(null)}>

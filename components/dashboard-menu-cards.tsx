@@ -3,7 +3,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Users, Banknote, Building2, Calculator, ClipboardList, Eye, ShoppingCart, Contact, Receipt, ShieldCheck } from "lucide-react"
+import { Users, Banknote, Building2, Calculator, ClipboardList, Eye, ShoppingCart, Contact, Receipt, ShieldCheck, Layers } from "lucide-react"
 import Link from "next/link"
 import type { UserRole } from "@/types/auth"
 import { useAuth } from "@/contexts/auth-context"
@@ -107,6 +107,16 @@ export function DashboardMenuCards({ userRole }: DashboardMenuCardsProps) {
             bgColor: "bg-cyan-50/80 border-cyan-200",
             badge: "Vouchers",
             badgeColor: "bg-cyan-100 text-cyan-800",
+          },
+          {
+            title: "Commission Releases",
+            description: "Grouped voucher releases, combined PDFs, and Proof of Transactions (POT)",
+            icon: Layers,
+            href: "/dashboard/super-admin/releases",
+            color: "from-emerald-500 to-teal-600",
+            bgColor: "bg-emerald-50/80 border-emerald-200",
+            badge: "Releases",
+            badgeColor: "bg-emerald-100 text-emerald-800",
           },
           {
             title: "Commission Agent Breakdown",
@@ -277,6 +287,16 @@ export function DashboardMenuCards({ userRole }: DashboardMenuCardsProps) {
             bgColor: "bg-cyan-50/80 border-cyan-200",
             badge: "Vouchers",
             badgeColor: "bg-cyan-100 text-cyan-800",
+          },
+          {
+            title: "Commission Releases",
+            description: "Grouped voucher releases, combined PDFs, and Proof of Transactions (POT)",
+            icon: Layers,
+            href: "/dashboard/secretary/releases",
+            color: "from-emerald-500 to-teal-600",
+            bgColor: "bg-emerald-50/80 border-emerald-200",
+            badge: "Releases",
+            badgeColor: "bg-emerald-100 text-emerald-800",
           },
         ]
 

@@ -26,6 +26,7 @@ import {
   Calculator,
   Building2,
   Video,
+  Layers,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -176,6 +177,13 @@ export function DashboardHeader() {
         label: "Vouchers",
         href: (slug) => `/dashboard/${slug}/vouchers`,
         icon: Receipt,
+        roles: ["super_admin", "secretary"],
+        group: "commissions",
+      },
+      {
+        label: "Releases",
+        href: (slug) => `/dashboard/${slug}/releases`,
+        icon: Layers,
         roles: ["super_admin", "secretary"],
         group: "commissions",
       },
