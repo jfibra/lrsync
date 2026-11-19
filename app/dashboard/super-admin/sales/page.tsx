@@ -35,6 +35,7 @@ import { AddSalesModal } from "@/components/add-sales-modal"
 import { ViewSalesModal } from "@/components/view-sales-modal"
 import { EditSalesModal } from "@/components/edit-sales-modal"
 import { CustomExportModal } from "@/components/custom-export-modal"
+import { SalesTaxExportModal } from "@/components/sales-tax-export-modal"
 import { ColumnVisibilityControl } from "@/components/column-visibility-control"
 import type { Sales } from "@/types/sales"
 import * as XLSX from "xlsx"
@@ -1152,6 +1153,15 @@ export default function SuperAdminSalesPage() {
                     {showOnlyWithRemarks ? "Show All" : "With Remarks"}
                   </Button>
                   <CustomExportModal sales={sales} fetchSales={fetchAllFilteredSalesForExport} />
+                  <SalesTaxExportModal
+                    defaultTaxType={filterTaxType}
+                    defaultYear={filterYear}
+                    defaultMonths={filterMonths}
+                    availableAreas={availableAreas}
+                    defaultArea={filterArea}
+                    allProfiles={allProfiles}
+                    dashboardName="super_admin_sales"
+                  />
                   <Button
                     variant="outline"
                     size="sm"

@@ -37,6 +37,7 @@ import { AddSalesModal } from "@/components/add-sales-modal"
 import { ViewSalesModal } from "@/components/view-sales-modal"
 import { EditSalesModal } from "@/components/edit-sales-modal"
 import { CustomExportModal } from "@/components/custom-export-modal"
+import { SalesTaxExportModal } from "@/components/sales-tax-export-modal"
 import { ColumnVisibilityControl } from "@/components/column-visibility-control"
 import type { Sales } from "@/types/sales"
 import * as XLSX from "xlsx"
@@ -735,6 +736,22 @@ export default function SecretarySalesPage() {
     }
   }
 
+  // Memoized user IDs scope for VAT/Non-VAT tax report export
+  const scopedExportUserIds = useMemo(() => {
+    if (!profile?.assigned_area) return [] as string[]
+    const myUserIds = [profile.auth_user_id, profile.id, user?.id].filter(Boolean) as string[]
+    if (viewScope === "me") return myUserIds
+    const areaUserIds = [
+      ...new Set(
+        (allProfiles || [])
+          .filter((p) => p.assigned_area === profile.assigned_area)
+          .flatMap((p) => [p.auth_user_id, p.id])
+          .filter(Boolean),
+      ),
+    ] as string[]
+    return areaUserIds.length > 0 ? areaUserIds : myUserIds
+  }, [profile, user, allProfiles, viewScope])
+
   // Helper to fetch all filtered sales on-demand for export
   const fetchAllFilteredSalesForExport = async () => {
     try {
@@ -1248,6 +1265,15 @@ export default function SecretarySalesPage() {
                     {showOnlyWithRemarks ? "Show All" : "With Remarks"}
                   </Button>
                   <CustomExportModal sales={sales} fetchSales={fetchAllFilteredSalesForExport} userArea={profile?.assigned_area} />
+                  <SalesTaxExportModal
+                    defaultTaxType={filterTaxType}
+                    defaultYear={filterYear}
+                    defaultMonths={filterMonths}
+                    allProfiles={allProfiles}
+                    scopedUserIds={scopedExportUserIds}
+                    userArea={profile?.assigned_area}
+                    dashboardName="secretary_sales"
+                  />
                   <Button
                     variant="outline"
                     size="sm"

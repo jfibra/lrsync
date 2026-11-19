@@ -54,6 +54,7 @@ import { AddSalesModal } from "@/components/add-sales-modal";
 import { ViewSalesModal } from "@/components/view-sales-modal";
 import { EditSalesModal } from "@/components/edit-sales-modal";
 import { CustomExportModal } from "@/components/custom-export-modal";
+import { SalesTaxExportModal } from "@/components/sales-tax-export-modal";
 import { ColumnVisibilityControl } from "@/components/column-visibility-control";
 import { AddRemarkModal } from "@/components/add-remark-modal";
 import { RemarksModalViewer } from "@/components/remarks-modal-viewer";
@@ -1112,6 +1113,13 @@ export default function AdminSalesPage() {
                     sales={sales}
                     fetchSales={fetchAllFilteredSalesForExport}
                     userArea={profile?.assigned_area}
+                  />
+                  <SalesTaxExportModal
+                    defaultTaxType={filterTaxType}
+                    defaultYear={filterYear}
+                    defaultMonths={filterMonths}
+                    userArea={profile?.assigned_area}
+                    dashboardName="admin_sales"
                   />
                   <Button
                     variant="outline"
