@@ -35,6 +35,7 @@ import {
   ChevronRight,
 } from "lucide-react"
 import { CommissionReportViewModal } from "@/components/commission-report-view-modal"
+import { ConvertReportToVouchersModal } from "@/components/convert-report-to-vouchers-modal"
 import { logNotification } from "@/utils/logNotification"
 import { useAuth } from "@/contexts/auth-context" // If not already imported
 import { CommissionReportsExportModal } from "@/components/commission-reports-export-modal"
@@ -113,6 +114,29 @@ export default function SuperAdminCommissionReportsPage() {
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc")
   const [breakdownSortField, setBreakdownSortField] = useState<string>("tin")
   const [breakdownSortDirection, setBreakdownSortDirection] = useState<"asc" | "desc">("asc")
+  const [convertReport, setConvertReport] = useState<CommissionReport | null>(null)
+  const [convertModalOpen, setConvertModalOpen] = useState(false)
+  const [convertedVoucherCounts, setConvertedVoucherCounts] = useState<Record<string, number>>({})
+
+  const fetchConvertedCounts = async () => {
+    try {
+      const { data } = await supabase
+        .from("commission_vouchers")
+        .select("source_commission_report_uuid")
+        .eq("is_converted_from_report", true)
+        .eq("is_deleted", false)
+      const map: Record<string, number> = {}
+      for (const row of data || []) {
+        const key = (row as any).source_commission_report_uuid
+        if (key) map[key] = (map[key] || 0) + 1
+      }
+      setConvertedVoucherCounts(map)
+    } catch {}
+  }
+
+  useEffect(() => {
+    fetchConvertedCounts()
+  }, [])
 
   const handleSort = (field: string) => {
     if (sortField === field) {
@@ -1535,6 +1559,21 @@ export default function SuperAdminCommissionReportsPage() {
                                       <Button
                                         variant="outline"
                                         size="sm"
+                                        className="gap-1 bg-white border-emerald-600 text-emerald-700 hover:bg-emerald-50 hover:border-emerald-700 text-xs px-2 py-1"
+                                        onClick={() => {
+                                          setConvertReport(report)
+                                          setConvertModalOpen(true)
+                                        }}
+                                        title="Convert commission report into Commission Voucher slip records & PDFs"
+                                      >
+                                        <FileText className="h-3 w-3" />
+                                        {convertedVoucherCounts[report.uuid]
+                                          ? `Vouchers (${convertedVoucherCounts[report.uuid]})`
+                                          : "To Vouchers"}
+                                      </Button>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
                                         className="gap-1 bg-white border-blue-500 text-blue-700 hover:bg-blue-100 hover:border-blue-600 hover:text-blue-900 text-xs px-2 py-1"
                                         onClick={() => handleOpenStatusModal(report)}
                                       >
@@ -1717,6 +1756,26 @@ export default function SuperAdminCommissionReportsPage() {
           report={selectedReport}
         />
       )}
+
+      {/* Convert Report to Vouchers Modal */}
+      <ConvertReportToVouchersModal
+        open={convertModalOpen}
+        onOpenChange={(o) => {
+          setConvertModalOpen(o)
+          if (!o) setConvertReport(null)
+        }}
+        report={
+          convertReport
+            ? {
+                uuid: convertReport.uuid,
+                report_number: convertReport.report_number,
+                assigned_area: convertReport.user_profiles?.assigned_area || null,
+                remarks: convertReport.remarks,
+              }
+            : null
+        }
+        onConverted={fetchConvertedCounts}
+      />
 
       {/* Upload Attachments Modal */}
       {uploadModalOpen && (

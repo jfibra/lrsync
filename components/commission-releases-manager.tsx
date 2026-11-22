@@ -64,6 +64,7 @@ export function CommissionReleasesManager({ role }: CommissionReleasesManagerPro
   const potInputRef = useRef<HTMLInputElement | null>(null)
 
   const roleSlug = role === "super_admin" ? "super-admin" : "secretary"
+  const isReadOnly = role === "secretary"
 
   const fetchReleases = async () => {
     setLoading(true)
@@ -269,9 +270,16 @@ export function CommissionReleasesManager({ role }: CommissionReleasesManagerPro
             <Layers className="w-6 h-6" />
           </div>
           <div>
-            <h1 className="text-2xl font-extrabold text-[#001f3f] tracking-tight">
-              Commission Releases
-            </h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-extrabold text-[#001f3f] tracking-tight">
+                Commission Releases
+              </h1>
+              {isReadOnly && (
+                <Badge variant="outline" className="border-indigo-300 bg-indigo-50 text-indigo-700 text-xs">
+                  View Only
+                </Badge>
+              )}
+            </div>
             <p className="text-sm text-slate-600">
               Grouped commission voucher releases with combined PDFs and Proof of Transactions (POT).
             </p>
@@ -281,7 +289,7 @@ export function CommissionReleasesManager({ role }: CommissionReleasesManagerPro
         <Link href={`/dashboard/${roleSlug}/vouchers`}>
           <Button className="bg-[#001f3f] hover:bg-[#001f3f]/90 text-white font-semibold shadow-sm">
             <Receipt className="w-4 h-4 mr-2" />
-            Select Vouchers to Merge
+            {isReadOnly ? "View Commission Vouchers" : "Select Vouchers to Merge"}
           </Button>
         </Link>
       </div>
@@ -441,14 +449,16 @@ export function CommissionReleasesManager({ role }: CommissionReleasesManagerPro
                             <Eye className="w-3.5 h-3.5 mr-1" />
                             Open
                           </Button>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            onClick={(e) => handleDeleteRelease(r, e)}
-                            className="h-7 w-7 text-red-500 hover:text-red-700"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
+                          {!isReadOnly && (
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={(e) => handleDeleteRelease(r, e)}
+                              className="h-7 w-7 text-red-500 hover:text-red-700"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -491,20 +501,22 @@ export function CommissionReleasesManager({ role }: CommissionReleasesManagerPro
                         alert("No combined PDF attached to this release.")
                       }
                     }}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold tracking-wide text-red-600 hover:bg-red-50 border-r border-red-200 transition-colors"
+                    className={`inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold tracking-wide text-red-600 hover:bg-red-50 ${!isReadOnly ? "border-r border-red-200" : ""} transition-colors`}
                   >
                     <ExternalLink className="w-3.5 h-3.5" />
                     VIEW PDF
                   </button>
-                  <button
-                    type="button"
-                    disabled={uploadingPot}
-                    onClick={() => potInputRef.current?.click()}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold tracking-wide text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    {uploadingPot ? "UPLOADING..." : "ADD POT"}
-                  </button>
+                  {!isReadOnly && (
+                    <button
+                      type="button"
+                      disabled={uploadingPot}
+                      onClick={() => potInputRef.current?.click()}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold tracking-wide text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      {uploadingPot ? "UPLOADING..." : "ADD POT"}
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -567,13 +579,15 @@ export function CommissionReleasesManager({ role }: CommissionReleasesManagerPro
                             </TableCell>
                             <TableCell className="text-right align-middle">
                               <div className="inline-flex rounded overflow-hidden border border-red-200">
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeletePotFile(pot.id)}
-                                  className="px-3.5 py-1.5 text-xs font-medium text-red-600 bg-white hover:bg-red-50 border-r border-red-200 transition-colors"
-                                >
-                                  Delete
-                                </button>
+                                {!isReadOnly && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeletePotFile(pot.id)}
+                                    className="px-3.5 py-1.5 text-xs font-medium text-red-600 bg-white hover:bg-red-50 border-r border-red-200 transition-colors"
+                                  >
+                                    Delete
+                                  </button>
+                                )}
                                 <a
                                   href={formatS3Url(pot.url)}
                                   target="_blank"

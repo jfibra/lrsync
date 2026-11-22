@@ -18,6 +18,8 @@ import * as XLSX from "xlsx"
 import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/contexts/auth-context"
 import { logNotification } from "@/utils/logNotification";
+import { useLrappMemberLookup } from "@/hooks/use-lrapp-member-lookup"
+import { MemberTeamBadge } from "@/components/member-team-badge"
 
 interface CommissionGenerationModalProps {
   isOpen: boolean
@@ -127,6 +129,13 @@ interface CommissionRecord {
 
   // Commission type (COMM, INCENTIVES, COMM & INCENTIVES)
   type?: "COMM" | "INCENTIVES" | "COMM & INCENTIVES"
+
+  // Unencoded sale & LR PWA Team traceability
+  isUnencodedSale?: boolean
+  teamName?: string
+  teamLeaderName?: string
+  subteamName?: string
+  unitManagerName?: string
 }
 
 export function CommissionGenerationModal({
@@ -138,6 +147,9 @@ export function CommissionGenerationModal({
   onSuccess,
 }: CommissionGenerationModalProps) {
   const currentYear = new Date().getFullYear()
+  const { lookupMembers, getMember, isLoadingMember } = useLrappMemberLookup()
+  const [manualAgentName, setManualAgentName] = useState("")
+  const [manualClientName, setManualClientName] = useState("")
   const [searchData, setSearchData] = useState({
     agentName: "",
     developerName: "",
@@ -260,7 +272,11 @@ export function CommissionGenerationModal({
       const response = await fetch(`${process.env.NEXT_PUBLIC_NEXT_API_ROUTE_LR}/search-sales-report?${params}`)
       if (response.ok) {
         const results = await response.json()
-        setSearchResults(results)
+        const list = Array.isArray(results) ? results : []
+        setSearchResults(list)
+        if (list.length > 0) {
+          lookupMembers(list.map((r: SearchResult) => ({ agentid: r.agentid, name: r.name })))
+        }
       } else {
         console.error("Search failed:", response.statusText)
         setSearchResults([])
@@ -276,6 +292,11 @@ export function CommissionGenerationModal({
   // Add agent to commission table for specific tab
   const addAgentToTab = (tabKey: string, searchResult: SearchResult) => {
     console.log("addAgentToTab searchResult:", searchResult);
+    const member = getMember(searchResult.agentid, searchResult.name)
+    const detectedTeam = member?.team?.name || ""
+    const detectedTl = member?.team?.leader?.name || member?.team?.leader_name || ""
+    const detectedSubteam = member?.subteam?.name || ""
+    const detectedUm = member?.subteam?.leader?.name || member?.subteam?.leader_name || ""
 
     const newRecord: CommissionRecord = {
       no: (commissionRecords[tabKey]?.length || 0) + 1,
@@ -296,7 +317,7 @@ export function CommissionGenerationModal({
       vat: "",
       ewt: "",
       netComm: "",
-      umName: "",
+      umName: detectedUm,
       umCalculationType: "nonvat with invoice",
       umRate: "4.0",
       umDevelopersRate: "5.0",
@@ -304,7 +325,7 @@ export function CommissionGenerationModal({
       umVat: "",
       umEwt: "",
       umNetComm: "",
-      tlName: "",
+      tlName: detectedTl,
       tlCalculationType: "nonvat with invoice",
       tlRate: "4.0",
       tlDevelopersRate: "5.0",
@@ -312,11 +333,83 @@ export function CommissionGenerationModal({
       tlVat: "",
       tlEwt: "",
       tlNetComm: "",
+      isUnencodedSale: false,
+      teamName: detectedTeam,
+      teamLeaderName: detectedTl,
+      subteamName: detectedSubteam,
+      unitManagerName: detectedUm,
     }
     setCommissionRecords((prev) => ({
       ...prev,
       [tabKey]: [...(prev[tabKey] || []), newRecord],
     }))
+  }
+
+  // Add manual / unencoded sale agent to commission table (traceable via isUnencodedSale)
+  const addUnencodedAgentToTab = (
+    tabKey: string,
+    agentNameInput: string,
+    clientNameInput: string,
+    memberIdInput?: number
+  ) => {
+    const cleanAgent = agentNameInput.trim()
+    if (!cleanAgent) {
+      toast.error("Please enter an Agent Name for the unencoded sale.")
+      return
+    }
+    const group = groupedByDeveloperAndInvoice[tabKey]
+    const member = getMember(memberIdInput, cleanAgent)
+    const detectedTeam = member?.team?.name || ""
+    const detectedTl = member?.team?.leader?.name || member?.team?.leader_name || ""
+    const detectedSubteam = member?.subteam?.name || ""
+    const detectedUm = member?.subteam?.leader?.name || member?.subteam?.leader_name || ""
+
+    const newRecord: CommissionRecord = {
+      no: (commissionRecords[tabKey]?.length || 0) + 1,
+      date: format(new Date(), "yyyy-MM-dd"),
+      developer: group?.developerName || "",
+      agentName: cleanAgent,
+      reservationDate: "",
+      client: clientNameInput.trim() || "Unencoded Sale",
+      lrsalesId: undefined,
+      memberid: memberIdInput,
+      calculationType: "nonvat with invoice",
+      comm: "",
+      netOfVat: "",
+      status: "Unencoded Sale",
+      agentsRate: "4.0",
+      developersRate: "5.0",
+      agent: "",
+      vat: "",
+      ewt: "",
+      netComm: "",
+      umName: detectedUm,
+      umCalculationType: "nonvat with invoice",
+      umRate: "4.0",
+      umDevelopersRate: "5.0",
+      umAmount: "",
+      umVat: "",
+      umEwt: "",
+      umNetComm: "",
+      tlName: detectedTl,
+      tlCalculationType: "nonvat with invoice",
+      tlRate: "4.0",
+      tlDevelopersRate: "5.0",
+      tlAmount: "",
+      tlVat: "",
+      tlEwt: "",
+      tlNetComm: "",
+      isUnencodedSale: true,
+      teamName: detectedTeam,
+      teamLeaderName: detectedTl,
+      subteamName: detectedSubteam,
+      unitManagerName: detectedUm,
+    }
+    setCommissionRecords((prev) => ({
+      ...prev,
+      [tabKey]: [...(prev[tabKey] || []), newRecord],
+    }))
+    toast.success(`Added unencoded sale for ${cleanAgent} (marked as Unencoded Sale)`)
   }
 
   // Remove agent from commission table
@@ -1023,13 +1116,33 @@ export function CommissionGenerationModal({
             accounting_remarks: null, // or record.accountingRemarks if you have it
             sales_uuid: groupedByDeveloperAndInvoice[tabKey]?.saleId ?? null,
             invoice_number: groupedByDeveloperAndInvoice[tabKey]?.invoiceNumber ?? null,
+            is_unencoded_sale: Boolean(record.isUnencodedSale || !record.lrsalesId),
+            team_name: record.teamName || null,
+            team_leader_name: record.teamLeaderName || null,
+            subteam_name: record.subteamName || null,
+            unit_manager_name: record.unitManagerName || null,
           })
         })
       })
 
       // Insert commission agent breakdown records
       if (breakdownRecords.length > 0) {
-        const { error: breakdownError } = await supabase.from("commission_agent_breakdown").insert(breakdownRecords)
+        let { error: breakdownError } = await supabase.from("commission_agent_breakdown").insert(breakdownRecords)
+
+        if (breakdownError && /column .* does not exist/i.test(breakdownError.message || "")) {
+          const stripped = breakdownRecords.map(
+            ({
+              is_unencoded_sale: _u,
+              team_name: _tn,
+              team_leader_name: _tl,
+              subteam_name: _st,
+              unit_manager_name: _um,
+              ...rest
+            }) => rest
+          )
+          const retry = await supabase.from("commission_agent_breakdown").insert(stripped)
+          breakdownError = retry.error
+        }
 
         if (breakdownError) {
           console.error("Error creating commission breakdowns:", breakdownError)
@@ -1212,6 +1325,13 @@ export function CommissionGenerationModal({
                               <div className="text-xs text-gray-600 mt-1">
                                 Reservation Date: {result.reservationdate}
                               </div>
+                              <div className="mt-1.5">
+                                <MemberTeamBadge
+                                  member={getMember(result.agentid, result.name)}
+                                  loading={isLoadingMember(result.agentid, result.name)}
+                                  compact
+                                />
+                              </div>
                             </div>
                             <div className="flex gap-2">
                               {Object.keys(groupedByDeveloperAndInvoice).map((tabKey) => (
@@ -1252,6 +1372,45 @@ export function CommissionGenerationModal({
                         <p className="text-sm text-gray-500">No results found. Try adjusting your search criteria.</p>
                       </div>
                     )}
+
+                  {/* Manual / Unencoded Sale Entry Option */}
+                  <div className="mt-4 border-t border-amber-200 bg-amber-50/60 rounded-lg p-3 space-y-2">
+                    <div className="text-xs font-semibold text-amber-900">
+                      No Encoded Sale? Add Manual / Unencoded Sale (Marked as Unencoded for Traceability)
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                      <Input
+                        value={manualAgentName}
+                        onChange={(e) => setManualAgentName(e.target.value)}
+                        placeholder="Agent Name *"
+                        className="h-8 text-xs bg-white border-amber-300 text-[#001f3f]"
+                      />
+                      <Input
+                        value={manualClientName}
+                        onChange={(e) => setManualClientName(e.target.value)}
+                        placeholder="Client Name (optional)"
+                        className="h-8 text-xs bg-white border-amber-300 text-[#001f3f]"
+                      />
+                      <div className="flex flex-wrap gap-1.5">
+                        {Object.keys(groupedByDeveloperAndInvoice).map((tabKey) => (
+                          <Button
+                            key={`manual-${tabKey}`}
+                            type="button"
+                            size="sm"
+                            onClick={() => {
+                              addUnencodedAgentToTab(tabKey, manualAgentName, manualClientName)
+                              setManualAgentName("")
+                              setManualClientName("")
+                            }}
+                            className="h-8 text-xs bg-amber-600 hover:bg-amber-700 text-white"
+                          >
+                            <Plus className="h-3 w-3 mr-1" />
+                            Add Unencoded to {groupedByDeveloperAndInvoice[tabKey].invoiceNumber}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
 

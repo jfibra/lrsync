@@ -17,6 +17,7 @@ import type { TaxpayerListing } from "@/types/taxpayer"
 import { logNotification } from "@/utils/logNotification"
 import { useRouter } from "next/navigation";
 import { formatS3Url } from "@/utils/s3-url";
+import { PHILIPPINE_BANKS } from "@/lib/philippine-banks";
 
 interface EditSalesModalProps {
   open: boolean
@@ -116,6 +117,9 @@ export function EditSalesModal({ open, onOpenChange, sale, onSaleUpdated }: Edit
   const [taxType, setTaxType] = useState("")
   const [saleType, setSaleType] = useState("")
   const [pickupDate, setPickupDate] = useState<Date | undefined>(new Date())
+  const [bankName, setBankName] = useState("")
+  const [bankAccountNo, setBankAccountNo] = useState("")
+  const [dateDeposited, setDateDeposited] = useState("")
 
   // TIN search results
   const [tinResults, setTinResults] = useState<TaxpayerListing[]>([])
@@ -177,6 +181,9 @@ export function EditSalesModal({ open, onOpenChange, sale, onSaleUpdated }: Edit
       setTaxType(sale.tax_type)
       setSaleType(sale.sale_type || "invoice")
       setPickupDate(sale.pickup_date ? new Date(sale.pickup_date) : new Date())
+      setBankName(sale.bank_name || "")
+      setBankAccountNo(sale.bank_account_no || "")
+      setDateDeposited(sale.date_deposited || "")
 
       // Initialize file uploads with existing files
       setFileUploads((prev) =>
@@ -401,6 +408,9 @@ export function EditSalesModal({ open, onOpenChange, sale, onSaleUpdated }: Edit
         tax_type: taxType,
         sale_type: saleType,
         pickup_date: formattedPickupDate,
+        bank_name: bankName || null,
+        bank_account_no: bankAccountNo.trim() || null,
+        date_deposited: dateDeposited || null,
         cheque: fileArrays.cheque,
         voucher: fileArrays.voucher,
         doc_2307: fileArrays.doc_2307,
@@ -635,6 +645,57 @@ export function EditSalesModal({ open, onOpenChange, sale, onSaleUpdated }: Edit
                 className="border-[#001f3f] focus:border-blue-500 focus:ring-blue-500 text-[#001f3f] bg-[#e5e7eb]"
                 min="1900-01-01"
                 max={format(new Date(), "yyyy-MM-dd")}
+              />
+            </div>
+          </div>
+
+          {/* Optional Bank & Deposit Information */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 border-t pt-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit_bank_name" className="text-sm font-medium text-[#001f3f]">
+                Bank (Optional)
+              </Label>
+              <Select
+                value={bankName || "__none__"}
+                onValueChange={(value) => setBankName(value === "__none__" ? "" : value)}
+              >
+                <SelectTrigger id="edit_bank_name" className="bg-white text-[#001f3f] border-[#001f3f]">
+                  <SelectValue placeholder="Select Philippine bank" />
+                </SelectTrigger>
+                <SelectContent className="bg-white max-h-64">
+                  <SelectItem value="__none__">— None —</SelectItem>
+                  {PHILIPPINE_BANKS.map((bank) => (
+                    <SelectItem key={bank} value={bank}>
+                      {bank}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit_bank_account_no" className="text-sm font-medium text-[#001f3f]">
+                Bank Account No. (Optional)
+              </Label>
+              <Input
+                id="edit_bank_account_no"
+                value={bankAccountNo}
+                onChange={(e) => setBankAccountNo(e.target.value)}
+                placeholder="Account number"
+                className="bg-white text-[#001f3f] border-[#001f3f]"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit_date_deposited" className="text-sm font-medium text-[#001f3f]">
+                Date Deposited (Optional)
+              </Label>
+              <Input
+                type="date"
+                id="edit_date_deposited"
+                value={dateDeposited}
+                onChange={(e) => setDateDeposited(e.target.value)}
+                className="bg-white text-[#001f3f] border-[#001f3f]"
               />
             </div>
           </div>

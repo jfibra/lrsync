@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Search,
@@ -18,11 +19,16 @@ import {
   CheckCircle2,
   Pencil,
   FileText,
+  Users,
+  Upload,
+  AlertTriangle,
 } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { supabase } from "@/lib/supabase/client"
 import { logNotification } from "@/utils/logNotification"
 import { formatS3Url } from "@/utils/s3-url"
+import { useLrappMemberLookup } from "@/hooks/use-lrapp-member-lookup"
+import { MemberTeamBadge } from "@/components/member-team-badge"
 import {
   VoucherDocumentCropper,
   type CroppedAttachmentResult,
@@ -114,6 +120,25 @@ export function CreateCommissionVoucherModal({
   const [previewing, setPreviewing] = useState(false)
   const [showLiveBondpaper, setShowLiveBondpaper] = useState(false)
 
+  // LR PWA Member Lookup (Team, Team Leader, Sub-team / Unit Manager)
+  const { lookupMembers, getMember, isLoadingMember } = useLrappMemberLookup()
+  const [teamName, setTeamName] = useState("")
+  const [teamLeaderName, setTeamLeaderName] = useState("")
+  const [subteamName, setSubteamName] = useState("")
+  const [unitManagerName, setUnitManagerName] = useState("")
+
+  // Optional Team Leader & Unit Manager linked share vouchers
+  const [includeTlShare, setIncludeTlShare] = useState(false)
+  const [tlName, setTlName] = useState("")
+  const [tlRate, setTlRate] = useState("0.5")
+  const [includeUmShare, setIncludeUmShare] = useState(false)
+  const [umName, setUmName] = useState("")
+  const [umRate, setUmRate] = useState("0.5")
+
+  // Extra supporting attachments (retained when merged into releases)
+  const [extraAttachments, setExtraAttachments] = useState<string[]>([])
+  const [uploadingExtra, setUploadingExtra] = useState(false)
+
   const yearOptions = useMemo(() => {
     const years = []
     for (let i = 0; i < 20; i++) years.push(currentYear - i)
@@ -158,6 +183,23 @@ export function CreateCommissionVoucherModal({
       setVoucherNumber(editVoucher.voucher_number || "")
       setSlipType((editVoucher.slip_type as SlipTypeOption) || "VAT w/ Invoice")
       setDeveloperName(editVoucher.developer_name || "")
+      setTeamName(editVoucher.team_name || "")
+      setTeamLeaderName(editVoucher.team_leader_name || "")
+      setSubteamName(editVoucher.subteam_name || "")
+      setUnitManagerName(editVoucher.unit_manager_name || "")
+      setExtraAttachments(
+        Array.isArray(editVoucher.attachments)
+          ? editVoucher.attachments.filter(
+              (u) =>
+                u &&
+                u !== editVoucher.generated_pdf_url &&
+                u !== editVoucher.voucher_attachment_url &&
+                u !== editVoucher.header_attachment_url
+            )
+          : []
+      )
+      setIncludeTlShare(false)
+      setIncludeUmShare(false)
       setDeveloperRate(String(editVoucher.developer_rate ?? 5))
       setAgentName(editVoucher.agent_name || "")
       setAgentRate(String(editVoucher.agent_rate ?? 4))
@@ -233,7 +275,11 @@ export function CreateCommissionVoucherModal({
       )
       if (response.ok) {
         const results = await response.json()
-        setSearchResults(Array.isArray(results) ? results : [])
+        const list = Array.isArray(results) ? results : []
+        setSearchResults(list)
+        if (list.length > 0) {
+          lookupMembers(list.map((r: SearchResult) => ({ agentid: r.agentid, name: r.name })))
+        }
       } else {
         setSearchResults([])
       }
@@ -257,6 +303,27 @@ export function CreateCommissionVoucherModal({
     return `${y}-${m}-${d}`
   }
 
+  const applyMemberTeamMetadata = (agentid?: number | null, name?: string | null) => {
+    const m = getMember(agentid, name)
+    if (m) {
+      const tName = m.team?.name || ""
+      const tLeader = m.team?.leader?.name || m.team?.leader_name || ""
+      const stName = m.subteam?.name || ""
+      const uManager = m.subteam?.leader?.name || m.subteam?.leader_name || ""
+      setTeamName(tName)
+      setTeamLeaderName(tLeader)
+      setSubteamName(stName)
+      setUnitManagerName(uManager)
+      if (tLeader && !tlName) setTlName(tLeader)
+      if (uManager && !umName) setUmName(uManager)
+    } else {
+      setTeamName("")
+      setTeamLeaderName("")
+      setSubteamName("")
+      setUnitManagerName("")
+    }
+  }
+
   const handleSelectSale = (sale: SearchResult) => {
     setSelectedSale(sale)
     setSelectedAgentId(sale.agentid || null)
@@ -265,6 +332,7 @@ export function CreateCommissionVoucherModal({
     setProjectName(sale.projectname || "")
     setClientName(sale.clientfamilyname || "")
     setReservationDate(normalizeDateForInput(sale.reservationdate))
+    applyMemberTeamMetadata(sale.agentid, sale.name)
     const saleUnit = (sale.unitnum || "").trim()
     if (saleUnit) {
       const firstUnit = saleUnit.split(/[,;/]+/)[0]?.trim() || saleUnit
@@ -285,6 +353,7 @@ export function CreateCommissionVoucherModal({
     setSelectedSale(null)
     setSelectedAgentId(agent.agentid || null)
     setAgentName(agent.name)
+    applyMemberTeamMetadata(agent.agentid, agent.name)
     setDeveloperName("")
     setDeveloperRate("5")
     setProjectName("")
@@ -313,11 +382,10 @@ export function CreateCommissionVoucherModal({
     setCommissionStatus("")
   }
 
-  // Exact Commission Generator formulas applied to the slip
-  const calculations = useMemo(() => {
+  const computeSlipAmounts = (rateStr: string) => {
     const comm = Number.parseFloat(amountReleased.replace(/,/g, "")) || 0
     const devRate = Number.parseFloat(developerRate) || 5
-    const agRate = Number.parseFloat(agentRate) || 0
+    const agRate = Number.parseFloat(rateStr) || 0
 
     let total = 0
     let exclusiveOfVat = 0
@@ -327,14 +395,12 @@ export function CreateCommissionVoucherModal({
 
     if (comm > 0 && devRate > 0 && agRate > 0) {
       if (slipType === "VAT w/ Invoice") {
-        // Matches CommissionGenerationModal "vat with invoice"
         const agentGross = (comm * agRate) / devRate
         total = agentGross
         exclusiveOfVat = total / 1.02
         withholdingTax = (total / 1.02) * 0.1
         ewtRate = 10
       } else if (slipType === "Non-VAT") {
-        // Matches CommissionGenerationModal "nonvat with invoice"
         const netOfVat = comm / 1.02
         const agentGross = (netOfVat * agRate) / devRate
         ewtRate = 5
@@ -342,7 +408,6 @@ export function CreateCommissionVoucherModal({
         total = agentGross - withholdingTax
         exclusiveOfVat = netOfVat
       } else if (slipType === "VAT w/o Invoice") {
-        // Matches CommissionGenerationModal "vat deduction"
         const agentGross = (comm * agRate) / devRate
         total = agentGross / 1.12
         vatAmount = total * 0.12
@@ -350,7 +415,6 @@ export function CreateCommissionVoucherModal({
         withholdingTax = 0
         ewtRate = 0
       } else {
-        // "W/o Invoice" or "Rate w/o Invoice" -> matches "nonvat without invoice"
         total = (comm * agRate) / devRate
         exclusiveOfVat = total
         withholdingTax = 0
@@ -358,15 +422,26 @@ export function CreateCommissionVoucherModal({
       }
     }
 
-    return {
-      comm,
-      total,
-      exclusiveOfVat,
-      withholdingTax,
-      vatAmount,
-      ewtRate,
-    }
-  }, [amountReleased, developerRate, agentRate, slipType])
+    return { comm, total, exclusiveOfVat, withholdingTax, vatAmount, ewtRate }
+  }
+
+  // Exact Commission Generator formulas applied to the slip
+  const calculations = useMemo(
+    () => computeSlipAmounts(agentRate),
+    [amountReleased, developerRate, agentRate, slipType]
+  )
+
+  const tlCalculations = useMemo(
+    () => computeSlipAmounts(tlRate),
+    [amountReleased, developerRate, tlRate, slipType]
+  )
+
+  const umCalculations = useMemo(
+    () => computeSlipAmounts(umRate),
+    [amountReleased, developerRate, umRate, slipType]
+  )
+
+  const isUnencodedSale = !selectedSale && !editVoucher?.lrsales_id
 
   const formatNum = (n: number) =>
     new Intl.NumberFormat("en-PH", {
@@ -404,6 +479,57 @@ export function CreateCommissionVoucherModal({
     commission_status: commissionStatus,
     voucher_attachment_url: voucherAttachment?.dataUrl || null,
     header_attachment_url: headerAttachment?.dataUrl || null,
+  }
+
+  const tlVoucherModel: CommissionVoucherData = {
+    ...voucherModel,
+    voucher_number: `${voucherNumber.trim()}-TL`,
+    agent_name: tlName.trim(),
+    agent_rate: Number.parseFloat(tlRate) || 0,
+    amount_released: tlCalculations.comm,
+    total_amount: tlCalculations.total,
+    exclusive_of_vat: tlCalculations.exclusiveOfVat,
+    withholding_tax: tlCalculations.withholdingTax,
+    vat_amount: tlCalculations.vatAmount,
+    ewt_rate: tlCalculations.ewtRate,
+    commission_status: commissionStatus ? `${commissionStatus} (Team Leader Share)` : "Team Leader Share",
+    recipient_role: "team_leader",
+  }
+
+  const umVoucherModel: CommissionVoucherData = {
+    ...voucherModel,
+    voucher_number: `${voucherNumber.trim()}-UM`,
+    agent_name: umName.trim(),
+    agent_rate: Number.parseFloat(umRate) || 0,
+    amount_released: umCalculations.comm,
+    total_amount: umCalculations.total,
+    exclusive_of_vat: umCalculations.exclusiveOfVat,
+    withholding_tax: umCalculations.withholdingTax,
+    vat_amount: umCalculations.vatAmount,
+    ewt_rate: umCalculations.ewtRate,
+    commission_status: commissionStatus ? `${commissionStatus} (Unit Manager Share)` : "Unit Manager Share",
+    recipient_role: "unit_manager",
+  }
+
+  const handleUploadExtraFiles = async (files: FileList | null) => {
+    if (!files || files.length === 0) return
+    setUploadingExtra(true)
+    try {
+      const uploaded: string[] = []
+      for (const file of Array.from(files)) {
+        const url = await uploadBlobToS3(
+          file,
+          file.name,
+          file.type || "application/octet-stream"
+        )
+        uploaded.push(url)
+      }
+      setExtraAttachments((prev) => [...prev, ...uploaded])
+    } catch (err: any) {
+      alert("Failed to upload extra attachment: " + (err?.message || "Error"))
+    } finally {
+      setUploadingExtra(false)
+    }
   }
 
   const handlePreviewPdf = async () => {
@@ -517,9 +643,7 @@ export function CreateCommissionVoucherModal({
         )
       }
 
-      const attachmentsList = [generatedPdfUrl, voucherImgUrl, headerImgUrl].filter(
-        Boolean
-      ) as string[]
+      const attachmentsList = [...extraAttachments].filter(Boolean) as string[]
 
       const insertPayload = {
         voucher_number: voucherNumber.trim(),
@@ -545,6 +669,12 @@ export function CreateCommissionVoucherModal({
         header_attachment_url: headerImgUrl,
         generated_pdf_url: generatedPdfUrl,
         attachments: attachmentsList,
+        is_unencoded_sale: isUnencodedSale,
+        recipient_role: editVoucher?.recipient_role || "agent",
+        team_name: teamName || null,
+        team_leader_name: teamLeaderName || null,
+        subteam_name: subteamName || null,
+        unit_manager_name: unitManagerName || null,
         ...(isEditMode
           ? {}
           : {
@@ -557,18 +687,101 @@ export function CreateCommissionVoucherModal({
 
       const executeMutation = async (payload: Record<string, any>) => {
         if (isEditMode && editVoucher?.id) {
-          return supabase.from("commission_vouchers").update(payload).eq("id", editVoucher.id)
+          return supabase.from("commission_vouchers").update(payload).eq("id", editVoucher.id).select("id").single()
         }
-        return supabase.from("commission_vouchers").insert([payload])
+        return supabase.from("commission_vouchers").insert([payload]).select("id").single()
       }
 
-      let { error } = await executeMutation(insertPayload)
-      if (error && /reservation_date/i.test(error.message || "")) {
-        const { reservation_date: _omitted, ...fallbackPayload } = insertPayload
+      let { data: savedAgentRow, error } = await executeMutation(insertPayload)
+      if (error && /column .* does not exist/i.test(error.message || "")) {
+        const {
+          reservation_date: _r,
+          is_unencoded_sale: _u,
+          recipient_role: _rr,
+          team_name: _tn,
+          team_leader_name: _tl,
+          subteam_name: _st,
+          unit_manager_name: _um,
+          ...fallbackPayload
+        } = insertPayload
         const retry = await executeMutation(fallbackPayload)
+        savedAgentRow = retry.data
         error = retry.error
       }
       if (error) throw error
+
+      const parentVoucherId = savedAgentRow?.id || editVoucher?.id || null
+      let linkedCreated = 0
+
+      // Create linked Team Leader voucher if enabled (create mode)
+      if (!isEditMode && includeTlShare && tlName.trim() && tlCalculations.total > 0 && parentVoucherId) {
+        let tlPdfUrl: string | null = null
+        const tlEl = document.getElementById("create-voucher-tl-hidden")
+        if (tlEl) {
+          const { blob } = await generateVoucherBondpaperPdf(tlEl)
+          tlPdfUrl = await uploadBlobToS3(
+            blob,
+            `Commission_Voucher_${voucherNumber.trim()}-TL.pdf`,
+            "application/pdf"
+          )
+        }
+        await supabase.from("commission_vouchers").insert([
+          {
+            ...insertPayload,
+            voucher_number: `${voucherNumber.trim()}-TL`,
+            agent_name: tlName.trim(),
+            agent_rate: Number.parseFloat(tlRate) || 0,
+            amount_released: tlCalculations.comm,
+            total_amount: tlCalculations.total,
+            exclusive_of_vat: tlCalculations.exclusiveOfVat,
+            withholding_tax: tlCalculations.withholdingTax,
+            vat_amount: tlCalculations.vatAmount,
+            ewt_rate: tlCalculations.ewtRate,
+            commission_status: commissionStatus.trim()
+              ? `${commissionStatus.trim()} (Team Leader Share)`
+              : "Team Leader Share",
+            generated_pdf_url: tlPdfUrl,
+            recipient_role: "team_leader",
+            parent_voucher_id: parentVoucherId,
+          },
+        ])
+        linkedCreated++
+      }
+
+      // Create linked Unit Manager voucher if enabled (create mode)
+      if (!isEditMode && includeUmShare && umName.trim() && umCalculations.total > 0 && parentVoucherId) {
+        let umPdfUrl: string | null = null
+        const umEl = document.getElementById("create-voucher-um-hidden")
+        if (umEl) {
+          const { blob } = await generateVoucherBondpaperPdf(umEl)
+          umPdfUrl = await uploadBlobToS3(
+            blob,
+            `Commission_Voucher_${voucherNumber.trim()}-UM.pdf`,
+            "application/pdf"
+          )
+        }
+        await supabase.from("commission_vouchers").insert([
+          {
+            ...insertPayload,
+            voucher_number: `${voucherNumber.trim()}-UM`,
+            agent_name: umName.trim(),
+            agent_rate: Number.parseFloat(umRate) || 0,
+            amount_released: umCalculations.comm,
+            total_amount: umCalculations.total,
+            exclusive_of_vat: umCalculations.exclusiveOfVat,
+            withholding_tax: umCalculations.withholdingTax,
+            vat_amount: umCalculations.vatAmount,
+            ewt_rate: umCalculations.ewtRate,
+            commission_status: commissionStatus.trim()
+              ? `${commissionStatus.trim()} (Unit Manager Share)`
+              : "Unit Manager Share",
+            generated_pdf_url: umPdfUrl,
+            recipient_role: "unit_manager",
+            parent_voucher_id: parentVoucherId,
+          },
+        ])
+        linkedCreated++
+      }
 
       if (profile?.id) {
         await logNotification(supabase, {
@@ -814,6 +1027,13 @@ export function CreateCommissionVoucherModal({
                               <strong>Project:</strong> {res.projectname || "N/A"} &bull;{" "}
                               <strong>Unit:</strong> {res.unitnum || "N/A"} &bull;{" "}
                               <strong>Reservation:</strong> {res.reservationdate || "N/A"}
+                            </div>
+                            <div className="pt-1">
+                              <MemberTeamBadge
+                                member={getMember(res.agentid, res.name)}
+                                loading={isLoadingMember(res.agentid, res.name)}
+                                compact
+                              />
                             </div>
                           </div>
                           <Button
@@ -1181,6 +1401,168 @@ export function CreateCommissionVoucherModal({
                       )}
                     </div>
                   </div>
+
+                  {/* Additional Supporting Attachments (Retained when Merged) */}
+                  <div className="border border-slate-200 rounded-xl p-3.5 bg-slate-50/70 space-y-2.5">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <div className="text-xs font-bold text-[#001f3f] flex items-center gap-1.5">
+                          <Paperclip className="w-3.5 h-3.5 text-sky-600" />
+                          Additional Supporting Files ({extraAttachments.length})
+                        </div>
+                        <div className="text-[11px] text-slate-500">
+                          Extra PDFs or images attached here will be automatically retained inside the merged Release PDF.
+                        </div>
+                      </div>
+                      <label className="cursor-pointer inline-flex items-center gap-1.5 bg-white border border-sky-300 text-sky-800 hover:bg-sky-50 text-xs font-semibold px-3 py-1.5 rounded-lg">
+                        {uploadingExtra ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Upload className="w-3.5 h-3.5" />
+                        )}
+                        <span>{uploadingExtra ? "Uploading..." : "Add Files"}</span>
+                        <input
+                          type="file"
+                          multiple
+                          accept="application/pdf,image/*"
+                          className="hidden"
+                          disabled={uploadingExtra}
+                          onChange={(e) => {
+                            handleUploadExtraFiles(e.target.files)
+                            e.target.value = ""
+                          }}
+                        />
+                      </label>
+                    </div>
+                    {extraAttachments.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {extraAttachments.map((url, idx) => (
+                          <div
+                            key={`${url}-${idx}`}
+                            className="inline-flex items-center gap-1.5 bg-white border border-slate-200 rounded-md px-2.5 py-1 text-xs"
+                          >
+                            <a
+                              href={formatS3Url(url)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-sky-700 hover:underline font-medium"
+                            >
+                              Attachment #{idx + 1}
+                            </a>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setExtraAttachments((prev) => prev.filter((_, i) => i !== idx))
+                              }
+                              className="text-slate-400 hover:text-red-600"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Linked Team Leader & Unit Manager Share Vouchers (Create Mode) */}
+                  {!isEditMode && (
+                    <div className="border border-indigo-200 rounded-xl p-4 bg-indigo-50/40 space-y-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="text-xs font-bold text-[#001f3f] flex items-center gap-1.5">
+                          <Users className="w-4 h-4 text-indigo-600" />
+                          Team Leader &amp; Unit Manager Shares (Separate Linked Voucher Records)
+                        </div>
+                        {isUnencodedSale && (
+                          <Badge className="bg-orange-100 text-orange-800 hover:bg-orange-100 border border-orange-200 text-[10px]">
+                            <AlertTriangle className="w-3 h-3 mr-1" />
+                            Unencoded Sale (Traceable)
+                          </Badge>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {/* Team Leader Share */}
+                        <div className="rounded-lg border bg-white p-3 space-y-2.5">
+                          <label className="flex items-center gap-2 text-xs font-bold text-blue-900 cursor-pointer">
+                            <Checkbox
+                              checked={includeTlShare}
+                              onCheckedChange={(v) => setIncludeTlShare(Boolean(v))}
+                            />
+                            Include Team Leader Share ({voucherNumber ? `#${voucherNumber}-TL` : "-TL"})
+                          </label>
+                          {includeTlShare && (
+                            <div className="space-y-2 pt-1">
+                              <div className="grid grid-cols-3 gap-2">
+                                <div className="col-span-2">
+                                  <Label className="text-[11px] text-slate-600">Team Leader Name</Label>
+                                  <Input
+                                    value={tlName}
+                                    onChange={(e) => setTlName(e.target.value)}
+                                    placeholder="e.g. Azela Honor"
+                                    className="h-8 text-xs"
+                                  />
+                                </div>
+                                <div>
+                                  <Label className="text-[11px] text-slate-600">TL Rate (%)</Label>
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    value={tlRate}
+                                    onChange={(e) => setTlRate(e.target.value)}
+                                    className="h-8 text-xs"
+                                  />
+                                </div>
+                              </div>
+                              <div className="flex items-center justify-between text-xs bg-blue-50 rounded px-2.5 py-1.5 text-blue-900">
+                                <span>TL Net Release:</span>
+                                <strong className="text-sm">₱{formatNum(tlCalculations.total)}</strong>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Unit Manager Share */}
+                        <div className="rounded-lg border bg-white p-3 space-y-2.5">
+                          <label className="flex items-center gap-2 text-xs font-bold text-purple-900 cursor-pointer">
+                            <Checkbox
+                              checked={includeUmShare}
+                              onCheckedChange={(v) => setIncludeUmShare(Boolean(v))}
+                            />
+                            Include Unit Manager Share ({voucherNumber ? `#${voucherNumber}-UM` : "-UM"})
+                          </label>
+                          {includeUmShare && (
+                            <div className="space-y-2 pt-1">
+                              <div className="grid grid-cols-3 gap-2">
+                                <div className="col-span-2">
+                                  <Label className="text-[11px] text-slate-600">Unit Manager Name</Label>
+                                  <Input
+                                    value={umName}
+                                    onChange={(e) => setUmName(e.target.value)}
+                                    placeholder="e.g. Roselie & Rey Labios"
+                                    className="h-8 text-xs"
+                                  />
+                                </div>
+                                <div>
+                                  <Label className="text-[11px] text-slate-600">UM Rate (%)</Label>
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    value={umRate}
+                                    onChange={(e) => setUmRate(e.target.value)}
+                                    className="h-8 text-xs"
+                                  />
+                                </div>
+                              </div>
+                              <div className="flex items-center justify-between text-xs bg-purple-50 rounded px-2.5 py-1.5 text-purple-900">
+                                <span>UM Net Release:</span>
+                                <strong className="text-sm">₱{formatNum(umCalculations.total)}</strong>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Live Inline Bondpaper Preview Toggle */}
@@ -1246,12 +1628,24 @@ export function CreateCommissionVoucherModal({
             </div>
           </div>
 
-          {/* Offscreen Bondpaper Render Target for PDF Generation */}
+          {/* Offscreen Bondpaper Render Targets for PDF Generation */}
           <div style={{ position: "fixed", left: "-9999px", top: 0 }}>
             <VoucherBondpaperDocument
               voucher={voucherModel}
               containerId="create-voucher-bondpaper-hidden"
             />
+            {!isEditMode && includeTlShare && (
+              <VoucherBondpaperDocument
+                voucher={tlVoucherModel}
+                containerId="create-voucher-tl-hidden"
+              />
+            )}
+            {!isEditMode && includeUmShare && (
+              <VoucherBondpaperDocument
+                voucher={umVoucherModel}
+                containerId="create-voucher-um-hidden"
+              />
+            )}
           </div>
         </DialogContent>
       </Dialog>

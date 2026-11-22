@@ -29,6 +29,17 @@ export interface CommissionVoucherData {
   header_attachment_url?: string | null
   generated_pdf_url?: string | null
   attachments?: string[]
+  source_commission_report_uuid?: string | null
+  source_commission_report_number?: number | null
+  source_agent_breakdown_uuid?: string | null
+  is_converted_from_report?: boolean
+  is_unencoded_sale?: boolean
+  recipient_role?: "agent" | "team_leader" | "unit_manager" | string
+  parent_voucher_id?: string | null
+  team_name?: string | null
+  team_leader_name?: string | null
+  subteam_name?: string | null
+  unit_manager_name?: string | null
   created_by_uuid?: string | null
   created_by_name?: string | null
   created_by_email?: string | null

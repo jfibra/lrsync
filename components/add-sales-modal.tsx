@@ -33,6 +33,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { logNotification } from "@/utils/logNotification";
 import { useRouter } from "next/navigation";
 import { formatS3Url } from "@/utils/s3-url";
+import { PHILIPPINE_BANKS } from "@/lib/philippine-banks";
 
 interface AddSalesModalProps {
   onSalesAdded: () => void;
@@ -140,6 +141,9 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
     gross_taxable: "",
     total_actual_amount: "",
     invoice_number: "",
+    bank_name: "",
+    bank_account_no: "",
+    date_deposited: "",
   });
 
   // File uploads state
@@ -588,6 +592,9 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
           : null,
         invoice_number: formData.invoice_number || null,
         pickup_date: pickupDate ? format(pickupDate, "yyyy-MM-dd") : null,
+        bank_name: formData.bank_name || null,
+        bank_account_no: formData.bank_account_no.trim() || null,
+        date_deposited: formData.date_deposited || null,
         cheque: fileArrays.cheque.length > 0 ? fileArrays.cheque : null,
         voucher: fileArrays.voucher.length > 0 ? fileArrays.voucher : null,
         invoice: fileArrays.invoice.length > 0 ? fileArrays.invoice : null,
@@ -611,6 +618,9 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
         gross_taxable: "",
         total_actual_amount: "",
         invoice_number: "",
+        bank_name: "",
+        bank_account_no: "",
+        date_deposited: "",
       });
       setTaxMonth("");
       setPickupDate(undefined);
@@ -1050,6 +1060,59 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
                 className="border-[#001f3f] focus:border-blue-500 focus:ring-blue-500 text-[#001f3f] bg-[#e5e7eb]"
                 min="1900-01-01"
                 max={format(new Date(), "yyyy-MM-dd")}
+              />
+            </div>
+          </div>
+
+          {/* Optional Bank & Deposit Information */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 border-t pt-4">
+            <div className="space-y-2">
+              <Label htmlFor="add_bank_name" className="text-sm font-medium text-[#001f3f]">
+                Bank (Optional)
+              </Label>
+              <Select
+                value={formData.bank_name || "__none__"}
+                onValueChange={(value) =>
+                  setFormData({ ...formData, bank_name: value === "__none__" ? "" : value })
+                }
+              >
+                <SelectTrigger id="add_bank_name" className="bg-white text-[#001f3f] border-[#001f3f]">
+                  <SelectValue placeholder="Select Philippine bank" />
+                </SelectTrigger>
+                <SelectContent className="bg-white max-h-64">
+                  <SelectItem value="__none__">— None —</SelectItem>
+                  {PHILIPPINE_BANKS.map((bank) => (
+                    <SelectItem key={bank} value={bank}>
+                      {bank}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="add_bank_account_no" className="text-sm font-medium text-[#001f3f]">
+                Bank Account No. (Optional)
+              </Label>
+              <Input
+                id="add_bank_account_no"
+                value={formData.bank_account_no}
+                onChange={(e) => setFormData({ ...formData, bank_account_no: e.target.value })}
+                placeholder="Account number"
+                className="bg-white text-[#001f3f] border-[#001f3f]"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="add_date_deposited" className="text-sm font-medium text-[#001f3f]">
+                Date Deposited (Optional)
+              </Label>
+              <Input
+                type="date"
+                id="add_date_deposited"
+                value={formData.date_deposited}
+                onChange={(e) => setFormData({ ...formData, date_deposited: e.target.value })}
+                className="bg-white text-[#001f3f] border-[#001f3f]"
               />
             </div>
           </div>

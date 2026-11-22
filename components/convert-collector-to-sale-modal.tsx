@@ -26,6 +26,7 @@ import { supabase } from "@/lib/supabase/client"
 import { useAuth } from "@/contexts/auth-context"
 import { logNotification } from "@/utils/logNotification"
 import { formatS3Url } from "@/utils/s3-url"
+import { PHILIPPINE_BANKS } from "@/lib/philippine-banks"
 import type { CollectorTransaction } from "@/types/collector"
 import {
   AlertTriangle,
@@ -116,6 +117,9 @@ export function ConvertCollectorToSaleModal({
     net_commission_amount: "",
     project_or_unit_ref: "",
     vat_ewt_notes: "",
+    bank_name: "",
+    bank_account_no: "",
+    date_deposited: "",
     remarks: "",
   })
 
@@ -164,6 +168,9 @@ export function ConvertCollectorToSaleModal({
       net_commission_amount: "",
       project_or_unit_ref: "",
       vat_ewt_notes: "",
+      bank_name: transaction.deposit_bank || "",
+      bank_account_no: "",
+      date_deposited: transaction.deposit_date || "",
       remarks: combinedRemarks,
     })
 
@@ -308,6 +315,9 @@ export function ConvertCollectorToSaleModal({
           : null,
         invoice_number: formData.invoice_number.trim() || null,
         pickup_date: formData.pickup_date || null,
+        bank_name: formData.bank_name.trim() || null,
+        bank_account_no: formData.bank_account_no.trim() || null,
+        date_deposited: formData.date_deposited || null,
         remarks: extraMetaParts.length > 0 ? extraMetaParts.join(" | ") : null,
         invoice: attachments.invoice.length > 0 ? attachments.invoice : null,
         cheque: attachments.cheque.length > 0 ? attachments.cheque : null,
@@ -607,6 +617,54 @@ export function ConvertCollectorToSaleModal({
                 }
                 placeholder="Optional net amount"
               />
+            </div>
+
+            <div className="md:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-3 pt-2 border-t">
+              <div>
+                <Label htmlFor="conv-bank-name">Bank (Optional)</Label>
+                <Select
+                  value={
+                    PHILIPPINE_BANKS.includes(formData.bank_name as any)
+                      ? formData.bank_name
+                      : formData.bank_name
+                        ? "Other"
+                        : "__none__"
+                  }
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, bank_name: value === "__none__" ? "" : value })
+                  }
+                >
+                  <SelectTrigger id="conv-bank-name">
+                    <SelectValue placeholder="Select Philippine bank" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-60">
+                    <SelectItem value="__none__">— None —</SelectItem>
+                    {PHILIPPINE_BANKS.map((bank) => (
+                      <SelectItem key={bank} value={bank}>
+                        {bank}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="conv-bank-acct">Bank Account No. (Optional)</Label>
+                <Input
+                  id="conv-bank-acct"
+                  value={formData.bank_account_no}
+                  onChange={(e) => setFormData({ ...formData, bank_account_no: e.target.value })}
+                  placeholder="Account number"
+                />
+              </div>
+              <div>
+                <Label htmlFor="conv-date-deposited">Date Deposited (Optional)</Label>
+                <Input
+                  id="conv-date-deposited"
+                  type="date"
+                  value={formData.date_deposited}
+                  onChange={(e) => setFormData({ ...formData, date_deposited: e.target.value })}
+                />
+              </div>
             </div>
 
             <div className="md:col-span-3">

@@ -117,6 +117,7 @@ export default function SuperAdminSalesPage() {
     },
     { key: "invoice_number", label: "Invoice #", visible: true },
     { key: "pickup_date", label: "Pickup Date", visible: true },
+    { key: "bank_name", label: "Bank", visible: true },
     { key: "area", label: "Area", visible: true },
     { key: "recent_remark", label: "Recent Remark", visible: true },
     { key: "files", label: "Files", visible: true },
@@ -1280,6 +1281,9 @@ export default function SuperAdminSalesPage() {
                           Pickup Date
                         </SortableTableHead>
                       )}
+                      {columnVisibility.find((col) => col.key === "bank_name")?.visible && (
+                        <TableHead className="min-w-[150px] font-semibold text-gray-900">Bank</TableHead>
+                      )}
                       {columnVisibility.find((col) => col.key === "area")?.visible && (
                         <TableHead className="min-w-[150px] font-semibold text-gray-900">Area</TableHead>
                       )}
@@ -1380,6 +1384,25 @@ export default function SuperAdminSalesPage() {
                           {columnVisibility.find((col) => col.key === "pickup_date")?.visible && (
                             <TableCell className="text-gray-600">
                               {sale.pickup_date ? format(new Date(sale.pickup_date), "MMM dd, yyyy") : "-"}
+                            </TableCell>
+                          )}
+                          {columnVisibility.find((col) => col.key === "bank_name")?.visible && (
+                            <TableCell className="text-gray-700 text-xs">
+                              {sale.bank_name ? (
+                                <div className="space-y-0.5">
+                                  <div className="font-semibold text-[#001f3f]">{sale.bank_name}</div>
+                                  {sale.bank_account_no && (
+                                    <div className="text-[11px] text-gray-500">Acct: {sale.bank_account_no}</div>
+                                  )}
+                                  {sale.date_deposited && (
+                                    <div className="text-[10px] text-emerald-700">
+                                      Dep: {format(new Date(sale.date_deposited), "MMM dd, yyyy")}
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-gray-400">-</span>
+                              )}
                             </TableCell>
                           )}
                           {columnVisibility.find((col) => col.key === "area")?.visible && (

@@ -26,6 +26,9 @@ export interface Sales {
   updated_at: string
   user_assigned_area?: string | null
   remarks?: string | null
+  bank_name?: string | null
+  bank_account_no?: string | null
+  date_deposited?: string | null
   taxpayer_listings?: any
 }
 
