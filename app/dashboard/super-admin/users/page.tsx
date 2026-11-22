@@ -990,6 +990,9 @@ export default function UserManagement() {
                                       <SelectItem value="secretary">
                                         Secretary
                                       </SelectItem>
+                                      <SelectItem value="collector">
+                                        Collector
+                                      </SelectItem>
                                       <SelectItem value="admin">
                                         Admin
                                       </SelectItem>
@@ -1239,6 +1242,9 @@ export default function UserManagement() {
                                       <SelectItem value="secretary">
                                         Secretary
                                       </SelectItem>
+                                      <SelectItem value="collector">
+                                        Collector
+                                      </SelectItem>
                                       <SelectItem value="admin">
                                         Admin
                                       </SelectItem>
@@ -1479,6 +1485,9 @@ export default function UserManagement() {
                                     <SelectContent>
                                       <SelectItem value="secretary">
                                         Secretary
+                                      </SelectItem>
+                                      <SelectItem value="collector">
+                                        Collector
                                       </SelectItem>
                                       <SelectItem value="admin">
                                         Admin

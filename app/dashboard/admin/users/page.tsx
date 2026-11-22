@@ -92,11 +92,11 @@ export default function AdminUserManagement() {
       setLoading(true)
       setError("")
 
-      // Admin users can only see secretary and admin users, not super_admin
+      // Admin users can only see secretary, collector, and admin users, not super_admin
       const { data: profiles, error: profileError } = await supabase
         .from("user_profiles")
         .select("*")
-        .in("role", ["secretary", "admin"])
+        .in("role", ["secretary", "collector", "admin"])
         .order("created_at", { ascending: false })
 
       if (profileError) {
@@ -588,6 +588,7 @@ export default function AdminUserManagement() {
                                 </SelectTrigger>
                                 <SelectContent className="bg-white border-rose-200 text-navy">
                                   <SelectItem value="secretary">Secretary</SelectItem>
+                                  <SelectItem value="collector">Collector</SelectItem>
                                   <SelectItem value="admin">Admin</SelectItem>
                                 </SelectContent>
                               </Select>
@@ -699,6 +700,7 @@ export default function AdminUserManagement() {
                                 </SelectTrigger>
                                 <SelectContent className="bg-white border-navy text-navy">
                                   <SelectItem value="secretary" className="text-navy">Secretary</SelectItem>
+                                  <SelectItem value="collector" className="text-navy">Collector</SelectItem>
                                   <SelectItem value="admin" className="text-navy">Admin</SelectItem>
                                 </SelectContent>
                               </Select>
@@ -847,6 +849,7 @@ export default function AdminUserManagement() {
                       </SelectTrigger>
                       <SelectContent className="bg-white border-rose-200 text-navy">
                         <SelectItem value="secretary">Secretary</SelectItem>
+                        <SelectItem value="collector">Collector</SelectItem>
                         <SelectItem value="admin">Admin</SelectItem>
                       </SelectContent>
                     </Select>

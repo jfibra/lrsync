@@ -27,6 +27,7 @@ import {
   Building2,
   Video,
   Layers,
+  FileCheck2,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -108,6 +109,14 @@ export function DashboardHeader() {
         label: "Sales",
         href: (slug) => `/dashboard/${slug}/sales`,
         icon: PhilippinePeso,
+        roles: ["super_admin", "admin", "secretary"],
+        group: "main",
+      },
+      {
+        label: "Cheque Verification",
+        shortLabel: "Cheques",
+        href: (slug) => `/dashboard/${slug}/cheque-verification`,
+        icon: FileCheck2,
         roles: ["super_admin", "admin", "secretary"],
         group: "main",
       },
@@ -419,7 +428,7 @@ export function DashboardHeader() {
           {/* Right: Notifications, User Menu & Mobile Drawer Trigger */}
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             {/* Notification Bell */}
-            {!authLoading && user && profile && profile.role === "super_admin" && (
+            {!authLoading && user && profile && (profile.role === "super_admin" || profile.role === "admin") && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="icon" className="relative text-white hover:bg-white/10">
@@ -444,26 +453,62 @@ export function DashboardHeader() {
                       {notifications
                         .filter((notif) => notif.action !== "user_login" && notif.action !== "dashboard_access")
                         .slice(0, 10)
-                        .map((notif) => (
-                          <DropdownMenuItem
-                            key={notif.id}
-                            className="flex flex-col items-start gap-1 cursor-default py-2.5"
-                          >
-                            <span className="font-semibold text-xs text-[#001f3f]">
-                              {notif.action.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())}
-                            </span>
-                            <span className="text-xs text-slate-600 line-clamp-2">{notif.description}</span>
-                            <span className="text-[10px] text-slate-400">
-                              {notif.user_name} &bull; {new Date(notif.created_at).toLocaleString()}
-                            </span>
-                          </DropdownMenuItem>
-                        ))}
+                        .map((notif) => {
+                          let parsedMeta: any = null
+                          try {
+                            parsedMeta =
+                              typeof notif.meta === "string" ? JSON.parse(notif.meta) : notif.meta
+                          } catch {
+                            parsedMeta = null
+                          }
+                          const collectionId =
+                            parsedMeta?.collection_id || parsedMeta?.collector_transaction_id || null
+                          const deepLinkHref = collectionId
+                            ? `/dashboard/${roleSlug}/cheque-verification?collection_id=${encodeURIComponent(collectionId)}`
+                            : null
+
+                          const itemBody = (
+                            <>
+                              <span className="font-semibold text-xs text-[#001f3f] flex items-center gap-1.5">
+                                {notif.action.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())}
+                                {notif.action === "cheque_deposited" && (
+                                  <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-800">
+                                    Review
+                                  </span>
+                                )}
+                              </span>
+                              <span className="text-xs text-slate-600 line-clamp-2">{notif.description}</span>
+                              <span className="text-[10px] text-slate-400">
+                                {notif.user_name} &bull; {new Date(notif.created_at).toLocaleString()}
+                              </span>
+                            </>
+                          )
+
+                          return deepLinkHref ? (
+                            <DropdownMenuItem
+                              key={notif.id}
+                              className="flex flex-col items-start gap-1 cursor-pointer py-2.5"
+                              asChild
+                            >
+                              <Link href={deepLinkHref}>{itemBody}</Link>
+                            </DropdownMenuItem>
+                          ) : (
+                            <DropdownMenuItem
+                              key={notif.id}
+                              className="flex flex-col items-start gap-1 cursor-default py-2.5"
+                            >
+                              {itemBody}
+                            </DropdownMenuItem>
+                          )
+                        })}
                     </div>
                   )}
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem className="justify-center text-center font-semibold text-[#0284c7] cursor-pointer" asChild>
-                    <Link href="/dashboard/super-admin/activity-tracker">Show all activities</Link>
-                  </DropdownMenuItem>
+                  {profile.role === "super_admin" && (
+                    <DropdownMenuItem className="justify-center text-center font-semibold text-[#0284c7] cursor-pointer" asChild>
+                      <Link href="/dashboard/super-admin/activity-tracker">Show all activities</Link>
+                    </DropdownMenuItem>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
             )}

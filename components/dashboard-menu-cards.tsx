@@ -3,7 +3,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Users, Banknote, Building2, Calculator, ClipboardList, Eye, ShoppingCart, Contact, Receipt, ShieldCheck, Layers } from "lucide-react"
+import { Users, Banknote, Building2, Calculator, ClipboardList, Eye, ShoppingCart, Contact, Receipt, ShieldCheck, Layers, FileCheck2 } from "lucide-react"
 import Link from "next/link"
 import type { UserRole } from "@/types/auth"
 import { useAuth } from "@/contexts/auth-context"
@@ -31,6 +31,16 @@ export function DashboardMenuCards({ userRole }: DashboardMenuCardsProps) {
             bgColor: "bg-green-50/80 border-green-200",
             badge: "All Areas",
             badgeColor: "bg-green-100 text-green-800",
+          },
+          {
+            title: "Cheque Verification",
+            description: "Validate deposited developer cheques from collectors and convert to sales",
+            icon: FileCheck2,
+            href: "/dashboard/super-admin/cheque-verification",
+            color: "from-emerald-500 to-teal-600",
+            bgColor: "bg-emerald-50/80 border-emerald-200",
+            badge: "Accounting",
+            badgeColor: "bg-emerald-100 text-emerald-800",
           },
           {
             title: "Purchases Records",
@@ -195,6 +205,16 @@ export function DashboardMenuCards({ userRole }: DashboardMenuCardsProps) {
             badgeColor: "bg-green-100 text-green-800",
           },
           {
+            title: "Cheque Verification",
+            description: "Validate deposited developer cheques from collectors and convert to sales",
+            icon: FileCheck2,
+            href: "/dashboard/admin/cheque-verification",
+            color: "from-emerald-500 to-teal-600",
+            bgColor: "bg-emerald-50/80 border-emerald-200",
+            badge: "Accounting",
+            badgeColor: "bg-emerald-100 text-emerald-800",
+          },
+          {
             title: "Commission Generator",
             description: "Track sales and calculate commissions",
             icon: Calculator,
@@ -227,6 +247,16 @@ export function DashboardMenuCards({ userRole }: DashboardMenuCardsProps) {
             bgColor: "bg-green-50/80 border-green-200",
             badge: "Your Area",
             badgeColor: "bg-green-100 text-green-800",
+          },
+          {
+            title: "Cheque Verification",
+            description: "Validate deposited developer cheques from collectors and convert to sales",
+            icon: FileCheck2,
+            href: "/dashboard/secretary/cheque-verification",
+            color: "from-emerald-500 to-teal-600",
+            bgColor: "bg-emerald-50/80 border-emerald-200",
+            badge: "Accounting",
+            badgeColor: "bg-emerald-100 text-emerald-800",
           },
           {
             title: "Purchases Records",

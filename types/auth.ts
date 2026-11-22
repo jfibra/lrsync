@@ -1,4 +1,4 @@
-export type UserRole = "super_admin" | "admin" | "secretary"
+export type UserRole = "super_admin" | "admin" | "secretary" | "collector"
 export type UserStatus = "active" | "inactive" | "suspended"
 
 export interface UserProfile {
