@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useRef, useState } from "react"
+import { useAuth } from "@/contexts/auth-context"
 
 export interface LrappLeaderInfo {
   memberid: number
@@ -41,6 +42,8 @@ export interface LrappMemberInfo {
 const memberCache = new Map<string, LrappMemberInfo | null>()
 
 export function useLrappMemberLookup() {
+  const { user, profile } = useAuth()
+  const currentUserEmail = (profile?.email || user?.email || "").trim()
   const [membersByKey, setMembersByKey] = useState<Record<string, LrappMemberInfo | null>>({})
   const [loadingKeys, setLoadingKeys] = useState<Record<string, boolean>>({})
   const inFlightRef = useRef<Set<string>>(new Set())
@@ -85,7 +88,9 @@ export function useLrappMemberLookup() {
       await Promise.all(
         uniqueTargets.map(async (target) => {
           try {
-            const res = await fetch(`/api/lrapp/members-search?q=${encodeURIComponent(target.query)}`)
+            const params = new URLSearchParams({ q: target.query })
+            if (currentUserEmail) params.set("userEmail", currentUserEmail)
+            const res = await fetch(`/api/lrapp/members-search?${params.toString()}`)
             if (!res.ok) {
               memberCache.set(target.key, null)
               setMembersByKey((prev) => ({ ...prev, [target.key]: null }))
@@ -111,7 +116,7 @@ export function useLrappMemberLookup() {
         })
       )
     },
-    []
+    [currentUserEmail]
   )
 
   const getMember = useCallback(
