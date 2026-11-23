@@ -44,6 +44,7 @@ import * as XLSX from "xlsx"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { useRouter } from "next/navigation"
 import { SortableTableHead, sortData } from "@/components/ui/sortable-header"
+import { safeParseArray, safeFormatDate } from "@/lib/safe-parse"
 
 interface CommissionReport {
   uuid: string
@@ -276,10 +277,16 @@ export default function SecretaryCommissionReportsPage() {
     )
   }
 
-  const separateAttachments = (attachments: any[]) => {
-    const pdfs = attachments.filter((file) => file.name?.toLowerCase().endsWith(".pdf"))
-    const images = attachments.filter((file) => {
-      const name = file.name?.toLowerCase() || ""
+  const separateAttachments = (attachments: any) => {
+    const safeList = safeParseArray(attachments)
+    const pdfs = safeList.filter((file) => {
+      if (!file) return false
+      const name = typeof file === "string" ? file.toLowerCase() : String(file.name || file.url || "").toLowerCase()
+      return name.endsWith(".pdf")
+    })
+    const images = safeList.filter((file) => {
+      if (!file) return false
+      const name = typeof file === "string" ? file.toLowerCase() : String(file.name || file.url || "").toLowerCase()
       return (
         name.endsWith(".jpg") ||
         name.endsWith(".jpeg") ||
@@ -313,14 +320,14 @@ export default function SecretaryCommissionReportsPage() {
 
     const allAttachments =
       report._attachmentType === "secretary"
-        ? report.secretary_pot
-          ? JSON.parse(report.secretary_pot)
-          : []
-        : report.accounting_pot
-          ? JSON.parse(report.accounting_pot)
-          : []
+        ? safeParseArray(report.secretary_pot)
+        : safeParseArray(report.accounting_pot)
 
-    const attachments = allAttachments.filter((file) => file.name?.toLowerCase().endsWith(".pdf"))
+    const attachments = allAttachments.filter((file) => {
+      if (!file) return false
+      const name = typeof file === "string" ? file.toLowerCase() : String(file.name || file.url || "").toLowerCase()
+      return name.endsWith(".pdf")
+    })
 
     const total = attachments.length
     const totalPages = Math.max(1, Math.ceil(total / perPage))
@@ -545,8 +552,8 @@ export default function SecretaryCommissionReportsPage() {
     try {
       const assigned_area = uploadReport.user_profiles?.assigned_area || "Unknown"
       const report_number = uploadReport.report_number?.toString() || ""
-      const existingData = uploadReport.secretary_pot ? JSON.parse(uploadReport.secretary_pot) : []
-      const existingCount = Array.isArray(existingData) ? existingData.length : 0
+      const existingData = safeParseArray(uploadReport.secretary_pot)
+      const existingCount = existingData.length
 
       const successfulUploads: { name: string; url: string }[] = []
       const failedUploads: { name: string }[] = []
@@ -606,7 +613,7 @@ export default function SecretaryCommissionReportsPage() {
           uploadedAt: new Date().toISOString(),
         }))
 
-        const existingData = uploadReport.secretary_pot ? JSON.parse(uploadReport.secretary_pot) : []
+        const existingData = safeParseArray(uploadReport.secretary_pot)
 
         const updatedData = Array.isArray(existingData) ? [...existingData, ...fileData] : fileData
 
@@ -719,17 +726,17 @@ export default function SecretaryCommissionReportsPage() {
 
     // Add report data
     reports.forEach((report) => {
-      const accountingAttachments = report.accounting_pot ? JSON.parse(report.accounting_pot) : []
-      const secretaryAttachments = report.secretary_pot ? JSON.parse(report.secretary_pot) : []
+      const accountingAttachments = safeParseArray(report.accounting_pot)
+      const secretaryAttachments = safeParseArray(report.secretary_pot)
 
       summaryData.push([
         `#${report.report_number}`,
         report.user_profiles?.full_name || "Unknown User",
-        format(new Date(report.created_at), "MMM dd, yyyy HH:mm"),
+        safeFormatDate(report.created_at, "MMM dd, yyyy HH:mm", "N/A"),
         report.status?.toUpperCase() || "UNKNOWN",
         report.sales_uuids?.length || 0,
-        Array.isArray(accountingAttachments) ? accountingAttachments.length : 0,
-        Array.isArray(secretaryAttachments) ? secretaryAttachments.length : 0,
+        accountingAttachments.length,
+        secretaryAttachments.length,
         report.remarks || "",
       ])
     })
@@ -1033,13 +1040,11 @@ export default function SecretaryCommissionReportsPage() {
                           </TableRow>
                         ) : (
                           reports.map((report) => {
-                            const attachments = report.accounting_pot ? JSON.parse(report.accounting_pot) : []
-                            const attachmentCount = Array.isArray(attachments) ? attachments.length : 0
+                            const attachments = safeParseArray(report.accounting_pot)
+                            const attachmentCount = attachments.length
 
-                            const secretaryAttachments = report.secretary_pot ? JSON.parse(report.secretary_pot) : []
-                            const secretaryAttachmentCount = Array.isArray(secretaryAttachments)
-                              ? secretaryAttachments.length
-                              : 0
+                            const secretaryAttachments = safeParseArray(report.secretary_pot)
+                            const secretaryAttachmentCount = secretaryAttachments.length
 
                             return (
                               <TableRow key={report.uuid} className="hover:bg-purple-50 border-b border-purple-200">
@@ -1184,7 +1189,11 @@ export default function SecretaryCommissionReportsPage() {
                                     {Array.isArray(report.history) && report.history.length > 0 ? (
                                       (() => {
                                         const filtered = report.history.filter(
-                                          (h) => h.action !== "created" && h.remarks && h.remarks.trim() !== "",
+                                          (h) =>
+                                            h &&
+                                            h.action !== "created" &&
+                                            typeof h.remarks === "string" &&
+                                            h.remarks.trim() !== "",
                                         )
                                         if (filtered.length === 0) {
                                           return <span className="text-gray-400 italic">No remarks</span>

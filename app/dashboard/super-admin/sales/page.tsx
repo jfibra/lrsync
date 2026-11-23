@@ -43,6 +43,7 @@ import { logNotification } from "@/utils/logNotification"
 import { AddRemarkModal } from "@/components/add-remark-modal"
 import { RemarksModalViewer } from "@/components/remarks-modal-viewer"
 import { formatS3Url } from "@/utils/s3-url"
+import { safeExtractRemarkText, safeFormatDate } from "@/lib/safe-parse"
 import { applyTaxMonthFilter, formatDatePeriodLabel } from "@/lib/date-filter"
 import { SortableTableHead } from "@/components/ui/sortable-header"
 import { YearSelect, MonthMultiSelect } from "@/components/date-period-filter"
@@ -782,7 +783,7 @@ export default function SuperAdminSalesPage() {
         sale.gross_taxable || 0,
         sale.total_actual_amount || 0,
         sale.invoice_number || "",
-        sale.pickup_date ? format(new Date(sale.pickup_date), "MMM dd, yyyy") : "",
+        sale.pickup_date ? safeFormatDate(sale.pickup_date, "MMM dd, yyyy", "") : "",
         sale.user_assigned_area || "N/A",
         filesCount,
         sale.cheque?.join(", ") || "",
@@ -790,7 +791,7 @@ export default function SuperAdminSalesPage() {
         sale.invoice?.join(", ") || "",
         sale.doc_2307?.join(", ") || "",
         sale.deposit_slip?.join(", ") || "",
-        sale.remarks ? JSON.parse(sale.remarks)[0]?.remark || "No remarks" : "No remarks",
+        safeExtractRemarkText(sale.remarks, "No remarks"),
       ])
     })
 

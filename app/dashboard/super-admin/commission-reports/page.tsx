@@ -46,6 +46,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { useRouter } from "next/navigation"
 import { SortableTableHead, sortData } from "@/components/ui/sortable-header"
 import { formatS3Url } from "@/utils/s3-url"
+import { safeParseArray, safeFormatDate } from "@/lib/safe-parse"
 
 interface CommissionReport {
   uuid: string
@@ -539,15 +540,11 @@ export default function SuperAdminCommissionReportsPage() {
 
     const allAttachments =
       report._attachmentType === "secretary"
-        ? report.secretary_pot
-          ? JSON.parse(report.secretary_pot)
-          : []
-        : report.accounting_pot
-          ? JSON.parse(report.accounting_pot)
-          : []
+        ? safeParseArray(report.secretary_pot)
+        : safeParseArray(report.accounting_pot)
 
     const pdfAttachments = allAttachments.filter(
-      (file) => file.name?.toLowerCase().endsWith(".pdf") || file.type === "application/pdf",
+      (file) => file && (file.name?.toLowerCase().endsWith(".pdf") || file.type === "application/pdf"),
     )
 
     const total = pdfAttachments.length
@@ -675,15 +672,13 @@ export default function SuperAdminCommissionReportsPage() {
   function ImageLightboxModal({ report, onClose }) {
     const allAttachments =
       report._attachmentType === "secretary"
-        ? report.secretary_pot
-          ? JSON.parse(report.secretary_pot)
-          : []
-        : report.accounting_pot
-          ? JSON.parse(report.accounting_pot)
-          : []
+        ? safeParseArray(report.secretary_pot)
+        : safeParseArray(report.accounting_pot)
 
     const imageAttachments = allAttachments.filter(
-      (file) => file.name?.toLowerCase().match(/\.(jpg|jpeg|png|gif|bmp|webp)$/i) || file.type?.startsWith("image/"),
+      (file) =>
+        file &&
+        (file.name?.toLowerCase().match(/\.(jpg|jpeg|png|gif|bmp|webp)$/i) || file.type?.startsWith("image/")),
     )
 
     const [currentIndex, setCurrentIndex] = useState(0)
@@ -1015,17 +1010,19 @@ export default function SuperAdminCommissionReportsPage() {
     )
   }
 
-  const getPdfCount = (attachments) => {
-    if (!attachments) return 0
-    const parsed = JSON.parse(attachments)
-    return parsed.filter((file) => file.name?.toLowerCase().endsWith(".pdf") || file.type === "application/pdf").length
+  const getPdfCount = (attachments: any) => {
+    const parsed = safeParseArray(attachments)
+    return parsed.filter(
+      (file) => file && (file.name?.toLowerCase().endsWith(".pdf") || file.type === "application/pdf"),
+    ).length
   }
 
-  const getImageCount = (attachments) => {
-    if (!attachments) return 0
-    const parsed = JSON.parse(attachments)
+  const getImageCount = (attachments: any) => {
+    const parsed = safeParseArray(attachments)
     return parsed.filter(
-      (file) => file.name?.toLowerCase().match(/\.(jpg|jpeg|png|gif|bmp|webp)$/i) || file.type?.startsWith("image/"),
+      (file) =>
+        file &&
+        (file.name?.toLowerCase().match(/\.(jpg|jpeg|png|gif|bmp|webp)$/i) || file.type?.startsWith("image/")),
     ).length
   }
 
@@ -1352,14 +1349,12 @@ export default function SuperAdminCommissionReportsPage() {
                           </TableRow>
                         ) : (
                           reports.map((report) => {
-                            const attachments = report.accounting_pot ? JSON.parse(report.accounting_pot) : []
-                            const attachmentCount = Array.isArray(attachments) ? attachments.length : 0
+                            const attachments = safeParseArray(report.accounting_pot)
+                            const attachmentCount = attachments.length
 
                             // Add these lines:
-                            const secretaryAttachments = report.secretary_pot ? JSON.parse(report.secretary_pot) : []
-                            const secretaryAttachmentCount = Array.isArray(secretaryAttachments)
-                              ? secretaryAttachments.length
-                              : 0
+                            const secretaryAttachments = safeParseArray(report.secretary_pot)
+                            const secretaryAttachmentCount = secretaryAttachments.length
 
                             return (
                               <TableRow key={report.uuid} className="hover:bg-blue-50 border-b border-blue-200">
