@@ -6,7 +6,7 @@
 -- 1. commission_vouchers enhancements
 ALTER TABLE public.commission_vouchers
   ADD COLUMN IF NOT EXISTS source_commission_report_uuid uuid,
-  ADD COLUMN IF NOT EXISTS source_commission_report_number integer,
+  ADD COLUMN IF NOT EXISTS source_commission_report_number bigint,
   ADD COLUMN IF NOT EXISTS source_agent_breakdown_uuid uuid,
   ADD COLUMN IF NOT EXISTS is_converted_from_report boolean NOT NULL DEFAULT false,
   ADD COLUMN IF NOT EXISTS is_unencoded_sale boolean NOT NULL DEFAULT false,

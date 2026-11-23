@@ -108,6 +108,38 @@ export function VoucherBondpaperDocument({
     }).format(n)
   }
 
+  const formatReadableDate = (raw?: string | null): string => {
+    const trimmed = (raw || "").trim()
+    if (!trimmed) return ""
+    const MONTHS = [
+      "Jan.",
+      "Feb.",
+      "Mar.",
+      "Apr.",
+      "May",
+      "Jun.",
+      "Jul.",
+      "Aug.",
+      "Sep.",
+      "Oct.",
+      "Nov.",
+      "Dec.",
+    ]
+    // Parse YYYY-MM-DD without UTC timezone day-shift
+    const isoMatch = trimmed.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/)
+    if (isoMatch) {
+      const y = Number(isoMatch[1])
+      const m = Number(isoMatch[2]) - 1
+      const d = Number(isoMatch[3])
+      if (m >= 0 && m < 12 && d >= 1 && d <= 31) {
+        return `${MONTHS[m]} ${d}, ${y}`
+      }
+    }
+    const parsed = new Date(trimmed)
+    if (Number.isNaN(parsed.getTime())) return trimmed
+    return `${MONTHS[parsed.getMonth()]} ${parsed.getDate()}, ${parsed.getFullYear()}`
+  }
+
   const hasHeader = Boolean(voucher.header_attachment_url)
   const hasVoucher = Boolean(voucher.voucher_attachment_url)
   const hasAttachments = hasHeader || hasVoucher
@@ -119,11 +151,268 @@ export function VoucherBondpaperDocument({
     .filter(Boolean)
     .join(" ")
 
+  const formattedReservationDate = formatReadableDate(voucher.reservation_date)
+
   const docDate = (() => {
     const d = voucher.created_at ? new Date(voucher.created_at) : new Date()
-    if (Number.isNaN(d.getTime())) return new Date().toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" })
-    return d.toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" })
+    if (Number.isNaN(d.getTime())) return formatReadableDate(new Date().toISOString())
+    return formatReadableDate(d.toISOString())
   })()
+
+  // Reusable official red-bordered Commission Slip form (compact when paired with attachments; enlarged & top-aligned when standalone)
+  const renderCommissionSlipCard = (enlarged: boolean) => {
+    const labelFontSize = enlarged ? 13 : 10.5
+    const valueFontSize = enlarged ? 13.5 : 10.5
+    const rowGap = enlarged ? 12 : 7
+    const finLabelWidth = enlarged ? 200 : 148
+    const valuePaddingBottom = enlarged ? 6 : 5
+
+    const InfoRow = ({ label, value }: { label: string; value: string }) => (
+      <div
+        style={{
+          display: "flex",
+          alignItems: "flex-end",
+          fontSize: labelFontSize,
+          lineHeight: 1.3,
+        }}
+      >
+        <span
+          style={{
+            fontStyle: "italic",
+            fontWeight: 700,
+            color: "#111827",
+            whiteSpace: "nowrap",
+            marginRight: enlarged ? 10 : 7,
+            paddingBottom: valuePaddingBottom,
+          }}
+        >
+          {label}
+        </span>
+        <div
+          style={{
+            flex: 1,
+            borderBottom: "1px solid #6b7280",
+            fontSize: valueFontSize,
+            fontWeight: 800,
+            color: "#000000",
+            paddingBottom: valuePaddingBottom,
+            paddingLeft: 4,
+            minHeight: enlarged ? 24 : 19,
+            boxSizing: "border-box",
+            lineHeight: 1.3,
+          }}
+        >
+          <span style={{ display: "block" }}>{value || "\u00A0"}</span>
+        </div>
+      </div>
+    )
+
+    const FinRow = ({
+      label,
+      value,
+      highlight = false,
+    }: {
+      label: string
+      value: string
+      highlight?: boolean
+    }) => (
+      <div
+        style={{
+          display: "flex",
+          alignItems: "flex-end",
+          fontSize: labelFontSize,
+          lineHeight: 1.3,
+        }}
+      >
+        <span
+          style={{
+            width: finLabelWidth,
+            textAlign: "right",
+            fontStyle: "italic",
+            fontWeight: highlight ? 700 : 600,
+            color: "#111827",
+            paddingRight: enlarged ? 14 : 10,
+            paddingBottom: valuePaddingBottom,
+            whiteSpace: "nowrap",
+          }}
+        >
+          {label}
+        </span>
+        <div
+          style={{
+            flex: 1,
+            borderBottom: highlight ? "1.5px solid #001f3f" : "1px solid #6b7280",
+            fontSize: highlight ? (enlarged ? 15 : 11.5) : valueFontSize,
+            fontWeight: 800,
+            color: highlight ? "#001f3f" : "#000000",
+            paddingBottom: valuePaddingBottom,
+            paddingLeft: 6,
+            minHeight: enlarged ? 24 : 19,
+            boxSizing: "border-box",
+            lineHeight: 1.3,
+          }}
+        >
+          <span style={{ display: "block" }}>{value || "\u00A0"}</span>
+        </div>
+      </div>
+    )
+
+    return (
+      <div
+        style={{
+          width: enlarged ? 640 : 410,
+          backgroundColor: "#ffffff",
+          border: "1px solid #cbd5e1",
+          borderTop: enlarged ? "6px solid #c62828" : "5px solid #c62828",
+          borderBottom: enlarged ? "6px solid #c62828" : "5px solid #c62828",
+          padding: enlarged ? "26px 32px 24px 32px" : "16px 20px 14px 20px",
+          position: "relative",
+          boxSizing: "border-box",
+          overflow: "hidden",
+          boxShadow: enlarged ? "0 4px 18px rgba(15, 23, 42, 0.08)" : "none",
+          backgroundImage:
+            "repeating-linear-gradient(135deg, rgba(226,232,240,0.18) 0px, rgba(226,232,240,0.18) 10px, transparent 10px, transparent 20px)",
+        }}
+      >
+        {/* Company Logo Watermark centered behind slip content */}
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            pointerEvents: "none",
+            zIndex: 0,
+          }}
+        >
+          <img
+            src="/leuteriorealty.svg"
+            alt=""
+            aria-hidden="true"
+            style={{
+              width: enlarged ? 380 : 240,
+              height: "auto",
+              opacity: 0.08,
+              objectFit: "contain",
+              transform: "rotate(-12deg)",
+            }}
+          />
+        </div>
+
+        {/* Slip Foreground Content */}
+        <div style={{ position: "relative", zIndex: 1 }}>
+          {/* Slip Header */}
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "flex-start",
+              marginBottom: enlarged ? 22 : 14,
+            }}
+          >
+            <div
+              style={{
+                fontSize: enlarged ? 24 : 16,
+                fontWeight: 900,
+                color: "#001f3f",
+                lineHeight: 1.08,
+                letterSpacing: "0.4px",
+              }}
+            >
+              <div>COMMISSION</div>
+              <div>SLIP</div>
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 2 }}>
+              <span
+                style={{
+                  fontSize: enlarged ? 13 : 11,
+                  color: "#1e293b",
+                  fontWeight: 700,
+                }}
+              >
+                Voucher No :
+              </span>
+              <div
+                style={{
+                  backgroundColor: "#e2e8f0",
+                  padding: enlarged ? "5px 14px" : "3px 10px",
+                  minWidth: enlarged ? 96 : 64,
+                  fontSize: enlarged ? 14 : 11.5,
+                  fontWeight: 800,
+                  color: "#000000",
+                  borderRadius: 3,
+                  textAlign: "center",
+                }}
+              >
+                {voucher.voucher_number || "N/A"}
+              </div>
+            </div>
+          </div>
+
+          {/* Info Rows */}
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: rowGap,
+              marginBottom: enlarged ? 22 : 14,
+            }}
+          >
+            <InfoRow label="Name of Developer:" value={voucher.developer_name || ""} />
+            <InfoRow label="Agent:" value={voucher.agent_name || ""} />
+            <InfoRow label="Project:" value={projectWithUnit} />
+            <InfoRow label="Client Name:" value={voucher.client_name || ""} />
+            {formattedReservationDate ? (
+              <InfoRow label="Reservation Date:" value={formattedReservationDate} />
+            ) : null}
+            {voucher.commission_status ? (
+              <InfoRow label="Commission Status:" value={voucher.commission_status} />
+            ) : null}
+          </div>
+
+          {/* Financial Calculation Rows */}
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: rowGap,
+              marginBottom: enlarged ? 28 : 16,
+              paddingLeft: enlarged ? 24 : 8,
+            }}
+          >
+            <FinRow label="Released from Developer:" value={fmt(voucher.amount_released)} />
+            <FinRow label="Rate (%):" value={fmt(voucher.agent_rate)} />
+            <FinRow label="Total for Release:" value={fmt(voucher.total_amount)} highlight />
+            <FinRow label="Exclusive of Vat:" value={fmt(voucher.exclusive_of_vat)} />
+            <FinRow label="For BIR 2307:" value={fmt(voucher.withholding_tax)} />
+          </div>
+
+          {/* Signature & Date Row */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "flex-end",
+              gap: 12,
+              fontSize: enlarged ? 12.5 : 10,
+              paddingLeft: enlarged ? 8 : 4,
+              paddingTop: enlarged ? 12 : 4,
+            }}
+          >
+            <span style={{ fontStyle: "italic", fontWeight: 600, color: "#111827", paddingBottom: 3 }}>
+              Signature:
+            </span>
+            <div style={{ flex: 1.5, borderBottom: "1px solid #6b7280", height: enlarged ? 22 : 14 }} />
+            <span style={{ fontStyle: "italic", fontWeight: 600, color: "#111827", paddingBottom: 3 }}>
+              Date:
+            </span>
+            <div style={{ flex: 1, borderBottom: "1px solid #6b7280", height: enlarged ? 22 : 14 }} />
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div
@@ -345,478 +634,23 @@ export function VoucherBondpaperDocument({
               paddingTop: 8,
             }}
           >
-            <div
-              style={{
-                width: 390,
-                backgroundColor: "#ffffff",
-                border: "1px solid #cbd5e1",
-                borderTop: "5px solid #c62828",
-                borderBottom: "5px solid #c62828",
-                padding: "14px 18px 12px 18px",
-                position: "relative",
-                boxSizing: "border-box",
-                backgroundImage:
-                  "repeating-linear-gradient(135deg, rgba(226,232,240,0.22) 0px, rgba(226,232,240,0.22) 10px, transparent 10px, transparent 20px)",
-              }}
-            >
-              {/* Slip Header */}
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "flex-start",
-                  marginBottom: 12,
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: 16,
-                    fontWeight: 900,
-                    color: "#001f3f",
-                    lineHeight: 1.05,
-                    letterSpacing: "0.3px",
-                  }}
-                >
-                  <div>COMMISSION</div>
-                  <div>SLIP</div>
-                </div>
-
-                <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
-                  <span style={{ fontSize: 11, color: "#1e293b", fontWeight: 600 }}>
-                    Voucher No :
-                  </span>
-                  <div
-                    style={{
-                      backgroundColor: "#e2e8f0",
-                      padding: "2px 10px",
-                      minWidth: 64,
-                      fontSize: 12,
-                      fontWeight: 800,
-                      color: "#000000",
-                    }}
-                  >
-                    {voucher.voucher_number || "N/A"}
-                  </div>
-                </div>
-              </div>
-
-              {/* Info Rows */}
-              <div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: 12 }}>
-                <div style={{ display: "flex", alignItems: "baseline", fontSize: 10.5 }}>
-                  <span style={{ fontStyle: "italic", fontWeight: 700, color: "#111827", whiteSpace: "nowrap", marginRight: 6 }}>
-                    Name of Developer:
-                  </span>
-                  <div style={{ flex: 1, borderBottom: "1px solid #6b7280", fontWeight: 800, color: "#000000", paddingBottom: 1 }}>
-                    {voucher.developer_name || ""}
-                  </div>
-                </div>
-
-                <div style={{ display: "flex", alignItems: "baseline", fontSize: 10.5 }}>
-                  <span style={{ fontStyle: "italic", fontWeight: 700, color: "#111827", whiteSpace: "nowrap", marginRight: 6 }}>
-                    Agent:
-                  </span>
-                  <div style={{ flex: 1, borderBottom: "1px solid #6b7280", fontWeight: 800, color: "#000000", paddingBottom: 1 }}>
-                    {voucher.agent_name || ""}
-                  </div>
-                </div>
-
-                <div style={{ display: "flex", alignItems: "baseline", fontSize: 10.5 }}>
-                  <span style={{ fontStyle: "italic", fontWeight: 700, color: "#111827", whiteSpace: "nowrap", marginRight: 6 }}>
-                    Project:
-                  </span>
-                  <div style={{ flex: 1, borderBottom: "1px solid #6b7280", fontWeight: 800, color: "#000000", paddingBottom: 1 }}>
-                    {projectWithUnit}
-                  </div>
-                </div>
-
-                <div style={{ display: "flex", alignItems: "baseline", fontSize: 10.5 }}>
-                  <span style={{ fontStyle: "italic", fontWeight: 700, color: "#111827", whiteSpace: "nowrap", marginRight: 6 }}>
-                    Client Name:
-                  </span>
-                  <div style={{ flex: 1, borderBottom: "1px solid #6b7280", fontWeight: 800, color: "#000000", paddingBottom: 1 }}>
-                    {voucher.client_name || ""}
-                  </div>
-                </div>
-
-                {voucher.reservation_date ? (
-                  <div style={{ display: "flex", alignItems: "baseline", fontSize: 10.5 }}>
-                    <span style={{ fontStyle: "italic", fontWeight: 700, color: "#111827", whiteSpace: "nowrap", marginRight: 6 }}>
-                      Reservation Date:
-                    </span>
-                    <div style={{ flex: 1, borderBottom: "1px solid #6b7280", fontWeight: 800, color: "#000000", paddingBottom: 1 }}>
-                      {voucher.reservation_date}
-                    </div>
-                  </div>
-                ) : null}
-
-                {voucher.commission_status && (
-                  <div style={{ display: "flex", alignItems: "baseline", fontSize: 10.5 }}>
-                    <span style={{ fontStyle: "italic", fontWeight: 700, color: "#111827", whiteSpace: "nowrap", marginRight: 6 }}>
-                      Commission Status:
-                    </span>
-                    <div style={{ flex: 1, borderBottom: "1px solid #6b7280", fontWeight: 700, color: "#000000", paddingBottom: 1 }}>
-                      {voucher.commission_status}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Financial Calculation Rows */}
-              <div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: 14, paddingLeft: 12 }}>
-                <div style={{ display: "flex", alignItems: "baseline", fontSize: 10.5 }}>
-                  <span style={{ width: 145, textAlign: "right", fontStyle: "italic", color: "#111827", paddingRight: 10 }}>
-                    Released from Developer:
-                  </span>
-                  <div style={{ flex: 1, borderBottom: "1px solid #6b7280", fontWeight: 800, color: "#000000", paddingBottom: 1 }}>
-                    {fmt(voucher.amount_released)}
-                  </div>
-                </div>
-
-                <div style={{ display: "flex", alignItems: "baseline", fontSize: 10.5 }}>
-                  <span style={{ width: 145, textAlign: "right", fontStyle: "italic", color: "#111827", paddingRight: 10 }}>
-                    Rate (%):
-                  </span>
-                  <div style={{ flex: 1, borderBottom: "1px solid #6b7280", fontWeight: 800, color: "#000000", paddingBottom: 1 }}>
-                    {fmt(voucher.agent_rate)}
-                  </div>
-                </div>
-
-                <div style={{ display: "flex", alignItems: "baseline", fontSize: 10.5 }}>
-                  <span style={{ width: 145, textAlign: "right", fontStyle: "italic", color: "#111827", paddingRight: 10 }}>
-                    Total for Release:
-                  </span>
-                  <div style={{ flex: 1, borderBottom: "1px solid #6b7280", fontWeight: 800, color: "#000000", paddingBottom: 1 }}>
-                    {fmt(voucher.total_amount)}
-                  </div>
-                </div>
-
-                <div style={{ display: "flex", alignItems: "baseline", fontSize: 10.5 }}>
-                  <span style={{ width: 145, textAlign: "right", fontStyle: "italic", color: "#111827", paddingRight: 10 }}>
-                    Exclusive of Vat:
-                  </span>
-                  <div style={{ flex: 1, borderBottom: "1px solid #6b7280", fontWeight: 800, color: "#000000", paddingBottom: 1 }}>
-                    {fmt(voucher.exclusive_of_vat)}
-                  </div>
-                </div>
-
-                <div style={{ display: "flex", alignItems: "baseline", fontSize: 10.5 }}>
-                  <span style={{ width: 145, textAlign: "right", fontStyle: "italic", color: "#111827", paddingRight: 10 }}>
-                    For BIR 2307:
-                  </span>
-                  <div style={{ flex: 1, borderBottom: "1px solid #6b7280", fontWeight: 800, color: "#000000", paddingBottom: 1 }}>
-                    {fmt(voucher.withholding_tax)}
-                  </div>
-                </div>
-              </div>
-
-              {/* Signature & Date Row */}
-              <div style={{ display: "flex", alignItems: "baseline", gap: 10, fontSize: 10, paddingLeft: 6 }}>
-                <span style={{ fontStyle: "italic", color: "#111827" }}>Signature:</span>
-                <div style={{ flex: 1.4, borderBottom: "1px solid #6b7280", height: 12 }} />
-                <span style={{ fontStyle: "italic", color: "#111827" }}>Date:</span>
-                <div style={{ flex: 1, borderBottom: "1px solid #6b7280", height: 12 }} />
-              </div>
-            </div>
+            {renderCommissionSlipCard(false)}
           </div>
         </div>
       ) : (
-        /* NO ATTACHMENTS: FULL-PAGE EXECUTIVE COMMISSION SLIP LAYOUT */
+        /* NO ATTACHMENTS: ENLARGED FORMAL COMMISSION SLIP PLACED AT THE TOP */
         <div
           style={{
             flex: 1,
-            padding: "26px 36px 20px 36px",
+            padding: "32px 36px 24px 36px",
             display: "flex",
             flexDirection: "column",
-            justifyContent: "space-between",
+            alignItems: "center",
+            justifyContent: "flex-start",
             overflow: "hidden",
           }}
         >
-          {/* Title Banner */}
-          <div>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: 18,
-              }}
-            >
-              <div>
-                <div style={{ fontSize: 22, fontWeight: 900, color: "#001f3f", letterSpacing: "0.4px" }}>
-                  COMMISSION RELEASE SLIP
-                </div>
-                <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>
-                  Official Accounting Disbursement &amp; Tax Breakdown Summary
-                </div>
-              </div>
-              <div
-                style={{
-                  border: "1.5px solid #001f3f",
-                  borderRadius: 6,
-                  padding: "6px 14px",
-                  textAlign: "right",
-                  backgroundColor: "#f8fafc",
-                }}
-              >
-                <div style={{ fontSize: 9, fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>
-                  Calculation Formula
-                </div>
-                <div style={{ fontSize: 12, fontWeight: 800, color: "#001f3f" }}>
-                  {voucher.slip_type}
-                </div>
-              </div>
-            </div>
-
-            {/* Section 1: Transaction & Property Details */}
-            <div
-              style={{
-                border: "1px solid #cbd5e1",
-                borderRadius: 8,
-                overflow: "hidden",
-                marginBottom: 20,
-              }}
-            >
-              <div
-                style={{
-                  backgroundColor: "#001f3f",
-                  color: "#ffffff",
-                  padding: "8px 14px",
-                  fontSize: 11,
-                  fontWeight: 800,
-                  letterSpacing: "0.6px",
-                  textTransform: "uppercase",
-                }}
-              >
-                1. Transaction &amp; Property Details
-              </div>
-
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
-                  gap: "12px 24px",
-                  padding: "16px 18px",
-                  backgroundColor: "#ffffff",
-                }}
-              >
-                <div style={{ borderBottom: "1px solid #e2e8f0", paddingBottom: 6 }}>
-                  <div style={{ fontSize: 9.5, fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>
-                    Name of Developer
-                  </div>
-                  <div style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginTop: 2 }}>
-                    {voucher.developer_name || "N/A"}
-                  </div>
-                </div>
-
-                <div style={{ borderBottom: "1px solid #e2e8f0", paddingBottom: 6 }}>
-                  <div style={{ fontSize: 9.5, fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>
-                    Developer Rate (%)
-                  </div>
-                  <div style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginTop: 2 }}>
-                    {fmt(voucher.developer_rate)}%
-                  </div>
-                </div>
-
-                <div style={{ borderBottom: "1px solid #e2e8f0", paddingBottom: 6 }}>
-                  <div style={{ fontSize: 9.5, fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>
-                    Salesperson / Agent
-                  </div>
-                  <div style={{ fontSize: 13, fontWeight: 800, color: "#001f3f", marginTop: 2 }}>
-                    {voucher.agent_name || "N/A"}
-                  </div>
-                </div>
-
-                <div style={{ borderBottom: "1px solid #e2e8f0", paddingBottom: 6 }}>
-                  <div style={{ fontSize: 9.5, fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>
-                    Agent Commission Rate (%)
-                  </div>
-                  <div style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginTop: 2 }}>
-                    {fmt(voucher.agent_rate)}%
-                  </div>
-                </div>
-
-                <div style={{ borderBottom: "1px solid #e2e8f0", paddingBottom: 6 }}>
-                  <div style={{ fontSize: 9.5, fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>
-                    Project &amp; Unit No.
-                  </div>
-                  <div style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginTop: 2 }}>
-                    {projectWithUnit || "N/A"}
-                  </div>
-                </div>
-
-                <div style={{ borderBottom: "1px solid #e2e8f0", paddingBottom: 6 }}>
-                  <div style={{ fontSize: 9.5, fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>
-                    Client Name
-                  </div>
-                  <div style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginTop: 2 }}>
-                    {voucher.client_name || "N/A"}
-                  </div>
-                </div>
-
-                <div style={{ borderBottom: "1px solid #e2e8f0", paddingBottom: 6 }}>
-                  <div style={{ fontSize: 9.5, fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>
-                    Reservation Date
-                  </div>
-                  <div style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginTop: 2 }}>
-                    {voucher.reservation_date || "N/A"}
-                  </div>
-                </div>
-
-                <div style={{ borderBottom: "1px solid #e2e8f0", paddingBottom: 6 }}>
-                  <div style={{ fontSize: 9.5, fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>
-                    Commission Status / Remarks
-                  </div>
-                  <div style={{ fontSize: 12.5, fontWeight: 700, color: "#0f172a", marginTop: 2 }}>
-                    {voucher.commission_status || "Standard Release"}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Section 2: Financial Computation Breakdown */}
-            <div
-              style={{
-                border: "1px solid #cbd5e1",
-                borderRadius: 8,
-                overflow: "hidden",
-              }}
-            >
-              <div
-                style={{
-                  backgroundColor: "#001f3f",
-                  color: "#ffffff",
-                  padding: "8px 14px",
-                  fontSize: 11,
-                  fontWeight: 800,
-                  letterSpacing: "0.6px",
-                  textTransform: "uppercase",
-                }}
-              >
-                2. Commission Computation Breakdown
-              </div>
-
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-                <thead>
-                  <tr style={{ backgroundColor: "#f1f5f9", borderBottom: "1px solid #cbd5e1" }}>
-                    <th style={{ textAlign: "left", padding: "9px 16px", color: "#334155", fontWeight: 700 }}>
-                      Particulars
-                    </th>
-                    <th style={{ textAlign: "center", padding: "9px 16px", color: "#334155", fontWeight: 700 }}>
-                      Basis / Rate
-                    </th>
-                    <th style={{ textAlign: "right", padding: "9px 16px", color: "#334155", fontWeight: 700 }}>
-                      Amount (PHP)
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
-                    <td style={{ padding: "10px 16px", fontWeight: 600 }}>Released from Developer</td>
-                    <td style={{ padding: "10px 16px", textAlign: "center", color: "#475569" }}>
-                      {fmt(voucher.developer_rate)}% Dev Rate
-                    </td>
-                    <td style={{ padding: "10px 16px", textAlign: "right", fontWeight: 700 }}>
-                      ₱{fmt(voucher.amount_released)}
-                    </td>
-                  </tr>
-                  <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
-                    <td style={{ padding: "10px 16px", fontWeight: 600 }}>Agent Rate Applied</td>
-                    <td style={{ padding: "10px 16px", textAlign: "center", color: "#475569" }}>
-                      {fmt(voucher.agent_rate)}% / {fmt(voucher.developer_rate)}%
-                    </td>
-                    <td style={{ padding: "10px 16px", textAlign: "right", fontWeight: 700 }}>
-                      {fmt(voucher.agent_rate)}%
-                    </td>
-                  </tr>
-                  <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
-                    <td style={{ padding: "10px 16px", fontWeight: 600 }}>Exclusive of VAT</td>
-                    <td style={{ padding: "10px 16px", textAlign: "center", color: "#475569" }}>
-                      Tax Base
-                    </td>
-                    <td style={{ padding: "10px 16px", textAlign: "right", fontWeight: 700 }}>
-                      ₱{fmt(voucher.exclusive_of_vat)}
-                    </td>
-                  </tr>
-                  <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
-                    <td style={{ padding: "10px 16px", fontWeight: 600 }}>Withholding Tax (For BIR 2307)</td>
-                    <td style={{ padding: "10px 16px", textAlign: "center", color: "#475569" }}>
-                      {voucher.ewt_rate ? `${voucher.ewt_rate}% EWT` : "10% EWT"}
-                    </td>
-                    <td style={{ padding: "10px 16px", textAlign: "right", fontWeight: 700, color: "#c62828" }}>
-                      ₱{fmt(voucher.withholding_tax)}
-                    </td>
-                  </tr>
-                  <tr style={{ backgroundColor: "#ecfdf5", borderTop: "2px solid #001f3f" }}>
-                    <td style={{ padding: "13px 16px", fontWeight: 900, fontSize: 13.5, color: "#001f3f" }}>
-                      TOTAL FOR RELEASE (NET COMMISSION)
-                    </td>
-                    <td style={{ padding: "13px 16px", textAlign: "center", fontWeight: 700, color: "#047857" }}>
-                      {voucher.slip_type}
-                    </td>
-                    <td style={{ padding: "13px 16px", textAlign: "right", fontWeight: 900, fontSize: 16, color: "#047857" }}>
-                      ₱{fmt(voucher.total_amount)}
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Section 3: Signatories & Approval Block */}
-          <div
-            style={{
-              border: "1px solid #cbd5e1",
-              borderRadius: 8,
-              padding: "14px 18px",
-              backgroundColor: "#f8fafc",
-            }}
-          >
-            <div
-              style={{
-                fontSize: 10,
-                fontWeight: 800,
-                color: "#001f3f",
-                textTransform: "uppercase",
-                letterSpacing: "0.6px",
-                marginBottom: 22,
-              }}
-            >
-              3. Authorization &amp; Acknowledgment of Receipt
-            </div>
-
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr 1fr 1fr",
-                gap: 18,
-                fontSize: 10,
-                color: "#334155",
-              }}
-            >
-              <div>
-                <div style={{ borderBottom: "1px solid #475569", height: 24, marginBottom: 4 }} />
-                <div style={{ fontWeight: 800, color: "#0f172a" }}>Prepared By</div>
-                <div style={{ fontSize: 9, color: "#64748b" }}>
-                  {voucher.created_by_name || "Accounting Staff"}
-                </div>
-              </div>
-              <div>
-                <div style={{ borderBottom: "1px solid #475569", height: 24, marginBottom: 4 }} />
-                <div style={{ fontWeight: 800, color: "#0f172a" }}>Checked / Verified By</div>
-                <div style={{ fontSize: 9, color: "#64748b" }}>Finance Supervisor</div>
-              </div>
-              <div>
-                <div style={{ borderBottom: "1px solid #475569", height: 24, marginBottom: 4 }} />
-                <div style={{ fontWeight: 800, color: "#0f172a" }}>Approved By</div>
-                <div style={{ fontSize: 9, color: "#64748b" }}>Authorized Signatory</div>
-              </div>
-              <div>
-                <div style={{ borderBottom: "1px solid #475569", height: 24, marginBottom: 4 }} />
-                <div style={{ fontWeight: 800, color: "#0f172a" }}>Received By (Agent)</div>
-                <div style={{ fontSize: 9, color: "#64748b" }}>Signature &amp; Date</div>
-              </div>
-            </div>
-          </div>
+          {renderCommissionSlipCard(true)}
         </div>
       )}
 
