@@ -873,30 +873,29 @@ export function ExpenseRequestManager({ role }: ExpenseRequestManagerProps) {
                                 </Button>
 
                                 {req.status === "pending" && (
-                                  <>
-                                    <Button
-                                      size="icon"
-                                      variant="ghost"
-                                      onClick={() => {
-                                        setEditRecord(req)
-                                        setAddModalOpen(true)
-                                      }}
-                                      className="h-7 w-7 text-blue-600 hover:text-blue-800"
-                                      title="Edit Item"
-                                    >
-                                      <Edit className="w-4 h-4" />
-                                    </Button>
-                                    <Button
-                                      size="icon"
-                                      variant="ghost"
-                                      onClick={() => handleDeleteRequest(req)}
-                                      className="h-7 w-7 text-red-500 hover:text-red-700"
-                                      title="Delete Item"
-                                    >
-                                      <Trash2 className="w-4 h-4" />
-                                    </Button>
-                                  </>
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    onClick={() => {
+                                      setEditRecord(req)
+                                      setAddModalOpen(true)
+                                    }}
+                                    className="h-7 w-7 text-blue-600 hover:text-blue-800"
+                                    title="Edit Item"
+                                  >
+                                    <Edit className="w-4 h-4" />
+                                  </Button>
                                 )}
+
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  onClick={() => handleDeleteRequest(req)}
+                                  className="h-7 w-7 text-red-500 hover:text-red-700"
+                                  title="Delete Item"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
                               </div>
                             </TableCell>
                           </TableRow>

@@ -364,29 +364,92 @@ export function VoucherBondpaperDocument({
             <InfoRow label="Agent:" value={voucher.agent_name || ""} />
             <InfoRow label="Project:" value={projectWithUnit} />
             <InfoRow label="Client Name:" value={voucher.client_name || ""} />
-            {formattedReservationDate ? (
-              <InfoRow label="Reservation Date:" value={formattedReservationDate} />
-            ) : null}
+            <InfoRow label="Reservation Date:" value={formattedReservationDate || "N/A"} />
             {voucher.commission_status ? (
               <InfoRow label="Commission Status:" value={voucher.commission_status} />
             ) : null}
           </div>
 
-          {/* Financial Calculation Rows */}
+          {/* Financial Calculation Rows — Per Slip Type Official Structure */}
           <div
             style={{
               display: "flex",
               flexDirection: "column",
               gap: rowGap,
-              marginBottom: enlarged ? 28 : 16,
+              marginBottom: enlarged ? 24 : 14,
               paddingLeft: enlarged ? 24 : 8,
             }}
           >
-            <FinRow label="Released from Developer:" value={fmt(voucher.amount_released)} />
-            <FinRow label="Rate (%):" value={fmt(voucher.agent_rate)} />
-            <FinRow label="Total for Release:" value={fmt(voucher.total_amount)} highlight />
-            <FinRow label="Exclusive of Vat:" value={fmt(voucher.exclusive_of_vat)} />
-            <FinRow label="For BIR 2307:" value={fmt(voucher.withholding_tax)} />
+            {(() => {
+              const slip = (voucher.slip_type || "").trim()
+              const released = Number(voucher.amount_released) || 0
+              const agRate = Number(voucher.agent_rate) || 0
+              const devRate = Number(voucher.developer_rate) || 5
+              const netTotal = Number(voucher.total_amount) || 0
+              const exclVat = Number(voucher.exclusive_of_vat) || 0
+              const wtax = Number(voucher.withholding_tax) || 0
+              const vatVal =
+                Number(voucher.vat_amount) || (slip === "VAT w/o Invoice" ? netTotal * 0.12 : 0)
+
+              if (slip === "VAT w/o Invoice") {
+                const grossTotal =
+                  netTotal + vatVal > 0
+                    ? netTotal + vatVal
+                    : devRate > 0
+                      ? (released * agRate) / devRate
+                      : 0
+                return (
+                  <>
+                    <FinRow label="Released from Developer:" value={fmt(released)} />
+                    <FinRow label="Rate (%):" value={fmt(agRate)} />
+                    <FinRow label="Total:" value={fmt(grossTotal)} />
+                    <FinRow label="VAT:" value={fmt(vatVal)} />
+                    <FinRow label="Net Comm.:" value={fmt(netTotal)} highlight />
+                  </>
+                )
+              }
+
+              if (slip === "W/o Invoice" || slip === "Rate w/o Invoice") {
+                return (
+                  <>
+                    <FinRow label="Released from Developer:" value={fmt(released)} />
+                    <FinRow label="Rate (%):" value={fmt(agRate)} />
+                    <FinRow label="Total:" value={fmt(netTotal)} highlight />
+                  </>
+                )
+              }
+
+              if (slip === "Non-VAT") {
+                const grossBeforeTax =
+                  netTotal + wtax > 0
+                    ? netTotal + wtax
+                    : devRate > 0
+                      ? (exclVat * agRate) / devRate
+                      : 0
+                const ewtPct = voucher.ewt_rate ? Number(voucher.ewt_rate) : 5
+                return (
+                  <>
+                    <FinRow label="Released from Developer:" value={fmt(released)} />
+                    <FinRow label="Exclusive of VAT:" value={fmt(exclVat)} />
+                    <FinRow label="Rate (%):" value={fmt(agRate)} />
+                    <FinRow label="Total:" value={fmt(grossBeforeTax)} />
+                    <FinRow label={`Withholding Tax (${ewtPct}%):`} value={fmt(wtax)} />
+                    <FinRow label="Net Comm.:" value={fmt(netTotal)} highlight />
+                  </>
+                )
+              }
+
+              // Default: "VAT w/ Invoice"
+              return (
+                <>
+                  <FinRow label="Released from Developer:" value={fmt(released)} />
+                  <FinRow label="Rate (%):" value={fmt(agRate)} />
+                  <FinRow label="Total for Release:" value={fmt(netTotal)} highlight />
+                  <FinRow label="Exclusive of Vat:" value={fmt(exclVat)} />
+                  <FinRow label="For BIR 2307:" value={fmt(wtax)} />
+                </>
+              )
+            })()}
           </div>
 
           {/* Signature & Date Row */}
@@ -397,7 +460,8 @@ export function VoucherBondpaperDocument({
               gap: 12,
               fontSize: enlarged ? 12.5 : 10,
               paddingLeft: enlarged ? 8 : 4,
-              paddingTop: enlarged ? 12 : 4,
+              paddingTop: enlarged ? 10 : 4,
+              marginBottom: enlarged ? 20 : 12,
             }}
           >
             <span style={{ fontStyle: "italic", fontWeight: 600, color: "#111827", paddingBottom: 3 }}>
@@ -408,6 +472,44 @@ export function VoucherBondpaperDocument({
               Date:
             </span>
             <div style={{ flex: 1, borderBottom: "1px solid #6b7280", height: enlarged ? 22 : 14 }} />
+          </div>
+
+          {/* Slip Bottom Branding Footer (Matches Official Slip Template) */}
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              paddingTop: enlarged ? 10 : 6,
+              borderTop: "1px solid #e2e8f0",
+            }}
+          >
+            <img
+              src="/leuteriorealty.svg"
+              alt="Leuterio Realty & Brokerage"
+              style={{
+                height: enlarged ? 44 : 30,
+                width: "auto",
+                objectFit: "contain",
+              }}
+            />
+            <div style={{ textAlign: "right", lineHeight: 1.35 }}>
+              <div
+                style={{
+                  fontSize: enlarged ? 12 : 9.5,
+                  fontWeight: 800,
+                  color: "#0f172a",
+                }}
+              >
+                Leuterio Realty &amp; Brokerage
+              </div>
+              <div style={{ fontSize: enlarged ? 10 : 8, color: "#475569" }}>
+                133 F Aznar Road, Urgello St., Cebu City
+              </div>
+              <div style={{ fontSize: enlarged ? 10 : 8, color: "#475569" }}>
+                (032) 254 8900 &bull; 0945 485 8330
+              </div>
+            </div>
           </div>
         </div>
       </div>
