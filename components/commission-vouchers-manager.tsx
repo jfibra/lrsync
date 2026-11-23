@@ -29,6 +29,7 @@ import {
   Loader2,
   AlertTriangle,
   Link2,
+  RefreshCw,
 } from "lucide-react"
 import { format } from "date-fns"
 import { useAuth } from "@/contexts/auth-context"
@@ -39,6 +40,7 @@ import { CreateCommissionVoucherModal } from "@/components/create-commission-vou
 import {
   VoucherBondpaperDocument,
   downloadVoucherBondpaperPdf,
+  generateVoucherBondpaperPdf,
   type CommissionVoucherData,
 } from "@/components/voucher-bondpaper-document"
 
@@ -70,6 +72,11 @@ export function CommissionVouchersManager({ role }: CommissionVouchersManagerPro
   const [releaseTitle, setReleaseTitle] = useState("")
   const [releaseRemarks, setReleaseRemarks] = useState("")
   const [merging, setMerging] = useState(false)
+
+  // Batch PDF regeneration state
+  const [regeneratingPdfs, setRegeneratingPdfs] = useState(false)
+  const [regenerateProgress, setRegenerateProgress] = useState("")
+  const [offscreenVoucher, setOffscreenVoucher] = useState<CommissionVoucherData | null>(null)
 
   const roleSlug = role === "super_admin" ? "super-admin" : "secretary"
   const isReadOnly = role === "secretary"
@@ -451,6 +458,92 @@ export function CommissionVouchersManager({ role }: CommissionVouchersManagerPro
     }
   }
 
+  const handleRegeneratePdfs = async (targets: CommissionVoucherData[]) => {
+    if (isReadOnly || targets.length === 0 || regeneratingPdfs) return
+    if (
+      !confirm(
+        `Regenerate Bondpaper PDF for ${targets.length} voucher(s) using the updated Commission Slip layout (with watermark, readable dates, and fixed underlines)?`
+      )
+    ) {
+      return
+    }
+
+    setRegeneratingPdfs(true)
+    let successCount = 0
+    const adminName = profile?.full_name || profile?.email || "Accounting"
+
+    try {
+      for (let i = 0; i < targets.length; i++) {
+        const v = targets[i]
+        if (!v.id) continue
+        setRegenerateProgress(`Regenerating ${i + 1} of ${targets.length} (#${v.voucher_number})...`)
+        setOffscreenVoucher(v)
+
+        // Wait for DOM & images/SVG watermark to paint cleanly before html2canvas capture
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+        await new Promise((resolve) => setTimeout(resolve, 180))
+
+        const el = document.getElementById("regenerate-voucher-bondpaper-hidden")
+        if (!el) continue
+
+        const { blob } = await generateVoucherBondpaperPdf(el)
+
+        const presignedRes = await fetch("/api/get-s3-upload-url", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            fileName: `Commission_Voucher_${(v.voucher_number || v.id).replace(/[^\w\-]+/g, "_")}.pdf`,
+            fileType: "application/pdf",
+            category: "voucher",
+            reportNumber: v.voucher_number || "voucher",
+            tinName: v.agent_name || adminName,
+            assignedArea: v.assigned_area || profile?.assigned_area || "Cebu",
+            userFullName: adminName,
+          }),
+        })
+
+        if (!presignedRes.ok) {
+          throw new Error(`Failed to get S3 upload URL for Voucher #${v.voucher_number}`)
+        }
+
+        const { uploadUrl, publicUrl } = await presignedRes.json()
+        const putRes = await fetch(uploadUrl, {
+          method: "PUT",
+          headers: { "Content-Type": "application/pdf" },
+          body: blob,
+        })
+        if (!putRes.ok) {
+          throw new Error(`S3 upload failed for Voucher #${v.voucher_number} (${putRes.status})`)
+        }
+
+        const newPdfUrl = formatS3Url(publicUrl)
+        const { error } = await supabase
+          .from("commission_vouchers")
+          .update({
+            generated_pdf_url: newPdfUrl,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", v.id)
+
+        if (error) throw error
+        successCount++
+      }
+
+      await fetchVouchers()
+      alert(`Successfully regenerated ${successCount} of ${targets.length} voucher PDF(s)!`)
+    } catch (err: any) {
+      console.error("Error regenerating voucher PDFs:", err)
+      alert(
+        `Regenerated ${successCount} voucher(s), then encountered an error: ${err?.message || "Failed"}`
+      )
+      await fetchVouchers()
+    } finally {
+      setOffscreenVoucher(null)
+      setRegenerateProgress("")
+      setRegeneratingPdfs(false)
+    }
+  }
+
   const getRoleBadge = (recipientRole?: string) => {
     if (recipientRole === "team_leader") {
       return (
@@ -497,13 +590,27 @@ export function CommissionVouchersManager({ role }: CommissionVouchersManagerPro
         </div>
 
         {!isReadOnly && (
-          <Button
-            onClick={() => setCreateModalOpen(true)}
-            className="bg-[#001f3f] hover:bg-[#001f3f]/90 text-white font-semibold shadow"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Create Voucher
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => handleRegeneratePdfs(vouchers)}
+              disabled={regeneratingPdfs || vouchers.length === 0}
+              className="border-sky-600 text-sky-800 hover:bg-sky-50 bg-white font-semibold"
+              title="Regenerate all saved voucher PDFs using the latest Commission Slip layout"
+            >
+              <RefreshCw className={`w-4 h-4 mr-2 ${regeneratingPdfs ? "animate-spin" : ""}`} />
+              {regeneratingPdfs ? regenerateProgress || "Regenerating..." : "Regenerate All PDFs"}
+            </Button>
+            <Button
+              onClick={() => setCreateModalOpen(true)}
+              disabled={regeneratingPdfs}
+              className="bg-[#001f3f] hover:bg-[#001f3f]/90 text-white font-semibold shadow"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Create Voucher
+            </Button>
+          </div>
         )}
       </div>
 
@@ -618,7 +725,19 @@ export function CommissionVouchersManager({ role }: CommissionVouchersManagerPro
             <Button
               type="button"
               size="sm"
+              variant="outline"
+              onClick={() => handleRegeneratePdfs(selectedVouchers)}
+              disabled={regeneratingPdfs}
+              className="border-sky-300 bg-white/10 text-white hover:bg-white/20"
+            >
+              <RefreshCw className={`w-4 h-4 mr-1.5 ${regeneratingPdfs ? "animate-spin" : ""}`} />
+              Regenerate PDFs
+            </Button>
+            <Button
+              type="button"
+              size="sm"
               onClick={openMergeModal}
+              disabled={regeneratingPdfs}
               className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold"
             >
               <Layers className="w-4 h-4 mr-1.5" />
@@ -1097,6 +1216,16 @@ export function CommissionVouchersManager({ role }: CommissionVouchersManagerPro
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Offscreen Bondpaper Render Target for Batch PDF Regeneration */}
+      {offscreenVoucher && (
+        <div style={{ position: "fixed", left: "-10000px", top: 0, width: "794px", background: "#fff" }}>
+          <VoucherBondpaperDocument
+            voucher={offscreenVoucher}
+            containerId="regenerate-voucher-bondpaper-hidden"
+          />
+        </div>
+      )}
     </div>
   )
 }
