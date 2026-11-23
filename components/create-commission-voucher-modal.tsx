@@ -388,6 +388,7 @@ export function CreateCommissionVoucherModal({
     const agRate = Number.parseFloat(rateStr) || 0
 
     let total = 0
+    let grossBeforeTax = 0
     let exclusiveOfVat = 0
     let withholdingTax = 0
     let vatAmount = 0
@@ -396,6 +397,7 @@ export function CreateCommissionVoucherModal({
     if (comm > 0 && devRate > 0 && agRate > 0) {
       if (slipType === "VAT w/ Invoice") {
         const agentGross = (comm * agRate) / devRate
+        grossBeforeTax = agentGross
         total = agentGross
         exclusiveOfVat = total / 1.02
         withholdingTax = (total / 1.02) * 0.1
@@ -403,26 +405,30 @@ export function CreateCommissionVoucherModal({
       } else if (slipType === "Non-VAT") {
         const netOfVat = comm / 1.02
         const agentGross = (netOfVat * agRate) / devRate
+        grossBeforeTax = agentGross
         ewtRate = 5
         withholdingTax = agentGross * 0.05
         total = agentGross - withholdingTax
         exclusiveOfVat = netOfVat
       } else if (slipType === "VAT w/o Invoice") {
         const agentGross = (comm * agRate) / devRate
+        grossBeforeTax = agentGross
         total = agentGross / 1.12
         vatAmount = total * 0.12
         exclusiveOfVat = total
         withholdingTax = 0
         ewtRate = 0
       } else {
-        total = (comm * agRate) / devRate
+        const agentGross = (comm * agRate) / devRate
+        grossBeforeTax = agentGross
+        total = agentGross
         exclusiveOfVat = total
         withholdingTax = 0
         ewtRate = 0
       }
     }
 
-    return { comm, total, exclusiveOfVat, withholdingTax, vatAmount, ewtRate }
+    return { comm, grossBeforeTax, total, exclusiveOfVat, withholdingTax, vatAmount, ewtRate }
   }
 
   // Exact Commission Generator formulas applied to the slip
@@ -1238,45 +1244,158 @@ export function CreateCommissionVoucherModal({
                   </div>
                 </div>
 
-                {/* Row 4: Computed Commission Breakdown Summary Cards */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50 border border-slate-200 rounded-xl p-4">
-                  <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 block">
-                      Total for Release
-                    </span>
-                    <div className="text-xl font-extrabold text-emerald-700 mt-0.5">
-                      ₱{formatNum(calculations.total)}
+                {/* Row 4: Computed Commission Breakdown Summary Cards (Matches Official Slip Structure) */}
+                {slipType === "Non-VAT" ? (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 bg-slate-50 border border-slate-200 rounded-xl p-4">
+                    <div className="bg-white border border-slate-200 rounded-lg p-2.5">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+                        Released from Dev
+                      </span>
+                      <div className="text-sm font-bold text-[#001f3f] mt-0.5">
+                        ₱{formatNum(calculations.comm)}
+                      </div>
+                    </div>
+                    <div className="bg-white border border-slate-200 rounded-lg p-2.5">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+                        Exclusive of VAT
+                      </span>
+                      <div className="text-sm font-bold text-[#001f3f] mt-0.5">
+                        ₱{formatNum(calculations.exclusiveOfVat)}
+                      </div>
+                    </div>
+                    <div className="bg-white border border-slate-200 rounded-lg p-2.5">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+                        Rate (%)
+                      </span>
+                      <div className="text-sm font-bold text-[#001f3f] mt-0.5">
+                        {formatNum(Number.parseFloat(agentRate) || 0)}%
+                      </div>
+                    </div>
+                    <div className="bg-white border border-slate-200 rounded-lg p-2.5">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+                        Total
+                      </span>
+                      <div className="text-sm font-bold text-[#001f3f] mt-0.5">
+                        ₱{formatNum(calculations.grossBeforeTax)}
+                      </div>
+                    </div>
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-2.5">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 block">
+                        Withholding Tax (5%)
+                      </span>
+                      <div className="text-sm font-bold text-amber-900 mt-0.5">
+                        ₱{formatNum(calculations.withholdingTax)}
+                      </div>
+                    </div>
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-2.5">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 block">
+                        Net Comm.
+                      </span>
+                      <div className="text-base font-extrabold text-emerald-700 mt-0.5">
+                        ₱{formatNum(calculations.total)}
+                      </div>
                     </div>
                   </div>
+                ) : slipType === "VAT w/o Invoice" ? (
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 bg-slate-50 border border-slate-200 rounded-xl p-4">
+                    <div className="bg-white border border-slate-200 rounded-lg p-2.5">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+                        Released from Dev
+                      </span>
+                      <div className="text-sm font-bold text-[#001f3f] mt-0.5">
+                        ₱{formatNum(calculations.comm)}
+                      </div>
+                    </div>
+                    <div className="bg-white border border-slate-200 rounded-lg p-2.5">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+                        Rate (%)
+                      </span>
+                      <div className="text-sm font-bold text-[#001f3f] mt-0.5">
+                        {formatNum(Number.parseFloat(agentRate) || 0)}%
+                      </div>
+                    </div>
+                    <div className="bg-white border border-slate-200 rounded-lg p-2.5">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+                        Total
+                      </span>
+                      <div className="text-sm font-bold text-[#001f3f] mt-0.5">
+                        ₱{formatNum(calculations.grossBeforeTax)}
+                      </div>
+                    </div>
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-2.5">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 block">
+                        VAT (12%)
+                      </span>
+                      <div className="text-sm font-bold text-amber-900 mt-0.5">
+                        ₱{formatNum(calculations.vatAmount)}
+                      </div>
+                    </div>
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-2.5">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 block">
+                        Net Comm.
+                      </span>
+                      <div className="text-base font-extrabold text-emerald-700 mt-0.5">
+                        ₱{formatNum(calculations.total)}
+                      </div>
+                    </div>
+                  </div>
+                ) : slipType === "W/o Invoice" || slipType === "Rate w/o Invoice" ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50 border border-slate-200 rounded-xl p-4">
+                    <div className="bg-white border border-slate-200 rounded-lg p-3">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
+                        Released from Developer
+                      </span>
+                      <div className="text-lg font-bold text-[#001f3f] mt-0.5">
+                        ₱{formatNum(calculations.comm)}
+                      </div>
+                    </div>
+                    <div className="bg-white border border-slate-200 rounded-lg p-3">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
+                        Rate (%)
+                      </span>
+                      <div className="text-lg font-bold text-[#001f3f] mt-0.5">
+                        {formatNum(Number.parseFloat(agentRate) || 0)}%
+                      </div>
+                    </div>
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 block">
+                        Total
+                      </span>
+                      <div className="text-xl font-extrabold text-emerald-700 mt-0.5">
+                        ₱{formatNum(calculations.total)}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50 border border-slate-200 rounded-xl p-4">
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 block">
+                        Total for Release
+                      </span>
+                      <div className="text-xl font-extrabold text-emerald-700 mt-0.5">
+                        ₱{formatNum(calculations.total)}
+                      </div>
+                    </div>
 
-                  <div className="bg-white border border-slate-200 rounded-lg p-3">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
-                      Exclusive of VAT
-                    </span>
-                    <div className="text-lg font-bold text-[#001f3f] mt-0.5">
-                      ₱{formatNum(calculations.exclusiveOfVat)}
+                    <div className="bg-white border border-slate-200 rounded-lg p-3">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
+                        Exclusive of VAT
+                      </span>
+                      <div className="text-lg font-bold text-[#001f3f] mt-0.5">
+                        ₱{formatNum(calculations.exclusiveOfVat)}
+                      </div>
                     </div>
-                  </div>
 
-                  <div className="bg-white border border-slate-200 rounded-lg p-3">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
-                      {slipType === "VAT w/ Invoice"
-                        ? "Withholding Tax (10%) / BIR 2307"
-                        : slipType === "Non-VAT"
-                        ? "Withholding Tax (5%) / BIR 2307"
-                        : slipType === "VAT w/o Invoice"
-                        ? "VAT Deduction (12%)"
-                        : "Withholding Tax (0%)"}
-                    </span>
-                    <div className="text-lg font-bold text-[#001f3f] mt-0.5">
-                      ₱{formatNum(
-                        slipType === "VAT w/o Invoice"
-                          ? calculations.vatAmount
-                          : calculations.withholdingTax
-                      )}
+                    <div className="bg-white border border-slate-200 rounded-lg p-3">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
+                        For BIR 2307 (10% EWT)
+                      </span>
+                      <div className="text-lg font-bold text-[#001f3f] mt-0.5">
+                        ₱{formatNum(calculations.withholdingTax)}
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
 
                 {/* Row 5: Commission Status */}
                 <div className="space-y-1.5">
