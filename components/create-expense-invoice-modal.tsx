@@ -55,6 +55,7 @@ export function CreateExpenseInvoiceModal({
   const [purpose, setPurpose] = useState("")
   const [notes, setNotes] = useState("")
   const [terms, setTerms] = useState("For Executive Review & Disbursement Approval")
+  const [showTaxColumns, setShowTaxColumns] = useState(true)
 
   useEffect(() => {
     if (!open) return
@@ -85,6 +86,11 @@ export function CreateExpenseInvoiceModal({
         setPurpose(
           `Expense Request for ${selectedRequests.map((r) => r.item_name).join(", ")}`
         )
+        // Auto-hide Tax Type & Gross Taxable if all selected items look like budget requests (no Gross Taxable yet)
+        const allBudgetRequests = selectedRequests.every(
+          (r) => !Number(r.gross_taxable) || Number(r.gross_taxable) === 0
+        )
+        setShowTaxColumns(!allBudgetRequests)
       }
     }
 
@@ -135,6 +141,7 @@ export function CreateExpenseInvoiceModal({
     invoice_number: invoiceNumber || "EXP-0001",
     invoice_date: invoiceDate,
     due_date: dueDate || null,
+    payment_terms: showTaxColumns ? null : "hide_tax_columns",
     po_number: poNumber || null,
     company_name: companyName,
     company_address: companyAddress,
@@ -178,6 +185,7 @@ export function CreateExpenseInvoiceModal({
         invoice_number: invoiceNumber.trim() || `EXP-${Date.now()}`,
         invoice_date: invoiceDate || format(new Date(), "yyyy-MM-dd"),
         due_date: dueDate || null,
+        payment_terms: showTaxColumns ? null : "hide_tax_columns",
         po_number: poNumber || null,
         company_name: companyName,
         company_address: companyAddress,
@@ -410,6 +418,23 @@ export function CreateExpenseInvoiceModal({
                 placeholder="Optional notes or bank transfer details..."
                 className="bg-white text-[#001f3f] border-slate-300"
               />
+            </div>
+
+            <div className="md:col-span-4 flex items-center justify-between gap-3 pt-2 border-t border-slate-200">
+              <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={showTaxColumns}
+                  onChange={(e) => setShowTaxColumns(e.target.checked)}
+                  className="h-4 w-4 rounded border-slate-400 text-[#001f3f] focus:ring-[#0284c7] cursor-pointer"
+                />
+                <span className="text-xs font-semibold text-[#001f3f]">
+                  Show Tax Type &amp; Gross Taxable columns on Voucher
+                </span>
+              </label>
+              <span className="text-[11px] text-slate-500">
+                Uncheck for budget requests without Official Receipts yet (hides NON-VAT &amp; ₱0.00 columns)
+              </span>
             </div>
           </div>
 

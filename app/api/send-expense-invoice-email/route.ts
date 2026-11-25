@@ -55,6 +55,7 @@ export async function POST(request: NextRequest) {
     const approvalUrl = `${origin.replace(/\/$/, "")}/expense-approval/${approvalToken}`;
 
     const items = Array.isArray(invoice.items) ? invoice.items : [];
+    const hideTaxColumns = invoice.payment_terms === "hide_tax_columns";
     const currency = invoice.currency || "PHP";
     const formatAmount = (num: number) =>
       new Intl.NumberFormat("en-PH", {
@@ -71,12 +72,12 @@ export async function POST(request: NextRequest) {
             ${item.item_name || item.description || "Expense Item"}
             ${
               item.supplier_name || item.name
-                ? `<div style="font-size: 12px; color: #64748b; font-weight: 400; margin-top: 2px;">Payee/Supplier: ${item.supplier_name || item.name}${item.tin ? ` (TIN: ${item.tin})` : ""}</div>`
+                ? `<div style="font-size: 12px; color: #64748b; font-weight: 400; margin-top: 2px;">Payee/Supplier: ${item.supplier_name || item.name}${item.tin && item.tin !== "0" && item.tin !== "000" ? ` (TIN: ${item.tin})` : ""}</div>`
                 : ""
             }
           </td>
           <td style="padding: 12px 14px; font-size: 13px; color: #475569; text-align: center;">
-            ${item.category_name || item.tax_type?.toUpperCase() || "-"}
+            ${hideTaxColumns ? (item.category_name || "General") : (item.category_name || item.tax_type?.toUpperCase() || "-")}
           </td>
           <td style="padding: 12px 14px; font-size: 14px; color: #0f172a; font-weight: 700; text-align: right;">
             ${formatAmount(item.amount ?? item.total_actual_amount ?? item.gross_taxable ?? 0)}

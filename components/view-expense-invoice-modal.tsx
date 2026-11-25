@@ -85,15 +85,17 @@ export function ViewExpenseInvoiceModal({
   const [uploadingProof, setUploadingProof] = useState(false)
   const [submittingManualApproval, setSubmittingManualApproval] = useState(false)
   const [downloadingAllProofs, setDownloadingAllProofs] = useState(false)
+  const [showTaxColumns, setShowTaxColumns] = useState(true)
 
   useEffect(() => {
+    setShowTaxColumns(invoice?.payment_terms !== "hide_tax_columns")
     if (!open) {
       setUploadedProofUrls([])
       setSignatureData(null)
       setShowRejectInput(false)
       setRejectionReason("")
     }
-  }, [open, invoice?.id])
+  }, [open, invoice?.id, invoice?.payment_terms])
 
   if (!invoice) return null
 
@@ -410,11 +412,30 @@ export function ViewExpenseInvoiceModal({
           </div>
         </DialogHeader>
 
+        {/* Optional Display Toggle for Tax Type & Gross Taxable */}
+        <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2">
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={showTaxColumns}
+              onChange={(e) => setShowTaxColumns(e.target.checked)}
+              className="h-4 w-4 rounded border-slate-400 text-[#001f3f] cursor-pointer"
+            />
+            <span className="text-xs font-semibold text-[#001f3f]">
+              Show Tax Type &amp; Gross Taxable columns on Voucher / PDF
+            </span>
+          </label>
+          <span className="text-[11px] text-slate-500">
+            Uncheck for budget requests without ORs yet
+          </span>
+        </div>
+
         {/* Expense Voucher Document */}
         <div className="bg-slate-100 p-4 rounded-xl border border-slate-200 overflow-x-auto">
           <ExpenseInvoiceDocument
             invoice={{
               ...invoice,
+              payment_terms: showTaxColumns ? null : "hide_tax_columns",
               signature_data: signatureData || invoice.signature_data,
             }}
             containerId={docContainerId}

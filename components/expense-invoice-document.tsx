@@ -156,6 +156,7 @@ export function ExpenseInvoiceDocument({
   const items = Array.isArray(invoice.items) ? invoice.items : []
   const isApproved = invoice.status === "approved" || invoice.status === "converted"
   const isRejected = invoice.status === "rejected"
+  const hideTaxColumns = invoice.payment_terms === "hide_tax_columns"
 
   const formattedInvoiceDate = invoice.invoice_date
     ? format(new Date(invoice.invoice_date), "MMMM dd, yyyy")
@@ -491,28 +492,32 @@ export function ExpenseInvoiceDocument({
                 >
                   Category
                 </th>
-                <th
-                  style={{
-                    padding: "10px 12px",
-                    textAlign: "center",
-                    fontWeight: 700,
-                    width: 85,
-                    borderRight: "1px solid #1e3a5f",
-                  }}
-                >
-                  Tax Type
-                </th>
-                <th
-                  style={{
-                    padding: "10px 12px",
-                    textAlign: "right",
-                    fontWeight: 700,
-                    width: 125,
-                    borderRight: "1px solid #1e3a5f",
-                  }}
-                >
-                  Gross Taxable
-                </th>
+                {!hideTaxColumns && (
+                  <>
+                    <th
+                      style={{
+                        padding: "10px 12px",
+                        textAlign: "center",
+                        fontWeight: 700,
+                        width: 85,
+                        borderRight: "1px solid #1e3a5f",
+                      }}
+                    >
+                      Tax Type
+                    </th>
+                    <th
+                      style={{
+                        padding: "10px 12px",
+                        textAlign: "right",
+                        fontWeight: 700,
+                        width: 125,
+                        borderRight: "1px solid #1e3a5f",
+                      }}
+                    >
+                      Gross Taxable
+                    </th>
+                  </>
+                )}
                 <th
                   style={{
                     padding: "10px 12px",
@@ -587,29 +592,33 @@ export function ExpenseInvoiceDocument({
                     >
                       {item.category_name || "General"}
                     </td>
-                    <td
-                      style={{
-                        padding: "10px 12px",
-                        textAlign: "center",
-                        fontSize: 11.5,
-                        fontWeight: 600,
-                        textTransform: "uppercase",
-                        color: item.tax_type === "vat" ? "#0284c7" : "#b45309",
-                        borderRight: "1px solid #e2e8f0",
-                      }}
-                    >
-                      {item.tax_type || "NON-VAT"}
-                    </td>
-                    <td
-                      style={{
-                        padding: "10px 12px",
-                        textAlign: "right",
-                        color: "#334155",
-                        borderRight: "1px solid #e2e8f0",
-                      }}
-                    >
-                      {formatAmount(itemGross)}
-                    </td>
+                    {!hideTaxColumns && (
+                      <>
+                        <td
+                          style={{
+                            padding: "10px 12px",
+                            textAlign: "center",
+                            fontSize: 11.5,
+                            fontWeight: 600,
+                            textTransform: "uppercase",
+                            color: item.tax_type === "vat" ? "#0284c7" : "#b45309",
+                            borderRight: "1px solid #e2e8f0",
+                          }}
+                        >
+                          {item.tax_type || "NON-VAT"}
+                        </td>
+                        <td
+                          style={{
+                            padding: "10px 12px",
+                            textAlign: "right",
+                            color: "#334155",
+                            borderRight: "1px solid #e2e8f0",
+                          }}
+                        >
+                          {formatAmount(itemGross)}
+                        </td>
+                      </>
+                    )}
                     <td
                       style={{
                         padding: "10px 12px",
