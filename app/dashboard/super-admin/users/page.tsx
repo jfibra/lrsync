@@ -51,6 +51,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/lib/supabase/client";
 import type { UserProfile, UserRole, UserStatus } from "@/types/auth";
+import { CollectorBiometricResetButtons } from "@/components/collector-biometric-reset-buttons";
 import {
   Search,
   Edit,
@@ -1554,6 +1555,7 @@ export default function UserManagement() {
                                         )}
                                       </Button>
                                     )}
+                                    <CollectorBiometricResetButtons user={user} />
                                     <Button
                                       variant="ghost"
                                       size="sm"

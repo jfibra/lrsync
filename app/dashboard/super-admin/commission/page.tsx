@@ -327,7 +327,7 @@ export default function SuperAdminCommissionPage() {
     const options = []
     const currentDate = new Date()
 
-    for (let i = 0; i < 24; i++) {
+    for (let i = -12; i < 24; i++) {
       const date = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1)
       const year = date.getFullYear()
       const month = String(date.getMonth() + 1).padStart(2, "0")

@@ -28,8 +28,8 @@ export const QUARTER_PRESETS: Record<string, { label: string; months: string[] }
 
 export function getAvailableYears(): string[] {
   const currentYear = new Date().getFullYear()
-  const maxYear = Math.max(currentYear, 2026)
-  const minYear = 2023
+  const maxYear = currentYear + 5
+  const minYear = 2020
   const years: string[] = []
   for (let y = maxYear; y >= minYear; y--) {
     years.push(String(y))

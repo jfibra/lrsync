@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { TaxMonthPicker } from "@/components/tax-month-picker"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { format } from "date-fns"
 import { useAuth } from "@/contexts/auth-context"
@@ -472,22 +473,12 @@ export function AddPurchasesModal({ open, onOpenChange, onPurchaseAdded }: AddPu
               <Label htmlFor="tax-month" className="text-sm font-medium text-[#001f3f]">
                 Tax Month *
               </Label>
-              <Select
+              <TaxMonthPicker
+                id="tax-month"
                 value={formData.tax_month}
                 onValueChange={(value) => setFormData({ ...formData, tax_month: value })}
-                required
-              >
-                <SelectTrigger className="bg-white text-[#001f3f] border-[#001f3f]">
-                  <SelectValue placeholder="Select tax month..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {taxMonthOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                triggerClassName="bg-white text-[#001f3f] border-[#001f3f]"
+              />
             </div>
 
             {/* Tax Type */}

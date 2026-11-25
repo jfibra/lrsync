@@ -82,7 +82,9 @@ export function VoucherDocumentCropper({
   // Crop box in percentages (0..100) relative to displayed image
   const [crop, setCrop] = useState<CropRect>({ x: 5, y: 5, w: 90, h: 90 })
   const [isDragging, setIsDragging] = useState(false)
-  const [dragMode, setDragMode] = useState<"new" | "move" | "nw" | "ne" | "sw" | "se" | null>(null)
+  const [dragMode, setDragMode] = useState<
+    "new" | "move" | "nw" | "ne" | "sw" | "se" | "n" | "s" | "e" | "w" | null
+  >(null)
   const [dragStart, setDragStart] = useState<{
     mouseX: number
     mouseY: number
@@ -204,7 +206,7 @@ export function VoucherDocumentCropper({
 
   const startInteraction = (
     e: React.MouseEvent | React.TouchEvent,
-    mode: "new" | "move" | "nw" | "ne" | "sw" | "se"
+    mode: "new" | "move" | "nw" | "ne" | "sw" | "se" | "n" | "s" | "e" | "w"
   ) => {
     e.stopPropagation()
     const clientX = "touches" in e ? e.touches[0].clientX : e.clientX
@@ -214,7 +216,7 @@ export function VoucherDocumentCropper({
     setIsDragging(true)
     setDragMode(mode)
     if (mode === "new") {
-      const initialCrop = { x: px, y: py, w: 1, h: 1 }
+      const initialCrop = { x: px, y: py, w: 0.2, h: 0.2 }
       setCrop(initialCrop)
       setDragStart({ mouseX: px, mouseY: py, startCrop: initialCrop })
     } else {
@@ -230,24 +232,25 @@ export function VoucherDocumentCropper({
     const dx = px - dragStart.mouseX
     const dy = py - dragStart.mouseY
     const s = dragStart.startCrop
+    const MIN_PCT = 0.2
 
     if (dragMode === "new") {
       const x = Math.min(dragStart.mouseX, px)
       const y = Math.min(dragStart.mouseY, py)
-      const w = Math.max(2, Math.abs(px - dragStart.mouseX))
-      const h = Math.max(2, Math.abs(py - dragStart.mouseY))
+      const w = Math.max(MIN_PCT, Math.abs(px - dragStart.mouseX))
+      const h = Math.max(MIN_PCT, Math.abs(py - dragStart.mouseY))
       setCrop({ x, y, w: Math.min(100 - x, w), h: Math.min(100 - y, h) })
     } else if (dragMode === "move") {
       const nx = Math.max(0, Math.min(100 - s.w, s.x + dx))
       const ny = Math.max(0, Math.min(100 - s.h, s.y + dy))
       setCrop({ ...s, x: nx, y: ny })
     } else if (dragMode === "se") {
-      const nw = Math.max(5, Math.min(100 - s.x, s.w + dx))
-      const nh = Math.max(5, Math.min(100 - s.y, s.h + dy))
+      const nw = Math.max(MIN_PCT, Math.min(100 - s.x, s.w + dx))
+      const nh = Math.max(MIN_PCT, Math.min(100 - s.y, s.h + dy))
       setCrop({ ...s, w: nw, h: nh })
     } else if (dragMode === "nw") {
-      const nx = Math.max(0, Math.min(s.x + s.w - 5, s.x + dx))
-      const ny = Math.max(0, Math.min(s.y + s.h - 5, s.y + dy))
+      const nx = Math.max(0, Math.min(s.x + s.w - MIN_PCT, s.x + dx))
+      const ny = Math.max(0, Math.min(s.y + s.h - MIN_PCT, s.y + dy))
       setCrop({
         x: nx,
         y: ny,
@@ -255,8 +258,8 @@ export function VoucherDocumentCropper({
         h: s.h + (s.y - ny),
       })
     } else if (dragMode === "ne") {
-      const ny = Math.max(0, Math.min(s.y + s.h - 5, s.y + dy))
-      const nw = Math.max(5, Math.min(100 - s.x, s.w + dx))
+      const ny = Math.max(0, Math.min(s.y + s.h - MIN_PCT, s.y + dy))
+      const nw = Math.max(MIN_PCT, Math.min(100 - s.x, s.w + dx))
       setCrop({
         x: s.x,
         y: ny,
@@ -264,14 +267,34 @@ export function VoucherDocumentCropper({
         h: s.h + (s.y - ny),
       })
     } else if (dragMode === "sw") {
-      const nx = Math.max(0, Math.min(s.x + s.w - 5, s.x + dx))
-      const nh = Math.max(5, Math.min(100 - s.y, s.h + dy))
+      const nx = Math.max(0, Math.min(s.x + s.w - MIN_PCT, s.x + dx))
+      const nh = Math.max(MIN_PCT, Math.min(100 - s.y, s.h + dy))
       setCrop({
         x: nx,
         y: s.y,
         w: s.w + (s.x - nx),
         h: nh,
       })
+    } else if (dragMode === "n") {
+      const ny = Math.max(0, Math.min(s.y + s.h - MIN_PCT, s.y + dy))
+      setCrop({
+        ...s,
+        y: ny,
+        h: s.h + (s.y - ny),
+      })
+    } else if (dragMode === "s") {
+      const nh = Math.max(MIN_PCT, Math.min(100 - s.y, s.h + dy))
+      setCrop({ ...s, h: nh })
+    } else if (dragMode === "w") {
+      const nx = Math.max(0, Math.min(s.x + s.w - MIN_PCT, s.x + dx))
+      setCrop({
+        ...s,
+        x: nx,
+        w: s.w + (s.x - nx),
+      })
+    } else if (dragMode === "e") {
+      const nw = Math.max(MIN_PCT, Math.min(100 - s.x, s.w + dx))
+      setCrop({ ...s, w: nw })
     }
   }
 
@@ -289,8 +312,8 @@ export function VoucherDocumentCropper({
 
     const sx = Math.round((crop.x / 100) * naturalW)
     const sy = Math.round((crop.y / 100) * naturalH)
-    const sw = Math.max(10, Math.round((crop.w / 100) * naturalW))
-    const sh = Math.max(10, Math.round((crop.h / 100) * naturalH))
+    const sw = Math.max(1, Math.round((crop.w / 100) * naturalW))
+    const sh = Math.max(1, Math.round((crop.h / 100) * naturalH))
 
     const canvas = document.createElement("canvas")
     canvas.width = sw
@@ -449,26 +472,48 @@ export function VoucherDocumentCropper({
                   <div />
                 </div>
 
-                {/* Corner Handles */}
+                {/* Edge Handles (Top, Bottom, Left, Right) for precise thin-strip cropping */}
+                <div
+                  onMouseDown={(e) => startInteraction(e, "n")}
+                  onTouchStart={(e) => startInteraction(e, "n")}
+                  className="absolute -top-1.5 left-2 right-2 h-3 cursor-ns-resize"
+                />
+                <div
+                  onMouseDown={(e) => startInteraction(e, "s")}
+                  onTouchStart={(e) => startInteraction(e, "s")}
+                  className="absolute -bottom-1.5 left-2 right-2 h-3 cursor-ns-resize"
+                />
+                <div
+                  onMouseDown={(e) => startInteraction(e, "w")}
+                  onTouchStart={(e) => startInteraction(e, "w")}
+                  className="absolute top-2 bottom-2 -left-1.5 w-3 cursor-ew-resize"
+                />
+                <div
+                  onMouseDown={(e) => startInteraction(e, "e")}
+                  onTouchStart={(e) => startInteraction(e, "e")}
+                  className="absolute top-2 bottom-2 -right-1.5 w-3 cursor-ew-resize"
+                />
+
+                {/* Sleek Corner Handles */}
                 <div
                   onMouseDown={(e) => startInteraction(e, "nw")}
                   onTouchStart={(e) => startInteraction(e, "nw")}
-                  className="absolute -top-2 -left-2 w-4 h-4 bg-sky-500 border-2 border-white rounded-sm cursor-nwse-resize"
+                  className="absolute -top-1.5 -left-1.5 w-3 h-3 bg-sky-500 border border-white rounded-sm cursor-nwse-resize z-10"
                 />
                 <div
                   onMouseDown={(e) => startInteraction(e, "ne")}
                   onTouchStart={(e) => startInteraction(e, "ne")}
-                  className="absolute -top-2 -right-2 w-4 h-4 bg-sky-500 border-2 border-white rounded-sm cursor-nesw-resize"
+                  className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-sky-500 border border-white rounded-sm cursor-nesw-resize z-10"
                 />
                 <div
                   onMouseDown={(e) => startInteraction(e, "sw")}
                   onTouchStart={(e) => startInteraction(e, "sw")}
-                  className="absolute -bottom-2 -left-2 w-4 h-4 bg-sky-500 border-2 border-white rounded-sm cursor-nesw-resize"
+                  className="absolute -bottom-1.5 -left-1.5 w-3 h-3 bg-sky-500 border border-white rounded-sm cursor-nesw-resize z-10"
                 />
                 <div
                   onMouseDown={(e) => startInteraction(e, "se")}
                   onTouchStart={(e) => startInteraction(e, "se")}
-                  className="absolute -bottom-2 -right-2 w-4 h-4 bg-sky-500 border-2 border-white rounded-sm cursor-nwse-resize"
+                  className="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-sky-500 border border-white rounded-sm cursor-nwse-resize z-10"
                 />
               </div>
             </div>

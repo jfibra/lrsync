@@ -105,6 +105,14 @@ export async function POST(request: NextRequest) {
       const safeAgent = (tinName || "Agent").replace(/[^\w\s\-]/g, "").replace(/\s+/g, "_").trim();
       finalFileName = `Voucher_${safeVoucherNo}_${safeAgent}_${Date.now()}.${ext}`;
       s3Key = `lrsync/vouchers/${year}/${month}/${date}/${finalFileName}`;
+    } else if (category === "collector") {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, "0");
+      const safeDocType = (attachmentType || "attachment").replace(/[^\w\-]+/g, "_");
+      const uniqueId = uuidv4();
+      finalFileName = `${safeDocType}_${Date.now()}_${uniqueId.slice(0, 8)}.${ext}`;
+      s3Key = `collector/${safeDocType}/${year}/${month}/${finalFileName}`;
     } else if (category === "release") {
       const now = new Date();
       const year = now.getFullYear();

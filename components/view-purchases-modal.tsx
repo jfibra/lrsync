@@ -6,8 +6,9 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { format } from "date-fns"
 import { useAuth } from "@/contexts/auth-context"
-import { ExternalLink, Eye, FileText, Image as ImageIcon } from "lucide-react"
+import { ExternalLink, Eye, FileText, Image as ImageIcon, Trash2, Loader2 } from "lucide-react"
 import { formatS3Url } from "@/utils/s3-url"
+import { supabase } from "@/lib/supabase/client"
 
 interface Purchase {
   id: string
@@ -32,13 +33,29 @@ interface ViewPurchasesModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   purchase: Purchase | null
+  tableName?: "purchases" | "expense_requests"
+  onAttachmentDeleted?: () => void
 }
 
-export function ViewPurchasesModal({ open, onOpenChange, purchase }: ViewPurchasesModalProps) {
+export function ViewPurchasesModal({
+  open,
+  onOpenChange,
+  purchase,
+  tableName = "purchases",
+  onAttachmentDeleted,
+}: ViewPurchasesModalProps) {
   const { profile } = useAuth()
+  const [localPurchase, setLocalPurchase] = useState<Purchase | null>(purchase)
+  const [deletingIdx, setDeletingIdx] = useState<number | null>(null)
   const [lightboxOpen, setLightboxOpen] = useState(false)
   const [lightboxImages, setLightboxImages] = useState<{ url: string; label: string }[]>([])
   const [lightboxIndex, setLightboxIndex] = useState(0)
+
+  const canDeleteAttachments = profile?.role === "super_admin" || profile?.role === "admin"
+
+  useEffect(() => {
+    setLocalPurchase(purchase)
+  }, [purchase])
 
   // Format TIN display
   const formatTin = (tin: string) => {
@@ -84,19 +101,58 @@ export function ViewPurchasesModal({ open, onOpenChange, purchase }: ViewPurchas
 
   // Parse attached files safely and encode S3 URLs
   const getAttachmentFiles = (): string[] => {
-    if (!purchase?.official_receipt) return []
+    if (!localPurchase?.official_receipt) return []
     let rawList: string[] = []
-    if (Array.isArray(purchase.official_receipt)) {
-      rawList = purchase.official_receipt.filter(Boolean)
-    } else if (typeof purchase.official_receipt === "string" && purchase.official_receipt.trim() !== "") {
+    if (Array.isArray(localPurchase.official_receipt)) {
+      rawList = localPurchase.official_receipt.filter(Boolean)
+    } else if (typeof localPurchase.official_receipt === "string" && localPurchase.official_receipt.trim() !== "") {
       try {
-        const parsed = JSON.parse(purchase.official_receipt)
-        rawList = Array.isArray(parsed) ? parsed.filter(Boolean) : [purchase.official_receipt]
+        const parsed = JSON.parse(localPurchase.official_receipt)
+        rawList = Array.isArray(parsed) ? parsed.filter(Boolean) : [localPurchase.official_receipt]
       } catch {
-        rawList = [purchase.official_receipt]
+        rawList = [localPurchase.official_receipt]
       }
     }
     return rawList.map((u) => formatS3Url(u))
+  }
+
+  const handleDeleteAttachment = async (indexToRemove: number) => {
+    if (!canDeleteAttachments || !localPurchase?.id) return
+    if (!window.confirm("Are you sure you want to delete this attachment?")) return
+
+    setDeletingIdx(indexToRemove)
+    try {
+      const currentRaw = localPurchase.official_receipt
+      let rawList: string[] = []
+      if (Array.isArray(currentRaw)) {
+        rawList = currentRaw.filter(Boolean)
+      } else if (typeof currentRaw === "string" && currentRaw.trim() !== "") {
+        try {
+          const parsed = JSON.parse(currentRaw)
+          rawList = Array.isArray(parsed) ? parsed.filter(Boolean) : [currentRaw]
+        } catch {
+          rawList = [currentRaw]
+        }
+      }
+
+      const updatedList = rawList.filter((_, idx) => idx !== indexToRemove)
+      const nextValue = updatedList.length > 0 ? updatedList : null
+
+      const { error } = await supabase
+        .from(tableName)
+        .update({ official_receipt: nextValue })
+        .eq("id", localPurchase.id)
+
+      if (error) throw error
+
+      setLocalPurchase({ ...localPurchase, official_receipt: nextValue })
+      onAttachmentDeleted?.()
+    } catch (err: any) {
+      console.error("Error deleting purchase attachment:", err)
+      alert("Error deleting attachment: " + (err?.message || "Please try again."))
+    } finally {
+      setDeletingIdx(null)
+    }
   }
 
   const files = getAttachmentFiles()
@@ -389,6 +445,23 @@ export function ViewPurchasesModal({ open, onOpenChange, purchase }: ViewPurchas
                             >
                               <ExternalLink className="h-3 w-3 mr-1.5" />
                               Open {isPdf ? "PDF" : "File"}
+                            </Button>
+                          )}
+                          {canDeleteAttachments && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              disabled={deletingIdx === idx}
+                              className="h-8 px-2 text-red-600 hover:text-red-700 hover:bg-red-50 shrink-0"
+                              onClick={() => handleDeleteAttachment(idx)}
+                              title="Delete attachment"
+                            >
+                              {deletingIdx === idx ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-3.5 w-3.5" />
+                              )}
                             </Button>
                           )}
                         </div>

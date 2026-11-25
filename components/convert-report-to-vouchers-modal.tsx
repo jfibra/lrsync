@@ -443,6 +443,7 @@ export function ConvertReportToVouchersModal({
                   <SelectItem value="auto">Auto (from Breakdown)</SelectItem>
                   <SelectItem value="VAT w/ Invoice">VAT w/ Invoice</SelectItem>
                   <SelectItem value="VAT w/o Invoice">VAT w/o Invoice</SelectItem>
+                  <SelectItem value="VAT without Rate">VAT without Rate</SelectItem>
                   <SelectItem value="Non-VAT">Non-VAT</SelectItem>
                   <SelectItem value="W/o Invoice">W/o Invoice</SelectItem>
                 </SelectContent>

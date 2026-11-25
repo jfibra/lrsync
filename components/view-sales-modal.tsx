@@ -4,23 +4,33 @@ import React, { useState, useEffect } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { ExternalLink, Eye, FileText, Image as ImageIcon } from "lucide-react"
+import { ExternalLink, Eye, FileText, Image as ImageIcon, Trash2, Loader2 } from "lucide-react"
 import { format } from "date-fns"
 import type { Sales } from "@/types/sales"
 import { useAuth } from "@/contexts/auth-context"
 import { formatS3Url } from "@/utils/s3-url"
+import { supabase } from "@/lib/supabase/client"
 
 interface ViewSalesModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   sale: Sales | null
+  onAttachmentDeleted?: () => void
 }
 
-export function ViewSalesModal({ open, onOpenChange, sale }: ViewSalesModalProps) {
+export function ViewSalesModal({ open, onOpenChange, sale, onAttachmentDeleted }: ViewSalesModalProps) {
   const { profile } = useAuth()
+  const [localSale, setLocalSale] = useState<Sales | null>(sale)
+  const [deletingKey, setDeletingKey] = useState<string | null>(null)
   const [lightboxOpen, setLightboxOpen] = useState(false)
   const [lightboxImages, setLightboxImages] = useState<{ url: string; label: string }[]>([])
   const [lightboxIndex, setLightboxIndex] = useState(0)
+
+  const canDeleteAttachments = profile?.role === "super_admin" || profile?.role === "admin"
+
+  useEffect(() => {
+    setLocalSale(sale)
+  }, [sale])
 
   // Format TIN display - add dash after every 3 digits
   const formatTin = (tin: string) => {
@@ -82,7 +92,7 @@ export function ViewSalesModal({ open, onOpenChange, sale }: ViewSalesModalProps
 
   // Gather all image files across all categories for lightbox navigation
   const getAllImageFiles = () => {
-    if (!sale) return []
+    if (!localSale) return []
     const categories = [
       { key: "cheque", label: "Cheque" },
       { key: "voucher", label: "Voucher" },
@@ -93,7 +103,7 @@ export function ViewSalesModal({ open, onOpenChange, sale }: ViewSalesModalProps
 
     const allImages: { url: string; label: string }[] = []
     categories.forEach(({ key, label }) => {
-      const urls = getFilesArray(sale[key as keyof Sales])
+      const urls = getFilesArray(localSale[key as keyof Sales])
       urls.forEach((url, i) => {
         if (isImageFile(url)) {
           allImages.push({
@@ -260,13 +270,58 @@ export function ViewSalesModal({ open, onOpenChange, sale }: ViewSalesModalProps
     }
   }, [open, sale, profile])
 
-  if (!sale) return null
+  if (!localSale) return null
+  const activeSale = localSale
 
-  const chequeFiles = getFilesArray(sale.cheque)
-  const voucherFiles = getFilesArray(sale.voucher)
-  const invoiceFiles = getFilesArray(sale.invoice)
-  const doc2307Files = getFilesArray(sale.doc_2307)
-  const depositSlipFiles = getFilesArray(sale.deposit_slip)
+  const handleDeleteAttachment = async (
+    categoryKey: "cheque" | "voucher" | "invoice" | "doc_2307" | "deposit_slip",
+    label: string,
+    indexToRemove: number
+  ) => {
+    if (!canDeleteAttachments || !activeSale?.id) return
+    if (!window.confirm(`Are you sure you want to delete this ${label} attachment?`)) return
+
+    const deleteId = `${categoryKey}-${indexToRemove}`
+    setDeletingKey(deleteId)
+    try {
+      const currentRaw = activeSale[categoryKey]
+      let rawList: string[] = []
+      if (Array.isArray(currentRaw)) {
+        rawList = currentRaw.filter(Boolean)
+      } else if (typeof currentRaw === "string" && currentRaw.trim() !== "") {
+        try {
+          const parsed = JSON.parse(currentRaw)
+          rawList = Array.isArray(parsed) ? parsed.filter(Boolean) : [currentRaw]
+        } catch {
+          rawList = [currentRaw]
+        }
+      }
+
+      const updatedList = rawList.filter((_, idx) => idx !== indexToRemove)
+      const nextValue = updatedList.length > 0 ? updatedList : null
+
+      const { error } = await supabase
+        .from("sales")
+        .update({ [categoryKey]: nextValue })
+        .eq("id", activeSale.id)
+
+      if (error) throw error
+
+      setLocalSale({ ...activeSale, [categoryKey]: nextValue } as Sales)
+      onAttachmentDeleted?.()
+    } catch (err: any) {
+      console.error("Failed to delete sales attachment:", err)
+      alert("Error deleting attachment: " + (err?.message || "Please try again."))
+    } finally {
+      setDeletingKey(null)
+    }
+  }
+
+  const chequeFiles = getFilesArray(activeSale.cheque)
+  const voucherFiles = getFilesArray(activeSale.voucher)
+  const invoiceFiles = getFilesArray(activeSale.invoice)
+  const doc2307Files = getFilesArray(activeSale.doc_2307)
+  const depositSlipFiles = getFilesArray(activeSale.deposit_slip)
 
   const hasAnyAttachments =
     chequeFiles.length > 0 ||
@@ -275,7 +330,11 @@ export function ViewSalesModal({ open, onOpenChange, sale }: ViewSalesModalProps
     doc2307Files.length > 0 ||
     depositSlipFiles.length > 0
 
-  const renderFileCategory = (label: string, filesList: string[]) => {
+  const renderFileCategory = (
+    categoryKey: "cheque" | "voucher" | "invoice" | "doc_2307" | "deposit_slip",
+    label: string,
+    filesList: string[]
+  ) => {
     if (filesList.length === 0) return null
 
     return (
@@ -288,6 +347,7 @@ export function ViewSalesModal({ open, onOpenChange, sale }: ViewSalesModalProps
             const isImg = isImageFile(url)
             const isPdf = isPdfFile(url)
             const typeLabel = getFileTypeLabel(url)
+            const isDeleting = deletingKey === `${categoryKey}-${index}`
 
             return (
               <div
@@ -342,6 +402,23 @@ export function ViewSalesModal({ open, onOpenChange, sale }: ViewSalesModalProps
                     >
                       <ExternalLink className="h-3 w-3 mr-1" />
                       Open {isPdf ? "PDF" : "File"}
+                    </Button>
+                  )}
+                  {canDeleteAttachments && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      disabled={isDeleting}
+                      className="h-7 px-1.5 text-red-600 hover:text-red-700 hover:bg-red-50"
+                      onClick={() => handleDeleteAttachment(categoryKey, label, index)}
+                      title="Delete attachment"
+                    >
+                      {isDeleting ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-3.5 w-3.5" />
+                      )}
                     </Button>
                   )}
                 </div>
@@ -450,11 +527,11 @@ export function ViewSalesModal({ open, onOpenChange, sale }: ViewSalesModalProps
                 <p className="text-sm text-gray-500 italic">No file attachments for this sales record.</p>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {renderFileCategory("Cheque", chequeFiles)}
-                  {renderFileCategory("Voucher", voucherFiles)}
-                  {renderFileCategory("Invoice", invoiceFiles)}
-                  {renderFileCategory("Doc 2307", doc2307Files)}
-                  {renderFileCategory("Deposit Slip", depositSlipFiles)}
+                  {renderFileCategory("cheque", "Cheque", chequeFiles)}
+                  {renderFileCategory("voucher", "Voucher", voucherFiles)}
+                  {renderFileCategory("invoice", "Invoice", invoiceFiles)}
+                  {renderFileCategory("doc_2307", "Doc 2307", doc2307Files)}
+                  {renderFileCategory("deposit_slip", "Deposit Slip", depositSlipFiles)}
                 </div>
               )}
             </div>

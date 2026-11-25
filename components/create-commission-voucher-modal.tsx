@@ -37,6 +37,8 @@ import {
   VoucherBondpaperDocument,
   generateVoucherBondpaperPdf,
   openVoucherBondpaperPdfPreview,
+  parseVoucherAttachmentUrls,
+  serializeVoucherAttachmentUrls,
   type CommissionVoucherData,
 } from "@/components/voucher-bondpaper-document"
 
@@ -59,8 +61,11 @@ export type SlipTypeOption =
   | "Non-VAT"
   | "VAT w/ Invoice"
   | "VAT w/o Invoice"
+  | "VAT without Rate"
   | "W/o Invoice"
   | "Rate w/o Invoice"
+
+const MAX_BONDPAPER_ATTACHMENTS = 5
 
 interface CreateCommissionVoucherModalProps {
   open: boolean
@@ -108,12 +113,14 @@ export function CreateCommissionVoucherModal({
   const [amountReleased, setAmountReleased] = useState("0")
   const [commissionStatus, setCommissionStatus] = useState("")
 
-  // Attachments & Cropping state
-  const [voucherAttachment, setVoucherAttachment] = useState<CroppedAttachmentResult | null>(null)
-  const [headerAttachment, setHeaderAttachment] = useState<CroppedAttachmentResult | null>(null)
+  // Attachments & Cropping state (up to 5 Voucher Documents + up to 5 Header Documents)
+  const [voucherAttachments, setVoucherAttachments] = useState<CroppedAttachmentResult[]>([])
+  const [headerAttachments, setHeaderAttachments] = useState<CroppedAttachmentResult[]>([])
   const [cropperOpen, setCropperOpen] = useState(false)
   const [cropperTarget, setCropperTarget] = useState<"voucher" | "header">("voucher")
   const [cropperFile, setCropperFile] = useState<File | null>(null)
+  const [cropperQueue, setCropperQueue] = useState<File[]>([])
+  const advancingQueueRef = React.useRef(false)
 
   // Save & Preview states
   const [saving, setSaving] = useState(false)
@@ -187,15 +194,26 @@ export function CreateCommissionVoucherModal({
       setTeamLeaderName(editVoucher.team_leader_name || "")
       setSubteamName(editVoucher.subteam_name || "")
       setUnitManagerName(editVoucher.unit_manager_name || "")
+      const existingVoucherUrls = parseVoucherAttachmentUrls(
+        editVoucher.voucher_attachment_url,
+        editVoucher.voucher_attachment_urls
+      ).slice(0, MAX_BONDPAPER_ATTACHMENTS)
+      const existingHeaderUrls = parseVoucherAttachmentUrls(
+        editVoucher.header_attachment_url,
+        editVoucher.header_attachment_urls
+      ).slice(0, MAX_BONDPAPER_ATTACHMENTS)
+      const excludedUrls = new Set(
+        [
+          editVoucher.generated_pdf_url,
+          editVoucher.voucher_attachment_url,
+          editVoucher.header_attachment_url,
+          ...existingVoucherUrls,
+          ...existingHeaderUrls,
+        ].filter(Boolean)
+      )
       setExtraAttachments(
         Array.isArray(editVoucher.attachments)
-          ? editVoucher.attachments.filter(
-              (u) =>
-                u &&
-                u !== editVoucher.generated_pdf_url &&
-                u !== editVoucher.voucher_attachment_url &&
-                u !== editVoucher.header_attachment_url
-            )
+          ? editVoucher.attachments.filter((u) => u && !excludedUrls.has(u))
           : []
       )
       setIncludeTlShare(false)
@@ -211,28 +229,25 @@ export function CreateCommissionVoucherModal({
       setReservationDate(normalizeDateForInput(editVoucher.reservation_date))
       setAmountReleased(String(editVoucher.amount_released ?? 0))
       setCommissionStatus(editVoucher.commission_status || "")
-      setVoucherAttachment(
-        editVoucher.voucher_attachment_url
-          ? {
-              dataUrl: formatS3Url(editVoucher.voucher_attachment_url),
-              fileName: "Existing Voucher Attachment",
-              fileSize: 0,
-              width: 0,
-              height: 0,
-            }
-          : null
+      setVoucherAttachments(
+        existingVoucherUrls.map((url, idx) => ({
+          dataUrl: formatS3Url(url),
+          fileName: `Voucher Attachment #${idx + 1}`,
+          fileSize: 0,
+          width: 0,
+          height: 0,
+        }))
       )
-      setHeaderAttachment(
-        editVoucher.header_attachment_url
-          ? {
-              dataUrl: formatS3Url(editVoucher.header_attachment_url),
-              fileName: "Existing Header Attachment",
-              fileSize: 0,
-              width: 0,
-              height: 0,
-            }
-          : null
+      setHeaderAttachments(
+        existingHeaderUrls.map((url, idx) => ({
+          dataUrl: formatS3Url(url),
+          fileName: `Header Attachment #${idx + 1}`,
+          fileSize: 0,
+          width: 0,
+          height: 0,
+        }))
       )
+      setCropperQueue([])
       return
     }
 
@@ -251,8 +266,9 @@ export function CreateCommissionVoucherModal({
     setReservationDate("")
     setAmountReleased("0")
     setCommissionStatus("")
-    setVoucherAttachment(null)
-    setHeaderAttachment(null)
+    setVoucherAttachments([])
+    setHeaderAttachments([])
+    setCropperQueue([])
   }, [open, editVoucher])
 
   // Search commission records using the exact same endpoint as CommissionGenerationModal
@@ -394,6 +410,18 @@ export function CreateCommissionVoucherModal({
     let vatAmount = 0
     let ewtRate = 0
 
+    if (slipType === "VAT without Rate") {
+      if (comm > 0) {
+        grossBeforeTax = comm
+        total = comm / 1.12
+        vatAmount = comm - total
+        exclusiveOfVat = total
+        withholdingTax = 0
+        ewtRate = 0
+      }
+      return { comm, grossBeforeTax, total, exclusiveOfVat, withholdingTax, vatAmount, ewtRate }
+    }
+
     if (comm > 0 && devRate > 0 && agRate > 0) {
       if (slipType === "VAT w/ Invoice") {
         const agentGross = (comm * agRate) / devRate
@@ -456,12 +484,28 @@ export function CreateCommissionVoucherModal({
     }).format(n || 0)
 
   const handleFilePick = (target: "voucher" | "header", files: FileList | null) => {
-    const file = files?.[0]
-    if (!file) return
+    if (!files || files.length === 0) return
+    const currentCount = target === "voucher" ? voucherAttachments.length : headerAttachments.length
+    const remainingSlots = MAX_BONDPAPER_ATTACHMENTS - currentCount
+    if (remainingSlots <= 0) {
+      alert(`You can attach up to ${MAX_BONDPAPER_ATTACHMENTS} ${target} documents.`)
+      return
+    }
+    const picked = Array.from(files).slice(0, remainingSlots)
+    if (files.length > remainingSlots) {
+      alert(
+        `Only ${remainingSlots} slot(s) remaining for ${target} documents (max ${MAX_BONDPAPER_ATTACHMENTS}). Extra files were skipped.`
+      )
+    }
+    const [first, ...rest] = picked
     setCropperTarget(target)
-    setCropperFile(file)
+    setCropperFile(first)
+    setCropperQueue(rest)
     setCropperOpen(true)
   }
+
+  const voucherDataUrls = voucherAttachments.map((a) => a.dataUrl).filter(Boolean)
+  const headerDataUrls = headerAttachments.map((a) => a.dataUrl).filter(Boolean)
 
   const voucherModel: CommissionVoucherData = {
     voucher_number: voucherNumber,
@@ -469,9 +513,9 @@ export function CreateCommissionVoucherModal({
     lrsales_id: selectedSale?.id || null,
     member_id: selectedSale?.agentid || selectedAgentId || null,
     developer_name: developerName,
-    developer_rate: Number.parseFloat(developerRate) || 5,
+    developer_rate: slipType === "VAT without Rate" ? 0 : Number.parseFloat(developerRate) || 5,
     agent_name: agentName,
-    agent_rate: Number.parseFloat(agentRate) || 4,
+    agent_rate: slipType === "VAT without Rate" ? 0 : Number.parseFloat(agentRate) || 4,
     project_name: projectName,
     unit_number: unitNumber,
     client_name: clientName,
@@ -483,8 +527,10 @@ export function CreateCommissionVoucherModal({
     vat_amount: calculations.vatAmount,
     ewt_rate: calculations.ewtRate,
     commission_status: commissionStatus,
-    voucher_attachment_url: voucherAttachment?.dataUrl || null,
-    header_attachment_url: headerAttachment?.dataUrl || null,
+    voucher_attachment_url: serializeVoucherAttachmentUrls(voucherDataUrls),
+    header_attachment_url: serializeVoucherAttachmentUrls(headerDataUrls),
+    voucher_attachment_urls: voucherDataUrls,
+    header_attachment_urls: headerDataUrls,
   }
 
   const tlVoucherModel: CommissionVoucherData = {
@@ -607,35 +653,43 @@ export function CreateCommissionVoucherModal({
 
     setSaving(true)
     try {
-      // 1. Upload cropped voucher & header images to S3 (only if newly cropped data URL; preserve existing S3 URL)
-      let voucherImgUrl: string | null = null
-      let headerImgUrl: string | null = null
-
-      if (voucherAttachment?.dataUrl) {
-        if (voucherAttachment.dataUrl.startsWith("data:")) {
-          const vBlob = await dataUrlToBlob(voucherAttachment.dataUrl)
-          voucherImgUrl = await uploadBlobToS3(
+      // 1. Upload cropped voucher & header images (up to 5 each) to S3 (preserve existing S3 URLs)
+      const voucherImgUrls: string[] = []
+      for (let i = 0; i < voucherAttachments.length; i++) {
+        const item = voucherAttachments[i]
+        if (!item?.dataUrl) continue
+        if (item.dataUrl.startsWith("data:")) {
+          const vBlob = await dataUrlToBlob(item.dataUrl)
+          const uploaded = await uploadBlobToS3(
             vBlob,
-            `voucher-crop-${voucherNumber}.png`,
+            `voucher-crop-${voucherNumber}-${i + 1}.png`,
             "image/png"
           )
+          voucherImgUrls.push(uploaded)
         } else {
-          voucherImgUrl = voucherAttachment.dataUrl
+          voucherImgUrls.push(item.dataUrl)
         }
       }
 
-      if (headerAttachment?.dataUrl) {
-        if (headerAttachment.dataUrl.startsWith("data:")) {
-          const hBlob = await dataUrlToBlob(headerAttachment.dataUrl)
-          headerImgUrl = await uploadBlobToS3(
+      const headerImgUrls: string[] = []
+      for (let i = 0; i < headerAttachments.length; i++) {
+        const item = headerAttachments[i]
+        if (!item?.dataUrl) continue
+        if (item.dataUrl.startsWith("data:")) {
+          const hBlob = await dataUrlToBlob(item.dataUrl)
+          const uploaded = await uploadBlobToS3(
             hBlob,
-            `header-crop-${voucherNumber}.png`,
+            `header-crop-${voucherNumber}-${i + 1}.png`,
             "image/png"
           )
+          headerImgUrls.push(uploaded)
         } else {
-          headerImgUrl = headerAttachment.dataUrl
+          headerImgUrls.push(item.dataUrl)
         }
       }
+
+      const voucherImgUrl = serializeVoucherAttachmentUrls(voucherImgUrls)
+      const headerImgUrl = serializeVoucherAttachmentUrls(headerImgUrls)
 
       // 2. Generate the A4 Bondpaper PDF and upload it to S3 as the voucher's PDF attachment
       let generatedPdfUrl: string | null = null
@@ -657,9 +711,9 @@ export function CreateCommissionVoucherModal({
         lrsales_id: selectedSale?.id ?? editVoucher?.lrsales_id ?? null,
         member_id: selectedSale?.agentid ?? selectedAgentId ?? editVoucher?.member_id ?? null,
         developer_name: developerName.trim(),
-        developer_rate: Number.parseFloat(developerRate) || 5,
+        developer_rate: slipType === "VAT without Rate" ? 0 : Number.parseFloat(developerRate) || 5,
         agent_name: agentName.trim(),
-        agent_rate: Number.parseFloat(agentRate) || 4,
+        agent_rate: slipType === "VAT without Rate" ? 0 : Number.parseFloat(agentRate) || 4,
         project_name: projectName.trim(),
         unit_number: unitNumber.trim(),
         client_name: clientName.trim(),
@@ -673,6 +727,8 @@ export function CreateCommissionVoucherModal({
         commission_status: commissionStatus.trim() || null,
         voucher_attachment_url: voucherImgUrl,
         header_attachment_url: headerImgUrl,
+        voucher_attachment_urls: voucherImgUrls,
+        header_attachment_urls: headerImgUrls,
         generated_pdf_url: generatedPdfUrl,
         attachments: attachmentsList,
         is_unencoded_sale: isUnencodedSale,
@@ -698,21 +754,35 @@ export function CreateCommissionVoucherModal({
         return supabase.from("commission_vouchers").insert([payload]).select("id").single()
       }
 
-      let { data: savedAgentRow, error } = await executeMutation(insertPayload)
+      let effectivePayload: Record<string, any> = insertPayload
+      let { data: savedAgentRow, error } = await executeMutation(effectivePayload)
       if (error && /column .* does not exist/i.test(error.message || "")) {
         const {
-          reservation_date: _r,
-          is_unencoded_sale: _u,
-          recipient_role: _rr,
-          team_name: _tn,
-          team_leader_name: _tl,
-          subteam_name: _st,
-          unit_manager_name: _um,
-          ...fallbackPayload
+          voucher_attachment_urls: _vau,
+          header_attachment_urls: _hau,
+          ...withoutMultiArrays
         } = insertPayload
-        const retry = await executeMutation(fallbackPayload)
-        savedAgentRow = retry.data
-        error = retry.error
+        effectivePayload = withoutMultiArrays
+        const retry1 = await executeMutation(effectivePayload)
+        savedAgentRow = retry1.data
+        error = retry1.error
+
+        if (error && /column .* does not exist/i.test(error.message || "")) {
+          const {
+            reservation_date: _r,
+            is_unencoded_sale: _u,
+            recipient_role: _rr,
+            team_name: _tn,
+            team_leader_name: _tl,
+            subteam_name: _st,
+            unit_manager_name: _um,
+            ...fallbackPayload
+          } = withoutMultiArrays
+          effectivePayload = fallbackPayload
+          const retry2 = await executeMutation(effectivePayload)
+          savedAgentRow = retry2.data
+          error = retry2.error
+        }
       }
       if (error) throw error
 
@@ -733,7 +803,7 @@ export function CreateCommissionVoucherModal({
         }
         await supabase.from("commission_vouchers").insert([
           {
-            ...insertPayload,
+            ...effectivePayload,
             voucher_number: `${voucherNumber.trim()}-TL`,
             agent_name: tlName.trim(),
             agent_rate: Number.parseFloat(tlRate) || 0,
@@ -768,7 +838,7 @@ export function CreateCommissionVoucherModal({
         }
         await supabase.from("commission_vouchers").insert([
           {
-            ...insertPayload,
+            ...effectivePayload,
             voucher_number: `${voucherNumber.trim()}-UM`,
             agent_name: umName.trim(),
             agent_rate: Number.parseFloat(umRate) || 0,
@@ -1154,6 +1224,7 @@ export function CreateCommissionVoucherModal({
                         <SelectItem value="Non-VAT">Non-VAT</SelectItem>
                         <SelectItem value="VAT w/ Invoice">VAT w/ Invoice</SelectItem>
                         <SelectItem value="VAT w/o Invoice">VAT w/o Invoice</SelectItem>
+                        <SelectItem value="VAT without Rate">VAT without Rate</SelectItem>
                         <SelectItem value="W/o Invoice">W/o Invoice</SelectItem>
                         <SelectItem value="Rate w/o Invoice">Rate w/o Invoice</SelectItem>
                       </SelectContent>
@@ -1163,7 +1234,7 @@ export function CreateCommissionVoucherModal({
 
                 {/* Row 2: Developer + Rate | Agent + Rate */}
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-                  <div className="md:col-span-4 space-y-1.5">
+                  <div className={slipType === "VAT without Rate" ? "md:col-span-6 space-y-1.5" : "md:col-span-4 space-y-1.5"}>
                     <Label className="text-xs font-semibold text-[#001f3f]">Developer *</Label>
                     <Input
                       value={developerName}
@@ -1172,18 +1243,20 @@ export function CreateCommissionVoucherModal({
                       className="bg-white text-[#001f3f] border-slate-300 font-medium"
                     />
                   </div>
-                  <div className="md:col-span-2 space-y-1.5">
-                    <Label className="text-xs font-semibold text-[#001f3f]">Dev Rate (%)</Label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      value={developerRate}
-                      onChange={(e) => setDeveloperRate(e.target.value)}
-                      className="bg-white text-[#001f3f] border-slate-300 font-semibold"
-                    />
-                  </div>
+                  {slipType !== "VAT without Rate" && (
+                    <div className="md:col-span-2 space-y-1.5">
+                      <Label className="text-xs font-semibold text-[#001f3f]">Dev Rate (%)</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={developerRate}
+                        onChange={(e) => setDeveloperRate(e.target.value)}
+                        className="bg-white text-[#001f3f] border-slate-300 font-semibold"
+                      />
+                    </div>
+                  )}
 
-                  <div className="md:col-span-4 space-y-1.5">
+                  <div className={slipType === "VAT without Rate" ? "md:col-span-6 space-y-1.5" : "md:col-span-4 space-y-1.5"}>
                     <Label className="text-xs font-semibold text-[#001f3f]">Salesperson / Agent *</Label>
                     <Input
                       value={agentName}
@@ -1192,16 +1265,18 @@ export function CreateCommissionVoucherModal({
                       className="bg-white text-[#001f3f] border-slate-300 font-medium"
                     />
                   </div>
-                  <div className="md:col-span-2 space-y-1.5">
-                    <Label className="text-xs font-semibold text-[#001f3f]">Agent Rate (%)</Label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      value={agentRate}
-                      onChange={(e) => setAgentRate(e.target.value)}
-                      className="bg-white text-[#001f3f] border-slate-300 font-semibold"
-                    />
-                  </div>
+                  {slipType !== "VAT without Rate" && (
+                    <div className="md:col-span-2 space-y-1.5">
+                      <Label className="text-xs font-semibold text-[#001f3f]">Agent Rate (%)</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={agentRate}
+                        onChange={(e) => setAgentRate(e.target.value)}
+                        className="bg-white text-[#001f3f] border-slate-300 font-semibold"
+                      />
+                    </div>
+                  )}
                 </div>
 
                 {/* Row 3: Client Name, Reservation Date & Amount Released */}
@@ -1292,6 +1367,33 @@ export function CreateCommissionVoucherModal({
                         Net Comm.
                       </span>
                       <div className="text-base font-extrabold text-emerald-700 mt-0.5">
+                        ₱{formatNum(calculations.total)}
+                      </div>
+                    </div>
+                  </div>
+                ) : slipType === "VAT without Rate" ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50 border border-slate-200 rounded-xl p-4">
+                    <div className="bg-white border border-slate-200 rounded-lg p-3">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
+                        Released from Developer
+                      </span>
+                      <div className="text-lg font-bold text-[#001f3f] mt-0.5">
+                        ₱{formatNum(calculations.comm)}
+                      </div>
+                    </div>
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-amber-800 block">
+                        Less VAT (12%)
+                      </span>
+                      <div className="text-lg font-bold text-amber-900 mt-0.5">
+                        ₱{formatNum(calculations.vatAmount)}
+                      </div>
+                    </div>
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 block">
+                        Net Comm.
+                      </span>
+                      <div className="text-xl font-extrabold text-emerald-700 mt-0.5">
                         ₱{formatNum(calculations.total)}
                       </div>
                     </div>
@@ -1408,28 +1510,47 @@ export function CreateCommissionVoucherModal({
                   />
                 </div>
 
-                {/* Row 6: Document Attachments (Voucher & Header) with Cropping */}
+                {/* Row 6: Document Attachments (Voucher & Header — up to 5 each) with Cropping */}
                 <div className="space-y-2">
                   <Label className="text-xs font-bold uppercase tracking-wider text-[#001f3f] block">
-                    Bondpaper Attachments (Upload PDF or PNG &amp; Crop)
+                    Bondpaper Attachments (Upload PDF or PNG &amp; Crop — up to 5 each, auto-fit on 1 page)
                   </Label>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {/* Voucher Attachment Card */}
                     <div className="border-2 border-dashed border-slate-300 rounded-xl p-3.5 bg-slate-50/60 flex flex-col justify-between gap-3">
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between gap-2">
                         <div>
-                          <div className="text-xs font-bold text-[#001f3f]">1. Voucher Document</div>
+                          <div className="text-xs font-bold text-[#001f3f] flex items-center gap-1.5">
+                            <span>1. Voucher Document</span>
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-slate-300 text-slate-700">
+                              {voucherAttachments.length}/{MAX_BONDPAPER_ATTACHMENTS}
+                            </Badge>
+                          </div>
                           <div className="text-[11px] text-slate-500">
                             Placed on the upper section of the bondpaper
                           </div>
                         </div>
-                        <label className="cursor-pointer inline-flex items-center gap-1.5 bg-[#001f3f] hover:bg-[#001f3f]/90 text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-sm">
+                        <label
+                          className={`inline-flex items-center gap-1.5 text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-sm shrink-0 ${
+                            voucherAttachments.length >= MAX_BONDPAPER_ATTACHMENTS
+                              ? "bg-slate-400 cursor-not-allowed"
+                              : "cursor-pointer bg-[#001f3f] hover:bg-[#001f3f]/90"
+                          }`}
+                        >
                           <Paperclip className="w-3.5 h-3.5" />
-                          <span>{voucherAttachment ? "Replace" : "Upload & Crop"}</span>
+                          <span>
+                            {voucherAttachments.length >= MAX_BONDPAPER_ATTACHMENTS
+                              ? "Max 5"
+                              : voucherAttachments.length > 0
+                                ? "Add & Crop"
+                                : "Upload & Crop"}
+                          </span>
                           <input
                             type="file"
+                            multiple
                             accept="application/pdf,image/*"
                             className="hidden"
+                            disabled={voucherAttachments.length >= MAX_BONDPAPER_ATTACHMENTS}
                             onChange={(e) => {
                               handleFilePick("voucher", e.target.files)
                               e.target.value = ""
@@ -1437,52 +1558,82 @@ export function CreateCommissionVoucherModal({
                           />
                         </label>
                       </div>
-                      {voucherAttachment && (
-                        <div className="flex items-center justify-between bg-white border border-slate-200 px-3 py-2 rounded-lg text-xs">
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <img
-                              src={voucherAttachment.dataUrl}
-                              alt="Cropped Voucher"
-                              className="h-10 w-14 object-contain rounded border bg-slate-50 shrink-0"
-                            />
-                            <div className="truncate">
-                              <div className="font-semibold text-slate-800 truncate">
-                                {voucherAttachment.fileName}
+                      {voucherAttachments.length > 0 && (
+                        <div className="space-y-1.5">
+                          {voucherAttachments.map((att, idx) => (
+                            <div
+                              key={`v-att-${idx}`}
+                              className="flex items-center justify-between bg-white border border-slate-200 px-2.5 py-1.5 rounded-lg text-xs"
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <img
+                                  src={att.dataUrl}
+                                  alt={`Cropped Voucher ${idx + 1}`}
+                                  className="h-9 w-12 object-contain rounded border bg-slate-50 shrink-0"
+                                />
+                                <div className="truncate">
+                                  <div className="font-semibold text-slate-800 truncate">
+                                    #{idx + 1} {att.fileName}
+                                  </div>
+                                  <div className="text-[10px] text-emerald-700 font-medium">
+                                    {att.fileSize > 0
+                                      ? `Cropped • ${(att.fileSize / 1024).toFixed(1)} KB`
+                                      : "Saved attachment"}
+                                  </div>
+                                </div>
                               </div>
-                              <div className="text-[10px] text-emerald-700 font-medium">
-                                Cropped &bull; {(voucherAttachment.fileSize / 1024).toFixed(1)} KB
-                              </div>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 text-slate-400 hover:text-red-600 shrink-0"
+                                onClick={() =>
+                                  setVoucherAttachments((prev) => prev.filter((_, i) => i !== idx))
+                                }
+                              >
+                                <X className="w-4 h-4" />
+                              </Button>
                             </div>
-                          </div>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6 text-slate-400 hover:text-red-600 shrink-0"
-                            onClick={() => setVoucherAttachment(null)}
-                          >
-                            <X className="w-4 h-4" />
-                          </Button>
+                          ))}
                         </div>
                       )}
                     </div>
 
                     {/* Header Attachment Card */}
                     <div className="border-2 border-dashed border-slate-300 rounded-xl p-3.5 bg-slate-50/60 flex flex-col justify-between gap-3">
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between gap-2">
                         <div>
-                          <div className="text-xs font-bold text-[#001f3f]">2. Header Document</div>
+                          <div className="text-xs font-bold text-[#001f3f] flex items-center gap-1.5">
+                            <span>2. Header Document</span>
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-sky-300 text-sky-800">
+                              {headerAttachments.length}/{MAX_BONDPAPER_ATTACHMENTS}
+                            </Badge>
+                          </div>
                           <div className="text-[11px] text-slate-500">
                             Placed above the voucher on the bondpaper
                           </div>
                         </div>
-                        <label className="cursor-pointer inline-flex items-center gap-1.5 bg-[#0284c7] hover:bg-[#0369a1] text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-sm">
+                        <label
+                          className={`inline-flex items-center gap-1.5 text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-sm shrink-0 ${
+                            headerAttachments.length >= MAX_BONDPAPER_ATTACHMENTS
+                              ? "bg-slate-400 cursor-not-allowed"
+                              : "cursor-pointer bg-[#0284c7] hover:bg-[#0369a1]"
+                          }`}
+                        >
                           <Paperclip className="w-3.5 h-3.5" />
-                          <span>{headerAttachment ? "Replace" : "Upload & Crop"}</span>
+                          <span>
+                            {headerAttachments.length >= MAX_BONDPAPER_ATTACHMENTS
+                              ? "Max 5"
+                              : headerAttachments.length > 0
+                                ? "Add & Crop"
+                                : "Upload & Crop"}
+                          </span>
                           <input
                             type="file"
+                            multiple
                             accept="application/pdf,image/*"
                             className="hidden"
+                            disabled={headerAttachments.length >= MAX_BONDPAPER_ATTACHMENTS}
                             onChange={(e) => {
                               handleFilePick("header", e.target.files)
                               e.target.value = ""
@@ -1490,32 +1641,43 @@ export function CreateCommissionVoucherModal({
                           />
                         </label>
                       </div>
-                      {headerAttachment && (
-                        <div className="flex items-center justify-between bg-white border border-slate-200 px-3 py-2 rounded-lg text-xs">
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <img
-                              src={headerAttachment.dataUrl}
-                              alt="Cropped Header"
-                              className="h-10 w-14 object-contain rounded border bg-slate-50 shrink-0"
-                            />
-                            <div className="truncate">
-                              <div className="font-semibold text-slate-800 truncate">
-                                {headerAttachment.fileName}
+                      {headerAttachments.length > 0 && (
+                        <div className="space-y-1.5">
+                          {headerAttachments.map((att, idx) => (
+                            <div
+                              key={`h-att-${idx}`}
+                              className="flex items-center justify-between bg-white border border-slate-200 px-2.5 py-1.5 rounded-lg text-xs"
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <img
+                                  src={att.dataUrl}
+                                  alt={`Cropped Header ${idx + 1}`}
+                                  className="h-9 w-12 object-contain rounded border bg-slate-50 shrink-0"
+                                />
+                                <div className="truncate">
+                                  <div className="font-semibold text-slate-800 truncate">
+                                    #{idx + 1} {att.fileName}
+                                  </div>
+                                  <div className="text-[10px] text-emerald-700 font-medium">
+                                    {att.fileSize > 0
+                                      ? `Cropped • ${(att.fileSize / 1024).toFixed(1)} KB`
+                                      : "Saved attachment"}
+                                  </div>
+                                </div>
                               </div>
-                              <div className="text-[10px] text-emerald-700 font-medium">
-                                Cropped &bull; {(headerAttachment.fileSize / 1024).toFixed(1)} KB
-                              </div>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 text-slate-400 hover:text-red-600 shrink-0"
+                                onClick={() =>
+                                  setHeaderAttachments((prev) => prev.filter((_, i) => i !== idx))
+                                }
+                              >
+                                <X className="w-4 h-4" />
+                              </Button>
                             </div>
-                          </div>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6 text-slate-400 hover:text-red-600 shrink-0"
-                            onClick={() => setHeaderAttachment(null)}
-                          >
-                            <X className="w-4 h-4" />
-                          </Button>
+                          ))}
                         </div>
                       )}
                     </div>
@@ -1772,18 +1934,34 @@ export function CreateCommissionVoucherModal({
       {/* Cropper Modal */}
       <VoucherDocumentCropper
         open={cropperOpen}
-        onOpenChange={setCropperOpen}
+        onOpenChange={(nextOpen) => {
+          setCropperOpen(nextOpen)
+          if (!nextOpen) {
+            if (advancingQueueRef.current) {
+              advancingQueueRef.current = false
+            } else {
+              setCropperQueue([])
+            }
+          }
+        }}
         file={cropperFile}
         title={
           cropperTarget === "voucher"
-            ? "Crop Voucher Document (PDF / Image)"
-            : "Crop Header Document (PDF / Image)"
+            ? `Crop Voucher Document (${Math.min(voucherAttachments.length + 1, MAX_BONDPAPER_ATTACHMENTS)}/${MAX_BONDPAPER_ATTACHMENTS})`
+            : `Crop Header Document (${Math.min(headerAttachments.length + 1, MAX_BONDPAPER_ATTACHMENTS)}/${MAX_BONDPAPER_ATTACHMENTS})`
         }
         onCropComplete={(result) => {
           if (cropperTarget === "voucher") {
-            setVoucherAttachment(result)
+            setVoucherAttachments((prev) => [...prev, result].slice(0, MAX_BONDPAPER_ATTACHMENTS))
           } else {
-            setHeaderAttachment(result)
+            setHeaderAttachments((prev) => [...prev, result].slice(0, MAX_BONDPAPER_ATTACHMENTS))
+          }
+          if (cropperQueue.length > 0) {
+            advancingQueueRef.current = true
+            const [nextFile, ...rest] = cropperQueue
+            setCropperQueue(rest)
+            setCropperFile(nextFile)
+            setTimeout(() => setCropperOpen(true), 60)
           }
         }}
       />

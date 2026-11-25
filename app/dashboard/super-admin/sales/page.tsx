@@ -1668,7 +1668,12 @@ export default function SuperAdminSalesPage() {
         {/* Modals */}
         {selectedSale && (
           <>
-            <ViewSalesModal sale={selectedSale} open={viewModalOpen} onOpenChange={setViewModalOpen} />
+            <ViewSalesModal
+              sale={selectedSale}
+              open={viewModalOpen}
+              onOpenChange={setViewModalOpen}
+              onAttachmentDeleted={fetchSales}
+            />
             <EditSalesModal
               sale={selectedSale}
               open={editModalOpen}

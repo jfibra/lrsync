@@ -27,6 +27,8 @@ export interface CommissionVoucherData {
   commission_status: string
   voucher_attachment_url?: string | null
   header_attachment_url?: string | null
+  voucher_attachment_urls?: string[] | null
+  header_attachment_urls?: string[] | null
   generated_pdf_url?: string | null
   attachments?: string[]
   source_commission_report_uuid?: string | null
@@ -45,6 +47,35 @@ export interface CommissionVoucherData {
   created_by_email?: string | null
   assigned_area?: string | null
   created_at?: string
+}
+
+export function parseVoucherAttachmentUrls(
+  singleUrl?: string | null,
+  urlsArray?: string[] | null
+): string[] {
+  if (Array.isArray(urlsArray) && urlsArray.length > 0) {
+    return urlsArray.map((u) => String(u || "").trim()).filter(Boolean)
+  }
+  const raw = (singleUrl || "").trim()
+  if (!raw) return []
+  if (raw.startsWith("[")) {
+    try {
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed)) {
+        return parsed.map((u) => String(u || "").trim()).filter(Boolean)
+      }
+    } catch {
+      // Fall through to treat as single URL
+    }
+  }
+  return [raw]
+}
+
+export function serializeVoucherAttachmentUrls(urls: string[]): string | null {
+  const cleaned = urls.map((u) => String(u || "").trim()).filter(Boolean)
+  if (cleaned.length === 0) return null
+  if (cleaned.length === 1) return cleaned[0]
+  return JSON.stringify(cleaned)
 }
 
 export async function generateVoucherBondpaperPdf(element: HTMLElement): Promise<{
@@ -140,9 +171,53 @@ export function VoucherBondpaperDocument({
     return `${MONTHS[parsed.getMonth()]} ${parsed.getDate()}, ${parsed.getFullYear()}`
   }
 
-  const hasHeader = Boolean(voucher.header_attachment_url)
-  const hasVoucher = Boolean(voucher.voucher_attachment_url)
+  const headerUrls = parseVoucherAttachmentUrls(
+    voucher.header_attachment_url,
+    voucher.header_attachment_urls
+  ).slice(0, 5)
+  const voucherUrls = parseVoucherAttachmentUrls(
+    voucher.voucher_attachment_url,
+    voucher.voucher_attachment_urls
+  ).slice(0, 5)
+  const hasHeader = headerUrls.length > 0
+  const hasVoucher = voucherUrls.length > 0
   const hasAttachments = hasHeader || hasVoucher
+  const totalAttachments = headerUrls.length + voucherUrls.length
+
+  // Auto-adjust vertical space budget so 1..10 attachments + Commission Slip fit cleanly on 1 A4 page
+  // while keeping every attachment as large and readable as possible.
+  const isDenseLayout = totalAttachments >= 4
+  const attachmentsMaxTotalHeight = isDenseLayout ? 575 : 515
+  const sectionGap = isDenseLayout ? 6 : 10
+  const sectionHeaderAndPad = isDenseLayout ? 22 : 28
+
+  const { headerSectionMaxH, voucherSectionMaxH } = (() => {
+    if (hasHeader && hasVoucher) {
+      const usable = attachmentsMaxTotalHeight - sectionGap
+      // For the classic 1 header + 1 voucher pair, keep voucher prominent (62%);
+      // for multi-attachment combinations, allocate proportionally with a safe 26%-74% floor/ceiling.
+      const headerRatio =
+        headerUrls.length === 1 && voucherUrls.length === 1
+          ? 0.38
+          : Math.max(0.26, Math.min(0.74, headerUrls.length / totalAttachments))
+      const hMax = Math.floor(usable * headerRatio)
+      return { headerSectionMaxH: hMax, voucherSectionMaxH: usable - hMax }
+    }
+    if (hasHeader) {
+      return { headerSectionMaxH: attachmentsMaxTotalHeight, voucherSectionMaxH: 0 }
+    }
+    return { headerSectionMaxH: 0, voucherSectionMaxH: attachmentsMaxTotalHeight }
+  })()
+
+  const computePerItemMaxH = (sectionMaxH: number, count: number) => {
+    if (count <= 0) return 0
+    const itemGap = count <= 2 ? 6 : 4
+    const innerH = Math.max(44, sectionMaxH - sectionHeaderAndPad)
+    return Math.max(42, Math.floor((innerH - itemGap * (count - 1)) / count))
+  }
+
+  const headerPerItemMaxH = computePerItemMaxH(headerSectionMaxH, headerUrls.length)
+  const voucherPerItemMaxH = computePerItemMaxH(voucherSectionMaxH, voucherUrls.length)
 
   const projectWithUnit = [
     voucher.project_name || "",
@@ -161,11 +236,12 @@ export function VoucherBondpaperDocument({
 
   // Reusable official red-bordered Commission Slip form (compact when paired with attachments; enlarged & top-aligned when standalone)
   const renderCommissionSlipCard = (enlarged: boolean) => {
-    const labelFontSize = enlarged ? 13 : 10.5
-    const valueFontSize = enlarged ? 13.5 : 10.5
-    const rowGap = enlarged ? 12 : 7
-    const finLabelWidth = enlarged ? 200 : 148
-    const valuePaddingBottom = enlarged ? 6 : 5
+    const dense = !enlarged && isDenseLayout
+    const labelFontSize = enlarged ? 13 : dense ? 9.8 : 10.5
+    const valueFontSize = enlarged ? 13.5 : dense ? 10 : 10.5
+    const rowGap = enlarged ? 12 : dense ? 4.5 : 7
+    const finLabelWidth = enlarged ? 200 : dense ? 142 : 148
+    const valuePaddingBottom = enlarged ? 6 : dense ? 3.5 : 5
 
     const InfoRow = ({ label, value }: { label: string; value: string }) => (
       <div
@@ -390,6 +466,20 @@ export function VoucherBondpaperDocument({
               const wtax = Number(voucher.withholding_tax) || 0
               const vatVal =
                 Number(voucher.vat_amount) || (slip === "VAT w/o Invoice" ? netTotal * 0.12 : 0)
+
+              if (slip === "VAT without Rate" || slip === "VAT w/o Rate") {
+                const lessVat =
+                  Number(voucher.vat_amount) > 0
+                    ? Number(voucher.vat_amount)
+                    : Math.max(0, released - netTotal)
+                return (
+                  <>
+                    <FinRow label="Released from Developer:" value={fmt(released)} />
+                    <FinRow label="Less VAT (12%):" value={fmt(lessVat)} />
+                    <FinRow label="Net Comm.:" value={fmt(netTotal)} highlight />
+                  </>
+                )
+              }
 
               if (slip === "VAT w/o Invoice") {
                 const grossTotal =
@@ -618,16 +708,16 @@ export function VoucherBondpaperDocument({
             overflow: "hidden",
           }}
         >
-          {/* TOP ATTACHMENTS AREA */}
+          {/* TOP ATTACHMENTS AREA (Auto-adjusted for up to 5 Header + 5 Voucher attachments) */}
           <div
             style={{
               width: "100%",
-              maxHeight: 430,
+              maxHeight: attachmentsMaxTotalHeight,
               display: "flex",
               flexDirection: "column",
               alignItems: "center",
               justifyContent: "flex-start",
-              gap: 10,
+              gap: sectionGap,
               overflow: "hidden",
             }}
           >
@@ -635,45 +725,64 @@ export function VoucherBondpaperDocument({
               <div
                 style={{
                   width: "100%",
+                  maxHeight: headerSectionMaxH,
                   border: "1px solid #cbd5e1",
                   borderRadius: 6,
                   backgroundColor: "#f8fafc",
-                  padding: "6px 10px",
+                  padding: isDenseLayout ? "4px 8px" : "6px 10px",
                   boxSizing: "border-box",
+                  overflow: "hidden",
                 }}
               >
                 <div
                   style={{
-                    fontSize: 8.5,
+                    fontSize: isDenseLayout ? 7.5 : 8.5,
                     fontWeight: 700,
                     color: "#64748b",
                     letterSpacing: "0.6px",
-                    marginBottom: 4,
+                    marginBottom: isDenseLayout ? 3 : 4,
                     textTransform: "uppercase",
                   }}
                 >
-                  Supporting Header Document
+                  Supporting Header Document{headerUrls.length > 1 ? `s (${headerUrls.length})` : ""}
                 </div>
                 <div
                   style={{
                     width: "100%",
-                    maxHeight: hasVoucher ? 140 : 385,
                     display: "flex",
-                    justifyContent: "center",
+                    flexDirection: "column",
                     alignItems: "center",
+                    justifyContent: "center",
+                    gap: headerUrls.length <= 2 ? 6 : 4,
                     overflow: "hidden",
                   }}
                 >
-                  <img
-                    src={voucher.header_attachment_url!}
-                    alt="Attached Header"
-                    crossOrigin="anonymous"
-                    style={{
-                      maxWidth: "96%",
-                      maxHeight: hasVoucher ? 136 : 380,
-                      objectFit: "contain",
-                    }}
-                  />
+                  {headerUrls.map((url, idx) => (
+                    <div
+                      key={`header-att-${idx}`}
+                      style={{
+                        width: "100%",
+                        maxHeight: headerPerItemMaxH,
+                        display: "flex",
+                        justifyContent: "center",
+                        alignItems: "center",
+                        overflow: "hidden",
+                      }}
+                    >
+                      <img
+                        src={url}
+                        alt={`Attached Header ${idx + 1}`}
+                        crossOrigin="anonymous"
+                        style={{
+                          maxWidth: "98%",
+                          maxHeight: headerPerItemMaxH,
+                          width: "auto",
+                          height: "auto",
+                          objectFit: "contain",
+                        }}
+                      />
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
@@ -682,45 +791,64 @@ export function VoucherBondpaperDocument({
               <div
                 style={{
                   width: "100%",
+                  maxHeight: voucherSectionMaxH,
                   border: "1px solid #cbd5e1",
                   borderRadius: 6,
                   backgroundColor: "#f8fafc",
-                  padding: "6px 10px",
+                  padding: isDenseLayout ? "4px 8px" : "6px 10px",
                   boxSizing: "border-box",
+                  overflow: "hidden",
                 }}
               >
                 <div
                   style={{
-                    fontSize: 8.5,
+                    fontSize: isDenseLayout ? 7.5 : 8.5,
                     fontWeight: 700,
                     color: "#64748b",
                     letterSpacing: "0.6px",
-                    marginBottom: 4,
+                    marginBottom: isDenseLayout ? 3 : 4,
                     textTransform: "uppercase",
                   }}
                 >
-                  Official Voucher Attachment
+                  Official Voucher Attachment{voucherUrls.length > 1 ? `s (${voucherUrls.length})` : ""}
                 </div>
                 <div
                   style={{
                     width: "100%",
-                    maxHeight: hasHeader ? 235 : 395,
                     display: "flex",
-                    justifyContent: "center",
+                    flexDirection: "column",
                     alignItems: "center",
+                    justifyContent: "center",
+                    gap: voucherUrls.length <= 2 ? 6 : 4,
                     overflow: "hidden",
                   }}
                 >
-                  <img
-                    src={voucher.voucher_attachment_url!}
-                    alt="Attached Voucher"
-                    crossOrigin="anonymous"
-                    style={{
-                      maxWidth: "96%",
-                      maxHeight: hasHeader ? 230 : 390,
-                      objectFit: "contain",
-                    }}
-                  />
+                  {voucherUrls.map((url, idx) => (
+                    <div
+                      key={`voucher-att-${idx}`}
+                      style={{
+                        width: "100%",
+                        maxHeight: voucherPerItemMaxH,
+                        display: "flex",
+                        justifyContent: "center",
+                        alignItems: "center",
+                        overflow: "hidden",
+                      }}
+                    >
+                      <img
+                        src={url}
+                        alt={`Attached Voucher ${idx + 1}`}
+                        crossOrigin="anonymous"
+                        style={{
+                          maxWidth: "98%",
+                          maxHeight: voucherPerItemMaxH,
+                          width: "auto",
+                          height: "auto",
+                          objectFit: "contain",
+                        }}
+                      />
+                    </div>
+                  ))}
                 </div>
               </div>
             )}

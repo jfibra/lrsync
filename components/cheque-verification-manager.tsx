@@ -1,21 +1,17 @@
 "use client"
 
-import React, { useCallback, useEffect, useState } from "react"
+import React, { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { useSearchParams, useRouter, usePathname } from "next/navigation"
 import { supabase } from "@/lib/supabase/client"
 import { useAuth } from "@/contexts/auth-context"
-import { logNotification } from "@/utils/logNotification"
-import { formatS3Url } from "@/utils/s3-url"
 import type { CollectorTransaction, CollectorWorkflowStatus } from "@/types/collector"
+import { CollectorReviewEditModal } from "@/components/collector-review-edit-modal"
 import { ConvertCollectorToSaleModal } from "@/components/convert-collector-to-sale-modal"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Textarea } from "@/components/ui/textarea"
-import { Label } from "@/components/ui/label"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Select,
   SelectContent,
@@ -23,14 +19,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import {
   Table,
   TableBody,
@@ -45,36 +33,28 @@ import {
   ArrowRightCircle,
   ArrowUp,
   ArrowUpDown,
-  Banknote,
-  Building2,
   Calendar,
-  CheckCircle2,
+  CalendarDays,
   ChevronLeft,
   ChevronRight,
-  Clock,
   ExternalLink,
   Eye,
   FileCheck2,
-  FileImage,
+  FileWarning,
   Filter,
-  Fingerprint,
-  Landmark,
+  LayoutList,
   Loader2,
-  MapPin,
   RefreshCw,
-  RotateCcw,
   Search,
-  ShieldCheck,
-  Smartphone,
-  UserCheck,
-  ZoomIn,
-  ZoomOut,
+  Users,
 } from "lucide-react"
 import { toast } from "sonner"
 
 interface ChequeVerificationManagerProps {
   role: "super_admin" | "admin" | "secretary"
 }
+
+type ViewMode = "daily" | "queue"
 
 type FilterTab =
   | "deposited"
@@ -85,7 +65,12 @@ type FilterTab =
   | "returned"
   | "all"
 
-type SortField = "updated_at" | "invoice_date" | "commission_amount" | "deposit_amount" | "workflow_status"
+type SortField =
+  | "updated_at"
+  | "invoice_date"
+  | "commission_amount"
+  | "deposit_amount"
+  | "workflow_status"
 
 interface CollectorOption {
   auth_user_id: string
@@ -104,6 +89,23 @@ interface StatusCounts {
 }
 
 const PAGE_SIZE = 15
+
+function todayIso(): string {
+  const now = new Date()
+  const y = now.getFullYear()
+  const m = String(now.getMonth() + 1).padStart(2, "0")
+  const d = String(now.getDate()).padStart(2, "0")
+  return `${y}-${m}-${d}`
+}
+
+function shiftDateIso(iso: string, deltaDays: number): string {
+  const parts = iso.split("-").map(Number)
+  const d = new Date(parts[0], (parts[1] || 1) - 1, (parts[2] || 1) + deltaDays)
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, "0")
+  const day = String(d.getDate()).padStart(2, "0")
+  return `${y}-${m}-${day}`
+}
 
 function formatPHP(amount: number | null | undefined): string {
   if (amount === null || amount === undefined || Number.isNaN(Number(amount))) return "—"
@@ -132,7 +134,7 @@ function getWorkflowBadge(status: CollectorWorkflowStatus) {
     case "invoice_issued":
       return (
         <Badge className="bg-slate-100 text-slate-700 hover:bg-slate-100 border border-slate-200">
-          Invoice Issued
+          Draft / Invoice Only
         </Badge>
       )
     case "cheque_collected":
@@ -144,7 +146,7 @@ function getWorkflowBadge(status: CollectorWorkflowStatus) {
     case "deposited":
       return (
         <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100 border border-blue-200">
-          Deposited — For Checking
+          Deposited — For Check
         </Badge>
       )
     case "verified":
@@ -172,240 +174,76 @@ function getChequeStatusBadge(status: string) {
   switch (status) {
     case "verified":
       return (
-        <Badge variant="outline" className="border-emerald-300 bg-emerald-50 text-emerald-700">
+        <Badge variant="outline" className="border-emerald-300 bg-emerald-50 text-emerald-700 text-[10px]">
           Verified
         </Badge>
       )
     case "deposited":
       return (
-        <Badge variant="outline" className="border-blue-300 bg-blue-50 text-blue-700">
+        <Badge variant="outline" className="border-blue-300 bg-blue-50 text-blue-700 text-[10px]">
           Deposited
         </Badge>
       )
     default:
       return (
-        <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-700">
+        <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-700 text-[10px]">
           Pending
         </Badge>
       )
   }
 }
 
-function PhotoGallery({
-  title,
-  urls,
-  onZoom,
-}: {
-  title: string
-  urls: string[] | null | undefined
-  onZoom: (url: string, label: string) => void
-}) {
-  const list = urls || []
-  return (
-    <div className="space-y-2">
-      <div className="text-xs font-semibold uppercase tracking-wide text-slate-600">
-        {title} ({list.length})
-      </div>
-      {list.length === 0 ? (
-        <div className="rounded-md border border-dashed bg-slate-50 px-3 py-4 text-center text-xs text-slate-400">
-          No {title.toLowerCase()} uploaded
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-          {list.map((rawUrl, i) => {
-            const url = formatS3Url(rawUrl)
-            const isPdf = url.toLowerCase().includes(".pdf")
-            const label = `${title} #${i + 1}`
-            return isPdf ? (
-              <a
-                key={`${title}-${i}`}
-                href={url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="group relative flex h-28 flex-col items-center justify-center gap-1 rounded-md border bg-slate-100 p-2 text-slate-600 hover:ring-2 hover:ring-blue-500 transition"
-              >
-                <FileImage className="h-6 w-6 text-blue-600" />
-                <span className="text-xs font-medium">PDF #{i + 1}</span>
-                <div className="absolute bottom-1 right-1 rounded bg-black/70 px-1.5 py-0.5 text-[10px] text-white flex items-center gap-1">
-                  Open <ExternalLink className="h-2.5 w-2.5" />
-                </div>
-              </a>
-            ) : (
-              <button
-                key={`${title}-${i}`}
-                type="button"
-                onClick={() => onZoom(url, label)}
-                className="group relative block overflow-hidden rounded-md border bg-slate-100 hover:ring-2 hover:ring-blue-500 transition text-left"
-              >
-                <img
-                  src={url}
-                  alt={label}
-                  className="h-28 w-full object-cover group-hover:scale-105 transition-transform"
-                />
-                <div className="absolute bottom-1 right-1 rounded bg-black/70 px-1.5 py-0.5 text-[10px] text-white flex items-center gap-1">
-                  <ZoomIn className="h-2.5 w-2.5" /> Zoom
-                </div>
-              </button>
-            )
-          })}
-        </div>
-      )}
-    </div>
-  )
-}
+function AttachmentCountPills({ tx }: { tx: CollectorTransaction }) {
+  const inv = tx.invoice_photo_urls?.length || 0
+  const chq = tx.cheque_photo_urls?.length || 0
+  const dep = tx.deposit_slip_urls?.length || 0
+  const d2307 = tx.doc_2307_photo_urls?.length || 0
+  const vch = tx.voucher_photo_urls?.length || 0
 
-function SelfieVerificationCard({
-  ocrData,
-  onZoom,
-}: {
-  ocrData: Record<string, any> | null | undefined
-  onZoom: (url: string, label: string) => void
-}) {
-  const proof = ocrData?.selfie_verification
-  if (!proof || typeof proof !== "object") return null
-
-  const method =
-    proof.method ||
-    proof.verification_method ||
-    (proof.webauthn ? "Device Biometrics (WebAuthn)" : "1-to-1 Face Match")
-  const verified = proof.verified ?? proof.passed ?? proof.matched ?? true
-  const confidence = proof.confidence ?? proof.score ?? proof.similarity ?? null
-  const verifiedAt = proof.verified_at || proof.timestamp || null
-  const selfieUrl = proof.selfie_url || proof.photo_url || proof.image_url || null
+  if (inv + chq + dep + d2307 + vch === 0) {
+    return <span className="text-[11px] text-slate-400 italic">No files</span>
+  }
 
   return (
-    <div className="rounded-md border border-indigo-200 bg-indigo-50/60 p-3 text-xs space-y-2">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5 font-semibold text-indigo-900">
-          <Fingerprint className="h-4 w-4 text-indigo-600" />
-          Identity Verification Proof
-        </div>
-        <Badge
-          className={
-            verified
-              ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-100 border border-emerald-200"
-              : "bg-red-100 text-red-800 hover:bg-red-100 border border-red-200"
-          }
-        >
-          <ShieldCheck className="h-3 w-3 mr-1" />
-          {verified ? "Verified" : "Unverified"}
+    <div className="flex flex-wrap gap-1">
+      {inv > 0 && (
+        <Badge variant="outline" className="text-[10px] py-0 px-1.5 bg-slate-50 border-slate-300 text-slate-700">
+          Invoice ({inv})
         </Badge>
-      </div>
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-slate-700">
-        <span>
-          <strong>Method:</strong> {String(method)}
-        </span>
-        {confidence !== null && (
-          <span>
-            <strong>Match Score:</strong>{" "}
-            {Number(confidence) <= 1
-              ? `${Math.round(Number(confidence) * 100)}%`
-              : `${Math.round(Number(confidence))}%`}
-          </span>
-        )}
-        {verifiedAt && (
-          <span>
-            <strong>Verified At:</strong> {formatDateTime(String(verifiedAt))}
-          </span>
-        )}
-      </div>
-      {selfieUrl && (
-        <div>
-          <button
-            type="button"
-            onClick={() => onZoom(formatS3Url(String(selfieUrl)), "Identity Verification Selfie")}
-            className="inline-flex items-center gap-2 rounded border bg-white px-2 py-1 text-indigo-700 hover:bg-indigo-50"
-          >
-            <img
-              src={formatS3Url(String(selfieUrl))}
-              alt="Collector verification selfie"
-              className="h-8 w-8 rounded object-cover"
-            />
-            <span className="font-medium">View Verification Selfie</span>
-            <ZoomIn className="h-3.5 w-3.5" />
-          </button>
-        </div>
       )}
-    </div>
-  )
-}
-
-function TelemetryBox({
-  who,
-  date,
-  time,
-  capturedAt,
-  location,
-  lat,
-  lng,
-  accuracy,
-  device,
-  clarityScore,
-}: {
-  who?: string | null
-  date?: string | null
-  time?: string | null
-  capturedAt?: string | null
-  location?: string | null
-  lat?: number | null
-  lng?: number | null
-  accuracy?: number | null
-  device?: string | null
-  clarityScore?: number | null
-}) {
-  const hasCoords = lat !== null && lat !== undefined && lng !== null && lng !== undefined
-  return (
-    <div className="rounded-md border bg-slate-50 p-3 text-xs text-slate-600 space-y-1.5">
-      <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-        Silent Anti-Fraud Audit Trail
-      </div>
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-        <span className="inline-flex items-center gap-1 font-medium text-slate-800">
-          <UserCheck className="h-3.5 w-3.5 text-slate-500" />
-          {who || "—"}
-        </span>
-        <span className="inline-flex items-center gap-1">
-          <Calendar className="h-3.5 w-3.5 text-slate-500" />
-          {date || "—"} {time ? `at ${time}` : capturedAt ? `(${formatDateTime(capturedAt)})` : ""}
-        </span>
-        {clarityScore !== null && clarityScore !== undefined && (
-          <Badge variant="outline" className="text-[10px] py-0">
-            Clarity: {clarityScore}%
-          </Badge>
-        )}
-      </div>
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-        <span className="inline-flex items-center gap-1">
-          <MapPin className="h-3.5 w-3.5 text-slate-500 shrink-0" />
-          {location || (hasCoords ? `${lat}, ${lng}` : "Location not recorded")}
-          {accuracy ? ` (±${Math.round(accuracy)}m)` : ""}
-        </span>
-        {hasCoords && (
-          <a
-            href={`https://www.google.com/maps?q=${lat},${lng}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-blue-600 hover:underline font-medium"
-          >
-            View on Map <ExternalLink className="h-3 w-3" />
-          </a>
-        )}
-      </div>
-      {device && (
-        <div className="inline-flex items-center gap-1 text-slate-500">
-          <Smartphone className="h-3.5 w-3.5 shrink-0" />
-          <span className="truncate max-w-full">{device}</span>
-        </div>
+      {chq > 0 && (
+        <Badge variant="outline" className="text-[10px] py-0 px-1.5 bg-amber-50 border-amber-300 text-amber-800">
+          Cheque ({chq})
+        </Badge>
+      )}
+      {dep > 0 && (
+        <Badge variant="outline" className="text-[10px] py-0 px-1.5 bg-blue-50 border-blue-300 text-blue-800">
+          Deposit ({dep})
+        </Badge>
+      )}
+      {d2307 > 0 && (
+        <Badge variant="outline" className="text-[10px] py-0 px-1.5 bg-purple-50 border-purple-300 text-purple-800">
+          2307 ({d2307})
+        </Badge>
+      )}
+      {vch > 0 && (
+        <Badge variant="outline" className="text-[10px] py-0 px-1.5 bg-emerald-50 border-emerald-300 text-emerald-800">
+          Voucher ({vch})
+        </Badge>
       )}
     </div>
   )
 }
 
 export function ChequeVerificationManager({ role }: ChequeVerificationManagerProps) {
-  const { user, profile } = useAuth()
+  const { profile } = useAuth()
   const searchParams = useSearchParams()
   const router = useRouter()
   const pathname = usePathname()
+
+  const [viewMode, setViewMode] = useState<ViewMode>("daily")
+  const [selectedDay, setSelectedDay] = useState<string>(todayIso())
+  const [allDatesMode, setAllDatesMode] = useState<boolean>(false)
 
   const [records, setRecords] = useState<CollectorTransaction[]>([])
   const [totalCount, setTotalCount] = useState(0)
@@ -420,6 +258,10 @@ export function ChequeVerificationManager({ role }: ChequeVerificationManagerPro
   })
   const [loading, setLoading] = useState(true)
 
+  // Duplicate detection sets (across all non-deleted rows)
+  const [dupChequeNumbers, setDupChequeNumbers] = useState<Set<string>>(new Set())
+  const [dupDepositRefs, setDupDepositRefs] = useState<Set<string>>(new Set())
+
   // Filters, sorting, pagination
   const [activeTab, setActiveTab] = useState<FilterTab>("deposited")
   const [searchInput, setSearchInput] = useState("")
@@ -429,6 +271,7 @@ export function ChequeVerificationManager({ role }: ChequeVerificationManagerPro
   const [dateFrom, setDateFrom] = useState<string>("")
   const [dateTo, setDateTo] = useState<string>("")
   const [onlyDiscrepancies, setOnlyDiscrepancies] = useState(false)
+  const [onlyMissingDetails, setOnlyMissingDetails] = useState(false)
   const [sortField, setSortField] = useState<SortField>("updated_at")
   const [sortAsc, setSortAsc] = useState(false)
   const [page, setPage] = useState(1)
@@ -437,22 +280,13 @@ export function ChequeVerificationManager({ role }: ChequeVerificationManagerPro
   const [collectors, setCollectors] = useState<CollectorOption[]>([])
   const [areas, setAreas] = useState<string[]>([])
 
-  // Inspect / Verification drawer state
+  // Review / Edit modal & Convert modal state
   const [selectedTx, setSelectedTx] = useState<CollectorTransaction | null>(null)
-  const [accountingRemarks, setAccountingRemarks] = useState("")
-  const [actionLoading, setActionLoading] = useState(false)
-
-  // Lightbox Zoom Viewer state
-  const [zoomImage, setZoomImage] = useState<{ url: string; label: string } | null>(null)
-  const [zoomLevel, setZoomLevel] = useState(1)
-
-  // Convert-to-Sale modal state
   const [convertTx, setConvertTx] = useState<CollectorTransaction | null>(null)
   const [convertOpen, setConvertOpen] = useState(false)
 
   const roleSlug = role.replace("_", "-")
 
-  // Debounce search input
   useEffect(() => {
     const t = setTimeout(() => {
       setDebouncedSearch(searchInput.trim())
@@ -461,7 +295,7 @@ export function ChequeVerificationManager({ role }: ChequeVerificationManagerPro
     return () => clearTimeout(t)
   }, [searchInput])
 
-  // Fetch collector list & areas for filter dropdowns
+  // Load collector & area dropdown options
   useEffect(() => {
     const fetchFilterOptions = async () => {
       try {
@@ -498,12 +332,12 @@ export function ChequeVerificationManager({ role }: ChequeVerificationManagerPro
     fetchFilterOptions()
   }, [role, profile?.assigned_area])
 
-  // Fetch KPI counts (scoped by area for non-super_admin)
-  const fetchStatusCounts = useCallback(async () => {
+  // Fetch status counts + duplicate cheque/deposit_ref lookup sets
+  const fetchCountsAndDuplicates = useCallback(async () => {
     try {
       let query = supabase
         .from("collector_transactions")
-        .select("workflow_status")
+        .select("workflow_status, cheque_number, deposit_reference_no")
         .eq("is_deleted", false)
 
       if (role !== "super_admin" && profile?.assigned_area) {
@@ -522,19 +356,33 @@ export function ChequeVerificationManager({ role }: ChequeVerificationManagerPro
         returned: 0,
         all: (data || []).length,
       }
+      const chequeFreq = new Map<string, number>()
+      const depRefFreq = new Map<string, number>()
+
       for (const row of data || []) {
         const s = row.workflow_status as CollectorWorkflowStatus
-        if (s in next) {
-          next[s] += 1
-        }
+        if (s in next) next[s] += 1
+
+        const chq = (row.cheque_number || "").trim().toLowerCase()
+        if (chq) chequeFreq.set(chq, (chequeFreq.get(chq) || 0) + 1)
+
+        const ref = (row.deposit_reference_no || "").trim().toLowerCase()
+        if (ref) depRefFreq.set(ref, (depRefFreq.get(ref) || 0) + 1)
       }
+
       setCounts(next)
+      setDupChequeNumbers(
+        new Set(Array.from(chequeFreq.entries()).filter(([, c]) => c > 1).map(([k]) => k))
+      )
+      setDupDepositRefs(
+        new Set(Array.from(depRefFreq.entries()).filter(([, c]) => c > 1).map(([k]) => k))
+      )
     } catch (err) {
-      console.error("Failed to fetch status counts:", err)
+      console.error("Failed to fetch counts/duplicates:", err)
     }
   }, [role, profile?.assigned_area])
 
-  // Fetch paginated, sorted, filtered table rows from Supabase
+  // Fetch records for Daily View or Queue View
   const fetchTransactions = useCallback(async () => {
     setLoading(true)
     try {
@@ -549,8 +397,12 @@ export function ChequeVerificationManager({ role }: ChequeVerificationManagerPro
         query = query.eq("assigned_area", areaFilter)
       }
 
-      if (activeTab !== "all") {
+      if (viewMode === "queue" && activeTab !== "all") {
         query = query.eq("workflow_status", activeTab)
+      }
+
+      if (viewMode === "daily" && !allDatesMode && selectedDay) {
+        query = query.eq("invoice_date", selectedDay)
       }
 
       if (collectorFilter !== "all") {
@@ -559,28 +411,33 @@ export function ChequeVerificationManager({ role }: ChequeVerificationManagerPro
         )
       }
 
-      if (dateFrom) {
-        query = query.gte("invoice_date", dateFrom)
-      }
-      if (dateTo) {
-        query = query.lte("invoice_date", dateTo)
+      if (viewMode === "queue") {
+        if (dateFrom) query = query.gte("invoice_date", dateFrom)
+        if (dateTo) query = query.lte("invoice_date", dateTo)
       }
 
       if (onlyDiscrepancies) {
         query = query.eq("amount_discrepancy", true)
       }
 
+      if (onlyMissingDetails) {
+        query = query.or("developer_name.is.null,commission_amount.is.null,developer_tin_id.is.null")
+      }
+
       if (debouncedSearch) {
         const q = debouncedSearch.replace(/,/g, "")
         query = query.or(
-          `developer_name.ilike.%${q}%,developer_tin.ilike.%${q}%,cheque_number.ilike.%${q}%,deposit_reference_no.ilike.%${q}%,invoice_collected_by_name.ilike.%${q}%,cheque_collected_by_name.ilike.%${q}%`
+          `developer_name.ilike.%${q}%,developer_tin.ilike.%${q}%,cheque_number.ilike.%${q}%,deposit_reference_no.ilike.%${q}%,invoice_remarks.ilike.%${q}%,invoice_collected_by_name.ilike.%${q}%,cheque_collected_by_name.ilike.%${q}%`
         )
       }
 
-      const from = (page - 1) * PAGE_SIZE
-      const to = from + PAGE_SIZE - 1
-
-      query = query.order(sortField, { ascending: sortAsc }).range(from, to)
+      if (viewMode === "daily") {
+        query = query.order("invoice_date", { ascending: false }).order("updated_at", { ascending: false }).limit(200)
+      } else {
+        const from = (page - 1) * PAGE_SIZE
+        const to = from + PAGE_SIZE - 1
+        query = query.order(sortField, { ascending: sortAsc }).range(from, to)
+      }
 
       const { data, count, error } = await query
       if (error) throw error
@@ -597,11 +454,15 @@ export function ChequeVerificationManager({ role }: ChequeVerificationManagerPro
     role,
     profile?.assigned_area,
     areaFilter,
+    viewMode,
     activeTab,
+    allDatesMode,
+    selectedDay,
     collectorFilter,
     dateFrom,
     dateTo,
     onlyDiscrepancies,
+    onlyMissingDetails,
     debouncedSearch,
     sortField,
     sortAsc,
@@ -609,18 +470,36 @@ export function ChequeVerificationManager({ role }: ChequeVerificationManagerPro
   ])
 
   const refreshAll = useCallback(async () => {
-    await Promise.all([fetchStatusCounts(), fetchTransactions()])
-  }, [fetchStatusCounts, fetchTransactions])
+    await Promise.all([fetchCountsAndDuplicates(), fetchTransactions()])
+  }, [fetchCountsAndDuplicates, fetchTransactions])
 
   useEffect(() => {
-    fetchStatusCounts()
-  }, [fetchStatusCounts])
+    fetchCountsAndDuplicates()
+  }, [fetchCountsAndDuplicates])
 
   useEffect(() => {
     fetchTransactions()
   }, [fetchTransactions])
 
-  // Deep-link support: ?collection_id=<uuid> opens that transaction directly
+  // Real-time sync with Collector PWA
+  useEffect(() => {
+    const channel = supabase
+      .channel("accounting-collector-transactions-live")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "collector_transactions" },
+        () => {
+          refreshAll()
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [refreshAll])
+
+  // Deep-link ?collection_id=<uuid>
   useEffect(() => {
     const collectionId = searchParams.get("collection_id")
     if (!collectionId) return
@@ -634,9 +513,7 @@ export function ChequeVerificationManager({ role }: ChequeVerificationManagerPro
         .maybeSingle()
 
       if (!error && data) {
-        const tx = data as CollectorTransaction
-        setSelectedTx(tx)
-        setAccountingRemarks(tx.accounting_remarks || "")
+        setSelectedTx(data as CollectorTransaction)
       } else {
         toast.error("Linked collector transaction was not found.")
       }
@@ -644,22 +521,81 @@ export function ChequeVerificationManager({ role }: ChequeVerificationManagerPro
     loadDeepLinked()
   }, [searchParams])
 
-  const closeInspect = () => {
+  const closeReview = () => {
     setSelectedTx(null)
     if (searchParams.get("collection_id")) {
       router.replace(pathname, { scroll: false })
     }
   }
 
-  const openInspect = (tx: CollectorTransaction) => {
-    setSelectedTx(tx)
-    setAccountingRemarks(tx.accounting_remarks || "")
+  const isDuplicateRow = (tx: CollectorTransaction): { cheque: boolean; depositRef: boolean } => {
+    const chq = (tx.cheque_number || "").trim().toLowerCase()
+    const ref = (tx.deposit_reference_no || "").trim().toLowerCase()
+    return {
+      cheque: Boolean(chq && dupChequeNumbers.has(chq)),
+      depositRef: Boolean(ref && dupDepositRefs.has(ref)),
+    }
   }
 
-  const handleZoom = (url: string, label: string) => {
-    setZoomImage({ url, label })
-    setZoomLevel(1)
-  }
+  // Group records by Collector & Date for Daily View
+  const dailyGroups = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        key: string
+        date: string
+        collectorName: string
+        area: string | null
+        items: CollectorTransaction[]
+        invoiceTotal: number
+        chequeTotal: number
+        depositedTotal: number
+      }
+    >()
+
+    for (const tx of records) {
+      const dateKey = tx.invoice_date || "Undated"
+      const collectorName =
+        tx.deposited_by_name ||
+        tx.cheque_collected_by_name ||
+        tx.invoice_collected_by_name ||
+        "Unassigned Collector"
+      const groupKey = `${dateKey}__${collectorName}`
+
+      if (!map.has(groupKey)) {
+        map.set(groupKey, {
+          key: groupKey,
+          date: dateKey,
+          collectorName,
+          area: tx.assigned_area,
+          items: [],
+          invoiceTotal: 0,
+          chequeTotal: 0,
+          depositedTotal: 0,
+        })
+      }
+      const g = map.get(groupKey)!
+      g.items.push(tx)
+      g.invoiceTotal += Number(tx.commission_amount) || 0
+      g.chequeTotal += Number(tx.cheque_amount) || 0
+      if (tx.workflow_status === "deposited" || tx.workflow_status === "verified" || tx.workflow_status === "converted_to_sale") {
+        g.depositedTotal += Number(tx.deposit_amount ?? tx.cheque_amount) || 0
+      }
+    }
+    return Array.from(map.values())
+  }, [records])
+
+  const dailySummaryTotals = useMemo(() => {
+    let invoices = 0
+    let cheques = 0
+    let deposited = 0
+    for (const g of dailyGroups) {
+      invoices += g.invoiceTotal
+      cheques += g.chequeTotal
+      deposited += g.depositedTotal
+    }
+    return { invoices, cheques, deposited, count: records.length }
+  }, [dailyGroups, records.length])
 
   const toggleSort = (field: SortField) => {
     if (sortField === field) {
@@ -680,116 +616,6 @@ export function ChequeVerificationManager({ role }: ChequeVerificationManagerPro
     )
   }
 
-  const handleVerifyCheque = async (openConvertAfter = false) => {
-    if (!selectedTx || !user) return
-    if (selectedTx.workflow_status !== "deposited") {
-      toast.error("Only deposited cheques can be verified.")
-      return
-    }
-    setActionLoading(true)
-    try {
-      const verifierName = profile?.full_name || profile?.email || "Accounting"
-      const verifiedAt = new Date().toISOString()
-
-      const { data: updated, error } = await supabase
-        .from("collector_transactions")
-        .update({
-          cheque_status: "verified",
-          workflow_status: "verified",
-          verified_by_uuid: user.id,
-          verified_by_name: verifierName,
-          verified_at: verifiedAt,
-          accounting_remarks: accountingRemarks.trim() || null,
-        })
-        .eq("id", selectedTx.id)
-        .eq("workflow_status", "deposited")
-        .select("*")
-        .single()
-
-      if (error) throw error
-
-      await logNotification(supabase, {
-        action: "cheque_verified",
-        description: `Verified deposited cheque #${selectedTx.cheque_number || "N/A"} for ${selectedTx.developer_name || "Developer"} (${formatPHP(selectedTx.deposit_amount ?? selectedTx.cheque_amount)})`,
-        user_email: profile?.email || user.email || "",
-        user_name: verifierName,
-        user_uuid: user.id,
-        meta: JSON.stringify({
-          collection_id: selectedTx.id,
-          collector_user_id:
-            selectedTx.deposited_by_uuid ||
-            selectedTx.cheque_collected_by_uuid ||
-            selectedTx.invoice_collected_by_uuid,
-          cheque_number: selectedTx.cheque_number,
-          developer_name: selectedTx.developer_name,
-        }),
-        user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
-      })
-
-      toast.success("Deposited cheque verified!")
-      await refreshAll()
-      closeInspect()
-
-      if (openConvertAfter && updated) {
-        setConvertTx(updated as CollectorTransaction)
-        setConvertOpen(true)
-      }
-    } catch (err) {
-      console.error("Verify cheque error:", err)
-      toast.error(err instanceof Error ? err.message : "Failed to verify cheque")
-    } finally {
-      setActionLoading(false)
-    }
-  }
-
-  const handleReturnToCollector = async () => {
-    if (!selectedTx || !user) return
-    if (!accountingRemarks.trim()) {
-      toast.error("Accounting remarks are required when returning a transaction to the collector.")
-      return
-    }
-    setActionLoading(true)
-    try {
-      const verifierName = profile?.full_name || profile?.email || "Accounting"
-      const { error } = await supabase
-        .from("collector_transactions")
-        .update({
-          workflow_status: "returned",
-          cheque_status: "pending",
-          accounting_remarks: accountingRemarks.trim(),
-        })
-        .eq("id", selectedTx.id)
-
-      if (error) throw error
-
-      await logNotification(supabase, {
-        action: "cheque_returned_to_collector",
-        description: `Returned transaction (${selectedTx.developer_name || "Developer"}) to collector: ${accountingRemarks.trim()}`,
-        user_email: profile?.email || user.email || "",
-        user_name: verifierName,
-        user_uuid: user.id,
-        meta: JSON.stringify({
-          collection_id: selectedTx.id,
-          collector_user_id:
-            selectedTx.deposited_by_uuid ||
-            selectedTx.cheque_collected_by_uuid ||
-            selectedTx.invoice_collected_by_uuid,
-          remarks: accountingRemarks.trim(),
-        }),
-        user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
-      })
-
-      toast.success("Returned to collector — pinned in their Needs Attention banner.")
-      closeInspect()
-      await refreshAll()
-    } catch (err) {
-      console.error("Return transaction error:", err)
-      toast.error(err instanceof Error ? err.message : "Failed to return transaction")
-    } finally {
-      setActionLoading(false)
-    }
-  }
-
   const clearFilters = () => {
     setSearchInput("")
     setDebouncedSearch("")
@@ -798,6 +624,7 @@ export function ChequeVerificationManager({ role }: ChequeVerificationManagerPro
     setDateFrom("")
     setDateTo("")
     setOnlyDiscrepancies(false)
+    setOnlyMissingDetails(false)
     setPage(1)
   }
 
@@ -807,43 +634,64 @@ export function ChequeVerificationManager({ role }: ChequeVerificationManagerPro
     areaFilter !== "all" ||
     Boolean(dateFrom) ||
     Boolean(dateTo) ||
-    onlyDiscrepancies
+    onlyDiscrepancies ||
+    onlyMissingDetails
 
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
 
-  const canReturnSelected =
-    selectedTx &&
-    (selectedTx.workflow_status === "invoice_issued" ||
-      selectedTx.workflow_status === "cheque_collected" ||
-      selectedTx.workflow_status === "deposited")
-
   return (
     <div className="space-y-6">
-      {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      {/* Page Header & View Toggle */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 flex items-center gap-2.5">
             <FileCheck2 className="h-7 w-7 text-emerald-600" />
-            Collector Activities &amp; Cheque Verification
+            Collector Daily Batches &amp; Cheque Verification
           </h1>
           <p className="text-sm text-slate-600 mt-1">
-            Monitor field collector invoices, cheques, and bank deposits, review silent audit
-            proofs, verify deposits, and convert verified transactions into official Sales.
+            Review daily collector uploads, edit fields &amp; manage attachments, verify deposited
+            cheques, and convert verified batches into official Sales.
           </p>
         </div>
-        <Button onClick={refreshAll} variant="outline" disabled={loading}>
-          <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
-          Refresh
-        </Button>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="inline-flex rounded-lg border bg-white p-1 shadow-sm">
+            <Button
+              type="button"
+              size="sm"
+              variant={viewMode === "daily" ? "default" : "ghost"}
+              onClick={() => setViewMode("daily")}
+              className={viewMode === "daily" ? "bg-[#001f3f] text-white" : "text-slate-700"}
+            >
+              <CalendarDays className="h-4 w-4 mr-1.5" />
+              Daily View
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={viewMode === "queue" ? "default" : "ghost"}
+              onClick={() => setViewMode("queue")}
+              className={viewMode === "queue" ? "bg-[#001f3f] text-white" : "text-slate-700"}
+            >
+              <LayoutList className="h-4 w-4 mr-1.5" />
+              Action Queues
+            </Button>
+          </div>
+
+          <Button onClick={refreshAll} variant="outline" disabled={loading}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
+        </div>
       </div>
 
-      {/* 6 Summary KPI Cards */}
+      {/* 6 Summary KPI Cards (Click jumps straight to that Queue tab) */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
         {(
           [
             {
               key: "deposited" as FilterTab,
-              title: "Deposited — For Check",
+              title: "Deposited — Needs Check",
               value: counts.deposited,
               ring: "ring-blue-500",
               labelColor: "text-blue-700",
@@ -852,12 +700,12 @@ export function ChequeVerificationManager({ role }: ChequeVerificationManagerPro
             },
             {
               key: "verified" as FilterTab,
-              title: "Verified",
+              title: "Verified — Ready",
               value: counts.verified,
               ring: "ring-emerald-500",
               labelColor: "text-emerald-700",
               numColor: "text-emerald-900",
-              sub: "Ready to convert",
+              sub: "Convert to Sale",
             },
             {
               key: "converted_to_sale" as FilterTab,
@@ -870,7 +718,7 @@ export function ChequeVerificationManager({ role }: ChequeVerificationManagerPro
             },
             {
               key: "invoice_issued" as FilterTab,
-              title: "Invoices Issued",
+              title: "Draft / Invoice Only",
               value: counts.invoice_issued,
               ring: "ring-slate-500",
               labelColor: "text-slate-600",
@@ -879,7 +727,7 @@ export function ChequeVerificationManager({ role }: ChequeVerificationManagerPro
             },
             {
               key: "cheque_collected" as FilterTab,
-              title: "Cheques Collected",
+              title: "Cheque Collected",
               value: counts.cheque_collected,
               ring: "ring-amber-500",
               labelColor: "text-amber-700",
@@ -900,9 +748,10 @@ export function ChequeVerificationManager({ role }: ChequeVerificationManagerPro
           <Card
             key={kpi.key}
             className={`cursor-pointer transition hover:shadow-md ${
-              activeTab === kpi.key ? `ring-2 ${kpi.ring}` : ""
+              viewMode === "queue" && activeTab === kpi.key ? `ring-2 ${kpi.ring}` : ""
             }`}
             onClick={() => {
+              setViewMode("queue")
               setActiveTab(kpi.key)
               setPage(1)
             }}
@@ -918,44 +767,134 @@ export function ChequeVerificationManager({ role }: ChequeVerificationManagerPro
         ))}
       </div>
 
-      {/* Filters & Data Table */}
-      <Card>
-        <CardHeader className="space-y-3 pb-4">
-          {/* Status Filter Tabs */}
-          <div className="flex flex-wrap gap-1.5">
-            {(
-              [
-                { id: "deposited", label: `Deposited (${counts.deposited})` },
-                { id: "verified", label: `Verified (${counts.verified})` },
-                { id: "converted_to_sale", label: `Converted (${counts.converted_to_sale})` },
-                { id: "invoice_issued", label: `Invoices Issued (${counts.invoice_issued})` },
-                { id: "cheque_collected", label: `Cheques Collected (${counts.cheque_collected})` },
-                { id: "returned", label: `Returned (${counts.returned})` },
-                { id: "all", label: `All (${counts.all})` },
-              ] as { id: FilterTab; label: string }[]
-            ).map((tab) => (
+      {/* DAILY NAVIGATOR BAR (Daily View) */}
+      {viewMode === "daily" && (
+        <Card className="border-sky-200 bg-sky-50/40">
+          <CardContent className="p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div className="flex flex-wrap items-center gap-2">
               <Button
-                key={tab.id}
+                type="button"
                 size="sm"
-                variant={activeTab === tab.id ? "default" : "outline"}
+                variant="outline"
+                className="bg-white"
                 onClick={() => {
-                  setActiveTab(tab.id)
-                  setPage(1)
+                  setAllDatesMode(false)
+                  setSelectedDay((d) => shiftDateIso(d, -1))
                 }}
               >
-                {tab.label}
+                <ChevronLeft className="h-4 w-4 mr-1" />
+                Prev Day
               </Button>
-            ))}
-          </div>
+              <div className="flex items-center gap-1.5 bg-white border rounded-md px-2.5 py-1">
+                <Calendar className="h-4 w-4 text-sky-700" />
+                <input
+                  type="date"
+                  value={selectedDay}
+                  onChange={(e) => {
+                    setAllDatesMode(false)
+                    setSelectedDay(e.target.value)
+                  }}
+                  className="text-xs font-semibold text-[#001f3f] outline-none bg-transparent"
+                />
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="bg-white"
+                onClick={() => {
+                  setAllDatesMode(false)
+                  setSelectedDay((d) => shiftDateIso(d, 1))
+                }}
+              >
+                Next Day
+                <ChevronRight className="h-4 w-4 ml-1" />
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={!allDatesMode && selectedDay === todayIso() ? "default" : "outline"}
+                className={
+                  !allDatesMode && selectedDay === todayIso() ? "bg-[#001f3f] text-white" : "bg-white"
+                }
+                onClick={() => {
+                  setAllDatesMode(false)
+                  setSelectedDay(todayIso())
+                }}
+              >
+                Today
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={allDatesMode ? "default" : "outline"}
+                className={allDatesMode ? "bg-[#001f3f] text-white" : "bg-white"}
+                onClick={() => setAllDatesMode((v) => !v)}
+              >
+                All Dates
+              </Button>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-4 text-xs">
+              <div>
+                <span className="text-slate-500">Invoices:</span>{" "}
+                <strong className="text-slate-900">{formatPHP(dailySummaryTotals.invoices)}</strong>
+              </div>
+              <div>
+                <span className="text-slate-500">Cheques:</span>{" "}
+                <strong className="text-amber-800">{formatPHP(dailySummaryTotals.cheques)}</strong>
+              </div>
+              <div>
+                <span className="text-slate-500">Deposited:</span>{" "}
+                <strong className="text-emerald-700">{formatPHP(dailySummaryTotals.deposited)}</strong>
+              </div>
+              <Badge variant="outline" className="bg-white">
+                {dailySummaryTotals.count} batch record(s)
+              </Badge>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* MAIN FILTERS + CONTENT CARD */}
+      <Card>
+        <CardHeader className="space-y-3 pb-4">
+          {viewMode === "queue" && (
+            <div className="flex flex-wrap gap-1.5">
+              {(
+                [
+                  { id: "all", label: `All (${counts.all})` },
+                  { id: "invoice_issued", label: `Draft / Invoice (${counts.invoice_issued})` },
+                  { id: "cheque_collected", label: `Cheque Collected (${counts.cheque_collected})` },
+                  { id: "deposited", label: `Deposited — Check (${counts.deposited})` },
+                  { id: "verified", label: `Verified (${counts.verified})` },
+                  { id: "converted_to_sale", label: `Converted (${counts.converted_to_sale})` },
+                  { id: "returned", label: `Returned (${counts.returned})` },
+                ] as { id: FilterTab; label: string }[]
+              ).map((tab) => (
+                <Button
+                  key={tab.id}
+                  size="sm"
+                  variant={activeTab === tab.id ? "default" : "outline"}
+                  onClick={() => {
+                    setActiveTab(tab.id)
+                    setPage(1)
+                  }}
+                >
+                  {tab.label}
+                </Button>
+              ))}
+            </div>
+          )}
 
           {/* Search & Structured Filter Controls */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2.5 pt-1">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2.5">
             <div className="relative lg:col-span-2">
               <Search className="h-4 w-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <Input
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
-                placeholder="Search developer, TIN, cheque #, deposit ref..."
+                placeholder="Search developer, cheque #, deposit ref, remarks..."
                 className="pl-9"
               />
             </div>
@@ -1006,29 +945,51 @@ export function ChequeVerificationManager({ role }: ChequeVerificationManagerPro
               </div>
             )}
 
-            <Input
-              type="date"
-              value={dateFrom}
-              onChange={(e) => {
-                setDateFrom(e.target.value)
-                setPage(1)
-              }}
-              title="Invoice Date From"
-            />
-            <Input
-              type="date"
-              value={dateTo}
-              onChange={(e) => {
-                setDateTo(e.target.value)
-                setPage(1)
-              }}
-              title="Invoice Date To"
-            />
+            {viewMode === "queue" && (
+              <>
+                <Input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => {
+                    setDateFrom(e.target.value)
+                    setPage(1)
+                  }}
+                  title="Date From"
+                />
+                <Input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => {
+                    setDateTo(e.target.value)
+                    setPage(1)
+                  }}
+                  title="Date To"
+                />
+              </>
+            )}
           </div>
 
-          {/* Secondary Filter Bar */}
+          {/* Secondary Filter Pills */}
           <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant={onlyMissingDetails ? "default" : "outline"}
+                className={
+                  onlyMissingDetails
+                    ? "bg-indigo-600 hover:bg-indigo-700 text-white"
+                    : "border-indigo-300 text-indigo-800 hover:bg-indigo-50"
+                }
+                onClick={() => {
+                  setOnlyMissingDetails((prev) => !prev)
+                  setPage(1)
+                }}
+              >
+                <FileWarning className="h-3.5 w-3.5 mr-1.5" />
+                Missing Details / Drafts
+              </Button>
+
               <Button
                 type="button"
                 size="sm"
@@ -1044,8 +1005,9 @@ export function ChequeVerificationManager({ role }: ChequeVerificationManagerPro
                 }}
               >
                 <AlertTriangle className="h-3.5 w-3.5 mr-1.5" />
-                Amount Discrepancies Only
+                Amount Discrepancies
               </Button>
+
               {hasActiveFilters && (
                 <Button type="button" size="sm" variant="ghost" onClick={clearFilters}>
                   <Filter className="h-3.5 w-3.5 mr-1" />
@@ -1053,8 +1015,9 @@ export function ChequeVerificationManager({ role }: ChequeVerificationManagerPro
                 </Button>
               )}
             </div>
+
             <div className="text-xs text-slate-500">
-              Showing <strong>{records.length}</strong> of <strong>{totalCount}</strong> records
+              Showing <strong>{records.length}</strong> of <strong>{totalCount}</strong> record(s)
             </div>
           </div>
         </CardHeader>
@@ -1068,39 +1031,135 @@ export function ChequeVerificationManager({ role }: ChequeVerificationManagerPro
           ) : records.length === 0 ? (
             <div className="text-center py-14 text-slate-500">
               <FileCheck2 className="h-10 w-10 mx-auto text-slate-300 mb-2" />
-              <p className="font-medium text-slate-700">No collector transactions match this view</p>
+              <p className="font-medium text-slate-700">No collector records found</p>
               <p className="text-xs text-slate-500 mt-1">
-                Try switching status tabs or clearing your active filters.
+                {viewMode === "daily" && !allDatesMode
+                  ? `No batches recorded for ${selectedDay}. Try another date or click "All Dates".`
+                  : "Try switching status tabs or clearing your active filters."}
               </p>
             </div>
+          ) : viewMode === "daily" ? (
+            /* DAILY VIEW: GROUPED BY COLLECTOR & DATE */
+            <div className="space-y-5">
+              {dailyGroups.map((group) => (
+                <div key={group.key} className="rounded-xl border border-slate-200 overflow-hidden">
+                  <div className="bg-[#001f3f] text-white px-4 py-2.5 flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex flex-wrap items-center gap-2.5">
+                      <Users className="h-4 w-4 text-sky-300" />
+                      <span className="font-bold text-sm">{group.collectorName}</span>
+                      <Badge className="bg-white/15 text-white hover:bg-white/15 text-[11px]">
+                        {group.date}
+                      </Badge>
+                      {group.area && (
+                        <span className="text-xs text-sky-200">{group.area}</span>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-3 text-xs">
+                      <span>Inv: <strong>{formatPHP(group.invoiceTotal)}</strong></span>
+                      <span>Chq: <strong>{formatPHP(group.chequeTotal)}</strong></span>
+                      <span className="text-emerald-300">
+                        Dep: <strong>{formatPHP(group.depositedTotal)}</strong>
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="divide-y divide-slate-100 bg-white">
+                    {group.items.map((tx) => {
+                      const dup = isDuplicateRow(tx)
+                      return (
+                        <div
+                          key={tx.id}
+                          onClick={() => setSelectedTx(tx)}
+                          className="p-3.5 hover:bg-sky-50/50 cursor-pointer flex flex-col lg:flex-row lg:items-center justify-between gap-3 transition-colors"
+                        >
+                          <div className="space-y-1.5 min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-bold text-sm text-slate-900">
+                                {tx.developer_name || "Draft — No Developer Linked"}
+                              </span>
+                              {getWorkflowBadge(tx.workflow_status)}
+                              {getChequeStatusBadge(tx.cheque_status)}
+                              {tx.amount_discrepancy && (
+                                <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 text-[10px]">
+                                  <AlertTriangle className="h-3 w-3 mr-0.5" /> Discrepancy
+                                </Badge>
+                              )}
+                              {(dup.cheque || dup.depositRef) && (
+                                <Badge className="bg-red-100 text-red-800 hover:bg-red-100 text-[10px]">
+                                  <AlertTriangle className="h-3 w-3 mr-0.5" /> Duplicate{" "}
+                                  {dup.cheque ? "Cheque #" : "Deposit Ref"}
+                                </Badge>
+                              )}
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600">
+                              <span>Comm: <strong className="text-slate-900">{formatPHP(tx.commission_amount)}</strong></span>
+                              {tx.cheque_number && (
+                                <span>Cheque: <strong className="text-slate-900">#{tx.cheque_number}</strong> ({formatPHP(tx.cheque_amount)})</span>
+                              )}
+                              {tx.deposit_bank && (
+                                <span>Deposit: <strong className="text-emerald-700">{tx.deposit_bank}</strong> {tx.deposit_reference_no ? `Ref #${tx.deposit_reference_no}` : ""}</span>
+                              )}
+                            </div>
+
+                            {tx.invoice_remarks && (
+                              <div className="text-xs text-slate-500 line-clamp-1 italic">
+                                AI/Note: {tx.invoice_remarks}
+                              </div>
+                            )}
+
+                            <AttachmentCountPills tx={tx} />
+                          </div>
+
+                          <div
+                            className="flex items-center gap-2 shrink-0"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Button size="sm" variant="outline" onClick={() => setSelectedTx(tx)}>
+                              <Eye className="h-3.5 w-3.5 mr-1" />
+                              Review / Edit
+                            </Button>
+                            {tx.workflow_status === "verified" && !tx.sales_id && (
+                              <Button
+                                size="sm"
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                                onClick={() => {
+                                  setConvertTx(tx)
+                                  setConvertOpen(true)
+                                }}
+                              >
+                                <ArrowRightCircle className="h-3.5 w-3.5 mr-1" />
+                                Convert
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
           ) : (
+            /* QUEUE VIEW: PAGINATED TABLE */
             <>
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Developer</TableHead>
+                      <TableHead>Developer &amp; AI Remarks</TableHead>
+                      <TableHead>Attachments</TableHead>
                       <TableHead>
                         <button
                           type="button"
                           onClick={() => toggleSort("commission_amount")}
                           className="inline-flex items-center font-medium hover:text-slate-900"
                         >
-                          Invoice &amp; Comm
+                          Commission
                           {renderSortIcon("commission_amount")}
                         </button>
                       </TableHead>
-                      <TableHead>Cheque</TableHead>
-                      <TableHead>
-                        <button
-                          type="button"
-                          onClick={() => toggleSort("deposit_amount")}
-                          className="inline-flex items-center font-medium hover:text-slate-900"
-                        >
-                          Deposit
-                          {renderSortIcon("deposit_amount")}
-                        </button>
-                      </TableHead>
+                      <TableHead>Cheque &amp; Deposit</TableHead>
                       <TableHead>
                         <button
                           type="button"
@@ -1126,97 +1185,76 @@ export function ChequeVerificationManager({ role }: ChequeVerificationManagerPro
                   </TableHeader>
                   <TableBody>
                     {records.map((tx) => {
-                      const hasInvoicePhoto = (tx.invoice_photo_urls || []).length > 0
-                      const hasChequePhoto = (tx.cheque_photo_urls || []).length > 0
+                      const dup = isDuplicateRow(tx)
                       return (
-                        <TableRow key={tx.id}>
-                          <TableCell>
-                            <div className="font-medium text-slate-900">
-                              {tx.developer_name || "Unnamed Developer"}
+                        <TableRow
+                          key={tx.id}
+                          className="cursor-pointer hover:bg-slate-50"
+                          onClick={() => setSelectedTx(tx)}
+                        >
+                          <TableCell className="max-w-[240px]">
+                            <div className="font-medium text-slate-900 truncate">
+                              {tx.developer_name || "Draft / Unlinked"}
                             </div>
-                            <div className="text-xs text-slate-500">
-                              TIN: {tx.developer_tin || "—"}
+                            <div className="text-[11px] text-slate-500">
+                              {tx.invoice_date || "—"}
+                              {tx.developer_tin ? ` · TIN ${tx.developer_tin}` : ""}
                               {tx.assigned_area ? ` · ${tx.assigned_area}` : ""}
                             </div>
+                            {tx.invoice_remarks && (
+                              <div className="text-[11px] text-slate-500 truncate mt-0.5 italic">
+                                {tx.invoice_remarks}
+                              </div>
+                            )}
+                          </TableCell>
+
+                          <TableCell className="max-w-[200px]">
+                            <AttachmentCountPills tx={tx} />
                           </TableCell>
 
                           <TableCell>
                             <div className="font-semibold text-slate-800">
                               {formatPHP(tx.commission_amount)}
                             </div>
-                            <div className="text-xs text-slate-500">
-                              {tx.invoice_date || tx.invoice_date_collected || "—"}
-                            </div>
-                            <div className="mt-0.5">
-                              {hasInvoicePhoto ? (
-                                <Badge
-                                  variant="outline"
-                                  className="text-[10px] py-0 border-emerald-200 bg-emerald-50 text-emerald-700"
-                                >
-                                  Invoice Photo ({tx.invoice_photo_urls.length})
-                                </Badge>
+                            {tx.amount_discrepancy && (
+                              <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 text-[10px] mt-1">
+                                <AlertTriangle className="h-2.5 w-2.5 mr-0.5" />
+                                Mismatch
+                              </Badge>
+                            )}
+                          </TableCell>
+
+                          <TableCell>
+                            <div className="space-y-1 text-xs">
+                              {tx.cheque_number || tx.cheque_amount ? (
+                                <div>
+                                  <span className="font-semibold text-slate-800">
+                                    #{tx.cheque_number || "—"}
+                                  </span>{" "}
+                                  ({formatPHP(tx.cheque_amount)})
+                                </div>
                               ) : (
-                                <Badge variant="outline" className="text-[10px] py-0 text-slate-400">
-                                  No Invoice Photo
-                                </Badge>
+                                <span className="text-slate-400">No cheque yet</span>
                               )}
+                              {tx.deposit_bank && (
+                                <div className="text-[11px] text-emerald-700">
+                                  {tx.deposit_bank}{" "}
+                                  {tx.deposit_reference_no ? `· Ref #${tx.deposit_reference_no}` : ""}
+                                </div>
+                              )}
+                              <div className="flex flex-wrap gap-1">
+                                {getChequeStatusBadge(tx.cheque_status)}
+                                {(dup.cheque || dup.depositRef) && (
+                                  <Badge className="bg-red-100 text-red-800 hover:bg-red-100 text-[10px] py-0">
+                                    Duplicate
+                                  </Badge>
+                                )}
+                              </div>
                             </div>
                           </TableCell>
 
                           <TableCell>
-                            {tx.cheque_number || tx.cheque_amount || hasChequePhoto ? (
-                              <div className="space-y-1">
-                                <div className="text-sm font-medium text-slate-800">
-                                  {tx.cheque_bank ? `${tx.cheque_bank} ` : ""}#
-                                  {tx.cheque_number || "—"}
-                                </div>
-                                <div className="text-xs text-slate-700 flex flex-wrap items-center gap-1.5">
-                                  <span>{formatPHP(tx.cheque_amount)}</span>
-                                  {tx.amount_discrepancy && (
-                                    <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 text-[10px] px-1.5 py-0">
-                                      <AlertTriangle className="h-2.5 w-2.5 mr-0.5" />
-                                      Mismatch
-                                    </Badge>
-                                  )}
-                                </div>
-                                <div className="flex flex-wrap items-center gap-1">
-                                  {getChequeStatusBadge(tx.cheque_status)}
-                                  {hasChequePhoto && (
-                                    <Badge
-                                      variant="outline"
-                                      className="text-[10px] py-0 border-blue-200 bg-blue-50 text-blue-700"
-                                    >
-                                      Photo ({tx.cheque_photo_urls.length})
-                                    </Badge>
-                                  )}
-                                </div>
-                              </div>
-                            ) : (
-                              <span className="text-xs text-slate-400">Awaiting cheque</span>
-                            )}
-                          </TableCell>
-
-                          <TableCell>
-                            {tx.deposited_at || tx.deposit_date ? (
-                              <div className="space-y-0.5">
-                                <div className="text-sm font-medium text-slate-800">
-                                  {tx.deposit_bank || "Bank Deposited"}
-                                </div>
-                                <div className="text-xs text-slate-700">
-                                  {formatPHP(tx.deposit_amount ?? tx.cheque_amount)}
-                                </div>
-                                <div className="text-[11px] text-slate-500">
-                                  Ref: {tx.deposit_reference_no || "—"} ·{" "}
-                                  {(tx.deposit_slip_urls || []).length} slip(s)
-                                </div>
-                              </div>
-                            ) : (
-                              <span className="text-xs text-slate-400">Not deposited</span>
-                            )}
-                          </TableCell>
-
-                          <TableCell>
-                            <div className="text-sm text-slate-800">
+                            <div className="text-xs font-medium text-slate-800">
                               {tx.deposited_by_name ||
                                 tx.cheque_collected_by_name ||
                                 tx.invoice_collected_by_name ||
@@ -1231,7 +1269,7 @@ export function ChequeVerificationManager({ role }: ChequeVerificationManagerPro
                             <div className="space-y-1">
                               {getWorkflowBadge(tx.workflow_status)}
                               {tx.sales_id && (
-                                <div>
+                                <div onClick={(e) => e.stopPropagation()}>
                                   <Link
                                     href={`/dashboard/${roleSlug}/sales`}
                                     className="inline-flex items-center gap-1 text-[11px] font-medium text-teal-700 hover:underline"
@@ -1243,9 +1281,12 @@ export function ChequeVerificationManager({ role }: ChequeVerificationManagerPro
                             </div>
                           </TableCell>
 
-                          <TableCell className="text-right">
-                            <div className="flex items-center justify-end gap-2">
-                              <Button size="sm" variant="outline" onClick={() => openInspect(tx)}>
+                          <TableCell
+                            className="text-right"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <div className="flex items-center justify-end gap-1.5">
+                              <Button size="sm" variant="outline" onClick={() => setSelectedTx(tx)}>
                                 <Eye className="h-3.5 w-3.5 mr-1" />
                                 Review
                               </Button>
@@ -1302,412 +1343,20 @@ export function ChequeVerificationManager({ role }: ChequeVerificationManagerPro
         </CardContent>
       </Card>
 
-      {/* Transaction Review & Silent Audit Drawer/Dialog */}
-      <Dialog open={!!selectedTx} onOpenChange={(open) => !open && closeInspect()}>
-        <DialogContent className="max-w-4xl max-h-[92vh] overflow-y-auto">
-          {selectedTx && (
-            <>
-              <DialogHeader>
-                <div className="flex flex-wrap items-center justify-between gap-2 pr-6">
-                  <div>
-                    <DialogTitle className="text-xl flex items-center gap-2">
-                      <Building2 className="h-5 w-5 text-blue-600" />
-                      {selectedTx.developer_name || "Developer Collection"}
-                    </DialogTitle>
-                    <DialogDescription className="mt-1">
-                      TIN: {selectedTx.developer_tin || "—"} · Issued{" "}
-                      {selectedTx.invoice_date || "—"} · Cheque #
-                      {selectedTx.cheque_number || "N/A"}
-                    </DialogDescription>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {getWorkflowBadge(selectedTx.workflow_status)}
-                    {getChequeStatusBadge(selectedTx.cheque_status)}
-                  </div>
-                </div>
-              </DialogHeader>
+      {/* Full Accounting Review, Edit & Attachment Manager Modal */}
+      <CollectorReviewEditModal
+        transaction={selectedTx}
+        open={Boolean(selectedTx)}
+        role={role}
+        onClose={closeReview}
+        onUpdated={() => refreshAll()}
+        onOpenConvertToSale={(tx) => {
+          setConvertTx(tx)
+          setConvertOpen(true)
+        }}
+      />
 
-              {selectedTx.amount_discrepancy && (
-                <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 flex items-start gap-2.5 text-sm text-amber-900">
-                  <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
-                  <div>
-                    <span className="font-semibold">Amount Discrepancy Flagged:</span> Invoice
-                    commission ({formatPHP(selectedTx.commission_amount)}) does not match collected
-                    cheque amount ({formatPHP(selectedTx.cheque_amount)}). Review collector override
-                    remarks before verifying.
-                  </div>
-                </div>
-              )}
-
-              <Tabs
-                defaultValue={
-                  selectedTx.workflow_status === "invoice_issued"
-                    ? "invoice"
-                    : selectedTx.workflow_status === "cheque_collected"
-                      ? "cheque"
-                      : "deposit"
-                }
-                className="w-full"
-              >
-                <TabsList className="grid w-full grid-cols-3">
-                  <TabsTrigger value="invoice">1. Invoice Issued</TabsTrigger>
-                  <TabsTrigger value="cheque">2. Cheque Collected</TabsTrigger>
-                  <TabsTrigger value="deposit">3. Bank Deposit</TabsTrigger>
-                </TabsList>
-
-                {/* Tab 1: Invoice */}
-                <TabsContent value="invoice" className="space-y-4 pt-3">
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 rounded-lg border bg-white p-3 text-sm">
-                    <div>
-                      <div className="text-xs text-slate-500">Invoice Date (Auto)</div>
-                      <div className="font-semibold">{selectedTx.invoice_date || "—"}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-slate-500">Commission Amount</div>
-                      <div className="font-semibold text-emerald-700">
-                        {formatPHP(selectedTx.commission_amount)}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-slate-500">Developer TIN</div>
-                      <div className="font-semibold">{selectedTx.developer_tin || "—"}</div>
-                    </div>
-                  </div>
-
-                  {selectedTx.invoice_remarks && (
-                    <div className="text-xs bg-slate-50 border rounded p-2.5">
-                      <span className="font-semibold text-slate-700">Invoice Remarks: </span>
-                      {selectedTx.invoice_remarks}
-                    </div>
-                  )}
-
-                  <SelfieVerificationCard
-                    ocrData={selectedTx.invoice_ocr_data}
-                    onZoom={handleZoom}
-                  />
-
-                  <TelemetryBox
-                    who={selectedTx.invoice_collected_by_name}
-                    date={selectedTx.invoice_date_collected}
-                    time={selectedTx.invoice_time_collected}
-                    capturedAt={selectedTx.invoice_captured_at}
-                    location={selectedTx.invoice_location}
-                    lat={selectedTx.invoice_latitude}
-                    lng={selectedTx.invoice_longitude}
-                    accuracy={selectedTx.invoice_gps_accuracy}
-                    device={selectedTx.invoice_device_used}
-                    clarityScore={selectedTx.invoice_clarity_score}
-                  />
-
-                  <PhotoGallery
-                    title="Invoice Photos"
-                    urls={selectedTx.invoice_photo_urls}
-                    onZoom={handleZoom}
-                  />
-                </TabsContent>
-
-                {/* Tab 2: Cheque */}
-                <TabsContent value="cheque" className="space-y-4 pt-3">
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 rounded-lg border bg-white p-3 text-sm">
-                    <div>
-                      <div className="text-xs text-slate-500">Cheque #</div>
-                      <div className="font-semibold">{selectedTx.cheque_number || "—"}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-slate-500">Bank / Branch</div>
-                      <div className="font-semibold">
-                        {selectedTx.cheque_bank || "—"}
-                        {selectedTx.cheque_branch ? ` (${selectedTx.cheque_branch})` : ""}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-slate-500">Cheque Amount</div>
-                      <div className="font-semibold text-emerald-700">
-                        {formatPHP(selectedTx.cheque_amount)}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-slate-500">Cheque Date / Pickup</div>
-                      <div className="font-semibold">
-                        {selectedTx.cheque_date || "—"}
-                        {selectedTx.cheque_date_collected
-                          ? ` (Picked up ${selectedTx.cheque_date_collected})`
-                          : ""}
-                      </div>
-                    </div>
-                  </div>
-
-                  {(selectedTx.received_from_name || selectedTx.cheque_remarks) && (
-                    <div className="text-xs bg-slate-50 border rounded p-2.5 space-y-1">
-                      {selectedTx.received_from_name && (
-                        <div>
-                          <span className="font-semibold text-slate-700">Received From: </span>
-                          {selectedTx.received_from_name}
-                        </div>
-                      )}
-                      {selectedTx.cheque_remarks && (
-                        <div>
-                          <span className="font-semibold text-slate-700">Cheque Remarks: </span>
-                          {selectedTx.cheque_remarks}
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  <SelfieVerificationCard
-                    ocrData={selectedTx.cheque_ocr_data}
-                    onZoom={handleZoom}
-                  />
-
-                  <TelemetryBox
-                    who={selectedTx.cheque_collected_by_name}
-                    date={selectedTx.cheque_date_collected}
-                    time={selectedTx.cheque_time_collected}
-                    capturedAt={selectedTx.cheque_captured_at}
-                    location={selectedTx.cheque_location}
-                    lat={selectedTx.cheque_latitude}
-                    lng={selectedTx.cheque_longitude}
-                    accuracy={selectedTx.cheque_gps_accuracy}
-                    device={selectedTx.cheque_device_used}
-                    clarityScore={selectedTx.cheque_clarity_score}
-                  />
-
-                  <PhotoGallery
-                    title="Cheque Photos"
-                    urls={selectedTx.cheque_photo_urls}
-                    onZoom={handleZoom}
-                  />
-                  <PhotoGallery
-                    title="BIR 2307 Photos"
-                    urls={selectedTx.doc_2307_photo_urls}
-                    onZoom={handleZoom}
-                  />
-                  <PhotoGallery
-                    title="Voucher Photos"
-                    urls={selectedTx.voucher_photo_urls}
-                    onZoom={handleZoom}
-                  />
-                </TabsContent>
-
-                {/* Tab 3: Deposit */}
-                <TabsContent value="deposit" className="space-y-4 pt-3">
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 rounded-lg border bg-white p-3 text-sm">
-                    <div>
-                      <div className="text-xs text-slate-500">Deposit Bank</div>
-                      <div className="font-semibold flex items-center gap-1">
-                        <Landmark className="h-3.5 w-3.5 text-blue-600" />
-                        {selectedTx.deposit_bank || "—"}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-slate-500">Reference #</div>
-                      <div className="font-semibold">{selectedTx.deposit_reference_no || "—"}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-slate-500">Deposited Amount</div>
-                      <div className="font-semibold text-emerald-700">
-                        {formatPHP(selectedTx.deposit_amount ?? selectedTx.cheque_amount)}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-slate-500">Deposit Date</div>
-                      <div className="font-semibold">{selectedTx.deposit_date || "—"}</div>
-                    </div>
-                  </div>
-
-                  {selectedTx.deposit_remarks && (
-                    <div className="text-xs bg-slate-50 border rounded p-2.5">
-                      <span className="font-semibold text-slate-700">Deposit Remarks: </span>
-                      {selectedTx.deposit_remarks}
-                    </div>
-                  )}
-
-                  <TelemetryBox
-                    who={selectedTx.deposited_by_name}
-                    date={selectedTx.deposit_date}
-                    time={selectedTx.deposit_time}
-                    capturedAt={selectedTx.deposited_at}
-                    location={selectedTx.deposit_location}
-                    lat={selectedTx.deposit_latitude}
-                    lng={selectedTx.deposit_longitude}
-                    accuracy={selectedTx.deposit_gps_accuracy}
-                    device={selectedTx.deposit_device_used}
-                    clarityScore={selectedTx.deposit_clarity_score}
-                  />
-
-                  <PhotoGallery
-                    title="Deposit Slip Photos"
-                    urls={selectedTx.deposit_slip_urls}
-                    onZoom={handleZoom}
-                  />
-                </TabsContent>
-              </Tabs>
-
-              {/* Accounting Verification Controls */}
-              <div className="rounded-lg border bg-slate-50 p-4 space-y-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <Label htmlFor="acct-remarks" className="text-sm font-semibold text-slate-800">
-                    Accounting Verification &amp; Remarks
-                  </Label>
-                  {selectedTx.verified_at && (
-                    <span className="text-xs text-emerald-700 flex items-center gap-1">
-                      <Clock className="h-3.5 w-3.5" />
-                      Verified by {selectedTx.verified_by_name} on{" "}
-                      {formatDateTime(selectedTx.verified_at)}
-                    </span>
-                  )}
-                </div>
-
-                <Textarea
-                  id="acct-remarks"
-                  rows={2}
-                  value={accountingRemarks}
-                  onChange={(e) => setAccountingRemarks(e.target.value)}
-                  placeholder="Enter bank clearing notes, discrepancy explanation, or mandatory reason if returning to collector..."
-                  disabled={selectedTx.workflow_status === "converted_to_sale"}
-                />
-              </div>
-
-              <DialogFooter className="flex-wrap gap-2 sm:justify-between">
-                <div>
-                  {canReturnSelected && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="text-red-600 border-red-200 hover:bg-red-50"
-                      onClick={handleReturnToCollector}
-                      disabled={actionLoading}
-                    >
-                      <RotateCcw className="h-4 w-4 mr-1.5" />
-                      Return / Needs Attention
-                    </Button>
-                  )}
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={closeInspect}
-                    disabled={actionLoading}
-                  >
-                    Close
-                  </Button>
-
-                  {selectedTx.workflow_status === "deposited" && (
-                    <>
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        onClick={() => handleVerifyCheque(false)}
-                        disabled={actionLoading}
-                      >
-                        {actionLoading ? (
-                          <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
-                        ) : (
-                          <CheckCircle2 className="h-4 w-4 mr-1.5 text-emerald-600" />
-                        )}
-                        Verify Deposited Cheque
-                      </Button>
-                      <Button
-                        type="button"
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                        onClick={() => handleVerifyCheque(true)}
-                        disabled={actionLoading}
-                      >
-                        {actionLoading ? (
-                          <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
-                        ) : (
-                          <Banknote className="h-4 w-4 mr-1.5" />
-                        )}
-                        Verify &amp; Convert to Sale
-                      </Button>
-                    </>
-                  )}
-
-                  {selectedTx.workflow_status === "verified" && !selectedTx.sales_id && (
-                    <Button
-                      type="button"
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                      onClick={() => {
-                        const target = selectedTx
-                        closeInspect()
-                        setConvertTx(target)
-                        setConvertOpen(true)
-                      }}
-                    >
-                      <ArrowRightCircle className="h-4 w-4 mr-1.5" />
-                      Convert to Sale (Pre-filled)
-                    </Button>
-                  )}
-
-                  {selectedTx.workflow_status === "converted_to_sale" && (
-                    <Link href={`/dashboard/${roleSlug}/sales`}>
-                      <Badge className="bg-teal-100 text-teal-800 hover:bg-teal-200 border border-teal-200 px-3 py-1.5 cursor-pointer">
-                        <CheckCircle2 className="h-4 w-4 mr-1.5" />
-                        Converted to Sale · View Sales
-                        <ExternalLink className="h-3 w-3 ml-1.5" />
-                      </Badge>
-                    </Link>
-                  )}
-                </div>
-              </DialogFooter>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* In-App Lightbox Photo Zoom Viewer */}
-      <Dialog open={!!zoomImage} onOpenChange={(open) => !open && setZoomImage(null)}>
-        <DialogContent className="max-w-5xl max-h-[95vh] flex flex-col">
-          {zoomImage && (
-            <>
-              <DialogHeader>
-                <div className="flex flex-wrap items-center justify-between gap-2 pr-8">
-                  <DialogTitle className="text-base">{zoomImage.label}</DialogTitle>
-                  <div className="flex items-center gap-1.5">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setZoomLevel((z) => Math.max(0.5, Number((z - 0.25).toFixed(2))))}
-                    >
-                      <ZoomOut className="h-4 w-4" />
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => setZoomLevel(1)}>
-                      {Math.round(zoomLevel * 100)}%
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setZoomLevel((z) => Math.min(3, Number((z + 0.25).toFixed(2))))}
-                    >
-                      <ZoomIn className="h-4 w-4" />
-                    </Button>
-                    <a
-                      href={zoomImage.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 rounded-md border px-2.5 py-1.5 text-xs font-medium text-blue-600 hover:bg-slate-50"
-                    >
-                      Open Original <ExternalLink className="h-3.5 w-3.5" />
-                    </a>
-                  </div>
-                </div>
-              </DialogHeader>
-              <div className="flex-1 overflow-auto rounded-md bg-slate-900/95 p-4 flex items-center justify-center min-h-[60vh]">
-                <img
-                  src={zoomImage.url}
-                  alt={zoomImage.label}
-                  style={{ transform: `scale(${zoomLevel})`, transformOrigin: "center center" }}
-                  className="max-h-[75vh] w-auto object-contain transition-transform duration-150"
-                />
-              </div>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Convert to Sale Modal (Idempotent) */}
+      {/* Idempotent Convert to Sale Modal */}
       <ConvertCollectorToSaleModal
         transaction={convertTx}
         open={convertOpen}

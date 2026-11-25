@@ -32,6 +32,7 @@ import {
 import { Label } from "@/components/ui/label"
 import { supabase } from "@/lib/supabase/client"
 import type { UserProfile, UserRole, UserStatus } from "@/types/auth"
+import { CollectorBiometricResetButtons } from "@/components/collector-biometric-reset-buttons"
 import { Search, Edit, Trash2, UserPlus, CheckCircle, AlertCircle, RefreshCw } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { logNotification } from "@/utils/logNotification";
@@ -726,6 +727,7 @@ export default function AdminUserManagement() {
                             </TableCell>
                             <TableCell>
                               <div className="flex gap-2">
+                                <CollectorBiometricResetButtons user={user} />
                                 <Button
                                   variant="ghost"
                                   size="sm"

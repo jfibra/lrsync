@@ -669,7 +669,7 @@ export default function SuperAdminCommissionReportsPage() {
     )
   }
 
-  function ImageLightboxModal({ report, onClose }) {
+  function ImageLightboxModal({ report, onClose, onDeleteAttachment }) {
     const allAttachments =
       report._attachmentType === "secretary"
         ? safeParseArray(report.secretary_pot)
@@ -684,6 +684,15 @@ export default function SuperAdminCommissionReportsPage() {
     const [currentIndex, setCurrentIndex] = useState(0)
     const [zoom, setZoom] = useState(1)
     const [rotation, setRotation] = useState(0)
+    const [deleting, setDeleting] = useState(false)
+
+    const canDelete = profile?.role === "super_admin" || profile?.role === "admin"
+
+    useEffect(() => {
+      if (currentIndex >= imageAttachments.length && imageAttachments.length > 0) {
+        setCurrentIndex(imageAttachments.length - 1)
+      }
+    }, [imageAttachments.length, currentIndex])
 
     const nextImage = () => setCurrentIndex((prev) => (prev + 1) % imageAttachments.length)
     const prevImage = () => setCurrentIndex((prev) => (prev - 1 + imageAttachments.length) % imageAttachments.length)
@@ -691,7 +700,8 @@ export default function SuperAdminCommissionReportsPage() {
 
     if (imageAttachments.length === 0) return null
 
-    const currentImage = imageAttachments[currentIndex]
+    const safeIndex = Math.min(currentIndex, imageAttachments.length - 1)
+    const currentImage = imageAttachments[safeIndex]
 
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-90">
@@ -700,7 +710,7 @@ export default function SuperAdminCommissionReportsPage() {
         </button>
 
         {/* Controls */}
-        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 flex gap-4 z-20">
+        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 flex flex-wrap justify-center gap-2 z-20">
           <button onClick={() => setZoom((z) => Math.min(z + 0.2, 3))} className="text-white bg-black/50 px-3 py-1 rounded">Zoom In</button>
           <button onClick={() => setZoom((z) => Math.max(z - 0.2, 0.5))} className="text-white bg-black/50 px-3 py-1 rounded">Zoom Out</button>
           <button onClick={() => setRotation((r) => r - 90)} className="text-white bg-black/50 px-3 py-1 rounded">Rotate Left</button>
@@ -715,6 +725,30 @@ export default function SuperAdminCommissionReportsPage() {
           >
             Download
           </a>
+          {canDelete && onDeleteAttachment && (
+            <button
+              disabled={deleting}
+              onClick={async () => {
+                if (!window.confirm(`Are you sure you want to delete "${currentImage.name}"?`)) return
+                const originalIndex = allAttachments.findIndex(
+                  (f) => f && f.name === currentImage.name && f.url === currentImage.url,
+                )
+                if (originalIndex < 0) return
+                setDeleting(true)
+                try {
+                  await onDeleteAttachment(originalIndex)
+                  if (imageAttachments.length <= 1) {
+                    onClose()
+                  }
+                } finally {
+                  setDeleting(false)
+                }
+              }}
+              className="text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 px-3 py-1 rounded font-semibold"
+            >
+              {deleting ? "Deleting..." : "Delete"}
+            </button>
+          )}
         </div>
 
         {imageAttachments.length > 1 && (
@@ -1884,25 +1918,24 @@ export default function SuperAdminCommissionReportsPage() {
           report={selectedAttachmentsReport}
           onClose={() => setAttachmentsModalOpen(false)}
           onDeleteAttachment={async (fileIdx) => {
-            // Use secretary_pot if _attachmentType is secretary, else accounting_pot
             const isSecretary = selectedAttachmentsReport._attachmentType === "secretary"
             const attachments = isSecretary
-              ? selectedAttachmentsReport.secretary_pot
-                ? JSON.parse(selectedAttachmentsReport.secretary_pot)
-                : []
-              : selectedAttachmentsReport.accounting_pot
-                ? JSON.parse(selectedAttachmentsReport.accounting_pot)
-                : []
+              ? safeParseArray(selectedAttachmentsReport.secretary_pot)
+              : safeParseArray(selectedAttachmentsReport.accounting_pot)
             const fileToDelete = attachments[fileIdx]
-            const s3Url = fileToDelete.url
-            // For secretary, use your secretary delete API; for accounting, use accounting API
-            await fetch(isSecretary ? "/api/delete-from-s3-secretary" : "/api/delete-from-s3", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: isSecretary
-                ? JSON.stringify({ url: s3Url })
-                : JSON.stringify({ key: s3Url.split(".amazonaws.com/")[1] }),
-            })
+            if (!fileToDelete) return
+            const s3Url = fileToDelete.url || ""
+            try {
+              await fetch(isSecretary ? "/api/delete-from-s3-secretary" : "/api/delete-from-s3", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: isSecretary
+                  ? JSON.stringify({ url: s3Url })
+                  : JSON.stringify({ key: s3Url.split(".amazonaws.com/")[1] }),
+              })
+            } catch (e) {
+              console.warn("S3 delete warning:", e)
+            }
 
             const updated = attachments.filter((_, idx) => idx !== fileIdx)
             const updateField = isSecretary
@@ -1961,7 +1994,84 @@ export default function SuperAdminCommissionReportsPage() {
         />
       )}
       {imageLightboxOpen && selectedImageReport && (
-        <ImageLightboxModal report={selectedImageReport} onClose={() => setImageLightboxOpen(false)} />
+        <ImageLightboxModal
+          report={selectedImageReport}
+          onClose={() => setImageLightboxOpen(false)}
+          onDeleteAttachment={async (fileIdx) => {
+            const isSecretary = selectedImageReport._attachmentType === "secretary"
+            const attachments = isSecretary
+              ? safeParseArray(selectedImageReport.secretary_pot)
+              : safeParseArray(selectedImageReport.accounting_pot)
+            const fileToDelete = attachments[fileIdx]
+            if (!fileToDelete) return
+            const s3Url = fileToDelete.url || ""
+            try {
+              await fetch(isSecretary ? "/api/delete-from-s3-secretary" : "/api/delete-from-s3", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: isSecretary
+                  ? JSON.stringify({ url: s3Url })
+                  : JSON.stringify({ key: s3Url.split(".amazonaws.com/")[1] }),
+              })
+            } catch (e) {
+              console.warn("S3 delete warning:", e)
+            }
+
+            const updated = attachments.filter((_, idx) => idx !== fileIdx)
+            const updateField = isSecretary
+              ? { secretary_pot: JSON.stringify(updated) }
+              : { accounting_pot: JSON.stringify(updated) }
+            const { error } = await supabase
+              .from("commission_report")
+              .update(updateField)
+              .eq("uuid", selectedImageReport.uuid)
+
+            if (profile?.id) {
+              await logNotification(supabase, {
+                action: "commission_report_attachment_deleted",
+                description: `Deleted image attachment "${fileToDelete.name}" from report #${selectedImageReport.report_number}`,
+                ip_address: null,
+                location: null,
+                meta: JSON.stringify({
+                  report_uuid: selectedImageReport.uuid,
+                  report_number: selectedImageReport.report_number,
+                  attachment_name: fileToDelete.name,
+                  attachment_url: fileToDelete.url,
+                  attachment_type: selectedImageReport._attachmentType,
+                }),
+                user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+                user_email: profile.email,
+                user_name: profile.full_name || profile.first_name || profile.id,
+                user_uuid: profile.id,
+              })
+            }
+
+            if (!error) {
+              setReports((prev) =>
+                prev.map((r) =>
+                  r.uuid === selectedImageReport.uuid
+                    ? {
+                      ...r,
+                      ...(isSecretary
+                        ? { secretary_pot: JSON.stringify(updated) }
+                        : { accounting_pot: JSON.stringify(updated) }),
+                    }
+                    : r,
+                ),
+              )
+              setSelectedImageReport((prev) =>
+                prev
+                  ? {
+                    ...prev,
+                    ...(isSecretary
+                      ? { secretary_pot: JSON.stringify(updated) }
+                      : { accounting_pot: JSON.stringify(updated) }),
+                  }
+                  : prev,
+              )
+            }
+          }}
+        />
       )}
       <Dialog open={salesBreakdownOpen} onOpenChange={setSalesBreakdownOpen}>
         <DialogContent className="max-w-7xl max-h-[90vh] overflow-y-auto bg-white">

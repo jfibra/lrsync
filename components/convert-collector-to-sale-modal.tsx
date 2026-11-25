@@ -27,6 +27,7 @@ import { useAuth } from "@/contexts/auth-context"
 import { logNotification } from "@/utils/logNotification"
 import { formatS3Url } from "@/utils/s3-url"
 import { PHILIPPINE_BANKS } from "@/lib/philippine-banks"
+import { TaxMonthPicker } from "@/components/tax-month-picker"
 import type { CollectorTransaction } from "@/types/collector"
 import {
   AlertTriangle,
@@ -512,21 +513,12 @@ export function ConvertCollectorToSaleModal({
 
             <div>
               <Label htmlFor="sale-tax-month">Tax Month *</Label>
-              <Select
+              <TaxMonthPicker
+                id="sale-tax-month"
                 value={formData.tax_month}
                 onValueChange={(value) => setFormData({ ...formData, tax_month: value })}
-              >
-                <SelectTrigger id="sale-tax-month">
-                  <SelectValue placeholder="Select tax month" />
-                </SelectTrigger>
-                <SelectContent>
-                  {taxMonthOptions.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                triggerClassName="bg-white text-[#001f3f] border-slate-300"
+              />
             </div>
 
             <div>

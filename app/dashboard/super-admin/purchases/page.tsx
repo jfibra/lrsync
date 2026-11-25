@@ -1251,7 +1251,12 @@ export default function SuperAdminPurchasesPage() {
       {/* Modals */}
       <AddPurchasesModal open={addModalOpen} onOpenChange={setAddModalOpen} onPurchaseAdded={fetchPurchases} />
 
-      <ViewPurchasesModal open={viewModalOpen} onOpenChange={setViewModalOpen} purchase={selectedPurchase} />
+      <ViewPurchasesModal
+        open={viewModalOpen}
+        onOpenChange={setViewModalOpen}
+        purchase={selectedPurchase}
+        onAttachmentDeleted={fetchPurchases}
+      />
 
       <EditPurchasesModal
         open={editModalOpen}

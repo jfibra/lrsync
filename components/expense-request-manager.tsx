@@ -1141,6 +1141,8 @@ export function ExpenseRequestManager({ role }: ExpenseRequestManagerProps) {
         open={viewItemModalOpen}
         onOpenChange={setViewItemModalOpen}
         purchase={selectedItemForView as any}
+        tableName="expense_requests"
+        onAttachmentDeleted={fetchData}
       />
     </div>
   )

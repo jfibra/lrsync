@@ -34,6 +34,7 @@ import { logNotification } from "@/utils/logNotification";
 import { useRouter } from "next/navigation";
 import { formatS3Url } from "@/utils/s3-url";
 import { PHILIPPINE_BANKS } from "@/lib/philippine-banks";
+import { TaxMonthPicker } from "@/components/tax-month-picker";
 
 interface AddSalesModalProps {
   onSalesAdded: () => void;
@@ -745,22 +746,12 @@ export function AddSalesModal({ onSalesAdded }: AddSalesModalProps) {
               >
                 Tax Month *
               </Label>
-              <Select value={taxMonth} onValueChange={setTaxMonth} required>
-                <SelectTrigger className="w-full bg-white text-[#001f3f] border-[#001f3f]">
-                  <SelectValue placeholder="Select tax month..." />
-                </SelectTrigger>
-                <SelectContent className="bg-white">
-                  {taxMonthOptions.map((option) => (
-                    <SelectItem
-                      key={option.value}
-                      value={option.value}
-                      className="text-[#001f3f] hover:bg-gray-100"
-                    >
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <TaxMonthPicker
+                id="tax_month"
+                value={taxMonth}
+                onValueChange={setTaxMonth}
+                triggerClassName="w-full bg-white text-[#001f3f] border-[#001f3f]"
+              />
             </div>
             <div className="space-y-2">
               <Label

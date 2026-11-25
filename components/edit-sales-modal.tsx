@@ -17,7 +17,8 @@ import type { TaxpayerListing } from "@/types/taxpayer"
 import { logNotification } from "@/utils/logNotification"
 import { useRouter } from "next/navigation";
 import { formatS3Url } from "@/utils/s3-url";
-import { PHILIPPINE_BANKS } from "@/lib/philippine-banks";
+import { PHILIPPINE_BANKS } from "@/lib/philippine-banks"
+import { TaxMonthPicker } from "@/components/tax-month-picker";
 
 interface EditSalesModalProps {
   open: boolean
@@ -476,16 +477,16 @@ export function EditSalesModal({ open, onOpenChange, sale, onSaleUpdated }: Edit
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* First Row */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Tax Month - Read Only */}
+            {/* Tax Month (Supports Past & Future Dates) */}
             <div className="space-y-2">
               <Label htmlFor="tax-month" className="text-sm font-medium text-[#001f3f]">
-                Tax Month (Read Only)
+                Tax Month *
               </Label>
-              <Input
+              <TaxMonthPicker
                 id="tax-month"
-                value={taxMonthOptions.find((option) => option.value === taxMonth)?.label || taxMonth}
-                readOnly
-                className="border-[#001f3f] bg-gray-200 text-[#001f3f] cursor-not-allowed"
+                value={taxMonth}
+                onValueChange={setTaxMonth}
+                triggerClassName="border-[#001f3f] focus:border-blue-500 focus:ring-blue-500 text-[#001f3f] bg-white"
               />
             </div>
 

@@ -672,6 +672,7 @@ export function CommissionVouchersManager({ role }: CommissionVouchersManagerPro
               <SelectItem value="Non-VAT">Non-VAT</SelectItem>
               <SelectItem value="VAT w/ Invoice">VAT w/ Invoice</SelectItem>
               <SelectItem value="VAT w/o Invoice">VAT w/o Invoice</SelectItem>
+              <SelectItem value="VAT without Rate">VAT without Rate</SelectItem>
               <SelectItem value="W/o Invoice">W/o Invoice</SelectItem>
               <SelectItem value="Rate w/o Invoice">Rate w/o Invoice</SelectItem>
             </SelectContent>
@@ -862,7 +863,9 @@ export function CommissionVouchersManager({ role }: CommissionVouchersManagerPro
                         </TableCell>
                         <TableCell className="text-xs font-medium text-slate-900 max-w-[180px] truncate">
                           {v.developer_name}
-                          <div className="text-[10px] text-slate-500">Rate: {v.developer_rate}%</div>
+                          {v.slip_type !== "VAT without Rate" && (
+                            <div className="text-[10px] text-slate-500">Rate: {v.developer_rate}%</div>
+                          )}
                         </TableCell>
                         <TableCell className="text-xs font-semibold text-[#001f3f]">
                           <div className="flex flex-wrap items-center gap-1">
@@ -870,7 +873,7 @@ export function CommissionVouchersManager({ role }: CommissionVouchersManagerPro
                             {getRoleBadge(v.recipient_role)}
                           </div>
                           <div className="text-[10px] text-slate-500 font-normal">
-                            Rate: {v.agent_rate}%
+                            {v.slip_type === "VAT without Rate" ? "No Rate (Less VAT)" : `Rate: ${v.agent_rate}%`}
                             {v.team_name ? ` · ${v.team_name}` : ""}
                           </div>
                         </TableCell>
