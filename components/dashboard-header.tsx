@@ -28,6 +28,7 @@ import {
   Video,
   Layers,
   FileCheck2,
+  FolderOpen,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -151,6 +152,14 @@ export function DashboardHeader() {
         href: (slug) => `/dashboard/${slug}/tin-library`,
         icon: Building2,
         roles: ["super_admin", "admin", "secretary"],
+        group: "main",
+      },
+      {
+        label: "File Library",
+        shortLabel: "Library",
+        href: (slug) => `/dashboard/${slug}/attachments-library`,
+        icon: FolderOpen,
+        roles: ["super_admin", "admin"],
         group: "main",
       },
       {
