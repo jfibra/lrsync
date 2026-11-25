@@ -69,6 +69,7 @@ export interface ExpenseInvoiceRecord {
   signed_at?: string | null
   signed_via?: string | null
   signed_pdf_url?: string | null
+  approval_attachments?: string[] | null
   converted_purchase_id?: string | null
   converted_at?: string | null
   converted_by_name?: string | null
@@ -123,7 +124,7 @@ export async function downloadExpenseInvoicePdf(
   invoiceNumber: string
 ): Promise<void> {
   const { pdf } = await generateExpenseInvoicePdfData(element)
-  pdf.save(`Expense-Invoice-${invoiceNumber}.pdf`)
+  pdf.save(`Expense-Voucher-${invoiceNumber}.pdf`)
 }
 
 interface ExpenseInvoiceDocumentProps {
@@ -264,7 +265,7 @@ export function ExpenseInvoiceDocument({
                 lineHeight: 1,
               }}
             >
-              EXPENSE INVOICE
+              EXPENSE VOUCHER
             </div>
             <div
               style={{
@@ -340,7 +341,7 @@ export function ExpenseInvoiceDocument({
 
             <div style={{ fontSize: 12, color: "#475569", marginTop: 12, lineHeight: 1.6 }}>
               <div>
-                <strong>Invoice Date:</strong> {formattedInvoiceDate}
+                <strong>Voucher Date:</strong> {formattedInvoiceDate}
               </div>
               {invoice.due_date && (
                 <div>
@@ -847,6 +848,29 @@ export function ExpenseInvoiceDocument({
                       </div>
                     )}
                   </div>
+                </div>
+              ) : isApproved && invoice.signed_via === "super_admin_attachment" ? (
+                <div
+                  style={{
+                    border: "2px solid #16a34a",
+                    borderRadius: 6,
+                    padding: "6px 12px",
+                    color: "#15803d",
+                    backgroundColor: "#f0fdf4",
+                    fontSize: 10.5,
+                    fontWeight: 800,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.5px",
+                    lineHeight: 1.35,
+                    marginBottom: 6,
+                  }}
+                >
+                  <div>APPROVED WITH PROOF ATTACHMENT</div>
+                  {invoice.signed_at && (
+                    <div style={{ fontSize: 9.5, fontWeight: 600 }}>
+                      {format(new Date(invoice.signed_at), "yyyy-MM-dd HH:mm")}
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div

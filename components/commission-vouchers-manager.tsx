@@ -36,6 +36,7 @@ import { useAuth } from "@/contexts/auth-context"
 import { supabase } from "@/lib/supabase/client"
 import { logNotification } from "@/utils/logNotification"
 import { formatS3Url } from "@/utils/s3-url"
+import { downloadAttachmentsAsZip } from "@/utils/download-attachments"
 import { CreateCommissionVoucherModal } from "@/components/create-commission-voucher-modal"
 import {
   VoucherBondpaperDocument,
@@ -1195,8 +1196,30 @@ export function CommissionVouchersManager({ role }: CommissionVouchersManagerPro
 
               {viewVoucher.attachments && viewVoucher.attachments.length > 0 && (
                 <div className="rounded-lg border p-3 bg-slate-50 space-y-2">
-                  <div className="text-xs font-bold uppercase text-slate-600">
-                    Additional Attachments ({viewVoucher.attachments.length})
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="text-xs font-bold uppercase text-slate-600">
+                      Additional Attachments ({viewVoucher.attachments.length})
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() =>
+                        downloadAttachmentsAsZip(
+                          (viewVoucher.attachments || []).map((url, idx) => ({
+                            url,
+                            name: `Voucher_${viewVoucher.voucher_number}_Attachment_${idx + 1}_${decodeURIComponent(
+                              url.split("?")[0].split("/").pop() || "file"
+                            )}`,
+                          })),
+                          `Voucher_${viewVoucher.voucher_number}_attachments`
+                        ).catch((err) => alert("Error downloading attachments: " + (err?.message || "Failed")))
+                      }
+                      className="h-7 text-xs border-[#001f3f] text-[#001f3f] bg-white hover:bg-slate-100 font-semibold"
+                    >
+                      <Download className="w-3 h-3 mr-1" />
+                      Download All ({viewVoucher.attachments.length})
+                    </Button>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {viewVoucher.attachments.map((url, idx) => (

@@ -8,8 +8,8 @@ const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-// Exclusive recipient for now as requested
-const EXCLUSIVE_BOSS_EMAIL = "johnryfibra2@gmail.com";
+// Executive approver recipient email
+const EXCLUSIVE_BOSS_EMAIL = "mindworth@gmail.com";
 
 export async function POST(request: NextRequest) {
   try {
@@ -104,7 +104,7 @@ export async function POST(request: NextRequest) {
         <head>
           <meta charset="utf-8" />
           <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-          <title>Expense Request Invoice #${invoice.invoice_number}</title>
+          <title>Expense Voucher #${invoice.invoice_number}</title>
         </head>
         <body style="margin: 0; padding: 0; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
           <div style="max-width: 680px; margin: 32px auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08); border: 1px solid #e2e8f0;">
@@ -116,10 +116,10 @@ export async function POST(request: NextRequest) {
                     ${invoice.company_name || "LEUTERIO REALTY & BROKERAGE"}
                   </div>
                   <h1 style="margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.3px;">
-                    EXPENSE REQUEST INVOICE
+                    EXPENSE VOUCHER
                   </h1>
                   <p style="margin: 6px 0 0 0; font-size: 14px; color: #cbd5e1;">
-                    Invoice #<strong>${invoice.invoice_number}</strong> &bull; ${formattedDate}
+                    Voucher #<strong>${invoice.invoice_number}</strong> &bull; ${formattedDate}
                   </p>
                 </div>
               </div>
@@ -131,14 +131,14 @@ export async function POST(request: NextRequest) {
                 Dear <strong>Sir Anthony Gerard Leuterio</strong>,
               </p>
               <p style="margin: 0 0 24px 0; font-size: 15px; color: #334155; line-height: 1.6;">
-                An itemized <strong>Expense Request Invoice</strong> has been submitted for your review and signature approval. You may review the itemized breakdown below and sign directly using the secure one-click approval button (no login required), or from your exclusive dashboard page.
+                An itemized <strong>Expense Voucher</strong> has been submitted for your review and signature approval. You may review the itemized breakdown below and sign directly using the secure one-click approval button (no login required), or from your exclusive dashboard page.
               </p>
 
               <!-- Summary Metadata Box -->
               <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 18px 20px; margin-bottom: 24px;">
                 <table style="width: 100%; border-collapse: collapse;">
                   <tr>
-                    <td style="padding: 4px 0; font-size: 13px; color: #64748b; width: 40%;">Invoice Number:</td>
+                    <td style="padding: 4px 0; font-size: 13px; color: #64748b; width: 40%;">Voucher Number:</td>
                     <td style="padding: 4px 0; font-size: 14px; color: #0f172a; font-weight: 700;">#${invoice.invoice_number}</td>
                   </tr>
                   <tr>
@@ -209,10 +209,10 @@ export async function POST(request: NextRequest) {
                   target="_blank"
                   style="display: inline-block; background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); color: #ffffff; text-decoration: none; padding: 16px 36px; border-radius: 8px; font-size: 16px; font-weight: 700; box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3);"
                 >
-                  Review &amp; Sign Expense Invoice &rarr;
+                  Review &amp; Sign Expense Voucher &rarr;
                 </a>
                 <p style="margin: 12px 0 0 0; font-size: 12px; color: #64748b;">
-                  No login required &bull; Click above to open the invoice and sign directly
+                  No login required &bull; Click above to open the voucher and sign directly
                 </p>
               </div>
 
@@ -252,7 +252,7 @@ export async function POST(request: NextRequest) {
         if (pdfRes.ok) {
           const arrayBuf = await pdfRes.arrayBuffer();
           attachments.push({
-            filename: `Expense-Invoice-${invoice.invoice_number}.pdf`,
+            filename: `Expense-Voucher-${invoice.invoice_number}.pdf`,
             content: Buffer.from(arrayBuf),
             contentType: "application/pdf",
           });
@@ -263,7 +263,7 @@ export async function POST(request: NextRequest) {
     } else if (pdfBase64 && typeof pdfBase64 === "string") {
       const cleanBase64 = pdfBase64.replace(/^data:application\/pdf;base64,/, "");
       attachments.push({
-        filename: `Expense-Invoice-${invoice.invoice_number}.pdf`,
+        filename: `Expense-Voucher-${invoice.invoice_number}.pdf`,
         content: Buffer.from(cleanBase64, "base64"),
         contentType: "application/pdf",
       });
@@ -275,7 +275,7 @@ export async function POST(request: NextRequest) {
     await transporter.sendMail({
       from: `"${fromName}" <${fromAddress}>`,
       to: EXCLUSIVE_BOSS_EMAIL,
-      subject: `[Expense Approval Required] Invoice #${invoice.invoice_number} - ${formatAmount(invoice.total || 0)} (${invoice.requested_by_name || "LR Accounting"})`,
+      subject: `[Expense Approval Required] Voucher #${invoice.invoice_number} - ${formatAmount(invoice.total || 0)} (${invoice.requested_by_name || "LR Accounting"})`,
       html: htmlContent,
       attachments,
     });

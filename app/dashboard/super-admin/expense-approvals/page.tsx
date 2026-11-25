@@ -152,8 +152,8 @@ export default function ExclusiveExpenseApprovalsPage() {
 
       alert(
         action === "approve"
-          ? `Expense Invoice #${activeInvoice.invoice_number} has been signed and approved! Accounting and Secretaries can now convert it into a Purchase record.`
-          : `Expense Invoice #${activeInvoice.invoice_number} has been rejected.`
+          ? `Expense Voucher #${activeInvoice.invoice_number} has been signed and approved! Accounting and Secretaries can now convert it into a Purchase record.`
+          : `Expense Voucher #${activeInvoice.invoice_number} has been rejected.`
       )
       setActiveInvoice(null)
       setSignatureData(null)
@@ -193,7 +193,7 @@ export default function ExclusiveExpenseApprovalsPage() {
                   Exclusive Executive Portal
                 </CardTitle>
                 <CardDescription className="text-slate-600">
-                  This Expense Invoice Approval page is exclusive to{" "}
+                  This Expense Voucher Approval page is exclusive to{" "}
                   <strong>Anthony Leuterio ({EXCLUSIVE_EMAIL})</strong>.
                 </CardDescription>
               </CardHeader>
@@ -212,10 +212,10 @@ export default function ExclusiveExpenseApprovalsPage() {
                         Exclusive Executive Portal &bull; {EXCLUSIVE_EMAIL}
                       </div>
                       <h1 className="text-2xl sm:text-3xl font-extrabold">
-                        Expense Request Invoice Approvals
+                        Expense Voucher Approvals
                       </h1>
                       <p className="text-sm text-sky-100 mt-1 max-w-2xl">
-                        Welcome, <strong>Sir Anthony Gerard Leuterio</strong>. Review itemized expense invoices submitted by Accounting and Secretaries, sign digitally to approve, and automatically record the official signed date.
+                        Welcome, <strong>Sir Anthony Gerard Leuterio</strong>. Review itemized expense vouchers submitted by Accounting and Secretaries, sign digitally to approve, and automatically record the official signed date.
                       </p>
                     </div>
                   </div>
@@ -247,7 +247,7 @@ export default function ExclusiveExpenseApprovalsPage() {
                   <CardContent className="p-5 flex items-center justify-between">
                     <div>
                       <p className="text-xs font-bold uppercase tracking-wider text-emerald-800">
-                        Signed &amp; Approved Invoices
+                        Signed &amp; Approved Vouchers
                       </p>
                       <p className="text-3xl font-extrabold text-emerald-900 mt-1">
                         {stats.approvedCount}
@@ -266,7 +266,7 @@ export default function ExclusiveExpenseApprovalsPage() {
                   <CardContent className="p-5 flex items-center justify-between">
                     <div>
                       <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                        All Submitted Invoices
+                        All Submitted Vouchers
                       </p>
                       <p className="text-3xl font-extrabold text-[#001f3f] mt-1">
                         {stats.totalCount}

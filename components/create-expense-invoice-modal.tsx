@@ -265,7 +265,7 @@ export function CreateExpenseInvoiceModal({
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                  fileName: `Expense-Invoice-${createdInvoice.invoice_number}.pdf`,
+                  fileName: `Expense-Voucher-${createdInvoice.invoice_number}.pdf`,
                   fileType: "application/pdf",
                   category: "expense-invoice",
                   reportNumber: createdInvoice.invoice_number,
@@ -314,16 +314,16 @@ export function CreateExpenseInvoiceModal({
         }
         if (!emailRes.ok) {
           alert(
-            `Invoice #${createdInvoice.invoice_number} was created, but sending email encountered an error: ${emailData.error || "Unknown error"}`
+            `Expense Voucher #${createdInvoice.invoice_number} was created, but sending email encountered an error: ${emailData.error || "Unknown error"}`
           )
         } else {
           alert(
-            `Expense Invoice #${createdInvoice.invoice_number} created and sent via email to ${emailData.sentTo} for signature approval!`
+            `Expense Voucher #${createdInvoice.invoice_number} created and sent via email to ${emailData.sentTo} for signature approval!`
           )
         }
       } else {
         alert(
-          `Expense Invoice #${createdInvoice.invoice_number} created! It is now visible on Anthony Leuterio's exclusive approval dashboard.`
+          `Expense Voucher #${createdInvoice.invoice_number} created! It is now visible on Anthony Leuterio's exclusive approval dashboard.`
         )
       }
 
@@ -343,18 +343,18 @@ export function CreateExpenseInvoiceModal({
       <DialogContent className="max-w-6xl max-h-[94vh] overflow-y-auto bg-white text-[#001f3f]">
         <DialogHeader>
           <DialogTitle className="text-2xl font-bold text-[#001f3f]">
-            Create Expense Request Invoice ({selectedRequests.length} Selected Item{selectedRequests.length === 1 ? "" : "s"})
+            Create Expense Voucher ({selectedRequests.length} Selected Item{selectedRequests.length === 1 ? "" : "s"})
           </DialogTitle>
           <p className="text-sm text-slate-600">
-            Bundle the selected itemized expense requests into an official invoice for signature approval by Sir Anthony Leuterio (`mindworth@gmail.com`) and/or email approval (`johnryfibra2@gmail.com`).
+            Bundle the selected itemized expense requests into an official expense voucher for signature approval by Sir Anthony Leuterio (<strong>mindworth@gmail.com</strong>).
           </p>
         </DialogHeader>
 
         <div className="space-y-6">
-          {/* Editable Invoice Meta Form */}
+          {/* Editable Voucher Meta Form */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-[#001f3f]">Invoice Number *</Label>
+              <Label className="text-xs font-semibold text-[#001f3f]">Voucher Number *</Label>
               <Input
                 value={invoiceNumber}
                 onChange={(e) => setInvoiceNumber(e.target.value)}
@@ -363,7 +363,7 @@ export function CreateExpenseInvoiceModal({
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-[#001f3f]">Invoice Date *</Label>
+              <Label className="text-xs font-semibold text-[#001f3f]">Voucher Date *</Label>
               <Input
                 type="date"
                 value={invoiceDate}
@@ -418,7 +418,7 @@ export function CreateExpenseInvoiceModal({
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
                 <Eye className="w-4 h-4 text-[#0284c7]" />
-                Live Professional Invoice &amp; PDF Preview
+                Live Professional Voucher &amp; PDF Preview
               </span>
               <Button
                 type="button"
@@ -442,7 +442,7 @@ export function CreateExpenseInvoiceModal({
           {/* Actions */}
           <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t">
             <div className="text-xs text-slate-500">
-              Email recipient is set exclusively to <strong>johnryfibra2@gmail.com</strong> (and visible in <strong>mindworth@gmail.com</strong> dashboard).
+              Email recipient is set exclusively to <strong>mindworth@gmail.com</strong> (and visible in <strong>mindworth@gmail.com</strong> dashboard).
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
@@ -464,7 +464,7 @@ export function CreateExpenseInvoiceModal({
                 className="border-[#001f3f] text-[#001f3f] hover:bg-slate-100 bg-white font-semibold"
               >
                 <FileCheck className="w-4 h-4 mr-2" />
-                {saving ? "Saving Invoice..." : "Create Invoice Only"}
+                {saving ? "Saving Voucher..." : "Create Voucher Only"}
               </Button>
 
               <Button
@@ -476,7 +476,7 @@ export function CreateExpenseInvoiceModal({
                 <Mail className="w-4 h-4 mr-2" />
                 {sendingEmail
                   ? "Creating & Sending Email..."
-                  : "Create Invoice & Send Email (johnryfibra2@gmail.com)"}
+                  : "Create Voucher & Send Email (mindworth@gmail.com)"}
               </Button>
             </div>
           </div>

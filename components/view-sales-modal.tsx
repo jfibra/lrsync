@@ -4,11 +4,12 @@ import React, { useState, useEffect } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { ExternalLink, Eye, FileText, Image as ImageIcon, Trash2, Loader2 } from "lucide-react"
+import { ExternalLink, Eye, FileText, Image as ImageIcon, Trash2, Loader2, Download } from "lucide-react"
 import { format } from "date-fns"
 import type { Sales } from "@/types/sales"
 import { useAuth } from "@/contexts/auth-context"
 import { formatS3Url } from "@/utils/s3-url"
+import { downloadAttachmentsAsZip } from "@/utils/download-attachments"
 import { supabase } from "@/lib/supabase/client"
 
 interface ViewSalesModalProps {
@@ -22,6 +23,7 @@ export function ViewSalesModal({ open, onOpenChange, sale, onAttachmentDeleted }
   const { profile } = useAuth()
   const [localSale, setLocalSale] = useState<Sales | null>(sale)
   const [deletingKey, setDeletingKey] = useState<string | null>(null)
+  const [downloadingAll, setDownloadingAll] = useState(false)
   const [lightboxOpen, setLightboxOpen] = useState(false)
   const [lightboxImages, setLightboxImages] = useState<{ url: string; label: string }[]>([])
   const [lightboxIndex, setLightboxIndex] = useState(0)
@@ -252,7 +254,7 @@ export function ViewSalesModal({ open, onOpenChange, sale, onAttachmentDeleted }
   // Log view action when modal opens
   useEffect(() => {
     if (open && sale) {
-      ;(async () => {
+      ; (async () => {
         try {
           const { supabase } = await import("@/lib/supabase/client")
           await supabase.rpc("log_notification", {
@@ -519,10 +521,54 @@ export function ViewSalesModal({ open, onOpenChange, sale, onAttachmentDeleted }
 
             {/* File Attachments */}
             <div className="space-y-4 pt-2 border-t border-gray-200">
-              <h3 className="text-lg font-semibold text-[#001f3f] flex items-center gap-2">
-                <FileText className="h-5 w-5 text-blue-600" />
-                File Attachments
-              </h3>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-lg font-semibold text-[#001f3f] flex items-center gap-2">
+                  <FileText className="h-5 w-5 text-blue-600" />
+                  File Attachments
+                </h3>
+                {hasAnyAttachments && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={downloadingAll}
+                    onClick={async () => {
+                      setDownloadingAll(true)
+                      try {
+                        const allFiles = [
+                          ...chequeFiles.map((url, i) => ({ url, name: `Cheque_${i + 1}_${decodeURIComponent(url.split("?")[0].split("/").pop() || "file")}` })),
+                          ...voucherFiles.map((url, i) => ({ url, name: `Voucher_${i + 1}_${decodeURIComponent(url.split("?")[0].split("/").pop() || "file")}` })),
+                          ...invoiceFiles.map((url, i) => ({ url, name: `Invoice_${i + 1}_${decodeURIComponent(url.split("?")[0].split("/").pop() || "file")}` })),
+                          ...doc2307Files.map((url, i) => ({ url, name: `BIR2307_${i + 1}_${decodeURIComponent(url.split("?")[0].split("/").pop() || "file")}` })),
+                          ...depositSlipFiles.map((url, i) => ({ url, name: `DepositSlip_${i + 1}_${decodeURIComponent(url.split("?")[0].split("/").pop() || "file")}` })),
+                        ]
+                        const safeName = `${activeSale.name || "Sales"}_${activeSale.invoice_number || activeSale.id}_attachments`
+                        await downloadAttachmentsAsZip(allFiles, safeName)
+                      } catch (err: any) {
+                        alert("Error downloading attachments: " + (err?.message || "Failed"))
+                      } finally {
+                        setDownloadingAll(false)
+                      }
+                    }}
+                    className="h-8 text-xs border-[#001f3f] text-[#001f3f] bg-white hover:bg-slate-100 font-semibold"
+                  >
+                    {downloadingAll ? (
+                      <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                    ) : (
+                      <Download className="h-3.5 w-3.5 mr-1.5" />
+                    )}
+                    {downloadingAll
+                      ? "Preparing ZIP..."
+                      : `Download All (${
+                          chequeFiles.length +
+                          voucherFiles.length +
+                          invoiceFiles.length +
+                          doc2307Files.length +
+                          depositSlipFiles.length
+                        })`}
+                  </Button>
+                )}
+              </div>
               {!hasAnyAttachments ? (
                 <p className="text-sm text-gray-500 italic">No file attachments for this sales record.</p>
               ) : (

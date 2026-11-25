@@ -6,8 +6,9 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { format } from "date-fns"
 import { useAuth } from "@/contexts/auth-context"
-import { ExternalLink, Eye, FileText, Image as ImageIcon, Trash2, Loader2 } from "lucide-react"
+import { ExternalLink, Eye, FileText, Image as ImageIcon, Trash2, Loader2, Download } from "lucide-react"
 import { formatS3Url } from "@/utils/s3-url"
+import { downloadAttachmentsAsZip } from "@/utils/download-attachments"
 import { supabase } from "@/lib/supabase/client"
 
 interface Purchase {
@@ -47,6 +48,7 @@ export function ViewPurchasesModal({
   const { profile } = useAuth()
   const [localPurchase, setLocalPurchase] = useState<Purchase | null>(purchase)
   const [deletingIdx, setDeletingIdx] = useState<number | null>(null)
+  const [downloadingAll, setDownloadingAll] = useState(false)
   const [lightboxOpen, setLightboxOpen] = useState(false)
   const [lightboxImages, setLightboxImages] = useState<{ url: string; label: string }[]>([])
   const [lightboxIndex, setLightboxIndex] = useState(0)
@@ -372,10 +374,43 @@ export function ViewPurchasesModal({
 
             {/* File Attachments Section */}
             <div className="space-y-4 pt-2 border-t border-[#001f3f]/10">
-              <h3 className="text-lg font-semibold text-[#001f3f] flex items-center gap-2">
-                <FileText className="h-5 w-5 text-[#3c8dbc]" />
-                File Attachments ({files.length})
-              </h3>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-lg font-semibold text-[#001f3f] flex items-center gap-2">
+                  <FileText className="h-5 w-5 text-[#3c8dbc]" />
+                  File Attachments ({files.length})
+                </h3>
+                {files.length > 0 && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={downloadingAll}
+                    onClick={async () => {
+                      setDownloadingAll(true)
+                      try {
+                        const list = files.map((url, idx) => ({
+                          url,
+                          name: decodeURIComponent(url.split("?")[0].split("/").pop() || `Attachment_${idx + 1}`),
+                        }))
+                        const safeName = `${localPurchase?.name || "Purchase"}_${localPurchase?.invoice_number || localPurchase?.id}_attachments`
+                        await downloadAttachmentsAsZip(list, safeName)
+                      } catch (err: any) {
+                        alert("Error downloading attachments: " + (err?.message || "Failed"))
+                      } finally {
+                        setDownloadingAll(false)
+                      }
+                    }}
+                    className="h-8 text-xs border-[#001f3f] text-[#001f3f] bg-white hover:bg-slate-100 font-semibold"
+                  >
+                    {downloadingAll ? (
+                      <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                    ) : (
+                      <Download className="h-3.5 w-3.5 mr-1.5" />
+                    )}
+                    {downloadingAll ? "Preparing ZIP..." : `Download All (${files.length})`}
+                  </Button>
+                )}
+              </div>
               {files.length === 0 ? (
                 <p className="text-sm text-gray-500 italic">No attachments uploaded for this purchase record.</p>
               ) : (

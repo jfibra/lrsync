@@ -46,6 +46,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { useRouter } from "next/navigation"
 import { SortableTableHead, sortData } from "@/components/ui/sortable-header"
 import { formatS3Url } from "@/utils/s3-url"
+import { downloadAttachmentsAsZip } from "@/utils/download-attachments"
 import { safeParseArray, safeFormatDate } from "@/lib/safe-parse"
 
 interface CommissionReport {
@@ -557,9 +558,30 @@ export default function SuperAdminCommissionReportsPage() {
           <button className="absolute top-3 right-3 text-gray-400 hover:text-red-500" onClick={onClose}>
             <X className="h-5 w-5" />
           </button>
-          <h2 className="text-lg text-[#001f3f] font-semibold mb-4">
-            PDF Attachments for Report <span className="text-blue-700">#{report.report_number}</span>
-          </h2>
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-4 pr-8">
+            <h2 className="text-lg text-[#001f3f] font-semibold">
+              PDF Attachments for Report <span className="text-blue-700">#{report.report_number}</span>
+            </h2>
+            {allAttachments.length > 0 && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() =>
+                  downloadAttachmentsAsZip(
+                    allAttachments
+                      .filter((f) => f && f.url)
+                      .map((f, idx) => ({ url: f.url, name: f.name || `Attachment_${idx + 1}` })),
+                    `Report_${report.report_number}_attachments`
+                  ).catch((err) => alert("Error downloading attachments: " + (err?.message || "Failed")))
+                }
+                className="h-8 text-xs border-[#001f3f] text-[#001f3f] bg-white hover:bg-slate-100 font-semibold"
+              >
+                <Download className="h-3.5 w-3.5 mr-1.5" />
+                Download All ({allAttachments.length})
+              </Button>
+            )}
+          </div>
           <div className="mb-4 flex justify-between items-center">
             <span className="text-sm text-gray-700">
               Showing <span className="font-semibold text-[#001f3f]">{Math.min((page - 1) * perPage + 1, total)}</span>{" "}

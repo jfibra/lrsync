@@ -75,9 +75,10 @@ export async function POST(request: NextRequest) {
       invoiceId,
       action = "approve", // "approve" | "reject"
       signatureData,
+      approvalAttachments, // string[] — required when signedVia === "super_admin_attachment"
       approvedByName = "ANTHONY GERARD LEUTERIO",
       approvedByEmail = "mindworth@gmail.com",
-      signedVia = "email_link", // "email_link" | "dashboard"
+      signedVia = "email_link", // "email_link" | "dashboard" | "super_admin_attachment"
       signedPdfUrl,
       rejectionReason,
     } = body;
@@ -169,17 +170,36 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Approve action requires signatureData
-    if (!signatureData) {
+    const isManualAttachmentApproval = signedVia === "super_admin_attachment";
+    const cleanedAttachments: string[] = Array.isArray(approvalAttachments)
+      ? approvalAttachments.map((u: any) => String(u || "").trim()).filter(Boolean)
+      : [];
+
+    if (isManualAttachmentApproval) {
+      if (cleanedAttachments.length === 0) {
+        return NextResponse.json(
+          { error: "Please upload at least one signed/proof attachment before approving the expense voucher." },
+          { status: 400 }
+        );
+      }
+    } else if (!signatureData) {
+      // Standard executive online approval requires signatureData
       return NextResponse.json(
-        { error: "Please provide your signature before approving the invoice." },
+        { error: "Please provide your signature before approving the voucher." },
         { status: 400 }
       );
     }
 
+    const serializedAttachments =
+      cleanedAttachments.length === 1
+        ? cleanedAttachments[0]
+        : cleanedAttachments.length > 1
+          ? JSON.stringify(cleanedAttachments)
+          : null;
+
     const updatePayload: any = {
       status: invoice.status === "converted" ? "converted" : "approved",
-      signature_data: signatureData,
+      signature_data: signatureData || invoice.signature_data || null,
       signed_at: now,
       signed_via: signedVia,
       signed_ip: ipAddress,
@@ -188,16 +208,31 @@ export async function POST(request: NextRequest) {
       updated_at: now,
     };
 
-    if (signedPdfUrl) {
+    if (isManualAttachmentApproval && serializedAttachments) {
+      updatePayload.signed_pdf_url = serializedAttachments;
+      updatePayload.approval_attachments = cleanedAttachments;
+    } else if (signedPdfUrl) {
       updatePayload.signed_pdf_url = signedPdfUrl;
     }
 
-    const { data: updatedInvoice, error: updateError } = await supabaseAdmin
+    let { data: updatedInvoice, error: updateError } = await supabaseAdmin
       .from("expense_request_invoices")
       .update(updatePayload)
       .eq("id", invoice.id)
       .select("*")
       .single();
+
+    if (updateError && /column .*approval_attachments.* does not exist/i.test(updateError.message || "")) {
+      const { approval_attachments: _aa, ...fallbackPayload } = updatePayload;
+      const retry = await supabaseAdmin
+        .from("expense_request_invoices")
+        .update(fallbackPayload)
+        .eq("id", invoice.id)
+        .select("*")
+        .single();
+      updatedInvoice = retry.data;
+      updateError = retry.error;
+    }
 
     if (updateError) throw updateError;
 
@@ -228,7 +263,13 @@ export async function POST(request: NextRequest) {
     await supabaseAdmin.from("notifications").insert([
       {
         action: "expense_invoice_approved",
-        description: `Expense Invoice #${invoice.invoice_number} (PHP ${Number(invoice.total || 0).toLocaleString()}) was signed & approved by ${approvedByName} via ${signedVia === "email_link" ? "Email Approval Link" : "Executive Dashboard"}`,
+        description: `Expense Voucher #${invoice.invoice_number} (PHP ${Number(invoice.total || 0).toLocaleString()}) was approved by ${approvedByName} via ${
+          signedVia === "super_admin_attachment"
+            ? `Super Admin Manual Proof Attachment (${cleanedAttachments.length} file${cleanedAttachments.length === 1 ? "" : "s"})`
+            : signedVia === "email_link"
+              ? "Email Approval Link"
+              : "Executive Dashboard"
+        }`,
         user_name: approvedByName,
         user_email: approvedByEmail,
         meta: {
@@ -236,6 +277,7 @@ export async function POST(request: NextRequest) {
           invoice_number: invoice.invoice_number,
           signed_at: now,
           signed_via: signedVia,
+          approval_attachments: cleanedAttachments,
           total: invoice.total,
         },
       },

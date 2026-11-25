@@ -263,6 +263,21 @@ export default function CommissionReportViewer() {
     return `${Number(rate).toFixed(2)}%`;
   }
 
+  const safeFormatExcelDate = (raw?: string | null, fallback = "") => {
+    if (!raw) return fallback
+    const trimmed = String(raw).trim()
+    if (!trimmed || trimmed.toLowerCase() === "n/a") return fallback
+    const parsed = new Date(trimmed)
+    if (Number.isNaN(parsed.getTime())) return trimmed
+    return format(parsed, "MMM dd, yyyy")
+  }
+
+  const normalizeInvoiceKey = (inv?: string | null) => {
+    const s = String(inv ?? "").trim().toLowerCase()
+    if (!s || s === "n/a" || s === "no invoice" || s === "null" || s === "undefined") return ""
+    return s
+  }
+
   const handleExportToExcel = () => {
     try {
       const workbook = XLSX.utils.book_new();
@@ -279,8 +294,136 @@ export default function CommissionReportViewer() {
       worksheetData.push(["Created By:", report.user_profiles?.full_name || ""]);
       worksheetData.push(["Area:", report.user_profiles?.assigned_area || ""]);
       worksheetData.push(["Status:", report.status]);
-      worksheetData.push(["Created At:", report.created_at ? format(new Date(report.created_at), "MMM dd, yyyy") : ""]);
+      worksheetData.push(["Created At:", safeFormatExcelDate(report.created_at)]);
       worksheetData.push([]);
+
+      const matchedAgentUuids = new Set<string>();
+
+      const pushBreakdownRows = (rows: any[]) => {
+        rows.forEach((agent) => {
+          const agentAmount = Number(agent.agent_amount ?? agent.agent) || 0
+          const agentVat = Number(agent.agent_vat ?? agent.vat) || 0
+          const agentEwt = Number(agent.agent_ewt ?? agent.ewt) || 0
+          const agentNetComm = Number(agent.agent_net_comm ?? agent.net_comm) || 0
+          const umAmount = Number(agent.um_amount) || 0
+          const umVat = Number(agent.um_vat) || 0
+          const umEwt = Number(agent.um_ewt) || 0
+          const umNetComm = Number(agent.um_net_comm) || 0
+          const tlAmount = Number(agent.tl_amount) || 0
+          const tlVat = Number(agent.tl_vat) || 0
+          const tlEwt = Number(agent.tl_ewt) || 0
+          const tlNetComm = Number(agent.tl_net_comm) || 0
+          const combinedRemarks = [agent.secretary_remarks || agent.remarks, agent.accounting_remarks]
+            .filter(Boolean)
+            .join(" | ")
+
+          worksheetData.push([
+            safeFormatExcelDate(agent.reservation_date),
+            agent.developer || "",
+            agent.agent_name || "",
+            agent.client || "",
+            agent.comm_type || agent.type || "COMM",
+            agent.bdo_account || "",
+            Number(agent.comm) || 0,
+            Number(agent.net_of_vat) || 0,
+            agent.status || "",
+            agent.calculation_type || agent.calculationType || "",
+            agent.agents_rate ?? "",
+            agentAmount,
+            agentVat,
+            agentEwt,
+            agentNetComm,
+            agent.um_name || "",
+            agent.um_bdo_account || "",
+            agent.um_calculation_type || agent.umCalculationType || "",
+            agent.um_rate ?? "",
+            umAmount,
+            umVat,
+            umEwt,
+            umNetComm,
+            agent.tl_name || "",
+            agent.tl_bdo_account || "",
+            agent.tl_calculation_type || agent.tlCalculationType || "",
+            agent.tl_rate ?? "",
+            tlAmount,
+            tlVat,
+            tlEwt,
+            tlNetComm,
+            combinedRemarks,
+          ]);
+        });
+
+        // Totals row aligned 1-to-1 with the 32 header columns
+        worksheetData.push([
+          "", // 1 RESERVATION DATE
+          "", // 2 DEVELOPER
+          "", // 3 AGENT NAME
+          "Totals:", // 4 CLIENT
+          "", // 5 TYPE
+          "", // 6 BDO ACCOUNT #
+          rows.reduce((sum, r) => sum + (Number(r.comm) || 0), 0), // 7 COMM
+          rows.reduce((sum, r) => sum + (Number(r.net_of_vat) || 0), 0), // 8 NET OF VAT
+          "", // 9 STATUS
+          "", // 10 AGENT CALC TYPE
+          "", // 11 AGENT'S RATE
+          rows.reduce((sum, r) => sum + (Number(r.agent_amount ?? r.agent) || 0), 0), // 12 AGENT
+          rows.reduce((sum, r) => sum + (Number(r.agent_vat ?? r.vat) || 0), 0), // 13 VAT
+          rows.reduce((sum, r) => sum + (Number(r.agent_ewt ?? r.ewt) || 0), 0), // 14 EWT
+          rows.reduce((sum, r) => sum + (Number(r.agent_net_comm ?? r.net_comm) || 0), 0), // 15 NET COMM
+          "", // 16 UM NAME
+          "", // 17 UM BDO ACCOUNT #
+          "", // 18 UM CALC TYPE
+          "", // 19 UM RATE
+          rows.reduce((sum, r) => sum + (Number(r.um_amount) || 0), 0), // 20 UM AMOUNT
+          rows.reduce((sum, r) => sum + (Number(r.um_vat) || 0), 0), // 21 UM VAT
+          rows.reduce((sum, r) => sum + (Number(r.um_ewt) || 0), 0), // 22 UM EWT
+          rows.reduce((sum, r) => sum + (Number(r.um_net_comm) || 0), 0), // 23 UM NET COMM
+          "", // 24 TL NAME
+          "", // 25 TL BDO ACCOUNT #
+          "", // 26 TL CALC TYPE
+          "", // 27 TL RATE
+          rows.reduce((sum, r) => sum + (Number(r.tl_amount) || 0), 0), // 28 TL AMOUNT
+          rows.reduce((sum, r) => sum + (Number(r.tl_vat) || 0), 0), // 29 TL VAT
+          rows.reduce((sum, r) => sum + (Number(r.tl_ewt) || 0), 0), // 30 TL EWT
+          rows.reduce((sum, r) => sum + (Number(r.tl_net_comm) || 0), 0), // 31 TL NET COMM
+          "", // 32 REMARKS
+        ]);
+      };
+
+      const BREAKDOWN_HEADER = [
+        "RESERVATION DATE",
+        "DEVELOPER",
+        "AGENT NAME",
+        "CLIENT",
+        "TYPE",
+        "BDO ACCOUNT #",
+        "COMM",
+        "NET OF VAT",
+        "STATUS",
+        "AGENT CALC TYPE",
+        "AGENT'S RATE",
+        "AGENT",
+        "VAT",
+        "EWT",
+        "NET COMM",
+        "UM NAME",
+        "UM BDO ACCOUNT #",
+        "UM CALC TYPE",
+        "UM RATE",
+        "UM AMOUNT",
+        "UM VAT",
+        "UM EWT",
+        "UM NET COMM",
+        "TL NAME",
+        "TL BDO ACCOUNT #",
+        "TL CALC TYPE",
+        "TL RATE",
+        "TL AMOUNT",
+        "TL VAT",
+        "TL EWT",
+        "TL NET COMM",
+        "REMARKS",
+      ];
 
       // Loop through each sale
       salesData.forEach((sale) => {
@@ -319,124 +462,48 @@ export default function CommissionReportViewer() {
           "",
           "",
           "Pickup Date:",
-          sale.pickup_date ? format(new Date(sale.pickup_date), "MMM dd, yyyy") : "N/A",
+          safeFormatExcelDate(sale.pickup_date, "N/A"),
         ]);
         worksheetData.push(["Area:", report.user_profiles?.assigned_area || "N/A"]);
         worksheetData.push([]);
 
         // Agent Breakdown Table Header
-        worksheetData.push([
-          "RESERVATION DATE",
-          "DEVELOPER",
-          "AGENT NAME",
-          "CLIENT",
-          "TYPE",
-          "BDO ACCOUNT #",
-          "COMM",
-          "NET OF VAT",
-          "STATUS",
-          "AGENT CALC TYPE", // <-- Added
-          "AGENT'S RATE",
-          "AGENT",
-          "VAT",
-          "EWT",
-          "NET COMM",
-          "UM NAME",
-          "UM BDO ACCOUNT #",
-          "UM CALC TYPE", // <-- Added
-          "UM RATE",
-          "UM AMOUNT",
-          "UM VAT",
-          "UM EWT",
-          "UM NET COMM",
-          "TL NAME",
-          "TL BDO ACCOUNT #",
-          "TL CALC TYPE", // <-- Added
-          "TL RATE",
-          "TL AMOUNT",
-          "TL VAT",
-          "TL EWT",
-          "TL NET COMM",
-          "REMARKS",
-        ]);
+        worksheetData.push(BREAKDOWN_HEADER);
 
-        // Agent Breakdown Rows for this sale
-        const saleAgents = agentBreakdown.filter(
-          (agent) =>
-            String(agent.commission_report_number) === String(report.report_number) &&
-            String(agent.invoice_number) === String(sale.invoice_number)
-        );
-        console.log("sale.invoice_number:", sale.invoice_number, "saleAgents:", saleAgents);
+        const saleInvNorm = normalizeInvoiceKey(sale.invoice_number);
+
+        // Match by sales_uuid first, then normalized invoice_number, or fallback when there is a single sale
+        const saleAgents = agentBreakdown.filter((agent: any) => {
+          if (String(agent.commission_report_number) !== String(report.report_number)) {
+            return false;
+          }
+          if (agent.sales_uuid && String(agent.sales_uuid) === String(sale.id)) {
+            return true;
+          }
+          const agentInvNorm = normalizeInvoiceKey(agent.invoice_number);
+          if (saleInvNorm && agentInvNorm && saleInvNorm === agentInvNorm) {
+            return true;
+          }
+          if (!saleInvNorm && !agentInvNorm) {
+            // Both have no invoice number — match by developer name or single sale
+            if (salesData.length === 1) return true;
+            if (
+              agent.developer &&
+              sale.name &&
+              String(agent.developer).trim().toLowerCase() === String(sale.name).trim().toLowerCase()
+            ) {
+              return true;
+            }
+          }
+          return false;
+        });
+
+        saleAgents.forEach((a: any) => {
+          if (a.uuid) matchedAgentUuids.add(String(a.uuid));
+        });
 
         if (saleAgents.length > 0) {
-          saleAgents.forEach((agent) => {
-            worksheetData.push([
-              agent.reservation_date ? format(new Date(agent.reservation_date), "MMM dd, yyyy") : "",
-              agent.developer,
-              agent.agent_name,
-              agent.client,
-              agent.type || "COMM",
-              agent.bdo_account || "",
-              Number(agent.comm) || 0, // raw number, no ₱
-              Number(agent.net_of_vat) || 0, // raw number, no ₱
-              agent.status,
-              agent.calculationType || "", // Agent calc type
-              agent.agents_rate || "", // raw number, no %
-              Number(agent.agent) || 0,
-              Number(agent.vat) || 0,
-              Number(agent.ewt) || 0,
-              Number(agent.net_comm) || 0,
-              agent.um_name,
-              agent.um_bdo_account || "",
-              agent.umCalculationType || "", // UM calc type
-              agent.um_rate || "", // raw number, no %
-              Number(agent.um_amount) || 0,
-              Number(agent.um_vat) || 0,
-              Number(agent.um_ewt) || 0,
-              Number(agent.um_net_comm) || 0,
-              agent.tl_name,
-              agent.tl_bdo_account || "",
-              agent.tlCalculationType || "", // TL calc type
-              agent.tl_rate || "", // raw number, no %
-              Number(agent.tl_amount) || 0,
-              Number(agent.tl_vat) || 0,
-              Number(agent.tl_ewt) || 0,
-              Number(agent.tl_net_comm) || 0,
-              agent.remarks || "",
-            ]);
-          });
-
-          // Totals row for this sale
-          worksheetData.push([
-            "",
-            "",
-            "",
-            "Totals:",
-            "",
-            "",
-            saleAgents.reduce((sum, r) => sum + (Number(r.comm) || 0), 0),
-            saleAgents.reduce((sum, r) => sum + (Number(r.net_of_vat) || 0), 0),
-            "",
-            "",
-            saleAgents.reduce((sum, r) => sum + (Number(r.agent) || 0), 0),
-            saleAgents.reduce((sum, r) => sum + (Number(r.vat) || 0), 0),
-            saleAgents.reduce((sum, r) => sum + (Number(r.ewt) || 0), 0),
-            saleAgents.reduce((sum, r) => sum + (Number(r.net_comm) || 0), 0),
-            "",
-            "",
-            saleAgents.reduce((sum, r) => sum + (Number(r.um_rate) || 0), 0),
-            saleAgents.reduce((sum, r) => sum + (Number(r.um_amount) || 0), 0),
-            saleAgents.reduce((sum, r) => sum + (Number(r.um_vat) || 0), 0),
-            saleAgents.reduce((sum, r) => sum + (Number(r.um_ewt) || 0), 0),
-            saleAgents.reduce((sum, r) => sum + (Number(r.um_net_comm) || 0), 0),
-            "",
-            "",
-            saleAgents.reduce((sum, r) => sum + (Number(r.tl_rate) || 0), 0),
-            saleAgents.reduce((sum, r) => sum + (Number(r.tl_amount) || 0), 0),
-            saleAgents.reduce((sum, r) => sum + (Number(r.tl_vat) || 0), 0),
-            saleAgents.reduce((sum, r) => sum + (Number(r.tl_ewt) || 0), 0),
-            saleAgents.reduce((sum, r) => sum + (Number(r.tl_net_comm) || 0), 0),
-          ]);
+          pushBreakdownRows(saleAgents);
         } else {
           worksheetData.push(["No commission records added yet."]);
         }
@@ -444,6 +511,17 @@ export default function CommissionReportViewer() {
         worksheetData.push([]);
         worksheetData.push([]);
       });
+
+      // Include any remaining unmatched breakdown rows (e.g. standalone unencoded sales) so nothing is ever lost
+      const unmatchedAgents = agentBreakdown.filter(
+        (agent: any) => !agent.uuid || !matchedAgentUuids.has(String(agent.uuid))
+      );
+      if (unmatchedAgents.length > 0) {
+        worksheetData.push(["Additional / Unencoded Commission Breakdown"]);
+        worksheetData.push(BREAKDOWN_HEADER);
+        pushBreakdownRows(unmatchedAgents);
+        worksheetData.push([]);
+      }
 
       // Create worksheet from data
       const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);

@@ -17,11 +17,13 @@ import {
   Layers,
   Receipt,
   FileText,
+  Download,
 } from "lucide-react"
 import { format } from "date-fns"
 import { useAuth } from "@/contexts/auth-context"
 import { supabase } from "@/lib/supabase/client"
 import { formatS3Url } from "@/utils/s3-url"
+import { downloadAttachmentsAsZip } from "@/utils/download-attachments"
 import { logNotification } from "@/utils/logNotification"
 
 export interface PotFileItem {
@@ -518,6 +520,32 @@ export function CommissionReleasesManager({ role }: CommissionReleasesManagerPro
                     </button>
                   )}
                 </div>
+                {(selectedRelease.combined_pdf_url || (selectedRelease.pot_files?.length || 0) > 0) && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      const files = [
+                        ...(selectedRelease.combined_pdf_url
+                          ? [{ url: selectedRelease.combined_pdf_url, name: `${selectedRelease.title || "Release"}_Combined.pdf` }]
+                          : []),
+                        ...(selectedRelease.pot_files || []).map((pf, idx) => ({
+                          url: pf.url,
+                          name: `POT_${idx + 1}_${decodeURIComponent(pf.url.split("?")[0].split("/").pop() || "file")}`,
+                        })),
+                      ]
+                      downloadAttachmentsAsZip(files, `${selectedRelease.title || "Release"}_attachments`).catch(
+                        (err) => alert("Error downloading attachments: " + (err?.message || "Failed"))
+                      )
+                    }}
+                    className="ml-2 h-8 text-xs border-[#001f3f] text-[#001f3f] bg-white hover:bg-slate-100 font-semibold"
+                  >
+                    <Download className="w-3.5 h-3.5 mr-1.5" />
+                    Download All (
+                    {(selectedRelease.combined_pdf_url ? 1 : 0) + (selectedRelease.pot_files?.length || 0)})
+                  </Button>
+                )}
               </div>
 
               {/* Title Box */}

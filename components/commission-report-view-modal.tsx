@@ -350,11 +350,13 @@ export function CommissionReportViewModal({ isOpen, onClose, report }: Commissio
                             <TableCell style={{ color: '#001f3f' }}>{detail.client}</TableCell>
                             <TableCell style={{ color: '#001f3f' }}>{detail.developer}</TableCell>
                             <TableCell style={{ color: '#001f3f' }}>
-                              {new Date(detail.reservation_date).toLocaleDateString("en-US", {
-                                year: "numeric",
-                                month: "short",
-                                day: "numeric",
-                              })}
+                              {detail.reservation_date && !Number.isNaN(new Date(detail.reservation_date).getTime())
+                                ? new Date(detail.reservation_date).toLocaleDateString("en-US", {
+                                    year: "numeric",
+                                    month: "short",
+                                    day: "numeric",
+                                  })
+                                : "N/A"}
                             </TableCell>
                             <TableCell style={{ color: '#001f3f' }}>{formatCurrency(detail.comm)}</TableCell>
                             <TableCell>

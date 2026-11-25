@@ -159,7 +159,7 @@ export default function PublicExpenseApprovalPage() {
                 LR Accounting Software &bull; Executive Expense Approval
               </div>
               <div className="text-[11px] text-slate-300">
-                Secure No-Login Invoice Review &amp; Digital Signature Portal
+                Secure No-Login Voucher Review &amp; Digital Signature Portal
               </div>
             </div>
           </div>
@@ -172,7 +172,7 @@ export default function PublicExpenseApprovalPage() {
               className="bg-sky-600 hover:bg-sky-700 text-white font-semibold"
             >
               <Download className="w-4 h-4 mr-1.5" />
-              {downloading ? "Generating PDF..." : "Download Invoice PDF"}
+              {downloading ? "Generating PDF..." : "Download Voucher PDF"}
             </Button>
           )}
         </div>
@@ -182,16 +182,16 @@ export default function PublicExpenseApprovalPage() {
         {loading ? (
           <Card className="bg-white border-slate-200 p-12 text-center">
             <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[#001f3f] mx-auto mb-3" />
-            <p className="text-slate-600 font-medium">Loading Expense Request Invoice...</p>
+            <p className="text-slate-600 font-medium">Loading Expense Voucher...</p>
           </Card>
         ) : error || !invoice ? (
           <Card className="bg-white border-red-200 p-10 text-center max-w-lg mx-auto mt-10">
             <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-3" />
             <CardTitle className="text-xl font-bold text-slate-900 mb-2">
-              Unable to Load Expense Invoice
+              Unable to Load Expense Voucher
             </CardTitle>
             <CardDescription className="text-slate-600">
-              {error || "This invoice link may be invalid or expired."}
+              {error || "This voucher link may be invalid or expired."}
             </CardDescription>
           </Card>
         ) : (
@@ -204,8 +204,8 @@ export default function PublicExpenseApprovalPage() {
                   <div>
                     <h2 className="text-lg font-extrabold">
                       {justApproved
-                        ? "Thank You! Expense Invoice Signed & Approved"
-                        : "This Expense Invoice is Officially Signed & Approved"}
+                        ? "Thank You! Expense Voucher Signed & Approved"
+                        : "This Expense Voucher is Officially Signed & Approved"}
                     </h2>
                     <p className="text-xs sm:text-sm text-emerald-100 mt-0.5">
                       Signed by <strong>{invoice.approved_by_name || "ANTHONY GERARD LEUTERIO"}</strong>
@@ -238,7 +238,7 @@ export default function PublicExpenseApprovalPage() {
               <div className="bg-red-600 text-white rounded-xl p-5 shadow-lg flex items-center gap-3">
                 <XCircle className="w-7 h-7 text-red-200 shrink-0" />
                 <div>
-                  <h2 className="text-lg font-extrabold">Expense Invoice Rejected</h2>
+                  <h2 className="text-lg font-extrabold">Expense Voucher Rejected</h2>
                   {invoice.rejection_reason && (
                     <p className="text-sm text-red-100 mt-0.5">
                       Reason: {invoice.rejection_reason}
@@ -258,11 +258,11 @@ export default function PublicExpenseApprovalPage() {
                         <PenTool className="w-5 h-5 text-[#0284c7]" />
                         {isApproved
                           ? "Update Digital Signature"
-                          : "Sign Below to Approve Expense Invoice"}
+                          : "Sign Below to Approve Expense Voucher"}
                       </CardTitle>
                       <CardDescription>
                         Draw your signature in the pad below and click{" "}
-                        <strong>&ldquo;Sign &amp; Approve Expense Invoice&rdquo;</strong>. No login is required.
+                        <strong>&ldquo;Sign &amp; Approve Expense Voucher&rdquo;</strong>. No login is required.
                       </CardDescription>
                     </div>
                     {invoice.signed_at && (

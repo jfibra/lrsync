@@ -286,7 +286,7 @@ export function ExpenseRequestManager({ role }: ExpenseRequestManagerProps) {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || "Failed to send email")
       alert(
-        `Expense Invoice #${invoice.invoice_number} sent to ${data.sentTo}! The boss can click the link in the email to view and sign without logging in.`
+        `Expense Voucher #${invoice.invoice_number} sent to ${data.sentTo}! The boss can click the link in the email to view and sign without logging in.`
       )
       fetchData()
     } catch (err: any) {
@@ -387,7 +387,7 @@ export function ExpenseRequestManager({ role }: ExpenseRequestManagerProps) {
         return (
           <Badge className="bg-amber-100 text-amber-800 border border-amber-300">
             <Clock className="w-3 h-3 mr-1" />
-            Pending (Select for Invoice)
+            Pending (Select for Voucher)
           </Badge>
         )
       case "invoiced":
@@ -396,7 +396,7 @@ export function ExpenseRequestManager({ role }: ExpenseRequestManagerProps) {
           <div className="flex flex-col gap-0.5">
             <Badge className="bg-sky-100 text-sky-800 border border-sky-300 w-fit">
               <FileText className="w-3 h-3 mr-1" />
-              Invoiced {invNo ? `#${invNo}` : "(Awaiting Signature)"}
+              Voucher {invNo ? `#${invNo}` : "(Awaiting Approval)"}
             </Badge>
           </div>
         )
@@ -443,10 +443,10 @@ export function ExpenseRequestManager({ role }: ExpenseRequestManagerProps) {
             </div>
             <div>
               <h1 className="text-2xl sm:text-3xl font-bold text-[#001f3f]">
-                Expense Request &amp; Invoice Approval
+                Expense Request &amp; Voucher Approval
               </h1>
               <p className="text-sm text-slate-600">
-                Encode itemized expense requests, bundle selected items into a professional invoice, send via email for signature approval, and convert approved invoices into a Purchases record.
+                Encode itemized expense requests, bundle selected items into an official expense voucher, send via email for signature approval (or approve with uploaded proof attachment), and convert approved vouchers into a Purchases record.
               </p>
             </div>
           </div>
@@ -468,7 +468,7 @@ export function ExpenseRequestManager({ role }: ExpenseRequestManagerProps) {
               className="bg-gradient-to-r from-sky-600 to-blue-700 hover:opacity-95 text-white font-bold shadow-md animate-in fade-in-50"
             >
               <Send className="w-4 h-4 mr-2" />
-              Create Invoice from Selected ({selectedRequestIds.length}) &bull;{" "}
+              Create Voucher from Selected ({selectedRequestIds.length}) &bull;{" "}
               {formatCurrency(selectedTotalAmount)}
             </Button>
           )}
@@ -502,25 +502,25 @@ export function ExpenseRequestManager({ role }: ExpenseRequestManagerProps) {
           <CardContent className="p-4">
             <p className="text-xs font-semibold uppercase text-amber-800">1. Pending Items</p>
             <p className="text-2xl font-extrabold text-amber-900 mt-1">{stats.pendingCount}</p>
-            <p className="text-xs text-amber-700 mt-0.5">Select items to create invoice</p>
+            <p className="text-xs text-amber-700 mt-0.5">Select items to create voucher</p>
           </CardContent>
         </Card>
 
         <Card className="bg-sky-50/60 border-sky-200 shadow-sm">
           <CardContent className="p-4">
-            <p className="text-xs font-semibold uppercase text-sky-800">2. Invoiced (For Signature)</p>
+            <p className="text-xs font-semibold uppercase text-sky-800">2. Voucher (For Approval)</p>
             <p className="text-2xl font-extrabold text-sky-900 mt-1">{stats.invoicedCount}</p>
-            <p className="text-xs text-sky-700 mt-0.5">Awaiting boss signature</p>
+            <p className="text-xs text-sky-700 mt-0.5">Awaiting boss signature / proof</p>
           </CardContent>
         </Card>
 
         <Card className="bg-emerald-50/70 border-emerald-200 shadow-sm">
           <CardContent className="p-4">
-            <p className="text-xs font-semibold uppercase text-emerald-800">3. Approved &amp; Signed</p>
+            <p className="text-xs font-semibold uppercase text-emerald-800">3. Approved</p>
             <p className="text-2xl font-extrabold text-emerald-900 mt-1">
               {stats.approvedCount}{" "}
               <span className="text-xs font-semibold">
-                ({stats.approvedInvoicesReady} Invoice{stats.approvedInvoicesReady === 1 ? "" : "s"})
+                ({stats.approvedInvoicesReady} Voucher{stats.approvedInvoicesReady === 1 ? "" : "s"})
               </span>
             </p>
             <p className="text-xs text-emerald-700 mt-0.5 font-medium">
@@ -547,7 +547,7 @@ export function ExpenseRequestManager({ role }: ExpenseRequestManagerProps) {
               <Input
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search item, payee, TIN, or invoice #..."
+                placeholder="Search item, payee, TIN, or voucher #..."
                 className="pl-9 bg-white text-[#001f3f] border-slate-300"
               />
             </div>
@@ -558,9 +558,9 @@ export function ExpenseRequestManager({ role }: ExpenseRequestManagerProps) {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="pending">Pending (Not Invoiced)</SelectItem>
-                <SelectItem value="invoiced">Invoiced (Awaiting Signature)</SelectItem>
-                <SelectItem value="approved">Approved &amp; Signed</SelectItem>
+                <SelectItem value="pending">Pending (No Voucher Yet)</SelectItem>
+                <SelectItem value="invoiced">Voucher Created (Awaiting Approval)</SelectItem>
+                <SelectItem value="approved">Approved</SelectItem>
                 <SelectItem value="converted">Converted to Purchases</SelectItem>
                 <SelectItem value="rejected">Rejected</SelectItem>
               </SelectContent>
@@ -643,7 +643,7 @@ export function ExpenseRequestManager({ role }: ExpenseRequestManagerProps) {
                   onClick={() => setCreateInvoiceModalOpen(true)}
                   className="h-7 text-xs bg-sky-600 hover:bg-sky-700 text-white"
                 >
-                  Create Invoice &amp; Send Email
+                  Create Voucher &amp; Send Email
                 </Button>
                 <Button
                   size="sm"
@@ -672,7 +672,7 @@ export function ExpenseRequestManager({ role }: ExpenseRequestManagerProps) {
             value="invoices"
             className="data-[state=active]:bg-[#001f3f] data-[state=active]:text-white font-semibold px-5 py-2 rounded-lg"
           >
-            Expense Invoices &amp; Signatures ({filteredInvoices.length})
+            Expense Vouchers &amp; Approvals ({filteredInvoices.length})
             {stats.approvedInvoicesReady > 0 && (
               <span className="ml-2 bg-emerald-500 text-white text-[11px] px-2 py-0.5 rounded-full">
                 {stats.approvedInvoicesReady} Approved
@@ -691,7 +691,7 @@ export function ExpenseRequestManager({ role }: ExpenseRequestManagerProps) {
                     Itemized Expense Requests
                   </CardTitle>
                   <CardDescription>
-                    Check one or more pending items below and click &ldquo;Create Invoice from Selected&rdquo; to generate an invoice for approval.
+                    Check one or more pending items below and click &ldquo;Create Voucher from Selected&rdquo; to generate an expense voucher for approval.
                   </CardDescription>
                 </div>
               </div>
@@ -852,10 +852,10 @@ export function ExpenseRequestManager({ role }: ExpenseRequestManagerProps) {
                                       setViewInvoiceModalOpen(true)
                                     }}
                                     className="h-7 text-xs border-sky-300 text-sky-700 hover:bg-sky-50 bg-white"
-                                    title="View Expense Invoice"
+                                    title="View Expense Voucher"
                                   >
                                     <FileText className="w-3.5 h-3.5 mr-1" />
-                                    Invoice
+                                    Voucher
                                   </Button>
                                 )}
 
@@ -909,15 +909,15 @@ export function ExpenseRequestManager({ role }: ExpenseRequestManagerProps) {
           </Card>
         </TabsContent>
 
-        {/* TAB 2: EXPENSE INVOICES & SIGNATURES */}
+        {/* TAB 2: EXPENSE VOUCHERS & APPROVALS */}
         <TabsContent value="invoices">
           <Card className="bg-white border-slate-200 shadow-sm overflow-hidden">
             <CardHeader className="pb-3 border-b border-slate-100">
               <CardTitle className="text-lg font-bold text-[#001f3f]">
-                Expense Request Invoices &amp; Approval Status
+                Expense Vouchers &amp; Approval Status
               </CardTitle>
               <CardDescription>
-                View generated expense invoices, send/resend email to <strong>johnryfibra2@gmail.com</strong>, verify Sir Anthony Leuterio&apos;s signature &amp; signed date, and convert approved invoices into a single Purchase record.
+                View generated expense vouchers, send/resend email to <strong>mindworth@gmail.com</strong>, verify Sir Anthony Leuterio&apos;s signature (or approve with uploaded proof attachment as Super Admin), and convert approved vouchers into a single Purchase record.
               </CardDescription>
             </CardHeader>
             <CardContent className="p-0">
@@ -925,7 +925,7 @@ export function ExpenseRequestManager({ role }: ExpenseRequestManagerProps) {
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-[#001f3f] hover:bg-[#001f3f]">
-                      <TableHead className="text-white font-semibold">Invoice #</TableHead>
+                      <TableHead className="text-white font-semibold">Voucher #</TableHead>
                       <TableHead className="text-white font-semibold">Date</TableHead>
                       <TableHead className="text-white font-semibold">Itemized Breakdown</TableHead>
                       <TableHead className="text-white font-semibold text-right">Total Amount</TableHead>
@@ -939,13 +939,13 @@ export function ExpenseRequestManager({ role }: ExpenseRequestManagerProps) {
                     {loading ? (
                       <TableRow>
                         <TableCell colSpan={8} className="text-center py-12 text-slate-500">
-                          Loading expense invoices...
+                          Loading expense vouchers...
                         </TableCell>
                       </TableRow>
                     ) : filteredInvoices.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={8} className="text-center py-12 text-slate-500">
-                          No expense invoices created yet. Select itemized requests in the first tab and click &ldquo;Create Invoice from Selected&rdquo;.
+                          No expense vouchers created yet. Select itemized requests in the first tab and click &ldquo;Create Voucher from Selected&rdquo;.
                         </TableCell>
                       </TableRow>
                     ) : (
@@ -995,7 +995,7 @@ export function ExpenseRequestManager({ role }: ExpenseRequestManagerProps) {
                                 <div className="text-xs text-sky-800">
                                   <div className="font-semibold flex items-center gap-1">
                                     <Mail className="w-3 h-3 text-sky-600" />
-                                    Sent to {inv.sent_to_email || "johnryfibra2@gmail.com"}
+                                    Sent to {inv.sent_to_email || "mindworth@gmail.com"}
                                   </div>
                                   <div className="text-[10px] text-slate-500">
                                     {format(new Date(inv.email_sent_at), "MMM dd, yyyy hh:mm a")}
@@ -1109,12 +1109,13 @@ export function ExpenseRequestManager({ role }: ExpenseRequestManagerProps) {
         }}
       />
 
-      {/* View Expense Invoice Modal */}
+      {/* View Expense Voucher Modal */}
       <ViewExpenseInvoiceModal
         open={viewInvoiceModalOpen}
         onOpenChange={setViewInvoiceModalOpen}
         invoice={selectedInvoice}
         canApprove={isAnthonyLeuterio}
+        canManualApprove={role === "super_admin"}
         onConvertClick={(inv) => openConvertModalForInvoice(inv)}
         onUpdated={fetchData}
       />
