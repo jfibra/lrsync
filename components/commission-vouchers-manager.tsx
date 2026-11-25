@@ -30,6 +30,14 @@ import {
   AlertTriangle,
   Link2,
   RefreshCw,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  RotateCcw,
 } from "lucide-react"
 import { format } from "date-fns"
 import { useAuth } from "@/contexts/auth-context"
@@ -37,6 +45,7 @@ import { supabase } from "@/lib/supabase/client"
 import { logNotification } from "@/utils/logNotification"
 import { formatS3Url } from "@/utils/s3-url"
 import { downloadAttachmentsAsZip } from "@/utils/download-attachments"
+import { YearSelect, MonthMultiSelect } from "@/components/date-period-filter"
 import { CreateCommissionVoucherModal } from "@/components/create-commission-voucher-modal"
 import {
   VoucherBondpaperDocument,
@@ -56,6 +65,26 @@ export function CommissionVouchersManager({ role }: CommissionVouchersManagerPro
   const [searchTerm, setSearchTerm] = useState("")
   const [filterSlipType, setFilterSlipType] = useState("all")
   const [filterOrigin, setFilterOrigin] = useState("all")
+  const [filterDeveloper, setFilterDeveloper] = useState("all")
+  const [filterAgent, setFilterAgent] = useState("all")
+  const [filterArea, setFilterArea] = useState("all")
+  const [filterFiles, setFilterFiles] = useState("all")
+  const [filterYear, setFilterYear] = useState("all")
+  const [filterMonths, setFilterMonths] = useState<string[]>([])
+
+  // Sorting & Pagination state
+  type VoucherSortField =
+    | "created_at"
+    | "voucher_number"
+    | "developer_name"
+    | "agent_name"
+    | "client_name"
+    | "amount_released"
+    | "total_amount"
+  const [sortField, setSortField] = useState<VoucherSortField>("created_at")
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc")
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(15)
 
   const [createModalOpen, setCreateModalOpen] = useState(false)
   const [editVoucher, setEditVoucher] = useState<CommissionVoucherData | null>(null)
@@ -127,8 +156,89 @@ export function CommissionVouchersManager({ role }: CommissionVouchersManagerPro
     fetchVouchers()
   }, [profile?.id])
 
+  // Dynamic filter dropdown options derived from loaded vouchers
+  const availableDevelopers = useMemo(() => {
+    const set = new Set<string>()
+    vouchers.forEach((v) => {
+      if (v.developer_name?.trim()) set.add(v.developer_name.trim())
+    })
+    return Array.from(set).sort((a, b) => a.localeCompare(b))
+  }, [vouchers])
+
+  const availableAgents = useMemo(() => {
+    const set = new Set<string>()
+    vouchers.forEach((v) => {
+      if (v.agent_name?.trim()) set.add(v.agent_name.trim())
+    })
+    return Array.from(set).sort((a, b) => a.localeCompare(b))
+  }, [vouchers])
+
+  const availableAreas = useMemo(() => {
+    const set = new Set<string>()
+    vouchers.forEach((v) => {
+      if (v.assigned_area?.trim()) set.add(v.assigned_area.trim())
+    })
+    return Array.from(set).sort((a, b) => a.localeCompare(b))
+  }, [vouchers])
+
+  const activeFilterCount = useMemo(() => {
+    let count = 0
+    if (searchTerm.trim()) count++
+    if (filterSlipType !== "all") count++
+    if (filterOrigin !== "all") count++
+    if (filterDeveloper !== "all") count++
+    if (filterAgent !== "all") count++
+    if (filterArea !== "all") count++
+    if (filterFiles !== "all") count++
+    if (filterYear !== "all") count++
+    if (filterMonths.length > 0 && filterMonths.length < 12) count++
+    return count
+  }, [
+    searchTerm,
+    filterSlipType,
+    filterOrigin,
+    filterDeveloper,
+    filterAgent,
+    filterArea,
+    filterFiles,
+    filterYear,
+    filterMonths,
+  ])
+
+  const resetAllFilters = () => {
+    setSearchTerm("")
+    setFilterSlipType("all")
+    setFilterOrigin("all")
+    setFilterDeveloper("all")
+    setFilterAgent("all")
+    setFilterArea("all")
+    setFilterFiles("all")
+    setFilterYear("all")
+    setFilterMonths([])
+    setCurrentPage(1)
+  }
+
+  const handleSort = (field: VoucherSortField) => {
+    if (sortField === field) {
+      setSortDir((prev) => (prev === "asc" ? "desc" : "asc"))
+    } else {
+      setSortField(field)
+      setSortDir(field === "created_at" || field === "amount_released" || field === "total_amount" ? "desc" : "asc")
+    }
+    setCurrentPage(1)
+  }
+
+  const renderSortIcon = (field: VoucherSortField) => {
+    if (sortField !== field) return <ArrowUpDown className="w-3 h-3 opacity-50 inline ml-1" />
+    return sortDir === "asc" ? (
+      <ArrowUp className="w-3 h-3 text-sky-300 inline ml-1" />
+    ) : (
+      <ArrowDown className="w-3 h-3 text-sky-300 inline ml-1" />
+    )
+  }
+
   const filteredVouchers = useMemo(() => {
-    return vouchers.filter((v) => {
+    const filtered = vouchers.filter((v) => {
       if (filterSlipType !== "all" && v.slip_type !== filterSlipType) return false
 
       if (filterOrigin === "direct_only" && v.is_converted_from_report) return false
@@ -142,19 +252,130 @@ export function CommissionVouchersManager({ role }: CommissionVouchersManagerPro
         return false
       }
 
+      if (filterDeveloper !== "all" && (v.developer_name || "").trim() !== filterDeveloper) return false
+      if (filterAgent !== "all" && (v.agent_name || "").trim() !== filterAgent) return false
+      if (filterArea !== "all" && (v.assigned_area || "").trim() !== filterArea) return false
+
+      if (filterFiles === "has_pdf" && !v.generated_pdf_url) return false
+      if (filterFiles === "no_pdf" && v.generated_pdf_url) return false
+      if (filterFiles === "has_extra" && (!v.attachments || v.attachments.length === 0)) return false
+
+      if (filterYear !== "all" || (filterMonths.length > 0 && filterMonths.length < 12)) {
+        if (!v.created_at) return false
+        const dt = new Date(v.created_at)
+        if (Number.isNaN(dt.getTime())) return false
+        const yr = String(dt.getFullYear())
+        const mo = String(dt.getMonth() + 1).padStart(2, "0")
+        if (filterYear !== "all" && yr !== filterYear) return false
+        if (filterMonths.length > 0 && filterMonths.length < 12 && !filterMonths.includes(mo)) {
+          return false
+        }
+      }
+
       if (searchTerm.trim() !== "") {
         const q = searchTerm.toLowerCase()
-        const m1 = (v.voucher_number || "").toLowerCase().includes(q)
-        const m2 = (v.agent_name || "").toLowerCase().includes(q)
-        const m3 = (v.developer_name || "").toLowerCase().includes(q)
-        const m4 = (v.client_name || "").toLowerCase().includes(q)
-        const m5 = (v.project_name || "").toLowerCase().includes(q)
-        const m6 = String(v.source_commission_report_number || "").includes(q)
-        if (!m1 && !m2 && !m3 && !m4 && !m5 && !m6) return false
+        const haystack = [
+          v.voucher_number,
+          v.agent_name,
+          v.developer_name,
+          v.client_name,
+          v.project_name,
+          v.unit_number,
+          v.team_name,
+          v.assigned_area,
+          String(v.source_commission_report_number || ""),
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase()
+        if (!haystack.includes(q)) return false
       }
       return true
     })
-  }, [vouchers, filterSlipType, filterOrigin, searchTerm])
+
+    // Sort results
+    const sorted = [...filtered].sort((a, b) => {
+      const dir = sortDir === "asc" ? 1 : -1
+      switch (sortField) {
+        case "voucher_number":
+          return (
+            String(a.voucher_number || "").localeCompare(String(b.voucher_number || ""), undefined, {
+              numeric: true,
+              sensitivity: "base",
+            }) * dir
+          )
+        case "developer_name":
+          return String(a.developer_name || "").localeCompare(String(b.developer_name || "")) * dir
+        case "agent_name":
+          return String(a.agent_name || "").localeCompare(String(b.agent_name || "")) * dir
+        case "client_name":
+          return String(a.client_name || "").localeCompare(String(b.client_name || "")) * dir
+        case "amount_released":
+          return ((Number(a.amount_released) || 0) - (Number(b.amount_released) || 0)) * dir
+        case "total_amount":
+          return ((Number(a.total_amount) || 0) - (Number(b.total_amount) || 0)) * dir
+        case "created_at":
+        default: {
+          const ta = a.created_at ? new Date(a.created_at).getTime() : 0
+          const tb = b.created_at ? new Date(b.created_at).getTime() : 0
+          return (ta - tb) * dir
+        }
+      }
+    })
+    return sorted
+  }, [
+    vouchers,
+    filterSlipType,
+    filterOrigin,
+    filterDeveloper,
+    filterAgent,
+    filterArea,
+    filterFiles,
+    filterYear,
+    filterMonths,
+    searchTerm,
+    sortField,
+    sortDir,
+  ])
+
+  const totalPages = Math.max(1, Math.ceil(filteredVouchers.length / pageSize))
+  const safePage = Math.min(currentPage, totalPages)
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [
+    searchTerm,
+    filterSlipType,
+    filterOrigin,
+    filterDeveloper,
+    filterAgent,
+    filterArea,
+    filterFiles,
+    filterYear,
+    filterMonths,
+    pageSize,
+  ])
+
+  const paginatedVouchers = useMemo(() => {
+    const start = (safePage - 1) * pageSize
+    return filteredVouchers.slice(start, start + pageSize)
+  }, [filteredVouchers, safePage, pageSize])
+
+  const pageNumbers = useMemo(() => {
+    const pages: (number | "...")[] = []
+    if (totalPages <= 7) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i)
+    } else {
+      pages.push(1)
+      if (safePage > 3) pages.push("...")
+      const start = Math.max(2, safePage - 1)
+      const end = Math.min(totalPages - 1, safePage + 1)
+      for (let i = start; i <= end; i++) pages.push(i)
+      if (safePage < totalPages - 2) pages.push("...")
+      pages.push(totalPages)
+    }
+    return pages
+  }, [totalPages, safePage])
 
   // Stats exclude converted-from-report duplicates from direct stats breakdown so nothing is double-counted
   const stats = useMemo(() => {
@@ -299,20 +520,25 @@ export function CommissionVouchersManager({ role }: CommissionVouchersManagerPro
     )
   }
 
-  const allVisibleIds = useMemo(
+  const pageVisibleIds = useMemo(
+    () => paginatedVouchers.map((v) => v.id).filter((id): id is string => Boolean(id)),
+    [paginatedVouchers]
+  )
+
+  const allFilteredIds = useMemo(
     () => filteredVouchers.map((v) => v.id).filter((id): id is string => Boolean(id)),
     [filteredVouchers]
   )
 
   const allVisibleSelected =
-    allVisibleIds.length > 0 && allVisibleIds.every((id) => selectedIds.includes(id))
+    pageVisibleIds.length > 0 && pageVisibleIds.every((id) => selectedIds.includes(id))
 
   const toggleSelectAll = () => {
     if (isReadOnly) return
     if (allVisibleSelected) {
-      setSelectedIds((prev) => prev.filter((id) => !allVisibleIds.includes(id)))
+      setSelectedIds((prev) => prev.filter((id) => !pageVisibleIds.includes(id)))
     } else {
-      setSelectedIds((prev) => Array.from(new Set([...prev, ...allVisibleIds])))
+      setSelectedIds((prev) => Array.from(new Set([...prev, ...pageVisibleIds])))
     }
   }
 
@@ -654,42 +880,128 @@ export function CommissionVouchersManager({ role }: CommissionVouchersManagerPro
 
       {/* Filters */}
       <Card className="bg-white border-slate-200 shadow-sm">
-        <CardContent className="p-4 flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <Input
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search voucher #, agent, developer, client, project, or report #..."
-              className="pl-9 bg-white text-[#001f3f] border-slate-300"
+        <CardContent className="p-4 space-y-3">
+          {/* Filter Row 1: Search + Slip Type + Record Origin + Reset */}
+          <div className="flex flex-col md:flex-row gap-3">
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <Input
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search voucher #, agent, developer, client, project, unit, team, or report #..."
+                className="pl-9 bg-white text-[#001f3f] border-slate-300"
+              />
+            </div>
+            <Select value={filterSlipType} onValueChange={setFilterSlipType}>
+              <SelectTrigger className="w-full md:w-44 bg-white text-[#001f3f] border-slate-300">
+                <SelectValue placeholder="All Slip Types" />
+              </SelectTrigger>
+              <SelectContent className="bg-white">
+                <SelectItem value="all">All Slip Types</SelectItem>
+                <SelectItem value="Non-VAT">Non-VAT</SelectItem>
+                <SelectItem value="VAT w/ Invoice">VAT w/ Invoice</SelectItem>
+                <SelectItem value="VAT w/o Invoice">VAT w/o Invoice</SelectItem>
+                <SelectItem value="VAT without Rate">VAT without Rate</SelectItem>
+                <SelectItem value="W/o Invoice">W/o Invoice</SelectItem>
+                <SelectItem value="Rate w/o Invoice">Rate w/o Invoice</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={filterOrigin} onValueChange={setFilterOrigin}>
+              <SelectTrigger className="w-full md:w-56 bg-white text-[#001f3f] border-slate-300">
+                <SelectValue placeholder="All Record Types" />
+              </SelectTrigger>
+              <SelectContent className="bg-white">
+                <SelectItem value="all">All Records</SelectItem>
+                <SelectItem value="direct_only">Direct Only (Excl. Report Duplicates)</SelectItem>
+                <SelectItem value="from_reports">Converted from Commission Reports</SelectItem>
+                <SelectItem value="unencoded_only">Unencoded Sales Only</SelectItem>
+                <SelectItem value="tl_um_shares">Team Leader / Unit Manager Shares</SelectItem>
+              </SelectContent>
+            </Select>
+            {activeFilterCount > 0 && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={resetAllFilters}
+                className="border-red-200 text-red-700 hover:bg-red-50 bg-white shrink-0"
+              >
+                <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
+                Reset ({activeFilterCount})
+              </Button>
+            )}
+          </div>
+
+          {/* Filter Row 2: Developer, Agent, Area, Year, Month, Files */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2.5 pt-1 border-t border-slate-100">
+            <Select value={filterDeveloper} onValueChange={setFilterDeveloper}>
+              <SelectTrigger className="bg-white text-[#001f3f] border-slate-300 text-xs h-9">
+                <SelectValue placeholder="All Developers" />
+              </SelectTrigger>
+              <SelectContent className="bg-white max-h-72">
+                <SelectItem value="all">All Developers ({availableDevelopers.length})</SelectItem>
+                {availableDevelopers.map((dev) => (
+                  <SelectItem key={dev} value={dev}>
+                    {dev}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={filterAgent} onValueChange={setFilterAgent}>
+              <SelectTrigger className="bg-white text-[#001f3f] border-slate-300 text-xs h-9">
+                <SelectValue placeholder="All Agents" />
+              </SelectTrigger>
+              <SelectContent className="bg-white max-h-72">
+                <SelectItem value="all">All Agents ({availableAgents.length})</SelectItem>
+                {availableAgents.map((ag) => (
+                  <SelectItem key={ag} value={ag}>
+                    {ag}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {role === "super_admin" && (
+              <Select value={filterArea} onValueChange={setFilterArea}>
+                <SelectTrigger className="bg-white text-[#001f3f] border-slate-300 text-xs h-9">
+                  <SelectValue placeholder="All Areas" />
+                </SelectTrigger>
+                <SelectContent className="bg-white max-h-72">
+                  <SelectItem value="all">All Areas</SelectItem>
+                  {availableAreas.map((area) => (
+                    <SelectItem key={area} value={area}>
+                      {area}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+
+            <Select value={filterFiles} onValueChange={setFilterFiles}>
+              <SelectTrigger className="bg-white text-[#001f3f] border-slate-300 text-xs h-9">
+                <SelectValue placeholder="All Files" />
+              </SelectTrigger>
+              <SelectContent className="bg-white">
+                <SelectItem value="all">All PDF &amp; File Status</SelectItem>
+                <SelectItem value="has_pdf">Has Slip PDF</SelectItem>
+                <SelectItem value="no_pdf">Missing Slip PDF</SelectItem>
+                <SelectItem value="has_extra">Has Extra Attachments</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <YearSelect
+              value={filterYear}
+              onValueChange={setFilterYear}
+              className="w-full h-9 text-xs border-slate-300 bg-white text-[#001f3f]"
+            />
+
+            <MonthMultiSelect
+              selectedMonths={filterMonths}
+              onMonthsChange={setFilterMonths}
+              selectedYear={filterYear}
+              className="w-full h-9 text-xs border-slate-300 bg-white text-[#001f3f]"
             />
           </div>
-          <Select value={filterSlipType} onValueChange={setFilterSlipType}>
-            <SelectTrigger className="w-full sm:w-48 bg-white text-[#001f3f] border-slate-300">
-              <SelectValue placeholder="All Slip Types" />
-            </SelectTrigger>
-            <SelectContent className="bg-white">
-              <SelectItem value="all">All Slip Types</SelectItem>
-              <SelectItem value="Non-VAT">Non-VAT</SelectItem>
-              <SelectItem value="VAT w/ Invoice">VAT w/ Invoice</SelectItem>
-              <SelectItem value="VAT w/o Invoice">VAT w/o Invoice</SelectItem>
-              <SelectItem value="VAT without Rate">VAT without Rate</SelectItem>
-              <SelectItem value="W/o Invoice">W/o Invoice</SelectItem>
-              <SelectItem value="Rate w/o Invoice">Rate w/o Invoice</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={filterOrigin} onValueChange={setFilterOrigin}>
-            <SelectTrigger className="w-full sm:w-60 bg-white text-[#001f3f] border-slate-300">
-              <SelectValue placeholder="All Record Types" />
-            </SelectTrigger>
-            <SelectContent className="bg-white">
-              <SelectItem value="all">All Records</SelectItem>
-              <SelectItem value="direct_only">Direct Only (Excl. Report Duplicates)</SelectItem>
-              <SelectItem value="from_reports">Converted from Commission Reports</SelectItem>
-              <SelectItem value="unencoded_only">Unencoded Sales Only</SelectItem>
-              <SelectItem value="tl_um_shares">Team Leader / Unit Manager Shares</SelectItem>
-            </SelectContent>
-          </Select>
         </CardContent>
       </Card>
 
@@ -753,19 +1065,38 @@ export function CommissionVouchersManager({ role }: CommissionVouchersManagerPro
       <Card className="bg-white border-slate-200 shadow-sm overflow-hidden">
         <CardHeader className="pb-3 border-b border-slate-100 flex flex-row flex-wrap items-center justify-between gap-2">
           <div>
-            <CardTitle className="text-lg font-bold text-[#001f3f]">Saved Commission Vouchers</CardTitle>
+            <div className="flex items-center gap-2">
+              <CardTitle className="text-lg font-bold text-[#001f3f]">Saved Commission Vouchers</CardTitle>
+              <Badge variant="outline" className="text-xs border-slate-300 text-slate-700 font-semibold">
+                {filteredVouchers.length} {filteredVouchers.length === 1 ? "result" : "results"}
+                {filteredVouchers.length !== vouchers.length ? ` of ${vouchers.length}` : ""}
+              </Badge>
+            </div>
             <CardDescription>
               {isReadOnly
                 ? "View and download saved Commission Vouchers."
                 : "Check vouchers to merge them (along with extra attachments) into a Release, or manage individual vouchers."}
             </CardDescription>
           </div>
-          <Link href={`/dashboard/${roleSlug}/releases`}>
-            <Button variant="outline" size="sm" className="border-[#001f3f] text-[#001f3f] bg-white">
-              <Layers className="w-4 h-4 mr-1.5" />
-              Go to Commission Releases
-            </Button>
-          </Link>
+          <div className="flex items-center gap-2">
+            {!isReadOnly && allFilteredIds.length > pageVisibleIds.length && selectedIds.length > 0 && selectedIds.length < allFilteredIds.length && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setSelectedIds(allFilteredIds)}
+                className="text-xs border-sky-300 text-sky-800 bg-sky-50 hover:bg-sky-100"
+              >
+                Select all {allFilteredIds.length} filtered
+              </Button>
+            )}
+            <Link href={`/dashboard/${roleSlug}/releases`}>
+              <Button variant="outline" size="sm" className="border-[#001f3f] text-[#001f3f] bg-white">
+                <Layers className="w-4 h-4 mr-1.5" />
+                Go to Commission Releases
+              </Button>
+            </Link>
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
@@ -777,21 +1108,51 @@ export function CommissionVouchersManager({ role }: CommissionVouchersManagerPro
                       <Checkbox
                         checked={allVisibleSelected}
                         onCheckedChange={toggleSelectAll}
-                        aria-label="Select all visible vouchers"
+                        aria-label="Select all vouchers on this page"
                         className="border-white data-[state=checked]:bg-emerald-500 data-[state=checked]:border-emerald-500"
                       />
                     </TableHead>
                   )}
-                  <TableHead className="text-white font-semibold">Voucher #</TableHead>
-                  <TableHead className="text-white font-semibold">Slip Type &amp; Trace</TableHead>
-                  <TableHead className="text-white font-semibold">Developer</TableHead>
-                  <TableHead className="text-white font-semibold">Recipient / Agent</TableHead>
-                  <TableHead className="text-white font-semibold">Project &amp; Unit</TableHead>
-                  <TableHead className="text-white font-semibold">Client</TableHead>
-                  <TableHead className="text-white font-semibold text-right">Released</TableHead>
-                  <TableHead className="text-white font-semibold text-right">Total Release</TableHead>
-                  <TableHead className="text-white font-semibold">PDF &amp; Files</TableHead>
-                  <TableHead className="text-white font-semibold text-right">Actions</TableHead>
+                  <TableHead
+                    onClick={() => handleSort("voucher_number")}
+                    className="text-white font-semibold cursor-pointer select-none whitespace-nowrap hover:text-sky-200"
+                  >
+                    Voucher # {renderSortIcon("voucher_number")}
+                  </TableHead>
+                  <TableHead className="text-white font-semibold whitespace-nowrap">Slip Type &amp; Trace</TableHead>
+                  <TableHead
+                    onClick={() => handleSort("developer_name")}
+                    className="text-white font-semibold cursor-pointer select-none whitespace-nowrap hover:text-sky-200"
+                  >
+                    Developer {renderSortIcon("developer_name")}
+                  </TableHead>
+                  <TableHead
+                    onClick={() => handleSort("agent_name")}
+                    className="text-white font-semibold cursor-pointer select-none whitespace-nowrap hover:text-sky-200"
+                  >
+                    Recipient / Agent {renderSortIcon("agent_name")}
+                  </TableHead>
+                  <TableHead className="text-white font-semibold whitespace-nowrap">Project &amp; Unit</TableHead>
+                  <TableHead
+                    onClick={() => handleSort("client_name")}
+                    className="text-white font-semibold cursor-pointer select-none whitespace-nowrap hover:text-sky-200"
+                  >
+                    Client {renderSortIcon("client_name")}
+                  </TableHead>
+                  <TableHead
+                    onClick={() => handleSort("amount_released")}
+                    className="text-white font-semibold text-right cursor-pointer select-none whitespace-nowrap hover:text-sky-200"
+                  >
+                    Released {renderSortIcon("amount_released")}
+                  </TableHead>
+                  <TableHead
+                    onClick={() => handleSort("total_amount")}
+                    className="text-white font-semibold text-right cursor-pointer select-none whitespace-nowrap hover:text-sky-200"
+                  >
+                    Total Release {renderSortIcon("total_amount")}
+                  </TableHead>
+                  <TableHead className="text-white font-semibold whitespace-nowrap">PDF &amp; Files</TableHead>
+                  <TableHead className="text-white font-semibold text-right whitespace-nowrap">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -801,14 +1162,14 @@ export function CommissionVouchersManager({ role }: CommissionVouchersManagerPro
                       Loading commission vouchers...
                     </TableCell>
                   </TableRow>
-                ) : filteredVouchers.length === 0 ? (
+                ) : paginatedVouchers.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={isReadOnly ? 10 : 11} className="text-center py-12 text-slate-500">
-                      No commission vouchers found.
+                      No commission vouchers match your current filters.
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredVouchers.map((v) => {
+                  paginatedVouchers.map((v) => {
                     const isSelected = Boolean(v.id && selectedIds.includes(v.id))
                     const extraCount = v.attachments?.length || 0
                     return (
@@ -980,6 +1341,115 @@ export function CommissionVouchersManager({ role }: CommissionVouchersManagerPro
               </TableBody>
             </Table>
           </div>
+
+          {/* DataTable Pagination Footer */}
+          {!loading && filteredVouchers.length > 0 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 border-t border-slate-200 bg-slate-50/70">
+              <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600">
+                <span>
+                  Showing{" "}
+                  <strong className="text-[#001f3f]">
+                    {(safePage - 1) * pageSize + 1}
+                  </strong>{" "}
+                  to{" "}
+                  <strong className="text-[#001f3f]">
+                    {Math.min(safePage * pageSize, filteredVouchers.length)}
+                  </strong>{" "}
+                  of <strong className="text-[#001f3f]">{filteredVouchers.length}</strong> vouchers
+                </span>
+
+                <div className="flex items-center gap-1.5">
+                  <span>Rows per page:</span>
+                  <Select
+                    value={String(pageSize)}
+                    onValueChange={(val) => setPageSize(Number(val))}
+                  >
+                    <SelectTrigger className="h-7 w-16 text-xs bg-white border-slate-300 text-[#001f3f]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white">
+                      {[10, 15, 25, 50, 100].map((n) => (
+                        <SelectItem key={n} value={String(n)}>
+                          {n}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="outline"
+                  onClick={() => setCurrentPage(1)}
+                  disabled={safePage <= 1}
+                  className="h-7 w-7 border-slate-300 bg-white text-[#001f3f]"
+                  title="First page"
+                >
+                  <ChevronsLeft className="w-3.5 h-3.5" />
+                </Button>
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="outline"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={safePage <= 1}
+                  className="h-7 w-7 border-slate-300 bg-white text-[#001f3f]"
+                  title="Previous page"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                </Button>
+
+                {pageNumbers.map((pg, idx) =>
+                  pg === "..." ? (
+                    <span key={`ellipsis-${idx}`} className="px-1.5 text-xs text-slate-400">
+                      ...
+                    </span>
+                  ) : (
+                    <Button
+                      key={pg}
+                      type="button"
+                      size="sm"
+                      variant={pg === safePage ? "default" : "outline"}
+                      onClick={() => setCurrentPage(pg)}
+                      className={
+                        pg === safePage
+                          ? "h-7 min-w-[28px] px-2 text-xs bg-[#001f3f] text-white font-bold"
+                          : "h-7 min-w-[28px] px-2 text-xs border-slate-300 bg-white text-[#001f3f] hover:bg-slate-100"
+                      }
+                    >
+                      {pg}
+                    </Button>
+                  )
+                )}
+
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="outline"
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={safePage >= totalPages}
+                  className="h-7 w-7 border-slate-300 bg-white text-[#001f3f]"
+                  title="Next page"
+                >
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </Button>
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="outline"
+                  onClick={() => setCurrentPage(totalPages)}
+                  disabled={safePage >= totalPages}
+                  className="h-7 w-7 border-slate-300 bg-white text-[#001f3f]"
+                  title="Last page"
+                >
+                  <ChevronsRight className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
