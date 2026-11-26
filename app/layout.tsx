@@ -27,9 +27,15 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" className={inter.className}>
+    <html lang="en" className={`${inter.className} light`} style={{ colorScheme: "light" }} suppressHydrationWarning>
       <body suppressHydrationWarning>
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="light"
+          forcedTheme="light"
+          enableSystem={false}
+          disableTransitionOnChange
+        >
           <AuthProvider>
             <DashboardHeader />
             <main className="flex min-h-screen flex-col pt-16">
