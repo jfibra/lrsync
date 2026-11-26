@@ -8,6 +8,7 @@ import { useAuth } from "@/contexts/auth-context"
 import type { CollectorTransaction, CollectorWorkflowStatus } from "@/types/collector"
 import { CollectorReviewEditModal } from "@/components/collector-review-edit-modal"
 import { ConvertCollectorToSaleModal } from "@/components/convert-collector-to-sale-modal"
+import { SmartBatchUploadModal } from "@/components/smart-batch-upload-modal"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -46,6 +47,7 @@ import {
   Loader2,
   RefreshCw,
   Search,
+  Sparkles,
   Users,
 } from "lucide-react"
 import { toast } from "sonner"
@@ -282,10 +284,11 @@ export function ChequeVerificationManager({ role }: ChequeVerificationManagerPro
   const [collectors, setCollectors] = useState<CollectorOption[]>([])
   const [areas, setAreas] = useState<string[]>([])
 
-  // Review / Edit modal & Convert modal state
+  // Review / Edit modal, Convert modal & Smart AI Upload modal state
   const [selectedTx, setSelectedTx] = useState<CollectorTransaction | null>(null)
   const [convertTx, setConvertTx] = useState<CollectorTransaction | null>(null)
   const [convertOpen, setConvertOpen] = useState(false)
+  const [smartUploadOpen, setSmartUploadOpen] = useState(false)
 
   const roleSlug = role.replace("_", "-")
   const canManageVoucherNo = role === "super_admin" || role === "admin"
@@ -698,6 +701,15 @@ export function ChequeVerificationManager({ role }: ChequeVerificationManagerPro
               Action Queues
             </Button>
           </div>
+
+          <Button
+            type="button"
+            onClick={() => setSmartUploadOpen(true)}
+            className="bg-gradient-to-r from-indigo-600 to-sky-600 hover:from-indigo-700 hover:to-sky-700 text-white font-semibold shadow-sm"
+          >
+            <Sparkles className="h-4 w-4 mr-1.5" />
+            Smart AI Upload
+          </Button>
 
           <Button onClick={refreshAll} variant="outline" disabled={loading}>
             <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
@@ -1434,6 +1446,14 @@ export function ChequeVerificationManager({ role }: ChequeVerificationManagerPro
         open={convertOpen}
         onOpenChange={setConvertOpen}
         onConverted={refreshAll}
+      />
+
+      {/* Smart Multi-File AI Upload Modal (New Record) */}
+      <SmartBatchUploadModal
+        open={smartUploadOpen}
+        onClose={() => setSmartUploadOpen(false)}
+        role={role}
+        onSaved={() => refreshAll()}
       />
     </div>
   )

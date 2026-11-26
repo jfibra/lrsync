@@ -8,6 +8,7 @@ import { logNotification } from "@/utils/logNotification"
 import { formatS3Url } from "@/utils/s3-url"
 import { PHILIPPINE_BANKS } from "@/lib/philippine-banks"
 import type { ChequeStatus, CollectorTransaction, CollectorWorkflowStatus } from "@/types/collector"
+import { SmartBatchUploadModal } from "@/components/smart-batch-upload-modal"
 import {
   Dialog,
   DialogContent,
@@ -50,6 +51,7 @@ import {
   Search,
   ShieldCheck,
   Smartphone,
+  Sparkles,
   Trash2,
   Upload,
   UserCheck,
@@ -205,6 +207,7 @@ export function CollectorReviewEditModal({
   const [uploadBucket, setUploadBucket] = useState<BucketKey>("deposit_slip_urls")
   const [uploadingFiles, setUploadingFiles] = useState(false)
   const [mutatingAttachment, setMutatingAttachment] = useState(false)
+  const [smartAddOpen, setSmartAddOpen] = useState(false)
 
   // Lightbox Zoom/Rotate viewer
   const [zoomItem, setZoomItem] = useState<{ url: string; label: string; isPdf: boolean } | null>(null)
@@ -755,12 +758,26 @@ export function CollectorReviewEditModal({
                     <Paperclip className="h-4 w-4 text-sky-600" />
                     Attachments ({totalAttachmentsCount})
                   </h3>
-                  {(uploadingFiles || mutatingAttachment) && (
-                    <span className="inline-flex items-center gap-1 text-[11px] text-sky-700 font-medium">
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      Syncing...
-                    </span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {(uploadingFiles || mutatingAttachment) && (
+                      <span className="inline-flex items-center gap-1 text-[11px] text-sky-700 font-medium">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        Syncing...
+                      </span>
+                    )}
+                    {!isLocked && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => setSmartAddOpen(true)}
+                        className="h-7 px-2.5 text-[11px] bg-gradient-to-r from-indigo-600 to-sky-600 hover:from-indigo-700 hover:to-sky-700 text-white font-semibold"
+                        title="Add multiple photos/PDFs with Perplexity Vision AI auto-tag & auto-fill"
+                      >
+                        <Sparkles className="h-3 w-3 mr-1" />
+                        Smart AI Add
+                      </Button>
+                    )}
+                  </div>
                 </div>
 
                 {/* + Add Attachments Uploader */}
@@ -1467,6 +1484,18 @@ export function CollectorReviewEditModal({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Smart AI Multi-File Upload Modal (Append to Existing Record) */}
+      <SmartBatchUploadModal
+        open={smartAddOpen}
+        onClose={() => setSmartAddOpen(false)}
+        role={role}
+        existingTransaction={tx}
+        onSaved={(updatedTx) => {
+          if (updatedTx) setTx(updatedTx)
+          onUpdated(updatedTx)
+        }}
+      />
 
       {/* In-App Lightbox Zoom & Rotate Viewer (Images + Inline PDF Preview) */}
       <Dialog open={!!zoomItem} onOpenChange={(o) => !o && setZoomItem(null)}>
