@@ -20,7 +20,8 @@ import {
 } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { SortableTableHead, sortData } from "@/components/ui/sortable-header"
-import { Plus, Edit, Trash2, Settings, Package } from "lucide-react"
+import { DataTablePagination } from "@/components/data-table-pagination"
+import { Plus, Edit, Trash2, Settings, Package, Search } from "lucide-react"
 import { toast } from "sonner"
 
 interface PurchaseCategory {
@@ -46,6 +47,9 @@ export default function AdminSettingsPage() {
 
   const [sortField, setSortField] = useState("category")
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc")
+  const [searchTerm, setSearchTerm] = useState("")
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(15)
 
   const handleSort = (field: string) => {
     if (sortField === field) {
@@ -57,8 +61,27 @@ export default function AdminSettingsPage() {
   }
 
   const sortedCategories = useMemo(() => {
-    return sortData(categories, sortField, sortDirection)
-  }, [categories, sortField, sortDirection])
+    const q = searchTerm.trim().toLowerCase()
+    const filtered = q
+      ? categories.filter(
+          (c) =>
+            (c.category || "").toLowerCase().includes(q) ||
+            (c.user_full_name || "").toLowerCase().includes(q)
+        )
+      : categories
+    return sortData(filtered, sortField, sortDirection)
+  }, [categories, searchTerm, sortField, sortDirection])
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchTerm, pageSize])
+
+  const paginatedCategories = useMemo(() => {
+    const totalPages = Math.max(1, Math.ceil(sortedCategories.length / pageSize))
+    const safePage = Math.min(currentPage, totalPages)
+    const start = (safePage - 1) * pageSize
+    return sortedCategories.slice(start, start + pageSize)
+  }, [sortedCategories, currentPage, pageSize])
 
   const fetchCategories = async () => {
     try {
@@ -252,23 +275,33 @@ export default function AdminSettingsPage() {
               </div>
             </CardHeader>
             <CardContent>
+              <div className="relative max-w-sm mb-4">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <Input
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Search categories or creator..."
+                  className="pl-9 bg-white text-[#001f3f] border-slate-300"
+                />
+              </div>
               {loading ? (
                 <div className="flex justify-center py-8">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
                 </div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <SortableTableHead field="category" currentSort={sortField} direction={sortDirection} onSort={handleSort}>Category Name</SortableTableHead>
-                      <SortableTableHead field="is_default" currentSort={sortField} direction={sortDirection} onSort={handleSort}>Type</SortableTableHead>
-                      <SortableTableHead field="user_full_name" currentSort={sortField} direction={sortDirection} onSort={handleSort}>Created By</SortableTableHead>
-                      <SortableTableHead field="created_at" currentSort={sortField} direction={sortDirection} onSort={handleSort}>Created Date</SortableTableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {sortedCategories.map((category) => (
+                <>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <SortableTableHead field="category" currentSort={sortField} direction={sortDirection} onSort={handleSort}>Category Name</SortableTableHead>
+                        <SortableTableHead field="is_default" currentSort={sortField} direction={sortDirection} onSort={handleSort}>Type</SortableTableHead>
+                        <SortableTableHead field="user_full_name" currentSort={sortField} direction={sortDirection} onSort={handleSort}>Created By</SortableTableHead>
+                        <SortableTableHead field="created_at" currentSort={sortField} direction={sortDirection} onSort={handleSort}>Created Date</SortableTableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {paginatedCategories.map((category) => (
                       <TableRow key={category.id}>
                         <TableCell className="font-medium text-[#001f3f]">{category.category}</TableCell>
                         <TableCell>
@@ -306,6 +339,15 @@ export default function AdminSettingsPage() {
                     ))}
                   </TableBody>
                 </Table>
+                <DataTablePagination
+                  totalItems={sortedCategories.length}
+                  currentPage={currentPage}
+                  pageSize={pageSize}
+                  onPageChange={setCurrentPage}
+                  onPageSizeChange={setPageSize}
+                  itemLabel="categories"
+                />
+                </>
               )}
             </CardContent>
           </Card>

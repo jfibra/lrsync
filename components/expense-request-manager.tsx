@@ -24,6 +24,7 @@ import {
   PenTool,
   ShieldCheck,
   ExternalLink,
+  RotateCcw,
 } from "lucide-react"
 import { format } from "date-fns"
 import Link from "next/link"
@@ -33,6 +34,7 @@ import { logNotification } from "@/utils/logNotification"
 import { formatS3Url } from "@/utils/s3-url"
 import { applyTaxMonthFilter } from "@/lib/date-filter"
 import { YearSelect, MonthMultiSelect } from "@/components/date-period-filter"
+import { DataTablePagination } from "@/components/data-table-pagination"
 import {
   AddExpenseRequestModal,
   type ExpenseRequestRecord,
@@ -64,6 +66,12 @@ export function ExpenseRequestManager({ role }: ExpenseRequestManagerProps) {
   const [filterMonths, setFilterMonths] = useState<string[]>([])
   const [filterArea, setFilterArea] = useState("all")
   const [viewScope, setViewScope] = useState<"me" | "area">("area")
+
+  // Pagination state (independent per tab)
+  const [itemsPage, setItemsPage] = useState(1)
+  const [itemsPageSize, setItemsPageSize] = useState(15)
+  const [vouchersPage, setVouchersPage] = useState(1)
+  const [vouchersPageSize, setVouchersPageSize] = useState(15)
 
   // Selection for invoice creation
   const [selectedRequestIds, setSelectedRequestIds] = useState<string[]>([])
@@ -218,6 +226,52 @@ export function ExpenseRequestManager({ role }: ExpenseRequestManagerProps) {
       return true
     })
   }, [invoices, filterStatus, filterArea, searchTerm, role])
+
+  useEffect(() => {
+    setItemsPage(1)
+  }, [filterStatus, filterTaxType, filterCategory, filterArea, filterYear, filterMonths, searchTerm, itemsPageSize])
+
+  useEffect(() => {
+    setVouchersPage(1)
+  }, [filterStatus, filterArea, searchTerm, vouchersPageSize])
+
+  const paginatedRequests = useMemo(() => {
+    const totalPages = Math.max(1, Math.ceil(filteredRequests.length / itemsPageSize))
+    const safe = Math.min(itemsPage, totalPages)
+    const start = (safe - 1) * itemsPageSize
+    return filteredRequests.slice(start, start + itemsPageSize)
+  }, [filteredRequests, itemsPage, itemsPageSize])
+
+  const paginatedInvoices = useMemo(() => {
+    const totalPages = Math.max(1, Math.ceil(filteredInvoices.length / vouchersPageSize))
+    const safe = Math.min(vouchersPage, totalPages)
+    const start = (safe - 1) * vouchersPageSize
+    return filteredInvoices.slice(start, start + vouchersPageSize)
+  }, [filteredInvoices, vouchersPage, vouchersPageSize])
+
+  const activeFilterCount = useMemo(() => {
+    let c = 0
+    if (searchTerm.trim()) c++
+    if (filterStatus !== "all") c++
+    if (filterTaxType !== "all") c++
+    if (filterCategory !== "all") c++
+    if (filterArea !== "all") c++
+    if (filterYear !== "all") c++
+    if (filterMonths.length > 0 && filterMonths.length < 12) c++
+    return c
+  }, [searchTerm, filterStatus, filterTaxType, filterCategory, filterArea, filterYear, filterMonths])
+
+  const resetAllFilters = () => {
+    setSearchTerm("")
+    setFilterStatus("all")
+    setFilterTaxType("all")
+    setFilterCategory("all")
+    setFilterArea("all")
+    setFilterYear("all")
+    setFilterMonths([])
+    setItemsPage(1)
+    setVouchersPage(1)
+  }
 
   // Selectable pending requests
   const selectablePendingIds = useMemo(
@@ -586,6 +640,20 @@ export function ExpenseRequestManager({ role }: ExpenseRequestManagerProps) {
 
           <div className="flex flex-wrap items-center justify-between gap-3 mt-3 pt-3 border-t border-slate-100">
             <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium text-slate-600">Tax Type:</span>
+                <Select value={filterTaxType} onValueChange={setFilterTaxType}>
+                  <SelectTrigger className="w-32 h-8 text-xs bg-white text-[#001f3f] border-slate-300">
+                    <SelectValue placeholder="All Tax Types" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white">
+                    <SelectItem value="all">All Tax Types</SelectItem>
+                    <SelectItem value="vat">VAT</SelectItem>
+                    <SelectItem value="non-vat">Non-VAT</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
               {role === "super_admin" && availableAreas.length > 0 && (
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-medium text-slate-600">Area:</span>
@@ -603,6 +671,19 @@ export function ExpenseRequestManager({ role }: ExpenseRequestManagerProps) {
                     </SelectContent>
                   </Select>
                 </div>
+              )}
+
+              {activeFilterCount > 0 && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={resetAllFilters}
+                  className="h-8 text-xs border-red-200 text-red-700 hover:bg-red-50 bg-white"
+                >
+                  <RotateCcw className="w-3.5 h-3.5 mr-1" />
+                  Reset ({activeFilterCount})
+                </Button>
               )}
 
               {role === "secretary" && (
@@ -732,14 +813,14 @@ export function ExpenseRequestManager({ role }: ExpenseRequestManagerProps) {
                           Loading itemized expense requests...
                         </TableCell>
                       </TableRow>
-                    ) : filteredRequests.length === 0 ? (
+                    ) : paginatedRequests.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={10} className="text-center py-12 text-slate-500">
                           No itemized expense requests found. Click &ldquo;Add Expense Request Item(s)&rdquo; to add items like Petty Cash, Birthday Celebration, or Event Venue.
                         </TableCell>
                       </TableRow>
                     ) : (
-                      filteredRequests.map((req) => {
+                      paginatedRequests.map((req) => {
                         const isSelectable = req.status === "pending"
                         const isSelected = selectedRequestIds.includes(req.id)
                         const linkedInvoice = invoices.find((inv) => inv.id === req.expense_invoice_id)
@@ -905,6 +986,16 @@ export function ExpenseRequestManager({ role }: ExpenseRequestManagerProps) {
                   </TableBody>
                 </Table>
               </div>
+              {!loading && (
+                <DataTablePagination
+                  totalItems={filteredRequests.length}
+                  currentPage={itemsPage}
+                  pageSize={itemsPageSize}
+                  onPageChange={setItemsPage}
+                  onPageSizeChange={setItemsPageSize}
+                  itemLabel="expense items"
+                />
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -942,14 +1033,14 @@ export function ExpenseRequestManager({ role }: ExpenseRequestManagerProps) {
                           Loading expense vouchers...
                         </TableCell>
                       </TableRow>
-                    ) : filteredInvoices.length === 0 ? (
+                    ) : paginatedInvoices.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={8} className="text-center py-12 text-slate-500">
                           No expense vouchers created yet. Select itemized requests in the first tab and click &ldquo;Create Voucher from Selected&rdquo;.
                         </TableCell>
                       </TableRow>
                     ) : (
-                      filteredInvoices.map((inv) => {
+                      paginatedInvoices.map((inv) => {
                         const items = Array.isArray(inv.items) ? inv.items : []
                         const isApproved = inv.status === "approved"
                         const isConverted = inv.status === "converted"
@@ -1080,6 +1171,16 @@ export function ExpenseRequestManager({ role }: ExpenseRequestManagerProps) {
                   </TableBody>
                 </Table>
               </div>
+              {!loading && (
+                <DataTablePagination
+                  totalItems={filteredInvoices.length}
+                  currentPage={vouchersPage}
+                  pageSize={vouchersPageSize}
+                  onPageChange={setVouchersPage}
+                  onPageSizeChange={setVouchersPageSize}
+                  itemLabel="expense vouchers"
+                />
+              )}
             </CardContent>
           </Card>
         </TabsContent>

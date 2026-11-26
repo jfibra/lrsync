@@ -259,6 +259,7 @@ export function ChequeVerificationManager({ role }: ChequeVerificationManagerPro
   const [loading, setLoading] = useState(true)
 
   // Duplicate detection sets (across all non-deleted rows)
+  const [dupVoucherNumbers, setDupVoucherNumbers] = useState<Set<string>>(new Set())
   const [dupChequeNumbers, setDupChequeNumbers] = useState<Set<string>>(new Set())
   const [dupDepositRefs, setDupDepositRefs] = useState<Set<string>>(new Set())
 
@@ -272,6 +273,7 @@ export function ChequeVerificationManager({ role }: ChequeVerificationManagerPro
   const [dateTo, setDateTo] = useState<string>("")
   const [onlyDiscrepancies, setOnlyDiscrepancies] = useState(false)
   const [onlyMissingDetails, setOnlyMissingDetails] = useState(false)
+  const [onlyMissingVoucherNo, setOnlyMissingVoucherNo] = useState(false)
   const [sortField, setSortField] = useState<SortField>("updated_at")
   const [sortAsc, setSortAsc] = useState(false)
   const [page, setPage] = useState(1)
@@ -286,6 +288,7 @@ export function ChequeVerificationManager({ role }: ChequeVerificationManagerPro
   const [convertOpen, setConvertOpen] = useState(false)
 
   const roleSlug = role.replace("_", "-")
+  const canManageVoucherNo = role === "super_admin" || role === "admin"
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -332,12 +335,12 @@ export function ChequeVerificationManager({ role }: ChequeVerificationManagerPro
     fetchFilterOptions()
   }, [role, profile?.assigned_area])
 
-  // Fetch status counts + duplicate cheque/deposit_ref lookup sets
+  // Fetch status counts + duplicate voucher/cheque/deposit_ref lookup sets
   const fetchCountsAndDuplicates = useCallback(async () => {
     try {
       let query = supabase
         .from("collector_transactions")
-        .select("workflow_status, cheque_number, deposit_reference_no")
+        .select("workflow_status, voucher_number, cheque_number, deposit_reference_no")
         .eq("is_deleted", false)
 
       if (role !== "super_admin" && profile?.assigned_area) {
@@ -356,12 +359,16 @@ export function ChequeVerificationManager({ role }: ChequeVerificationManagerPro
         returned: 0,
         all: (data || []).length,
       }
+      const voucherFreq = new Map<string, number>()
       const chequeFreq = new Map<string, number>()
       const depRefFreq = new Map<string, number>()
 
       for (const row of data || []) {
         const s = row.workflow_status as CollectorWorkflowStatus
         if (s in next) next[s] += 1
+
+        const vch = (row.voucher_number || "").trim().toLowerCase()
+        if (vch) voucherFreq.set(vch, (voucherFreq.get(vch) || 0) + 1)
 
         const chq = (row.cheque_number || "").trim().toLowerCase()
         if (chq) chequeFreq.set(chq, (chequeFreq.get(chq) || 0) + 1)
@@ -371,6 +378,9 @@ export function ChequeVerificationManager({ role }: ChequeVerificationManagerPro
       }
 
       setCounts(next)
+      setDupVoucherNumbers(
+        new Set(Array.from(voucherFreq.entries()).filter(([, c]) => c > 1).map(([k]) => k))
+      )
       setDupChequeNumbers(
         new Set(Array.from(chequeFreq.entries()).filter(([, c]) => c > 1).map(([k]) => k))
       )
@@ -424,10 +434,14 @@ export function ChequeVerificationManager({ role }: ChequeVerificationManagerPro
         query = query.or("developer_name.is.null,commission_amount.is.null,developer_tin_id.is.null")
       }
 
+      if (onlyMissingVoucherNo) {
+        query = query.or("voucher_number.is.null,voucher_number.eq.")
+      }
+
       if (debouncedSearch) {
         const q = debouncedSearch.replace(/,/g, "")
         query = query.or(
-          `developer_name.ilike.%${q}%,developer_tin.ilike.%${q}%,cheque_number.ilike.%${q}%,deposit_reference_no.ilike.%${q}%,invoice_remarks.ilike.%${q}%,invoice_collected_by_name.ilike.%${q}%,cheque_collected_by_name.ilike.%${q}%`
+          `developer_name.ilike.%${q}%,developer_tin.ilike.%${q}%,voucher_number.ilike.%${q}%,cheque_number.ilike.%${q}%,deposit_reference_no.ilike.%${q}%,invoice_remarks.ilike.%${q}%,invoice_collected_by_name.ilike.%${q}%,cheque_collected_by_name.ilike.%${q}%`
         )
       }
 
@@ -463,6 +477,7 @@ export function ChequeVerificationManager({ role }: ChequeVerificationManagerPro
     dateTo,
     onlyDiscrepancies,
     onlyMissingDetails,
+    onlyMissingVoucherNo,
     debouncedSearch,
     sortField,
     sortAsc,
@@ -528,10 +543,14 @@ export function ChequeVerificationManager({ role }: ChequeVerificationManagerPro
     }
   }
 
-  const isDuplicateRow = (tx: CollectorTransaction): { cheque: boolean; depositRef: boolean } => {
+  const isDuplicateRow = (
+    tx: CollectorTransaction
+  ): { voucher: boolean; cheque: boolean; depositRef: boolean } => {
+    const vch = (tx.voucher_number || "").trim().toLowerCase()
     const chq = (tx.cheque_number || "").trim().toLowerCase()
     const ref = (tx.deposit_reference_no || "").trim().toLowerCase()
     return {
+      voucher: Boolean(vch && dupVoucherNumbers.has(vch)),
       cheque: Boolean(chq && dupChequeNumbers.has(chq)),
       depositRef: Boolean(ref && dupDepositRefs.has(ref)),
     }
@@ -625,6 +644,7 @@ export function ChequeVerificationManager({ role }: ChequeVerificationManagerPro
     setDateTo("")
     setOnlyDiscrepancies(false)
     setOnlyMissingDetails(false)
+    setOnlyMissingVoucherNo(false)
     setPage(1)
   }
 
@@ -635,7 +655,8 @@ export function ChequeVerificationManager({ role }: ChequeVerificationManagerPro
     Boolean(dateFrom) ||
     Boolean(dateTo) ||
     onlyDiscrepancies ||
-    onlyMissingDetails
+    onlyMissingDetails ||
+    onlyMissingVoucherNo
 
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
 
@@ -894,7 +915,7 @@ export function ChequeVerificationManager({ role }: ChequeVerificationManagerPro
               <Input
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
-                placeholder="Search developer, cheque #, deposit ref, remarks..."
+                placeholder="Search developer, voucher #, cheque #, deposit ref, remarks..."
                 className="pl-9"
               />
             </div>
@@ -1008,6 +1029,26 @@ export function ChequeVerificationManager({ role }: ChequeVerificationManagerPro
                 Amount Discrepancies
               </Button>
 
+              {canManageVoucherNo && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={onlyMissingVoucherNo ? "default" : "outline"}
+                  className={
+                    onlyMissingVoucherNo
+                      ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                      : "border-emerald-300 text-emerald-800 hover:bg-emerald-50"
+                  }
+                  onClick={() => {
+                    setOnlyMissingVoucherNo((prev) => !prev)
+                    setPage(1)
+                  }}
+                >
+                  <FileWarning className="h-3.5 w-3.5 mr-1.5" />
+                  Missing Voucher #
+                </Button>
+              )}
+
               {hasActiveFilters && (
                 <Button type="button" size="sm" variant="ghost" onClick={clearFilters}>
                   <Filter className="h-3.5 w-3.5 mr-1" />
@@ -1077,6 +1118,21 @@ export function ChequeVerificationManager({ role }: ChequeVerificationManagerPro
                               <span className="font-bold text-sm text-slate-900">
                                 {tx.developer_name || "Draft — No Developer Linked"}
                               </span>
+                              {tx.voucher_number ? (
+                                <Badge
+                                  variant="outline"
+                                  className="bg-emerald-50 text-emerald-800 border-emerald-300 text-[10px] font-semibold"
+                                >
+                                  Voucher #{tx.voucher_number}
+                                </Badge>
+                              ) : canManageVoucherNo ? (
+                                <Badge
+                                  variant="outline"
+                                  className="bg-slate-50 text-slate-500 border-dashed border-slate-300 text-[10px]"
+                                >
+                                  No Voucher #
+                                </Badge>
+                              ) : null}
                               {getWorkflowBadge(tx.workflow_status)}
                               {getChequeStatusBadge(tx.cheque_status)}
                               {tx.amount_discrepancy && (
@@ -1084,10 +1140,14 @@ export function ChequeVerificationManager({ role }: ChequeVerificationManagerPro
                                   <AlertTriangle className="h-3 w-3 mr-0.5" /> Discrepancy
                                 </Badge>
                               )}
-                              {(dup.cheque || dup.depositRef) && (
+                              {(dup.voucher || dup.cheque || dup.depositRef) && (
                                 <Badge className="bg-red-100 text-red-800 hover:bg-red-100 text-[10px]">
                                   <AlertTriangle className="h-3 w-3 mr-0.5" /> Duplicate{" "}
-                                  {dup.cheque ? "Cheque #" : "Deposit Ref"}
+                                  {dup.voucher
+                                    ? "Voucher #"
+                                    : dup.cheque
+                                    ? "Cheque #"
+                                    : "Deposit Ref"}
                                 </Badge>
                               )}
                             </div>
@@ -1159,7 +1219,7 @@ export function ChequeVerificationManager({ role }: ChequeVerificationManagerPro
                           {renderSortIcon("commission_amount")}
                         </button>
                       </TableHead>
-                      <TableHead>Cheque &amp; Deposit</TableHead>
+                      <TableHead>Voucher, Cheque &amp; Deposit</TableHead>
                       <TableHead>
                         <button
                           type="button"
@@ -1226,6 +1286,18 @@ export function ChequeVerificationManager({ role }: ChequeVerificationManagerPro
 
                           <TableCell>
                             <div className="space-y-1 text-xs">
+                              {tx.voucher_number ? (
+                                <div>
+                                  <Badge
+                                    variant="outline"
+                                    className="bg-emerald-50 text-emerald-800 border-emerald-300 text-[10px] py-0 font-semibold"
+                                  >
+                                    Voucher #{tx.voucher_number}
+                                  </Badge>
+                                </div>
+                              ) : canManageVoucherNo ? (
+                                <div className="text-[10px] text-slate-400 italic">No Voucher #</div>
+                              ) : null}
                               {tx.cheque_number || tx.cheque_amount ? (
                                 <div>
                                   <span className="font-semibold text-slate-800">
@@ -1244,9 +1316,9 @@ export function ChequeVerificationManager({ role }: ChequeVerificationManagerPro
                               )}
                               <div className="flex flex-wrap gap-1">
                                 {getChequeStatusBadge(tx.cheque_status)}
-                                {(dup.cheque || dup.depositRef) && (
+                                {(dup.voucher || dup.cheque || dup.depositRef) && (
                                   <Badge className="bg-red-100 text-red-800 hover:bg-red-100 text-[10px] py-0">
-                                    Duplicate
+                                    Duplicate {dup.voucher ? "Voucher" : dup.cheque ? "Cheque" : "Ref"}
                                   </Badge>
                                 )}
                               </div>

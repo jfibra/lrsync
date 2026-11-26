@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Search,
   ExternalLink,
@@ -18,6 +19,7 @@ import {
   Receipt,
   FileText,
   Download,
+  RotateCcw,
 } from "lucide-react"
 import { format } from "date-fns"
 import { useAuth } from "@/contexts/auth-context"
@@ -25,6 +27,8 @@ import { supabase } from "@/lib/supabase/client"
 import { formatS3Url } from "@/utils/s3-url"
 import { downloadAttachmentsAsZip } from "@/utils/download-attachments"
 import { logNotification } from "@/utils/logNotification"
+import { YearSelect, MonthMultiSelect } from "@/components/date-period-filter"
+import { DataTablePagination } from "@/components/data-table-pagination"
 
 export interface PotFileItem {
   id: string
@@ -61,6 +65,12 @@ export function CommissionReleasesManager({ role }: CommissionReleasesManagerPro
   const [releases, setReleases] = useState<CommissionReleaseRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
+  const [filterPotStatus, setFilterPotStatus] = useState("all")
+  const [filterArea, setFilterArea] = useState("all")
+  const [filterYear, setFilterYear] = useState("all")
+  const [filterMonths, setFilterMonths] = useState<string[]>([])
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(15)
   const [selectedRelease, setSelectedRelease] = useState<CommissionReleaseRecord | null>(null)
   const [uploadingPot, setUploadingPot] = useState(false)
   const potInputRef = useRef<HTMLInputElement | null>(null)
@@ -111,17 +121,72 @@ export function CommissionReleasesManager({ role }: CommissionReleasesManagerPro
     fetchReleases()
   }, [profile?.assigned_area, profile?.id])
 
+  const availableAreas = useMemo(() => {
+    const set = new Set<string>()
+    releases.forEach((r) => {
+      if (r.assigned_area?.trim()) set.add(r.assigned_area.trim())
+    })
+    return Array.from(set).sort((a, b) => a.localeCompare(b))
+  }, [releases])
+
+  const activeFilterCount = useMemo(() => {
+    let c = 0
+    if (searchTerm.trim()) c++
+    if (filterPotStatus !== "all") c++
+    if (filterArea !== "all") c++
+    if (filterYear !== "all") c++
+    if (filterMonths.length > 0 && filterMonths.length < 12) c++
+    return c
+  }, [searchTerm, filterPotStatus, filterArea, filterYear, filterMonths])
+
+  const resetFilters = () => {
+    setSearchTerm("")
+    setFilterPotStatus("all")
+    setFilterArea("all")
+    setFilterYear("all")
+    setFilterMonths([])
+    setCurrentPage(1)
+  }
+
   const filteredReleases = useMemo(() => {
     const q = searchTerm.trim().toLowerCase()
-    if (!q) return releases
     return releases.filter((r) => {
-      const m1 = (r.title || "").toLowerCase().includes(q)
-      const m2 = (r.remarks || "").toLowerCase().includes(q)
-      const m3 = (r.voucher_numbers || []).some((vn) => vn.toLowerCase().includes(q))
-      const m4 = (r.created_by_name || "").toLowerCase().includes(q)
-      return m1 || m2 || m3 || m4
+      if (filterPotStatus === "has_pot" && (!r.pot_files || r.pot_files.length === 0)) return false
+      if (filterPotStatus === "no_pot" && r.pot_files && r.pot_files.length > 0) return false
+      if (filterPotStatus === "has_pdf" && !r.combined_pdf_url) return false
+      if (filterArea !== "all" && (r.assigned_area || "").trim() !== filterArea) return false
+
+      if (filterYear !== "all" || (filterMonths.length > 0 && filterMonths.length < 12)) {
+        if (!r.created_at) return false
+        const dt = new Date(r.created_at)
+        if (Number.isNaN(dt.getTime())) return false
+        const yr = String(dt.getFullYear())
+        const mo = String(dt.getMonth() + 1).padStart(2, "0")
+        if (filterYear !== "all" && yr !== filterYear) return false
+        if (filterMonths.length > 0 && filterMonths.length < 12 && !filterMonths.includes(mo)) return false
+      }
+
+      if (q) {
+        const m1 = (r.title || "").toLowerCase().includes(q)
+        const m2 = (r.remarks || "").toLowerCase().includes(q)
+        const m3 = (r.voucher_numbers || []).some((vn) => vn.toLowerCase().includes(q))
+        const m4 = (r.created_by_name || "").toLowerCase().includes(q)
+        if (!m1 && !m2 && !m3 && !m4) return false
+      }
+      return true
     })
-  }, [releases, searchTerm])
+  }, [releases, searchTerm, filterPotStatus, filterArea, filterYear, filterMonths])
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchTerm, filterPotStatus, filterArea, filterYear, filterMonths, pageSize])
+
+  const paginatedReleases = useMemo(() => {
+    const totalPages = Math.max(1, Math.ceil(filteredReleases.length / pageSize))
+    const safePage = Math.min(currentPage, totalPages)
+    const start = (safePage - 1) * pageSize
+    return filteredReleases.slice(start, start + pageSize)
+  }, [filteredReleases, currentPage, pageSize])
 
   const stats = useMemo(() => {
     const totalGross = releases.reduce((s, r) => s + (Number(r.total_gross_comm) || 0), 0)
@@ -328,17 +393,66 @@ export function CommissionReleasesManager({ role }: CommissionReleasesManagerPro
         </Card>
       </div>
 
-      {/* Search */}
+      {/* Search & Filters */}
       <Card className="bg-white border-slate-200 shadow-sm">
-        <CardContent className="p-4">
-          <div className="relative">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <Input
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search release title, remarks, voucher #, or admin..."
-              className="pl-9 bg-white text-[#001f3f] border-slate-300"
-            />
+        <CardContent className="p-4 space-y-3">
+          <div className="flex flex-col md:flex-row gap-3">
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <Input
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search release title, remarks, voucher #, or admin..."
+                className="pl-9 bg-white text-[#001f3f] border-slate-300"
+              />
+            </div>
+            <Select value={filterPotStatus} onValueChange={setFilterPotStatus}>
+              <SelectTrigger className="w-full md:w-48 bg-white text-[#001f3f] border-slate-300">
+                <SelectValue placeholder="POT / PDF Status" />
+              </SelectTrigger>
+              <SelectContent className="bg-white">
+                <SelectItem value="all">All POT &amp; PDF Status</SelectItem>
+                <SelectItem value="has_pot">Has POT Files</SelectItem>
+                <SelectItem value="no_pot">Missing POT Files</SelectItem>
+                <SelectItem value="has_pdf">Has Combined PDF</SelectItem>
+              </SelectContent>
+            </Select>
+            {role === "super_admin" && availableAreas.length > 0 && (
+              <Select value={filterArea} onValueChange={setFilterArea}>
+                <SelectTrigger className="w-full md:w-40 bg-white text-[#001f3f] border-slate-300">
+                  <SelectValue placeholder="All Areas" />
+                </SelectTrigger>
+                <SelectContent className="bg-white">
+                  <SelectItem value="all">All Areas</SelectItem>
+                  {availableAreas.map((a) => (
+                    <SelectItem key={a} value={a}>
+                      {a}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            <div className="w-full md:w-36">
+              <YearSelect value={filterYear} onValueChange={setFilterYear} />
+            </div>
+            <div className="w-full md:w-44">
+              <MonthMultiSelect
+                selectedMonths={filterMonths}
+                onMonthsChange={setFilterMonths}
+                selectedYear={filterYear}
+              />
+            </div>
+            {activeFilterCount > 0 && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={resetFilters}
+                className="border-red-200 text-red-700 hover:bg-red-50 bg-white shrink-0"
+              >
+                <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
+                Reset ({activeFilterCount})
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -373,14 +487,14 @@ export function CommissionReleasesManager({ role }: CommissionReleasesManagerPro
                       Loading commission releases...
                     </TableCell>
                   </TableRow>
-                ) : filteredReleases.length === 0 ? (
+                ) : paginatedReleases.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={8} className="text-center py-12 text-slate-500">
                       No commission releases found. Highlight vouchers on the Vouchers page and click &ldquo;Merge into Release&rdquo;.
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredReleases.map((r) => (
+                  paginatedReleases.map((r) => (
                     <TableRow
                       key={r.id}
                       onClick={() => setSelectedRelease(r)}
@@ -469,6 +583,16 @@ export function CommissionReleasesManager({ role }: CommissionReleasesManagerPro
               </TableBody>
             </Table>
           </div>
+          {!loading && (
+            <DataTablePagination
+              totalItems={filteredReleases.length}
+              currentPage={currentPage}
+              pageSize={pageSize}
+              onPageChange={setCurrentPage}
+              onPageSizeChange={setPageSize}
+              itemLabel="releases"
+            />
+          )}
         </CardContent>
       </Card>
 

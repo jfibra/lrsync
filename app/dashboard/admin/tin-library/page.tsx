@@ -34,6 +34,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { SortableTableHead, sortData } from "@/components/ui/sortable-header"
+import { DataTablePagination } from "@/components/data-table-pagination"
 import { Textarea } from "@/components/ui/textarea"
 import { logNotification } from "@/utils/logNotification";
 import type { TaxpayerFormData, TaxpayerListing, TaxpayerType } from "@/types/taxpayer"
@@ -98,6 +99,8 @@ export default function AdminTinLibraryPage() {
 
   const [sortField, setSortField] = useState<string>("registered_name")
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc")
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(15)
 
   const handleSort = (field: string) => {
     if (sortField === field) {
@@ -149,6 +152,17 @@ export default function AdminTinLibraryPage() {
 
     return sortData(filtered, sortField, sortDirection)
   }, [taxpayers, searchTerm, filterType, filterArea, sortField, sortDirection])
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchTerm, filterType, filterArea, pageSize])
+
+  const paginatedTaxpayers = useMemo(() => {
+    const totalPages = Math.max(1, Math.ceil(filteredTaxpayers.length / pageSize))
+    const safePage = Math.min(currentPage, totalPages)
+    const start = (safePage - 1) * pageSize
+    return filteredTaxpayers.slice(start, start + pageSize)
+  }, [filteredTaxpayers, currentPage, pageSize])
 
   // Simple stats
   const stats = useMemo(
@@ -647,7 +661,7 @@ export default function AdminTinLibraryPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredTaxpayers.map((t) => (
+                      {paginatedTaxpayers.map((t) => (
                         <TableRow key={t.id} className="hover:bg-gray-50">
                           <TableCell className="font-mono text-gray-900">{formatTin(t.tin)}</TableCell>
                           <TableCell className="text-gray-900">{t.registered_name}</TableCell>
@@ -723,6 +737,14 @@ export default function AdminTinLibraryPage() {
                       ))}
                     </TableBody>
                   </Table>
+                  <DataTablePagination
+                    totalItems={filteredTaxpayers.length}
+                    currentPage={currentPage}
+                    pageSize={pageSize}
+                    onPageChange={setCurrentPage}
+                    onPageSizeChange={setPageSize}
+                    itemLabel="taxpayers"
+                  />
                 </div>
               )}
             </CardContent>

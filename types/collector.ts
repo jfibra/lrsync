@@ -43,6 +43,7 @@ export interface CollectorTransaction {
   cheque_photo_urls: string[]
   doc_2307_photo_urls: string[]
   voucher_photo_urls: string[]
+  voucher_number: string | null
   cheque_number: string | null
   cheque_bank: string | null
   cheque_branch: string | null

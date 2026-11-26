@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { SortableTableHead, sortData } from "@/components/ui/sortable-header"
+import { DataTablePagination } from "@/components/data-table-pagination"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Dialog,
@@ -60,6 +61,10 @@ export default function AdminUserManagement() {
   const [users, setUsers] = useState<UserProfile[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
+  const [filterRole, setFilterRole] = useState("all")
+  const [filterStatus, setFilterStatus] = useState("all")
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(15)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
 
@@ -135,17 +140,35 @@ export default function AdminUserManagement() {
   }, [error])
 
   const filteredUsers = sortData(
-    users.filter(
-      (user) =>
-        user.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        user.first_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        user.last_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        user.assigned_area?.toLowerCase().includes(searchTerm.toLowerCase()),
-    ),
+    users.filter((user) => {
+      if (filterRole !== "all" && user.role !== filterRole) return false
+      if (filterStatus !== "all" && user.status !== filterStatus) return false
+      if (searchTerm.trim() !== "") {
+        const q = searchTerm.toLowerCase()
+        const match =
+          user.full_name?.toLowerCase().includes(q) ||
+          user.first_name?.toLowerCase().includes(q) ||
+          user.last_name?.toLowerCase().includes(q) ||
+          user.email?.toLowerCase().includes(q) ||
+          user.assigned_area?.toLowerCase().includes(q)
+        if (!match) return false
+      }
+      return true
+    }),
     sortField,
     sortDirection
   )
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchTerm, filterRole, filterStatus, pageSize])
+
+  const paginatedUsers = (() => {
+    const totalPages = Math.max(1, Math.ceil(filteredUsers.length / pageSize))
+    const safePage = Math.min(currentPage, totalPages)
+    const start = (safePage - 1) * pageSize
+    return filteredUsers.slice(start, start + pageSize)
+  })()
 
   const validateEmail = (email: string): boolean => {
     const emailRegex =
@@ -664,6 +687,30 @@ export default function AdminUserManagement() {
               </div>
             </CardHeader>
             <CardContent>
+              <div className="flex flex-wrap items-center gap-2 mb-4">
+                <Select value={filterRole} onValueChange={setFilterRole}>
+                  <SelectTrigger className="w-36 bg-white border-rose-200 text-navy text-xs h-9">
+                    <SelectValue placeholder="All Roles" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white">
+                    <SelectItem value="all">All Roles</SelectItem>
+                    <SelectItem value="secretary">Secretary</SelectItem>
+                    <SelectItem value="collector">Collector</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={filterStatus} onValueChange={setFilterStatus}>
+                  <SelectTrigger className="w-36 bg-white border-rose-200 text-navy text-xs h-9">
+                    <SelectValue placeholder="All Statuses" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white">
+                    <SelectItem value="all">All Statuses</SelectItem>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="inactive">Inactive</SelectItem>
+                    <SelectItem value="suspended">Suspended</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               {loading ? (
                 <div className="flex flex-col items-center justify-center py-8">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-navy mb-4"></div>
@@ -672,6 +719,7 @@ export default function AdminUserManagement() {
               ) : (
                 <>
                   {filteredUsers.length > 0 ? (
+                    <>
                     <Table>
                       <TableHeader>
                         <TableRow className="bg-rose-100 hover:bg-rose-100">
@@ -685,7 +733,7 @@ export default function AdminUserManagement() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {filteredUsers.map((user) => (
+                        {paginatedUsers.map((user) => (
                           <TableRow key={user.id} className="hover:bg-orange-50/50">
                             <TableCell className="font-medium text-navy">
                               {user.full_name || `${user.first_name || ""} ${user.last_name || ""}`.trim() || "N/A"}
@@ -777,6 +825,15 @@ export default function AdminUserManagement() {
                         ))}
                       </TableBody>
                     </Table>
+                    <DataTablePagination
+                      totalItems={filteredUsers.length}
+                      currentPage={currentPage}
+                      pageSize={pageSize}
+                      onPageChange={setCurrentPage}
+                      onPageSizeChange={setPageSize}
+                      itemLabel="users"
+                    />
+                    </>
                   ) : (
                     <div className="text-center py-8 text-navy">
                       {searchTerm ? "No users found matching your search." : "No users found. Create your first user!"}

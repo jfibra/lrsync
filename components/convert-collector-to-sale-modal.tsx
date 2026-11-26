@@ -143,6 +143,7 @@ export function ConvertCollectorToSaleModal({
       transaction.deposit_amount ?? transaction.cheque_amount ?? transaction.commission_amount ?? 0
 
     const combinedRemarks = [
+      transaction.voucher_number ? `Voucher #: ${transaction.voucher_number}` : null,
       transaction.invoice_remarks ? `Invoice: ${transaction.invoice_remarks}` : null,
       transaction.cheque_remarks ? `Cheque: ${transaction.cheque_remarks}` : null,
       transaction.deposit_remarks ? `Deposit: ${transaction.deposit_remarks}` : null,

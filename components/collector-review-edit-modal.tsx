@@ -172,6 +172,7 @@ export function CollectorReviewEditModal({
   const [commissionAmount, setCommissionAmount] = useState("")
   const [invoiceRemarks, setInvoiceRemarks] = useState("")
 
+  const [voucherNumber, setVoucherNumber] = useState("")
   const [chequeNumber, setChequeNumber] = useState("")
   const [chequeBank, setChequeBank] = useState("")
   const [chequeBranch, setChequeBranch] = useState("")
@@ -196,6 +197,7 @@ export function CollectorReviewEditModal({
   const [devSearchOpen, setDevSearchOpen] = useState(false)
 
   // Duplicate warnings
+  const [dupVoucherCount, setDupVoucherCount] = useState(0)
   const [dupChequeCount, setDupChequeCount] = useState(0)
   const [dupDepositRefCount, setDupDepositRefCount] = useState(0)
 
@@ -217,6 +219,7 @@ export function CollectorReviewEditModal({
   const [actionLoading, setActionLoading] = useState(false)
 
   const roleSlug = role.replace("_", "-")
+  const canManageVoucherNo = role === "super_admin" || role === "admin"
   const isLocked = Boolean(tx?.workflow_status === "converted_to_sale" && role !== "super_admin")
 
   // Sync local state whenever transaction changes
@@ -236,6 +239,7 @@ export function CollectorReviewEditModal({
     )
     setInvoiceRemarks(transaction.invoice_remarks || "")
 
+    setVoucherNumber(transaction.voucher_number || "")
     setChequeNumber(transaction.cheque_number || "")
     setChequeBank(transaction.cheque_bank || "")
     setChequeBranch(transaction.cheque_branch || "")
@@ -291,10 +295,23 @@ export function CollectorReviewEditModal({
     return () => clearTimeout(t)
   }, [devSearch, devSearchOpen])
 
-  // Live duplicate check for cheque_number and deposit_reference_no
+  // Live duplicate check for voucher_number, cheque_number, and deposit_reference_no
   useEffect(() => {
     if (!tx?.id) return
     const checkDups = async () => {
+      const cleanVoucher = voucherNumber.trim()
+      if (cleanVoucher) {
+        const { count } = await supabase
+          .from("collector_transactions")
+          .select("id", { count: "exact", head: true })
+          .eq("is_deleted", false)
+          .neq("id", tx.id)
+          .eq("voucher_number", cleanVoucher)
+        setDupVoucherCount(count || 0)
+      } else {
+        setDupVoucherCount(0)
+      }
+
       const cleanCheque = chequeNumber.trim()
       if (cleanCheque) {
         const { count } = await supabase
@@ -323,7 +340,7 @@ export function CollectorReviewEditModal({
     }
     const timer = setTimeout(checkDups, 350)
     return () => clearTimeout(timer)
-  }, [tx?.id, chequeNumber, depositRefNo])
+  }, [tx?.id, voucherNumber, chequeNumber, depositRefNo])
 
   if (!tx) return null
 
@@ -466,6 +483,7 @@ export function CollectorReviewEditModal({
         commission_amount: parsedComm,
         invoice_remarks: invoiceRemarks.trim() || null,
 
+        ...(canManageVoucherNo ? { voucher_number: voucherNumber.trim() || null } : {}),
         cheque_number: chequeNumber.trim() || null,
         cheque_bank: chequeBank.trim() || null,
         cheque_branch: chequeBranch.trim() || null,
@@ -500,13 +518,14 @@ export function CollectorReviewEditModal({
 
       await logNotification(supabase, {
         action: "collector_transaction_edited",
-        description: `Accounting edited collector record for ${developerName.trim() || "Draft"} (Cheque #${chequeNumber.trim() || "N/A"})`,
+        description: `Accounting edited collector record for ${developerName.trim() || "Draft"} (Voucher #${voucherNumber.trim() || "N/A"}, Cheque #${chequeNumber.trim() || "N/A"})`,
         user_email: profile?.email || user.email || "",
         user_name: profile?.full_name || profile?.email || "Accounting",
         user_uuid: user.id,
         meta: JSON.stringify({
           collection_id: tx.id,
           developer_name: developerName.trim(),
+          voucher_number: voucherNumber.trim(),
           cheque_number: chequeNumber.trim(),
           commission_amount: parsedComm,
           cheque_amount: parsedCheque,
@@ -535,6 +554,7 @@ export function CollectorReviewEditModal({
       const { data: updated, error } = await supabase
         .from("collector_transactions")
         .update({
+          ...(canManageVoucherNo ? { voucher_number: voucherNumber.trim() || null } : {}),
           cheque_status: "verified",
           workflow_status: "verified",
           verified_by_uuid: user.id,
@@ -554,7 +574,7 @@ export function CollectorReviewEditModal({
 
       await logNotification(supabase, {
         action: "cheque_verified",
-        description: `Verified deposited cheque #${nextTx.cheque_number || "N/A"} for ${nextTx.developer_name || "Developer"} (${formatPHP(nextTx.deposit_amount ?? nextTx.cheque_amount)})`,
+        description: `Verified deposited cheque #${nextTx.cheque_number || "N/A"}${nextTx.voucher_number ? ` (Voucher #${nextTx.voucher_number})` : ""} for ${nextTx.developer_name || "Developer"} (${formatPHP(nextTx.deposit_amount ?? nextTx.cheque_amount)})`,
         user_email: profile?.email || user.email || "",
         user_name: verifierName,
         user_uuid: user.id,
@@ -564,6 +584,7 @@ export function CollectorReviewEditModal({
             nextTx.deposited_by_uuid ||
             nextTx.cheque_collected_by_uuid ||
             nextTx.invoice_collected_by_uuid,
+          voucher_number: nextTx.voucher_number,
           cheque_number: nextTx.cheque_number,
           developer_name: nextTx.developer_name,
         }),
@@ -666,7 +687,9 @@ export function CollectorReviewEditModal({
                   {developerName || "Draft / Unassigned Developer"}
                 </DialogTitle>
                 <DialogDescription className="mt-1">
-                  TIN: {developerTin || "—"} · Date: {invoiceDate || "—"} · {totalAttachmentsCount}{" "}
+                  TIN: {developerTin || "—"}
+                  {voucherNumber.trim() ? ` · Voucher #: ${voucherNumber.trim()}` : ""}
+                  {" · "}Date: {invoiceDate || "—"} · {totalAttachmentsCount}{" "}
                   Attachment{totalAttachmentsCount === 1 ? "" : "s"}
                   {isLocked && " · Locked (Converted to Sale)"}
                 </DialogDescription>
@@ -681,7 +704,7 @@ export function CollectorReviewEditModal({
           </DialogHeader>
 
           {/* Discrepancy & Duplicate Alerts */}
-          {(hasLiveDiscrepancy || dupChequeCount > 0 || dupDepositRefCount > 0) && (
+          {(hasLiveDiscrepancy || dupVoucherCount > 0 || dupChequeCount > 0 || dupDepositRefCount > 0) && (
             <div className="space-y-2">
               {hasLiveDiscrepancy && (
                 <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 flex items-center gap-2">
@@ -689,6 +712,15 @@ export function CollectorReviewEditModal({
                   <span>
                     <strong>Amount Discrepancy:</strong> Commission ({formatPHP(liveComm)}) ≠ Cheque (
                     {formatPHP(liveCheque)}).
+                  </span>
+                </div>
+              )}
+              {dupVoucherCount > 0 && (
+                <div className="rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-900 flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 text-red-600 shrink-0" />
+                  <span>
+                    <strong>Duplicate Voucher #:</strong> {dupVoucherCount} other active record(s)
+                    share Voucher #{voucherNumber}.
                   </span>
                 </div>
               )}
@@ -1007,10 +1039,40 @@ export function CollectorReviewEditModal({
 
               {/* 2. Cheque Details */}
               <div className="rounded-xl border border-slate-200 p-4 space-y-3 bg-white">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-[#001f3f]">
-                  2. Cheque Details
-                </h4>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-[#001f3f]">
+                    2. Cheque Details
+                  </h4>
+                  {canManageVoucherNo && (
+                    <span className="text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-2 py-0.5">
+                      Accounting Tracking Enabled
+                    </span>
+                  )}
+                </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="sm:col-span-3">
+                    <Label className="text-xs font-semibold text-[#001f3f] flex items-center justify-between">
+                      <span>Voucher No. (Accounting Tracking)</span>
+                      {!canManageVoucherNo && (
+                        <span className="text-[10px] font-normal text-slate-400">
+                          Super Admin / Admin only
+                        </span>
+                      )}
+                    </Label>
+                    <Input
+                      value={voucherNumber}
+                      onChange={(e) => setVoucherNumber(e.target.value)}
+                      disabled={isLocked || !canManageVoucherNo}
+                      placeholder={
+                        canManageVoucherNo
+                          ? "Enter Voucher No. for cheque verification & tracking..."
+                          : "Assigned by Accounting (Admin / Super Admin)"
+                      }
+                      className={`h-8 text-xs font-semibold ${
+                        canManageVoucherNo ? "border-emerald-300 focus-visible:ring-emerald-500 bg-emerald-50/30" : "bg-slate-50"
+                      }`}
+                    />
+                  </div>
                   <div>
                     <Label className="text-xs">Cheque Number</Label>
                     <Input
