@@ -45,6 +45,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { useRouter } from "next/navigation"
 import { SortableTableHead, sortData } from "@/components/ui/sortable-header"
 import { safeParseArray, safeFormatDate } from "@/lib/safe-parse"
+import {
+  fetchCommissionReportSummaries,
+  EMPTY_REPORT_SUMMARY,
+  formatPHPCompact,
+  type CommissionReportSummary,
+} from "@/lib/commission-report-enrichment"
 
 interface CommissionReport {
   uuid: string
@@ -70,6 +76,12 @@ interface CommissionReport {
     assigned_area: string
   }
   _attachmentType?: "secretary" | "accounting"
+  summary?: CommissionReportSummary
+  developer_display?: string
+  agents_display?: string
+  clients_display?: string
+  total_commission?: number
+  total_net_commission?: number
 }
 
 interface SalesData {
@@ -125,6 +137,9 @@ export default function SecretaryCommissionReportsPage() {
   const [editReport, setEditReport] = useState<CommissionReport | null>(null)
   const [columnVisibility, setColumnVisibility] = useState([
     { key: "report_number", label: "Report #", visible: true },
+    { key: "developer", label: "Developer", visible: true },
+    { key: "agents_clients", label: "Agents & Clients", visible: true },
+    { key: "commission_totals", label: "Commission (Net / Gross)", visible: true },
     { key: "created_by", label: "Created By", visible: true },
     { key: "created_date", label: "Created Date", visible: true },
     { key: "status", label: "Status", visible: true },
@@ -167,25 +182,23 @@ export default function SecretaryCommissionReportsPage() {
       setLoading(true)
 
       try {
-        // Fetch user profiles first to map creator info by id and auth_user_id
-        const { data: profilesData } = await supabase
-          .from("user_profiles")
-          .select("id, auth_user_id, full_name, assigned_area")
+        // Fetch user profiles, breakdown summaries, and commission reports in parallel
+        const [{ data: profilesData }, summaryMap, { data: allReports, error }] = await Promise.all([
+          supabase.from("user_profiles").select("id, auth_user_id, full_name, assigned_area"),
+          fetchCommissionReportSummaries(supabase),
+          supabase
+            .from("commission_report")
+            .select("*", { count: "exact" })
+            .is("deleted_at", null)
+            .order("created_at", { ascending: false })
+            .limit(50000),
+        ])
 
         const profileMap = new Map<string, { full_name: string; assigned_area: string }>()
         profilesData?.forEach((p) => {
           if (p.id) profileMap.set(p.id, { full_name: p.full_name || "", assigned_area: p.assigned_area || "" })
           if (p.auth_user_id) profileMap.set(p.auth_user_id, { full_name: p.full_name || "", assigned_area: p.assigned_area || "" })
         })
-
-        const query = supabase
-          .from("commission_report")
-          .select("*", { count: "exact" })
-          .is("deleted_at", null)
-          .order("created_at", { ascending: false })
-          .limit(50000)
-
-        const { data: allReports, error, count } = await query
 
         if (error) {
           console.error("Error fetching reports:", error)
@@ -195,20 +208,34 @@ export default function SecretaryCommissionReportsPage() {
           return
         }
 
-        const enrichedReports = (allReports || []).map((report) => ({
-          ...report,
-          user_profiles: profileMap.get(report.created_by) || { full_name: "Unknown User", assigned_area: "Unknown" },
-        }))
+        const enrichedReports = (allReports || []).map((report) => {
+          const summary = summaryMap.get(report.uuid) || EMPTY_REPORT_SUMMARY
+          return {
+            ...report,
+            user_profiles: profileMap.get(report.created_by) || { full_name: "Unknown User", assigned_area: "Unknown" },
+            summary,
+            developer_display: summary.developer_display,
+            agents_display: summary.agents_display,
+            clients_display: summary.clients_display,
+            total_commission: summary.total_commission,
+            total_net_commission: summary.total_net_commission,
+          }
+        })
 
         let filteredReports = enrichedReports.filter(
           (report) => report.user_profiles?.assigned_area === profile.assigned_area,
         )
 
-        if (searchTerm) {
+        if (searchTerm.trim()) {
+          const q = searchTerm.trim().toLowerCase()
           filteredReports = filteredReports.filter(
             (report) =>
-              report.report_number?.toString().includes(searchTerm) ||
-              report.remarks?.toLowerCase().includes(searchTerm.toLowerCase()),
+              report.report_number?.toString().includes(q) ||
+              report.remarks?.toLowerCase().includes(q) ||
+              report.developer_display?.toLowerCase().includes(q) ||
+              report.agents_display?.toLowerCase().includes(q) ||
+              report.clients_display?.toLowerCase().includes(q) ||
+              report.user_profiles?.full_name?.toLowerCase().includes(q),
           )
         }
 
@@ -846,7 +873,7 @@ export default function SecretaryCommissionReportsPage() {
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-purple-500 h-4 w-4" />
                     <Input
-                      placeholder="Search by report number or remarks..."
+                      placeholder="Search by report #, developer, agent, client, creator, or remarks..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                       className="pl-10 border-purple-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 bg-white text-[#001f3f] placeholder-gray-400"
@@ -963,6 +990,39 @@ export default function SecretaryCommissionReportsPage() {
                               Report #
                             </SortableTableHead>
                           )}
+                          {columnVisibility.find((col) => col.key === "developer")?.visible && (
+                            <SortableTableHead
+                              field="developer_display"
+                              currentSortField={sortField}
+                              currentSortDirection={sortDirection}
+                              onSort={handleSort}
+                              className="text-purple-700 font-semibold border-b border-purple-200"
+                            >
+                              Developer
+                            </SortableTableHead>
+                          )}
+                          {columnVisibility.find((col) => col.key === "agents_clients")?.visible && (
+                            <SortableTableHead
+                              field="agents_display"
+                              currentSortField={sortField}
+                              currentSortDirection={sortDirection}
+                              onSort={handleSort}
+                              className="text-purple-700 font-semibold border-b border-purple-200"
+                            >
+                              Agents &amp; Clients
+                            </SortableTableHead>
+                          )}
+                          {columnVisibility.find((col) => col.key === "commission_totals")?.visible && (
+                            <SortableTableHead
+                              field="total_net_commission"
+                              currentSortField={sortField}
+                              currentSortDirection={sortDirection}
+                              onSort={handleSort}
+                              className="text-purple-700 font-semibold border-b border-purple-200"
+                            >
+                              Commission (Net / Gross)
+                            </SortableTableHead>
+                          )}
                           {columnVisibility.find((col) => col.key === "created_by")?.visible && (
                             <SortableTableHead
                               field="user_profiles.full_name"
@@ -1059,6 +1119,99 @@ export default function SecretaryCommissionReportsPage() {
                                     >
                                       #{report.report_number}
                                     </a>
+                                  </TableCell>
+                                )}
+                                {columnVisibility.find((col) => col.key === "developer")?.visible && (
+                                  <TableCell className="text-[#001f3f] max-w-[210px]">
+                                    {report.summary && report.summary.developers.length > 0 ? (
+                                      <div className="space-y-1">
+                                        <div
+                                          className="font-semibold text-xs text-[#001f3f] line-clamp-2"
+                                          title={report.summary.developers.join(", ")}
+                                        >
+                                          {report.summary.developers[0]}
+                                        </div>
+                                        <div className="flex flex-wrap gap-1">
+                                          {report.summary.developers.length > 1 && (
+                                            <Badge
+                                              variant="outline"
+                                              className="text-[10px] py-0 px-1.5 border-purple-300 text-purple-700 bg-purple-50"
+                                              title={report.summary.developers.join(", ")}
+                                            >
+                                              +{report.summary.developers.length - 1} more
+                                            </Badge>
+                                          )}
+                                          {report.summary.has_unencoded && (
+                                            <Badge
+                                              variant="outline"
+                                              className="text-[10px] py-0 px-1.5 border-amber-300 text-amber-800 bg-amber-50"
+                                            >
+                                              Unencoded
+                                            </Badge>
+                                          )}
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <span className="text-xs text-gray-400 italic">—</span>
+                                    )}
+                                  </TableCell>
+                                )}
+                                {columnVisibility.find((col) => col.key === "agents_clients")?.visible && (
+                                  <TableCell className="text-[#001f3f] max-w-[220px]">
+                                    {report.summary &&
+                                    (report.summary.agents.length > 0 || report.summary.clients.length > 0) ? (
+                                      <div className="space-y-1">
+                                        {report.summary.agents.length > 0 && (
+                                          <div
+                                            className="text-xs font-medium text-slate-900 line-clamp-2"
+                                            title={report.summary.agents.join(", ")}
+                                          >
+                                            {report.summary.agents.slice(0, 2).join(", ")}
+                                            {report.summary.agents.length > 2 && (
+                                              <span className="text-purple-700 font-semibold">
+                                                {" "}
+                                                +{report.summary.agents.length - 2} more
+                                              </span>
+                                            )}
+                                          </div>
+                                        )}
+                                        {report.summary.clients.length > 0 && (
+                                          <div
+                                            className="text-[11px] text-slate-500 line-clamp-1"
+                                            title={`Clients: ${report.summary.clients.join(", ")}`}
+                                          >
+                                            Client: {report.summary.clients.slice(0, 2).join(", ")}
+                                            {report.summary.clients.length > 2 &&
+                                              ` +${report.summary.clients.length - 2}`}
+                                          </div>
+                                        )}
+                                      </div>
+                                    ) : (
+                                      <span className="text-xs text-gray-400 italic">—</span>
+                                    )}
+                                  </TableCell>
+                                )}
+                                {columnVisibility.find((col) => col.key === "commission_totals")?.visible && (
+                                  <TableCell className="whitespace-nowrap">
+                                    {report.summary && report.summary.breakdown_count > 0 ? (
+                                      <div className="space-y-0.5">
+                                        <div className="text-xs font-bold text-emerald-700">
+                                          {formatPHPCompact(report.summary.total_net_commission)}
+                                        </div>
+                                        <div className="text-[11px] text-slate-500">
+                                          Gross: {formatPHPCompact(report.summary.total_commission)}
+                                        </div>
+                                        <div className="text-[10px] text-slate-400">
+                                          {report.summary.breakdown_count}{" "}
+                                          {report.summary.breakdown_count === 1 ? "entry" : "entries"}
+                                          {report.summary.comm_types.length > 0
+                                            ? ` · ${report.summary.comm_types[0]}`
+                                            : ""}
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <span className="text-xs text-gray-400 italic">—</span>
+                                    )}
                                   </TableCell>
                                 )}
                                 {columnVisibility.find((col) => col.key === "created_by")?.visible && (

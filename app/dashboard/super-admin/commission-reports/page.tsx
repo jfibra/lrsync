@@ -48,6 +48,12 @@ import { SortableTableHead, sortData } from "@/components/ui/sortable-header"
 import { formatS3Url } from "@/utils/s3-url"
 import { downloadAttachmentsAsZip } from "@/utils/download-attachments"
 import { safeParseArray, safeFormatDate } from "@/lib/safe-parse"
+import {
+  fetchCommissionReportSummaries,
+  EMPTY_REPORT_SUMMARY,
+  formatPHPCompact,
+  type CommissionReportSummary,
+} from "@/lib/commission-report-enrichment"
 
 interface CommissionReport {
   uuid: string
@@ -75,6 +81,12 @@ interface CommissionReport {
     assigned_area?: string
   }
   _attachmentType?: string
+  summary?: CommissionReportSummary
+  developer_display?: string
+  agents_display?: string
+  clients_display?: string
+  total_commission?: number
+  total_net_commission?: number
 }
 
 interface UploadedFile {
@@ -133,7 +145,7 @@ export default function SuperAdminCommissionReportsPage() {
         if (key) map[key] = (map[key] || 0) + 1
       }
       setConvertedVoucherCounts(map)
-    } catch {}
+    } catch { }
   }
 
   useEffect(() => {
@@ -179,6 +191,9 @@ export default function SuperAdminCommissionReportsPage() {
 
   const [columnVisibility, setColumnVisibility] = useState([
     { key: "report_number", label: "Report #", visible: true },
+    { key: "developer", label: "Developer", visible: true },
+    { key: "agents_clients", label: "Agents & Clients", visible: true },
+    { key: "commission_totals", label: "Commission (Net / Gross)", visible: true },
     { key: "created_by", label: "Created By", visible: true },
     { key: "assigned_area", label: "Assigned Area", visible: true },
     { key: "created_date", label: "Created Date", visible: true },
@@ -232,6 +247,11 @@ export default function SuperAdminCommissionReportsPage() {
       ["DETAILED COMMISSION REPORTS"],
       [
         "Report #",
+        "Developer(s)",
+        "Agent(s)",
+        "Client(s)",
+        "Gross Commission",
+        "Net Commission",
         "Created By",
         "Assigned Area",
         "Created Date",
@@ -250,6 +270,11 @@ export default function SuperAdminCommissionReportsPage() {
 
       summaryData.push([
         `#${report.report_number}`,
+        report.developer_display || "N/A",
+        report.agents_display || "N/A",
+        report.clients_display || "N/A",
+        report.total_commission ?? 0,
+        report.total_net_commission ?? 0,
         report.user_profiles?.full_name || "Unknown User",
         report.user_profiles?.assigned_area || "N/A",
         format(new Date(report.created_at), "MMM dd, yyyy HH:mm"),
@@ -896,10 +921,25 @@ export default function SuperAdminCommissionReportsPage() {
     const fetchReports = async () => {
       setLoading(true)
 
-      // Fetch user profiles first for creator mapping
-      const { data: profilesData } = await supabase
-        .from("user_profiles")
-        .select("id, auth_user_id, full_name, assigned_area")
+      // Fetch user profiles & commission breakdown summaries in parallel
+      const [{ data: profilesData }, summaryMap, { data: allData, error: fetchError }] = await Promise.all([
+        supabase.from("user_profiles").select("id, auth_user_id, full_name, assigned_area"),
+        fetchCommissionReportSummaries(supabase),
+        supabase
+          .from("commission_report")
+          .select("*")
+          .is("deleted_at", null)
+          .order("created_at", { ascending: false })
+          .limit(50000),
+      ])
+
+      if (fetchError) {
+        console.log("[v0] Error fetching commission reports:", fetchError)
+        setReports([])
+        setTotalRecords(0)
+        setLoading(false)
+        return
+      }
 
       const profileMap = new Map<string, { full_name: string; assigned_area: string }>()
       profilesData?.forEach((p) => {
@@ -907,97 +947,62 @@ export default function SuperAdminCommissionReportsPage() {
         if (p.auth_user_id) profileMap.set(p.auth_user_id, { full_name: p.full_name || "", assigned_area: p.assigned_area || "" })
       })
 
-      const enrichReport = (r: any) => ({
-        ...r,
-        user_profiles: profileMap.get(r.created_by) || { full_name: "Unknown User", assigned_area: "Unknown" },
-      })
+      const enrichReport = (r: any) => {
+        const summary = summaryMap.get(r.uuid) || EMPTY_REPORT_SUMMARY
+        return {
+          ...r,
+          user_profiles: profileMap.get(r.created_by) || { full_name: "Unknown User", assigned_area: "Unknown" },
+          summary,
+          developer_display: summary.developer_display,
+          agents_display: summary.agents_display,
+          clients_display: summary.clients_display,
+          total_commission: summary.total_commission,
+          total_net_commission: summary.total_net_commission,
+        }
+      }
 
-      let query = supabase
-        .from("commission_report")
-        .select("*", { count: "exact" })
-        .is("deleted_at", null)
-        .order("created_at", { ascending: false })
+      let filteredData = (allData || []).map(enrichReport)
+
+      if (searchTerm.trim()) {
+        const q = searchTerm.trim().toLowerCase()
+        filteredData = filteredData.filter((r) => {
+          const reportNum = String(r.report_number || "").toLowerCase()
+          const remarks = String(r.remarks || "").toLowerCase()
+          const dev = String(r.developer_display || "").toLowerCase()
+          const agents = String(r.agents_display || "").toLowerCase()
+          const clients = String(r.clients_display || "").toLowerCase()
+          const creator = String(r.user_profiles?.full_name || "").toLowerCase()
+          const area = String(r.user_profiles?.assigned_area || "").toLowerCase()
+          return (
+            reportNum.includes(q) ||
+            remarks.includes(q) ||
+            dev.includes(q) ||
+            agents.includes(q) ||
+            clients.includes(q) ||
+            creator.includes(q) ||
+            area.includes(q)
+          )
+        })
+      }
 
       // Apply status filter
       if (statusFilter !== "all") {
-        query = query.eq("status", statusFilter)
+        filteredData = filteredData.filter((r) => r.status === statusFilter)
       }
 
-      let data: any[] = []
-      let count = 0
-
-      if (searchTerm) {
-        // Search by report_number or remarks
-        const { data: reportsByNumber } = await supabase
-          .from("commission_report")
-          .select("*")
-          .ilike("report_number", `%${searchTerm}%`)
-          .is("deleted_at", null)
-          .limit(50000)
-        const { data: reportsByRemarks } = await supabase
-          .from("commission_report")
-          .select("*")
-          .ilike("remarks", `%${searchTerm}%`)
-          .is("deleted_at", null)
-          .limit(50000)
-
-        let merged = [...(reportsByNumber || []), ...(reportsByRemarks || [])].map(enrichReport)
-        // Remove duplicates
-        merged = merged.filter((v, i, a) => a.findIndex((t) => t.uuid === v.uuid) === i)
-
-        // Apply status filter
-        if (statusFilter !== "all") {
-          merged = merged.filter((r) => r.status === statusFilter)
-        }
-
-        // Apply assigned area filter
-        if (assignedAreaFilter !== "all") {
-          merged = merged.filter((r) => r.user_profiles && r.user_profiles.assigned_area === assignedAreaFilter)
-        }
-
-        count = merged.length
-        // Apply sorting across all filtered records
-        merged = sortData(merged, sortField, sortDirection)
-        // Apply pagination AFTER all filters and sorting
-        const from = (currentPage - 1) * recordsPerPage
-        data = merged.slice(from, from + recordsPerPage)
-      } else {
-        const { data: allData, error: fetchError } = await supabase
-          .from("commission_report")
-          .select("*")
-          .is("deleted_at", null)
-          .order("created_at", { ascending: false })
-          .limit(50000)
-
-        if (fetchError) {
-          console.log("[v0] Error fetching commission reports:", fetchError)
-          setReports([])
-          setTotalRecords(0)
-          setLoading(false)
-          return
-        }
-
-        let filteredData = (allData || []).map(enrichReport)
-
-        // Apply status filter
-        if (statusFilter !== "all") {
-          filteredData = filteredData.filter((r) => r.status === statusFilter)
-        }
-
-        // Apply assigned area filter
-        if (assignedAreaFilter !== "all") {
-          filteredData = filteredData.filter(
-            (r) => r.user_profiles && r.user_profiles.assigned_area === assignedAreaFilter,
-          )
-        }
-
-        count = filteredData.length
-        // Apply sorting across all filtered records
-        filteredData = sortData(filteredData, sortField, sortDirection)
-        // Apply pagination AFTER all filters and sorting
-        const from = (currentPage - 1) * recordsPerPage
-        data = filteredData.slice(from, from + recordsPerPage)
+      // Apply assigned area filter
+      if (assignedAreaFilter !== "all") {
+        filteredData = filteredData.filter(
+          (r) => r.user_profiles && r.user_profiles.assigned_area === assignedAreaFilter,
+        )
       }
+
+      const count = filteredData.length
+      // Apply sorting across all filtered records
+      filteredData = sortData(filteredData, sortField, sortDirection)
+      // Apply pagination AFTER all filters and sorting
+      const from = (currentPage - 1) * recordsPerPage
+      const data = filteredData.slice(from, from + recordsPerPage)
 
       setTotalRecords(count)
       setReports(
@@ -1194,7 +1199,7 @@ export default function SuperAdminCommissionReportsPage() {
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-500 h-4 w-4" />
                     <Input
-                      placeholder="Search by report number or remarks..."
+                      placeholder="Search by report #, developer, agent, client, creator, or remarks..."
                       value={searchTerm}
                       onChange={handleSearchTermChange}
                       className="pl-10 border-blue-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 bg-white text-[#001f3f] placeholder-gray-400"
@@ -1317,6 +1322,39 @@ export default function SuperAdminCommissionReportsPage() {
                               Report #
                             </SortableTableHead>
                           )}
+                          {columnVisibility.find((col) => col.key === "developer")?.visible && (
+                            <SortableTableHead
+                              field="developer_display"
+                              currentSortField={sortField}
+                              currentSortDirection={sortDirection}
+                              onSort={handleSort}
+                              className="text-blue-700 font-semibold border-b border-blue-200"
+                            >
+                              Developer
+                            </SortableTableHead>
+                          )}
+                          {columnVisibility.find((col) => col.key === "agents_clients")?.visible && (
+                            <SortableTableHead
+                              field="agents_display"
+                              currentSortField={sortField}
+                              currentSortDirection={sortDirection}
+                              onSort={handleSort}
+                              className="text-blue-700 font-semibold border-b border-blue-200"
+                            >
+                              Agents &amp; Clients
+                            </SortableTableHead>
+                          )}
+                          {columnVisibility.find((col) => col.key === "commission_totals")?.visible && (
+                            <SortableTableHead
+                              field="total_net_commission"
+                              currentSortField={sortField}
+                              currentSortDirection={sortDirection}
+                              onSort={handleSort}
+                              className="text-blue-700 font-semibold border-b border-blue-200"
+                            >
+                              Commission (Net / Gross)
+                            </SortableTableHead>
+                          )}
                           {columnVisibility.find((col) => col.key === "created_by")?.visible && (
                             <SortableTableHead
                               field="user_profiles.full_name"
@@ -1425,6 +1463,99 @@ export default function SuperAdminCommissionReportsPage() {
                                     >
                                       #{report.report_number}
                                     </a>
+                                  </TableCell>
+                                )}
+                                {columnVisibility.find((col) => col.key === "developer")?.visible && (
+                                  <TableCell className="text-[#001f3f] max-w-[210px]">
+                                    {report.summary && report.summary.developers.length > 0 ? (
+                                      <div className="space-y-1">
+                                        <div
+                                          className="font-semibold text-xs text-[#001f3f] line-clamp-2"
+                                          title={report.summary.developers.join(", ")}
+                                        >
+                                          {report.summary.developers[0]}
+                                        </div>
+                                        <div className="flex flex-wrap gap-1">
+                                          {report.summary.developers.length > 1 && (
+                                            <Badge
+                                              variant="outline"
+                                              className="text-[10px] py-0 px-1.5 border-blue-300 text-blue-700 bg-blue-50"
+                                              title={report.summary.developers.join(", ")}
+                                            >
+                                              +{report.summary.developers.length - 1} more
+                                            </Badge>
+                                          )}
+                                          {report.summary.has_unencoded && (
+                                            <Badge
+                                              variant="outline"
+                                              className="text-[10px] py-0 px-1.5 border-amber-300 text-amber-800 bg-amber-50"
+                                            >
+                                              Unencoded
+                                            </Badge>
+                                          )}
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <span className="text-xs text-gray-400 italic">—</span>
+                                    )}
+                                  </TableCell>
+                                )}
+                                {columnVisibility.find((col) => col.key === "agents_clients")?.visible && (
+                                  <TableCell className="text-[#001f3f] max-w-[220px]">
+                                    {report.summary &&
+                                      (report.summary.agents.length > 0 || report.summary.clients.length > 0) ? (
+                                      <div className="space-y-1">
+                                        {report.summary.agents.length > 0 && (
+                                          <div
+                                            className="text-xs font-medium text-slate-900 line-clamp-2"
+                                            title={report.summary.agents.join(", ")}
+                                          >
+                                            {report.summary.agents.slice(0, 2).join(", ")}
+                                            {report.summary.agents.length > 2 && (
+                                              <span className="text-blue-700 font-semibold">
+                                                {" "}
+                                                +{report.summary.agents.length - 2} more
+                                              </span>
+                                            )}
+                                          </div>
+                                        )}
+                                        {report.summary.clients.length > 0 && (
+                                          <div
+                                            className="text-[11px] text-slate-500 line-clamp-1"
+                                            title={`Clients: ${report.summary.clients.join(", ")}`}
+                                          >
+                                            Client: {report.summary.clients.slice(0, 2).join(", ")}
+                                            {report.summary.clients.length > 2 &&
+                                              ` +${report.summary.clients.length - 2}`}
+                                          </div>
+                                        )}
+                                      </div>
+                                    ) : (
+                                      <span className="text-xs text-gray-400 italic">—</span>
+                                    )}
+                                  </TableCell>
+                                )}
+                                {columnVisibility.find((col) => col.key === "commission_totals")?.visible && (
+                                  <TableCell className="whitespace-nowrap">
+                                    {report.summary && report.summary.breakdown_count > 0 ? (
+                                      <div className="space-y-0.5">
+                                        <div className="text-xs font-bold text-emerald-700">
+                                          {formatPHPCompact(report.summary.total_net_commission)}
+                                        </div>
+                                        <div className="text-[11px] text-slate-500">
+                                          Gross: {formatPHPCompact(report.summary.total_commission)}
+                                        </div>
+                                        <div className="text-[10px] text-slate-400">
+                                          {report.summary.breakdown_count}{" "}
+                                          {report.summary.breakdown_count === 1 ? "entry" : "entries"}
+                                          {report.summary.comm_types.length > 0
+                                            ? ` · ${report.summary.comm_types[0]}`
+                                            : ""}
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <span className="text-xs text-gray-400 italic">—</span>
+                                    )}
                                   </TableCell>
                                 )}
                                 {columnVisibility.find((col) => col.key === "created_by")?.visible && (
@@ -1818,11 +1949,11 @@ export default function SuperAdminCommissionReportsPage() {
         report={
           convertReport
             ? {
-                uuid: convertReport.uuid,
-                report_number: convertReport.report_number,
-                assigned_area: convertReport.user_profiles?.assigned_area || null,
-                remarks: convertReport.remarks,
-              }
+              uuid: convertReport.uuid,
+              report_number: convertReport.report_number,
+              assigned_area: convertReport.user_profiles?.assigned_area || null,
+              remarks: convertReport.remarks,
+            }
             : null
         }
         onConverted={fetchConvertedCounts}
