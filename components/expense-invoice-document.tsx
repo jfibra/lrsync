@@ -859,28 +859,100 @@ export function ExpenseInvoiceDocument({
                   </div>
                 </div>
               ) : isApproved && invoice.signed_via === "super_admin_attachment" ? (
-                <div
-                  style={{
-                    border: "2px solid #16a34a",
-                    borderRadius: 6,
-                    padding: "6px 12px",
-                    color: "#15803d",
-                    backgroundColor: "#f0fdf4",
-                    fontSize: 10.5,
-                    fontWeight: 800,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.5px",
-                    lineHeight: 1.35,
-                    marginBottom: 6,
-                  }}
-                >
-                  <div>APPROVED WITH PROOF ATTACHMENT</div>
-                  {invoice.signed_at && (
-                    <div style={{ fontSize: 9.5, fontWeight: 600 }}>
-                      {format(new Date(invoice.signed_at), "yyyy-MM-dd HH:mm")}
+                (() => {
+                  let uploadedBy = ""
+                  let uploadedByEmail = ""
+                  let remarks = ""
+
+                  if (
+                    typeof invoice.rejection_reason === "string" &&
+                    invoice.rejection_reason.startsWith("MANUAL_APPROVAL_META:")
+                  ) {
+                    try {
+                      const parsed = JSON.parse(
+                        invoice.rejection_reason.slice("MANUAL_APPROVAL_META:".length)
+                      )
+                      uploadedBy = parsed?.uploadedBy || ""
+                      uploadedByEmail = parsed?.uploadedByEmail || ""
+                      remarks = parsed?.remarks || ""
+                    } catch {
+                      // ignore malformed metadata
+                    }
+                  } else if (
+                    invoice.approved_by_name &&
+                    invoice.approved_by_name.toUpperCase() !== "ANTHONY GERARD LEUTERIO"
+                  ) {
+                    // Legacy fallback for vouchers approved before owner-name preservation fix
+                    uploadedBy = invoice.approved_by_name
+                      .replace(/\s*\(Approved w\/ Proof\)\s*/i, "")
+                      .trim()
+                    if (
+                      invoice.approved_by_email &&
+                      invoice.approved_by_email.toLowerCase() !== "mindworth@gmail.com"
+                    ) {
+                      uploadedByEmail = invoice.approved_by_email
+                    }
+                  }
+
+                  return (
+                    <div
+                      style={{
+                        display: "flex",
+                        flexWrap: "wrap",
+                        alignItems: "center",
+                        gap: 10,
+                        marginBottom: 6,
+                      }}
+                    >
+                      <div
+                        style={{
+                          border: "2px solid #16a34a",
+                          borderRadius: 6,
+                          padding: "6px 12px",
+                          color: "#15803d",
+                          backgroundColor: "#f0fdf4",
+                          fontSize: 10.5,
+                          fontWeight: 800,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.5px",
+                          lineHeight: 1.35,
+                        }}
+                      >
+                        <div>APPROVED WITH PROOF ATTACHMENT</div>
+                        {invoice.signed_at && (
+                          <div style={{ fontSize: 9.5, fontWeight: 600 }}>
+                            {format(new Date(invoice.signed_at), "yyyy-MM-dd HH:mm")}
+                          </div>
+                        )}
+                      </div>
+                      {(uploadedBy || remarks) && (
+                        <div
+                          style={{
+                            borderLeft: "2px solid #cbd5e1",
+                            paddingLeft: 10,
+                            fontSize: 10.5,
+                            color: "#475569",
+                            lineHeight: 1.4,
+                            maxWidth: 230,
+                          }}
+                        >
+                          {uploadedBy && (
+                            <div>
+                              <strong style={{ color: "#0f172a" }}>Recorded by:</strong>{" "}
+                              {uploadedBy}
+                              {uploadedByEmail ? ` (${uploadedByEmail})` : ""}
+                            </div>
+                          )}
+                          {remarks && (
+                            <div style={{ marginTop: 2 }}>
+                              <strong style={{ color: "#0f172a" }}>Remarks:</strong> {remarks}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
+                  )
+                })()
               ) : (
                 <div
                   style={{
@@ -904,10 +976,16 @@ export function ExpenseInvoiceDocument({
                 color: "#001f3f",
               }}
             >
-              {invoice.approved_by_name || "ANTHONY GERARD LEUTERIO"}
+              {invoice.signed_via === "super_admin_attachment"
+                ? "ANTHONY GERARD LEUTERIO"
+                : invoice.approved_by_name || "ANTHONY GERARD LEUTERIO"}
             </div>
             <div style={{ fontSize: 11.5, color: "#64748b", marginTop: 4 }}>
-              President / CEO ({invoice.approved_by_email || "mindworth@gmail.com"})
+              President / CEO (
+              {invoice.signed_via === "super_admin_attachment"
+                ? "mindworth@gmail.com"
+                : invoice.approved_by_email || "mindworth@gmail.com"}
+              )
               {formattedSignedDate && (
                 <div style={{ color: "#15803d", fontWeight: 600, marginTop: 2 }}>
                   Signed Date: {formattedSignedDate}

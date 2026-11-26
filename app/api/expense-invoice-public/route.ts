@@ -78,6 +78,9 @@ export async function POST(request: NextRequest) {
       approvalAttachments, // string[] — required when signedVia === "super_admin_attachment"
       approvedByName = "ANTHONY GERARD LEUTERIO",
       approvedByEmail = "mindworth@gmail.com",
+      uploadedByName,
+      uploadedByEmail,
+      approvalRemarks,
       signedVia = "email_link", // "email_link" | "dashboard" | "super_admin_attachment"
       signedPdfUrl,
       rejectionReason,
@@ -197,14 +200,30 @@ export async function POST(request: NextRequest) {
           ? JSON.stringify(cleanedAttachments)
           : null;
 
+    const effectiveApprovedByName = isManualAttachmentApproval
+      ? "ANTHONY GERARD LEUTERIO"
+      : approvedByName;
+    const effectiveApprovedByEmail = isManualAttachmentApproval
+      ? "mindworth@gmail.com"
+      : approvedByEmail;
+
+    const manualMetaString = isManualAttachmentApproval
+      ? `MANUAL_APPROVAL_META:${JSON.stringify({
+          uploadedBy: String(uploadedByName || "Accounting / Super Admin").trim(),
+          uploadedByEmail: String(uploadedByEmail || "").trim(),
+          remarks: String(approvalRemarks || "").trim(),
+        })}`
+      : null;
+
     const updatePayload: any = {
       status: invoice.status === "converted" ? "converted" : "approved",
       signature_data: signatureData || invoice.signature_data || null,
       signed_at: now,
       signed_via: signedVia,
       signed_ip: ipAddress,
-      approved_by_name: approvedByName,
-      approved_by_email: approvedByEmail,
+      approved_by_name: effectiveApprovedByName,
+      approved_by_email: effectiveApprovedByEmail,
+      ...(manualMetaString ? { rejection_reason: manualMetaString } : {}),
       updated_at: now,
     };
 
@@ -242,7 +261,7 @@ export async function POST(request: NextRequest) {
       .update({
         status: "approved",
         approved_at: now,
-        approved_by: approvedByName,
+        approved_by: effectiveApprovedByName,
         updated_at: now,
       })
       .eq("expense_invoice_id", invoice.id);
@@ -253,7 +272,7 @@ export async function POST(request: NextRequest) {
         .update({
           status: "approved",
           approved_at: now,
-          approved_by: approvedByName,
+          approved_by: effectiveApprovedByName,
           updated_at: now,
         })
         .in("id", invoice.expense_request_ids);
@@ -263,20 +282,21 @@ export async function POST(request: NextRequest) {
     await supabaseAdmin.from("notifications").insert([
       {
         action: "expense_invoice_approved",
-        description: `Expense Voucher #${invoice.invoice_number} (PHP ${Number(invoice.total || 0).toLocaleString()}) was approved by ${approvedByName} via ${
-          signedVia === "super_admin_attachment"
-            ? `Super Admin Manual Proof Attachment (${cleanedAttachments.length} file${cleanedAttachments.length === 1 ? "" : "s"})`
-            : signedVia === "email_link"
-              ? "Email Approval Link"
-              : "Executive Dashboard"
-        }`,
-        user_name: approvedByName,
-        user_email: approvedByEmail,
+        description: isManualAttachmentApproval
+          ? `Expense Voucher #${invoice.invoice_number} (PHP ${Number(invoice.total || 0).toLocaleString()}) was approved under ${effectiveApprovedByName} via Proof Attachment (${cleanedAttachments.length} file${cleanedAttachments.length === 1 ? "" : "s"}) recorded by ${uploadedByName || "Super Admin"}${approvalRemarks ? ` — Remarks: ${String(approvalRemarks).trim()}` : ""}`
+          : `Expense Voucher #${invoice.invoice_number} (PHP ${Number(invoice.total || 0).toLocaleString()}) was approved by ${effectiveApprovedByName} via ${
+              signedVia === "email_link" ? "Email Approval Link" : "Executive Dashboard"
+            }`,
+        user_name: isManualAttachmentApproval ? (uploadedByName || "Super Admin") : effectiveApprovedByName,
+        user_email: isManualAttachmentApproval ? (uploadedByEmail || effectiveApprovedByEmail) : effectiveApprovedByEmail,
         meta: {
           invoice_id: invoice.id,
           invoice_number: invoice.invoice_number,
           signed_at: now,
           signed_via: signedVia,
+          approved_by_name: effectiveApprovedByName,
+          uploaded_by_name: uploadedByName || null,
+          approval_remarks: approvalRemarks || null,
           approval_attachments: cleanedAttachments,
           total: invoice.total,
         },

@@ -82,6 +82,7 @@ export function ViewExpenseInvoiceModal({
 
   // Super Admin Manual Approval with mandatory proof attachment
   const [uploadedProofUrls, setUploadedProofUrls] = useState<{ url: string; name: string }[]>([])
+  const [manualApprovalRemarks, setManualApprovalRemarks] = useState("")
   const [uploadingProof, setUploadingProof] = useState(false)
   const [submittingManualApproval, setSubmittingManualApproval] = useState(false)
   const [downloadingAllProofs, setDownloadingAllProofs] = useState(false)
@@ -91,6 +92,7 @@ export function ViewExpenseInvoiceModal({
     setShowTaxColumns(invoice?.payment_terms !== "hide_tax_columns")
     if (!open) {
       setUploadedProofUrls([])
+      setManualApprovalRemarks("")
       setSignatureData(null)
       setShowRejectInput(false)
       setRejectionReason("")
@@ -284,9 +286,7 @@ export function ViewExpenseInvoiceModal({
     }
     setSubmittingManualApproval(true)
     try {
-      const approverName = profile?.full_name
-        ? `${profile.full_name} (Approved w/ Proof)`
-        : "Super Admin (Approved w/ Proof)"
+      const uploaderName = profile?.full_name || profile?.email || "Super Admin"
       const res = await fetch("/api/expense-invoice-public", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -295,8 +295,11 @@ export function ViewExpenseInvoiceModal({
           action: "approve",
           signedVia: "super_admin_attachment",
           approvalAttachments: uploadedProofUrls.map((f) => f.url),
-          approvedByName: approverName,
-          approvedByEmail: profile?.email || "super_admin",
+          approvedByName: "ANTHONY GERARD LEUTERIO",
+          approvedByEmail: "mindworth@gmail.com",
+          uploadedByName: uploaderName,
+          uploadedByEmail: profile?.email || "",
+          approvalRemarks: manualApprovalRemarks.trim(),
         }),
       })
       const data = await res.json()
@@ -306,6 +309,7 @@ export function ViewExpenseInvoiceModal({
         `Expense Voucher #${invoice.invoice_number} has been approved with the uploaded proof attachment! You can now convert it to a Purchase record.`
       )
       setUploadedProofUrls([])
+      setManualApprovalRemarks("")
       onUpdated?.()
       onOpenChange(false)
     } catch (err: any) {
@@ -574,6 +578,19 @@ export function ViewExpenseInvoiceModal({
                 No attachment uploaded yet. Upload a signed voucher photo, screenshot, or PDF to enable manual approval.
               </div>
             )}
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-amber-950">
+                Approval Remarks (Optional)
+              </Label>
+              <Input
+                value={manualApprovalRemarks}
+                onChange={(e) => setManualApprovalRemarks(e.target.value)}
+                placeholder="e.g. Approved via Messenger / Signed hard copy attached..."
+                disabled={submittingManualApproval}
+                className="bg-white border-amber-300 text-slate-900 text-xs"
+              />
+            </div>
 
             <div className="flex justify-end pt-1">
               <Button
