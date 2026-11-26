@@ -38,6 +38,7 @@ import {
   ArrowUp,
   ArrowDown,
   RotateCcw,
+  Printer,
 } from "lucide-react"
 import { format } from "date-fns"
 import { useAuth } from "@/contexts/auth-context"
@@ -102,6 +103,11 @@ export function CommissionVouchersManager({ role }: CommissionVouchersManagerPro
   const [releaseTitle, setReleaseTitle] = useState("")
   const [releaseRemarks, setReleaseRemarks] = useState("")
   const [merging, setMerging] = useState(false)
+
+  // For Printing preview modal state (vouchers only, no attachments)
+  const [printPreviewOpen, setPrintPreviewOpen] = useState(false)
+  const [printingVouchers, setPrintingVouchers] = useState(false)
+  const printPreviewContainerRef = useRef<HTMLDivElement | null>(null)
 
   // Batch PDF regeneration state
   const [regeneratingPdfs, setRegeneratingPdfs] = useState(false)
@@ -402,6 +408,25 @@ export function CommissionVouchersManager({ role }: CommissionVouchersManagerPro
       currency: "PHP",
     }).format(Number(val) || 0)
 
+  const logVoucherAction = async (
+    action: string,
+    description: string,
+    meta: Record<string, any> = {}
+  ) => {
+    if (!profile?.id) return
+    await logNotification(supabase, {
+      action,
+      description,
+      ip_address: null,
+      location: null,
+      meta: JSON.stringify(meta),
+      user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+      user_email: profile.email || "",
+      user_name: profile.full_name || profile.first_name || profile.email || profile.id,
+      user_uuid: profile.id,
+    })
+  }
+
   const handleDelete = async (voucher: CommissionVoucherData) => {
     if (isReadOnly || !voucher.id) return
     if (!confirm(`Are you sure you want to delete Voucher #${voucher.voucher_number}?`)) return
@@ -411,6 +436,17 @@ export function CommissionVouchersManager({ role }: CommissionVouchersManagerPro
         .update({ is_deleted: true, deleted_at: new Date().toISOString() })
         .eq("id", voucher.id)
       if (error) throw error
+      await logVoucherAction(
+        "commission_voucher_deleted",
+        `Deleted Commission Voucher #${voucher.voucher_number} (${voucher.agent_name || "Agent"} — ${formatCurrency(Number(voucher.total_amount) || 0)})`,
+        {
+          voucher_id: voucher.id,
+          voucher_number: voucher.voucher_number,
+          agent_name: voucher.agent_name,
+          developer_name: voucher.developer_name,
+          total_amount: voucher.total_amount,
+        }
+      )
       setSelectedIds((prev) => prev.filter((id) => id !== voucher.id))
       fetchVouchers()
     } catch (err: any) {
@@ -467,6 +503,16 @@ export function CommissionVouchersManager({ role }: CommissionVouchersManagerPro
 
       if (error) throw error
 
+      await logVoucherAction(
+        "commission_voucher_attachment_uploaded",
+        `Uploaded ${uploadedUrls.length} extra attachment(s) to Commission Voucher #${attachVoucher.voucher_number}`,
+        {
+          voucher_id: attachVoucher.id,
+          voucher_number: attachVoucher.voucher_number,
+          uploaded_count: uploadedUrls.length,
+        }
+      )
+
       setAttachVoucher({ ...attachVoucher, attachments: nextAttachments })
       fetchVouchers()
     } catch (err: any) {
@@ -491,6 +537,15 @@ export function CommissionVouchersManager({ role }: CommissionVouchersManagerPro
         })
         .eq("id", attachVoucher.id)
       if (error) throw error
+      await logVoucherAction(
+        "commission_voucher_attachment_deleted",
+        `Removed an extra attachment from Commission Voucher #${attachVoucher.voucher_number}`,
+        {
+          voucher_id: attachVoucher.id,
+          voucher_number: attachVoucher.voucher_number,
+          removed_url: urlToRemove,
+        }
+      )
       setAttachVoucher({ ...attachVoucher, attachments: nextAttachments })
       fetchVouchers()
     } catch (err: any) {
@@ -547,6 +602,132 @@ export function CommissionVouchersManager({ role }: CommissionVouchersManagerPro
     setReleaseTitle("")
     setReleaseRemarks("")
     setMergeModalOpen(true)
+  }
+
+  const openPrintPreviewModal = () => {
+    if (isReadOnly || selectedVouchers.length === 0) return
+    setPrintPreviewOpen(true)
+  }
+
+  const handleTriggerBrowserPrint = async () => {
+    if (selectedVouchers.length === 0 || !printPreviewContainerRef.current) return
+    setPrintingVouchers(true)
+    try {
+      const pageNodes = Array.from(
+        printPreviewContainerRef.current.querySelectorAll<HTMLElement>("[data-voucher-print-page='true']")
+      )
+      if (pageNodes.length === 0) {
+        alert("No voucher pages found to print.")
+        return
+      }
+
+      const pagesHtml = pageNodes
+        .map((node) => `<div class="voucher-print-page">${node.innerHTML}</div>`)
+        .join("")
+
+      const iframe = document.createElement("iframe")
+      iframe.style.position = "fixed"
+      iframe.style.right = "0"
+      iframe.style.bottom = "0"
+      iframe.style.width = "0"
+      iframe.style.height = "0"
+      iframe.style.border = "0"
+      document.body.appendChild(iframe)
+
+      const doc = iframe.contentWindow?.document
+      if (!doc || !iframe.contentWindow) {
+        document.body.removeChild(iframe)
+        throw new Error("Unable to initialize print frame.")
+      }
+
+      doc.open()
+      doc.write(`<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Commission Vouchers — For Printing (${selectedVouchers.length})</title>
+    <style>
+      @page {
+        size: A4 portrait;
+        margin: 0;
+      }
+      * {
+        box-sizing: border-box;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+      html, body {
+        margin: 0;
+        padding: 0;
+        background: #ffffff;
+        font-family: Arial, Helvetica, sans-serif;
+      }
+      .voucher-print-page {
+        width: 210mm;
+        min-height: 297mm;
+        margin: 0 auto;
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+        page-break-after: always;
+        break-after: page;
+        overflow: hidden;
+      }
+      .voucher-print-page:last-child {
+        page-break-after: auto;
+        break-after: auto;
+      }
+    </style>
+  </head>
+  <body>${pagesHtml}</body>
+</html>`)
+      doc.close()
+
+      // Wait for all images inside the print iframe to finish loading (max 3.5s)
+      const imgs = Array.from(doc.querySelectorAll("img"))
+      await Promise.race([
+        Promise.all(
+          imgs.map(
+            (img) =>
+              new Promise<void>((resolve) => {
+                if (img.complete) return resolve()
+                img.onload = () => resolve()
+                img.onerror = () => resolve()
+              })
+          )
+        ),
+        new Promise<void>((resolve) => setTimeout(resolve, 3500)),
+      ])
+
+      const voucherNumbers = selectedVouchers.map((v) => v.voucher_number).filter(Boolean)
+      await logVoucherAction(
+        "commission_voucher_printed",
+        `Prepared & printed ${selectedVouchers.length} Commission Voucher(s) without attachments (${voucherNumbers.slice(0, 8).map((n) => `#${n}`).join(", ")}${voucherNumbers.length > 8 ? ` +${voucherNumbers.length - 8} more` : ""})`,
+        {
+          count: selectedVouchers.length,
+          voucher_ids: selectedVouchers.map((v) => v.id).filter(Boolean),
+          voucher_numbers: voucherNumbers,
+          total_gross: selectedTotals.gross,
+          total_net: selectedTotals.net,
+          attachments_excluded: true,
+        }
+      )
+
+      const cleanup = () => {
+        setTimeout(() => {
+          if (iframe.parentNode) iframe.parentNode.removeChild(iframe)
+        }, 1000)
+      }
+      iframe.contentWindow.onafterprint = cleanup
+      iframe.contentWindow.focus()
+      iframe.contentWindow.print()
+      setTimeout(cleanup, 60000)
+    } catch (err: any) {
+      console.error("Error printing commission vouchers:", err)
+      alert("Error preparing print preview: " + (err?.message || "Please try again."))
+    } finally {
+      setPrintingVouchers(false)
+    }
   }
 
   const handleMergeIntoRelease = async () => {
@@ -671,6 +852,15 @@ export function CommissionVouchersManager({ role }: CommissionVouchersManagerPro
   }
 
   const handleDownloadBondpaperPdf = async (voucher: CommissionVoucherData) => {
+    await logVoucherAction(
+      "commission_voucher_pdf_downloaded",
+      `Opened/downloaded Bondpaper PDF for Commission Voucher #${voucher.voucher_number} (${voucher.agent_name || "Agent"})`,
+      {
+        voucher_id: voucher.id,
+        voucher_number: voucher.voucher_number,
+        agent_name: voucher.agent_name,
+      }
+    )
     if (voucher.generated_pdf_url) {
       window.open(formatS3Url(voucher.generated_pdf_url), "_blank")
       return
@@ -755,6 +945,16 @@ export function CommissionVouchersManager({ role }: CommissionVouchersManagerPro
         if (error) throw error
         successCount++
       }
+
+      await logVoucherAction(
+        "commission_voucher_pdfs_regenerated",
+        `Regenerated Bondpaper PDF for ${successCount} of ${targets.length} Commission Voucher(s)`,
+        {
+          regenerated_count: successCount,
+          target_count: targets.length,
+          voucher_numbers: targets.slice(0, 20).map((v) => v.voucher_number).filter(Boolean),
+        }
+      )
 
       await fetchVouchers()
       alert(`Successfully regenerated ${successCount} of ${targets.length} voucher PDF(s)!`)
@@ -1046,6 +1246,17 @@ export function CommissionVouchersManager({ role }: CommissionVouchersManagerPro
             >
               <RefreshCw className={`w-4 h-4 mr-1.5 ${regeneratingPdfs ? "animate-spin" : ""}`} />
               Regenerate PDFs
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              onClick={openPrintPreviewModal}
+              disabled={regeneratingPdfs}
+              className="bg-amber-500 hover:bg-amber-600 text-white font-bold"
+              title="Preview selected commission voucher(s) merged together for browser printing (excludes extra attachments)"
+            >
+              <Printer className="w-4 h-4 mr-1.5" />
+              For Printing
             </Button>
             <Button
               type="button"
@@ -1712,6 +1923,108 @@ export function CommissionVouchersManager({ role }: CommissionVouchersManagerPro
           )}
         </DialogContent>
       </Dialog>
+
+      {/* For Printing Preview Modal (Merged Vouchers Only — No Attachments) */}
+      {!isReadOnly && (
+        <Dialog open={printPreviewOpen} onOpenChange={setPrintPreviewOpen}>
+          <DialogContent className="max-w-5xl max-h-[94vh] flex flex-col bg-white text-[#001f3f]">
+            <DialogHeader className="shrink-0">
+              <div className="flex flex-wrap items-center justify-between gap-3 pr-6">
+                <div>
+                  <DialogTitle className="text-xl font-bold text-[#001f3f] flex items-center gap-2">
+                    <Printer className="w-5 h-5 text-amber-600" />
+                    For Printing — Commission Voucher Preview
+                  </DialogTitle>
+                  <p className="text-xs text-slate-600 mt-1">
+                    Previewing <strong>{selectedVouchers.length}</strong> selected commission voucher
+                    {selectedVouchers.length === 1 ? "" : "s"} merged into a single printable document
+                    (1 voucher per A4 page). <strong>Extra attachments are excluded.</strong>
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setPrintPreviewOpen(false)}
+                    disabled={printingVouchers}
+                    className="border-slate-300 text-slate-700 bg-white"
+                  >
+                    Close
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleTriggerBrowserPrint}
+                    disabled={printingVouchers || selectedVouchers.length === 0}
+                    className="bg-[#001f3f] hover:bg-[#001f3f]/90 text-white font-bold shadow"
+                  >
+                    {printingVouchers ? (
+                      <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+                    ) : (
+                      <Printer className="w-4 h-4 mr-1.5" />
+                    )}
+                    {printingVouchers
+                      ? "Preparing Print..."
+                      : `Print ${selectedVouchers.length > 1 ? `All (${selectedVouchers.length})` : "Voucher"}`}
+                  </Button>
+                </div>
+              </div>
+            </DialogHeader>
+
+            <div
+              ref={printPreviewContainerRef}
+              className="flex-1 overflow-y-auto bg-slate-200 p-4 rounded-xl border border-slate-300 space-y-6"
+            >
+              {selectedVouchers.map((v, idx) => (
+                <div key={v.id || `${v.voucher_number}-${idx}`} className="space-y-2">
+                  <div className="flex items-center justify-between px-2 text-xs text-slate-700">
+                    <span className="font-bold text-[#001f3f]">
+                      Page {idx + 1} of {selectedVouchers.length} &bull; Voucher #{v.voucher_number}
+                    </span>
+                    <span className="text-slate-600">
+                      {v.agent_name} &bull; Net: <strong>{formatCurrency(Number(v.total_amount) || 0)}</strong>
+                    </span>
+                  </div>
+                  <div
+                    data-voucher-print-page="true"
+                    className="flex justify-center overflow-x-auto"
+                  >
+                    <VoucherBondpaperDocument
+                      voucher={v}
+                      containerId={`print-preview-voucher-${v.id || idx}`}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="shrink-0 flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-200 text-xs text-slate-600">
+              <span>
+                Total Gross: <strong className="text-[#001f3f]">{formatCurrency(selectedTotals.gross)}</strong>{" "}
+                &bull; Total Net:{" "}
+                <strong className="text-emerald-700">{formatCurrency(selectedTotals.net)}</strong>
+              </span>
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleTriggerBrowserPrint}
+                disabled={printingVouchers || selectedVouchers.length === 0}
+                className="bg-[#001f3f] hover:bg-[#001f3f]/90 text-white font-bold"
+              >
+                {printingVouchers ? (
+                  <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+                ) : (
+                  <Printer className="w-4 h-4 mr-1.5" />
+                )}
+                {printingVouchers
+                  ? "Preparing Print..."
+                  : `Print ${selectedVouchers.length > 1 ? `All (${selectedVouchers.length})` : "Voucher"}`}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Offscreen Bondpaper Render Target for Batch PDF Regeneration */}
       {offscreenVoucher && (

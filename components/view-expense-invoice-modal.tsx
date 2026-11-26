@@ -30,6 +30,8 @@ import {
 } from "@/components/expense-invoice-document"
 import { SignaturePad } from "@/components/signature-pad"
 import { useAuth } from "@/contexts/auth-context"
+import { supabase } from "@/lib/supabase/client"
+import { logNotification } from "@/utils/logNotification"
 import { formatS3Url } from "@/utils/s3-url"
 import { downloadAttachmentsAsZip } from "@/utils/download-attachments"
 
@@ -113,6 +115,23 @@ export function ViewExpenseInvoiceModal({
     setDownloading(true)
     try {
       await downloadExpenseInvoicePdf(el, invoice.invoice_number)
+      if (profile?.id) {
+        await logNotification(supabase, {
+          action: "expense_voucher_pdf_downloaded",
+          description: `Downloaded PDF for Expense Voucher #${invoice.invoice_number}`,
+          ip_address: null,
+          location: null,
+          meta: JSON.stringify({
+            invoice_id: invoice.id,
+            invoice_number: invoice.invoice_number,
+            total: invoice.total,
+          }),
+          user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+          user_email: profile.email || "",
+          user_name: profile.full_name || profile.email || profile.id,
+          user_uuid: profile.id,
+        })
+      }
     } catch (err) {
       console.error("Failed to download PDF:", err)
       alert("Error generating PDF.")
@@ -180,6 +199,25 @@ export function ViewExpenseInvoiceModal({
         data = { error: rawText || `HTTP ${res.status}` }
       }
       if (!res.ok) throw new Error(data.error || "Failed to send email")
+
+      if (profile?.id) {
+        await logNotification(supabase, {
+          action: "expense_voucher_email_sent",
+          description: `Sent Expense Voucher #${invoice.invoice_number} for approval to ${data.sentTo || "mindworth@gmail.com"}`,
+          ip_address: null,
+          location: null,
+          meta: JSON.stringify({
+            invoice_id: invoice.id,
+            invoice_number: invoice.invoice_number,
+            sent_to: data.sentTo,
+            total: invoice.total,
+          }),
+          user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+          user_email: profile.email || "",
+          user_name: profile.full_name || profile.email || profile.id,
+          user_uuid: profile.id,
+        })
+      }
 
       alert(`Email sent successfully to ${data.sentTo}!`)
       onUpdated?.()

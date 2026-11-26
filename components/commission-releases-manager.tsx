@@ -305,6 +305,20 @@ export function CommissionReleasesManager({ role }: CommissionReleasesManagerPro
 
       if (error) throw error
 
+      if (profile?.id) {
+        await logNotification(supabase, {
+          action: "commission_release_pot_deleted",
+          description: `Removed a Proof of Transaction file from Release "${selectedRelease.title}"`,
+          ip_address: null,
+          location: null,
+          meta: JSON.stringify({ releaseId: selectedRelease.id, title: selectedRelease.title, potId }),
+          user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+          user_email: profile.email || "",
+          user_name: profile.full_name || profile.email || profile.id,
+          user_uuid: profile.id,
+        })
+      }
+
       setSelectedRelease({ ...selectedRelease, pot_files: nextPotFiles })
       fetchReleases()
     } catch (err: any) {
@@ -321,6 +335,24 @@ export function CommissionReleasesManager({ role }: CommissionReleasesManagerPro
         .delete()
         .eq("id", release.id)
       if (error) throw error
+      if (profile?.id) {
+        await logNotification(supabase, {
+          action: "commission_release_deleted",
+          description: `Deleted Commission Release "${release.title}" (${release.voucher_numbers?.length || 0} voucher(s))`,
+          ip_address: null,
+          location: null,
+          meta: JSON.stringify({
+            releaseId: release.id,
+            title: release.title,
+            voucherNumbers: release.voucher_numbers || [],
+            totalNetComm: release.total_net_comm,
+          }),
+          user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+          user_email: profile.email || "",
+          user_name: profile.full_name || profile.email || profile.id,
+          user_uuid: profile.id,
+        })
+      }
       if (selectedRelease?.id === release.id) setSelectedRelease(null)
       fetchReleases()
     } catch (err: any) {

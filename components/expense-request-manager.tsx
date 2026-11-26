@@ -318,6 +318,23 @@ export function ExpenseRequestManager({ role }: ExpenseRequestManagerProps) {
         .update({ is_deleted: true, deleted_at: new Date().toISOString() })
         .eq("id", req.id)
       if (error) throw error
+      if (profile?.id) {
+        await logNotification(supabase, {
+          action: "expense_request_deleted",
+          description: `Deleted itemized expense request "${req.item_name}" (${req.name || "Vendor"})`,
+          ip_address: null,
+          location: null,
+          meta: JSON.stringify({
+            expense_request_id: req.id,
+            item_name: req.item_name,
+            amount: req.total_actual_amount ?? req.amount,
+          }),
+          user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+          user_email: profile.email || "",
+          user_name: profile.full_name || profile.email || profile.id,
+          user_uuid: profile.id,
+        })
+      }
       setSelectedRequestIds((prev) => prev.filter((id) => id !== req.id))
       fetchData()
     } catch (err: any) {
@@ -339,6 +356,24 @@ export function ExpenseRequestManager({ role }: ExpenseRequestManagerProps) {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || "Failed to send email")
+      if (profile?.id) {
+        await logNotification(supabase, {
+          action: "expense_voucher_email_sent",
+          description: `Sent Expense Voucher #${invoice.invoice_number} for approval to ${data.sentTo || "mindworth@gmail.com"}`,
+          ip_address: null,
+          location: null,
+          meta: JSON.stringify({
+            invoice_id: invoice.id,
+            invoice_number: invoice.invoice_number,
+            sent_to: data.sentTo,
+            total: invoice.total,
+          }),
+          user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+          user_email: profile.email || "",
+          user_name: profile.full_name || profile.email || profile.id,
+          user_uuid: profile.id,
+        })
+      }
       alert(
         `Expense Voucher #${invoice.invoice_number} sent to ${data.sentTo}! The boss can click the link in the email to view and sign without logging in.`
       )
