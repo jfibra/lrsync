@@ -29,6 +29,7 @@ import {
   Layers,
   FileCheck2,
   FolderOpen,
+  Plug,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -287,6 +288,14 @@ export function DashboardHeader() {
         description: "Purchase categories & system config",
         href: () => `/dashboard/super-admin/admin-settings`,
         icon: Settings,
+        roles: ["super_admin"],
+        group: "admin",
+      },
+      {
+        label: "MCP & API Access",
+        description: "Read-only & Admin MCP server keys",
+        href: () => `/dashboard/super-admin/mcp-settings`,
+        icon: Plug,
         roles: ["super_admin"],
         group: "admin",
       },
