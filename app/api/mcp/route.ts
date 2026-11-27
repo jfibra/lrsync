@@ -6,6 +6,7 @@ import {
   MCP_PROTOCOL_VERSION,
   MCP_SERVER_INFO,
 } from "@/lib/mcp-server"
+import { getRequestOrigin } from "@/lib/mcp-oauth"
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -72,11 +73,24 @@ export async function POST(request: NextRequest) {
     const token = extractToken(request)
     const auth = await authenticateMcpToken(token)
     if (!auth) {
-      return jsonRpcError(
-        null,
-        -32001,
-        "Unauthorized: Provide a valid Read-Only or Admin Full Access MCP key via Authorization: Bearer <key> or x-api-key header.",
-        401
+      const origin = getRequestOrigin(request)
+      return NextResponse.json(
+        {
+          jsonrpc: "2.0",
+          id: null,
+          error: {
+            code: -32001,
+            message:
+              "Unauthorized: Sign in via OAuth or provide a valid MCP key via Authorization: Bearer <key> or x-api-key header.",
+          },
+        },
+        {
+          status: 401,
+          headers: {
+            ...CORS_HEADERS,
+            "WWW-Authenticate": `Bearer resource_metadata="${origin}/.well-known/oauth-protected-resource"`,
+          },
+        }
       )
     }
 

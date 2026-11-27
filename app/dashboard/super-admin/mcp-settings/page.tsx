@@ -341,6 +341,49 @@ export default function SuperAdminMcpSettingsPage() {
             </Alert>
           )}
 
+          {/* OAuth 2.1 Sign-In Option (Claude.ai Custom Connector) */}
+          <Card className="bg-gradient-to-r from-sky-50 via-white to-indigo-50 border-sky-200 shadow-sm">
+            <CardContent className="p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge className="bg-[#001f3f] text-white hover:bg-[#001f3f] text-[11px]">
+                    OAuth 2.1 Sign-In Ready
+                  </Badge>
+                  <span className="text-sm font-bold text-[#001f3f]">
+                    Let Users Sign In Directly with Their LRSync Account in Claude
+                  </span>
+                </div>
+                <p className="text-xs text-slate-600">
+                  In <strong>Claude.ai → Settings → Connectors → Add custom connector</strong>, paste{" "}
+                  <code className="font-mono bg-white border border-slate-200 px-1.5 py-0.5 rounded text-[#001f3f]">
+                    {mcpEndpoint}
+                  </code>{" "}
+                  and choose <strong>Use Claude&apos;s published identity</strong> (or{" "}
+                  <strong>Register automatically</strong>). No API key needed — each user signs in with
+                  their own LRSync email &amp; password and chooses Read-Only or Admin Full Access (role-enforced).
+                </p>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => copyText("oauth-url", mcpEndpoint)}
+                className="bg-sky-600 hover:bg-sky-700 text-white font-semibold shrink-0"
+              >
+                {copiedId === "oauth-url" ? (
+                  <>
+                    <Check className="w-4 h-4 mr-1.5" />
+                    Copied Connector URL
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-4 h-4 mr-1.5" />
+                    Copy Connector URL
+                  </>
+                )}
+              </Button>
+            </CardContent>
+          </Card>
+
           {/* Create New Key + Quick Setup Snippets */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             {/* Left: Generate Key */}

@@ -1,5 +1,6 @@
 import crypto from "crypto"
 import { getSupabaseAdmin } from "@/lib/smtp-mailer"
+import { verifyOAuthAccessToken } from "@/lib/mcp-oauth"
 
 export type McpAccessLevel = "read_only" | "admin_full"
 
@@ -7,7 +8,9 @@ export interface McpAuthContext {
   keyId: string | null
   keyName: string
   accessLevel: McpAccessLevel
-  source: "database" | "env"
+  source: "database" | "env" | "oauth"
+  userEmail?: string
+  userId?: string
 }
 
 export interface McpToolDefinition {
@@ -49,6 +52,20 @@ export function generateMcpKey(accessLevel: McpAccessLevel): {
 export async function authenticateMcpToken(rawToken: string | null): Promise<McpAuthContext | null> {
   const token = (rawToken || "").trim()
   if (!token) return null
+
+  // 0. OAuth 2.1 per-user Bearer token (lrsync_oauth_...)
+  if (token.startsWith("lrsync_oauth_")) {
+    const oauthPayload = verifyOAuthAccessToken(token)
+    if (!oauthPayload) return null
+    return {
+      keyId: oauthPayload.userId,
+      keyName: oauthPayload.name || oauthPayload.email || "OAuth User",
+      accessLevel: oauthPayload.accessLevel,
+      source: "oauth",
+      userEmail: oauthPayload.email,
+      userId: oauthPayload.userId,
+    }
+  }
 
   // 1. Optional env-var fallback keys for instant zero-DB setup
   const envAdmin = (process.env.MCP_ADMIN_API_KEY || "").trim()
@@ -371,9 +388,10 @@ async function logMcpAudit(auth: McpAuthContext, toolName: string, description: 
       {
         action: `mcp_${toolName}`,
         description: `[MCP: ${auth.keyName}] ${description}`,
-        user_name: `MCP (${auth.keyName})`,
-        user_email: auth.accessLevel,
-        meta: { ...meta, mcp_key_id: auth.keyId, mcp_access_level: auth.accessLevel },
+        user_uuid: auth.userId || null,
+        user_name: auth.source === "oauth" ? `${auth.keyName} (via MCP)` : `MCP (${auth.keyName})`,
+        user_email: auth.userEmail || auth.accessLevel,
+        meta: { ...meta, mcp_key_id: auth.keyId, mcp_access_level: auth.accessLevel, mcp_auth_source: auth.source },
       },
     ])
   } catch (err) {
