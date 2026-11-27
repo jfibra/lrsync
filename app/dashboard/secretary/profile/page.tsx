@@ -12,6 +12,7 @@ import { useAuth } from "@/contexts/auth-context"
 import { supabase } from "@/lib/supabase/client"
 import { CheckCircle, AlertCircle, User, Settings, Shield, Clock, Mail } from "lucide-react"
 import { logNotification } from "@/utils/logNotification";
+import { SmtpSettingsCard } from "@/components/smtp-settings-card"
 
 export default function SecretaryProfilePage() {
   const [showPassword, setShowPassword] = useState({
@@ -539,6 +540,10 @@ export default function SecretaryProfilePage() {
                 </Button>
               </CardContent>
             </Card>
+          </div>
+
+          <div className="mt-6">
+            <SmtpSettingsCard />
           </div>
         </div>
       </div>

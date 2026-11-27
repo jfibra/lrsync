@@ -181,11 +181,18 @@ export function ViewExpenseInvoiceModal({
         }
       }
 
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
       const res = await fetch("/api/send-expense-invoice-email", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
         body: JSON.stringify({
           invoiceId: invoice.id,
+          senderUserId: profile?.auth_user_id || profile?.id,
           pdfUrl: pdfUrl || undefined,
           pdfBase64: pdfBase64 || undefined,
           baseUrl: typeof window !== "undefined" ? window.location.origin : undefined,

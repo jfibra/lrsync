@@ -28,6 +28,7 @@ import {
   Loader2,
   Copy,
   Check,
+  Crop,
   Sparkles,
   FileCheck2,
   Receipt,
@@ -43,6 +44,15 @@ import { formatS3Url } from "@/utils/s3-url"
 import { safeParseArray } from "@/lib/safe-parse"
 import { logNotification } from "@/utils/logNotification"
 import { parseVoucherAttachmentUrls, serializeVoucherAttachmentUrls } from "@/components/voucher-bondpaper-document"
+import {
+  VoucherDocumentCropper,
+  type CroppedAttachmentResult,
+} from "@/components/voucher-document-cropper"
+import {
+  rotateImageBlob,
+  rotatePdfBlob,
+  dataUrlToCompressedImage,
+} from "@/lib/image-compress"
 
 export type AttachmentSourceModule =
   | "sales"
@@ -1076,6 +1086,216 @@ export function AttachmentsLibraryManager({ role }: AttachmentsLibraryManagerPro
     }
   }
 
+  // In-place Rotate 90° & Crop/Re-upload for ANY attachment across all modules (Super Admin & Admin)
+  const [editingUid, setEditingUid] = useState<string | null>(null)
+  const [cropLibTarget, setCropLibTarget] = useState<{
+    item: LibraryAttachmentItem
+    file: File
+  } | null>(null)
+
+  const fetchLibraryProxiedBlob = async (url: string): Promise<{ blob: Blob; contentType: string }> => {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
+    const res = await fetch(`/api/proxy-file?url=${encodeURIComponent(url)}`, {
+      headers: session?.access_token
+        ? { Authorization: `Bearer ${session.access_token}` }
+        : undefined,
+    })
+    if (!res.ok) throw new Error(`Failed to fetch attachment (${res.status})`)
+    const blob = await res.blob()
+    const contentType = res.headers.get("content-type") || blob.type || "application/octet-stream"
+    return { blob, contentType }
+  }
+
+  const replaceLibraryAttachmentInPlace = async (
+    item: LibraryAttachmentItem,
+    newBlob: Blob,
+    fileName: string,
+    mimeType: string,
+    actionLabel: string
+  ) => {
+    setEditingUid(item.uid)
+    try {
+      // 1. Upload edited file to S3 FIRST so existing attachment is never lost
+      const presignedRes = await fetch("/api/get-s3-upload-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fileName,
+          fileType: mimeType,
+          category: item.sourceModule,
+          attachmentType: item.categoryLabel,
+        }),
+      })
+      if (!presignedRes.ok) throw new Error(`Failed to authorize upload for ${fileName}`)
+      const { uploadUrl, publicUrl } = await presignedRes.json()
+      const putRes = await fetch(uploadUrl, {
+        method: "PUT",
+        headers: { "Content-Type": mimeType },
+        body: newBlob,
+      })
+      if (!putRes.ok) throw new Error(`S3 upload failed (${putRes.status})`)
+      const newUrl = formatS3Url(publicUrl)
+
+      // 2. Replace exact URL in-place in the source table/column
+      const m = item.deleteMeta
+      const { data: row, error: fetchErr } = await supabase
+        .from(m.table)
+        .select("*")
+        .eq(m.idColumn, m.idValue)
+        .single()
+      if (fetchErr || !row) throw new Error(fetchErr?.message || "Could not locate source record.")
+
+      const isMatch = (u: string) => u === m.matchUrl || formatS3Url(u) === item.url
+      const updatePayload: Record<string, any> = {}
+
+      if (m.mode === "single_nullable") {
+        updatePayload[m.column] = newUrl
+      } else if (m.mode === "array_or_json" || m.mode === "text_array") {
+        const list = parseFlexibleUrlList(row[m.column])
+        const next = list.map((u) => (isMatch(u) ? newUrl : u))
+        updatePayload[m.column] = next
+      } else if (m.mode === "json_object_array") {
+        const arr = safeParseArray<any>(row[m.column])
+        const next = arr.map((entry) =>
+          entry && isMatch(entry.url || "") ? { ...entry, url: newUrl, name: fileName } : entry
+        )
+        updatePayload[m.column] = JSON.stringify(next)
+      } else if (m.mode === "pot_object_array") {
+        const arr = Array.isArray(row[m.column]) ? row[m.column] : []
+        const next = arr.map((pf: any) =>
+          (m.potId ? pf.id === m.potId : isMatch(pf.url || ""))
+            ? { ...pf, url: newUrl, filename: newUrl }
+            : pf
+        )
+        updatePayload[m.column] = next
+      } else if (m.mode === "voucher_multi") {
+        const list = parseVoucherAttachmentUrls(
+          row[m.column],
+          m.arrayColumn ? row[m.arrayColumn] : null
+        )
+        const next = list.map((u) => (isMatch(u) ? newUrl : u))
+        updatePayload[m.column] = serializeVoucherAttachmentUrls(next)
+        if (m.arrayColumn && Object.prototype.hasOwnProperty.call(row, m.arrayColumn)) {
+          updatePayload[m.arrayColumn] = next
+        }
+      }
+
+      const { error: updateErr } = await supabase
+        .from(m.table)
+        .update(updatePayload)
+        .eq(m.idColumn, m.idValue)
+      if (updateErr) throw updateErr
+
+      if (profile?.id) {
+        await logNotification(supabase, {
+          action: "library_attachment_edited",
+          description: `${actionLabel} attachment "${item.fileName}" in ${item.sourceLabel} (${item.recordTitle}) via File Library`,
+          ip_address: null,
+          location: null,
+          meta: JSON.stringify({
+            sourceModule: item.sourceModule,
+            recordId: item.recordId,
+            category: item.categoryLabel,
+            oldUrl: item.url,
+            newUrl,
+          }),
+          user_agent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+          user_email: profile.email || "",
+          user_name: profile.full_name || profile.first_name || profile.id,
+          user_uuid: profile.id,
+        })
+      }
+
+      const updatedItem: LibraryAttachmentItem = {
+        ...item,
+        url: newUrl,
+        fileName,
+        fileType: mimeType === "application/pdf" ? "pdf" : "image",
+        deleteMeta: { ...item.deleteMeta, matchUrl: newUrl },
+      }
+      setItems((prev) => prev.map((i) => (i.uid === item.uid ? updatedItem : i)))
+      setSelectedItem(updatedItem)
+    } catch (err: any) {
+      console.error("Error updating attachment in File Library:", err)
+      alert("Error updating attachment: " + (err?.message || "Please try again."))
+    } finally {
+      setEditingUid(null)
+    }
+  }
+
+  const handleRotateLibraryItem = async (item: LibraryAttachmentItem) => {
+    if (editingUid) return
+    setEditingUid(item.uid)
+    try {
+      const { blob, contentType } = await fetchLibraryProxiedBlob(item.url)
+      const isPdf = contentType.includes("pdf") || item.fileType === "pdf"
+      const baseName = item.fileName.replace(/\.[^.]+$/, "")
+      if (isPdf) {
+        const rotated = await rotatePdfBlob(blob, 90)
+        await replaceLibraryAttachmentInPlace(
+          item,
+          rotated.pdfBlob,
+          `${baseName}_rot.pdf`,
+          "application/pdf",
+          "Rotated 90°"
+        )
+      } else {
+        const rotated = await rotateImageBlob(blob, 90, 0.85)
+        await replaceLibraryAttachmentInPlace(
+          item,
+          rotated.blob,
+          `${baseName}_rot.jpg`,
+          "image/jpeg",
+          "Rotated 90°"
+        )
+      }
+    } catch (err: any) {
+      console.error("Rotate library item failed:", err)
+      alert("Error rotating attachment: " + (err?.message || "Failed"))
+      setEditingUid(null)
+    }
+  }
+
+  const handleOpenCropLibraryItem = async (item: LibraryAttachmentItem) => {
+    if (editingUid) return
+    setEditingUid(item.uid)
+    try {
+      const { blob, contentType } = await fetchLibraryProxiedBlob(item.url)
+      const isPdf = contentType.includes("pdf") || item.fileType === "pdf"
+      const file = new File([blob], item.fileName, {
+        type: isPdf ? "application/pdf" : contentType || "image/jpeg",
+      })
+      setCropLibTarget({ item, file })
+    } catch (err: any) {
+      console.error("Load library item for crop failed:", err)
+      alert("Could not load file for cropping: " + (err?.message || "Failed"))
+    } finally {
+      setEditingUid(null)
+    }
+  }
+
+  const handleCropLibraryConfirmed = async (result: CroppedAttachmentResult) => {
+    if (!cropLibTarget) return
+    const { item } = cropLibTarget
+    setCropLibTarget(null)
+    try {
+      const compressed = await dataUrlToCompressedImage(result.dataUrl, 0.85)
+      const baseName = item.fileName.replace(/\.[^.]+$/, "")
+      await replaceLibraryAttachmentInPlace(
+        item,
+        compressed.blob,
+        `${baseName}_cropped.jpg`,
+        "image/jpeg",
+        "Cropped"
+      )
+    } catch (err: any) {
+      console.error("Save cropped library item failed:", err)
+      alert("Failed to save cropped attachment: " + (err?.message || "Failed"))
+    }
+  }
+
   return (
     <div className="space-y-5">
       {/* Top ChatGPT-style Clean Library Header */}
@@ -1616,6 +1836,34 @@ export function AttachmentsLibraryManager({ role }: AttachmentsLibraryManagerPro
 
                 {/* Bottom Action Footer */}
                 <div className="p-4 border-t border-slate-200 bg-slate-50/80 space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={editingUid === selectedItem.uid || deletingUid === selectedItem.uid}
+                      onClick={() => handleRotateLibraryItem(selectedItem)}
+                      className="border-indigo-300 text-indigo-800 hover:bg-indigo-50 bg-white font-semibold text-xs"
+                      title="Rotate 90° clockwise and re-upload in-place"
+                    >
+                      {editingUid === selectedItem.uid ? (
+                        <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
+                      ) : (
+                        <RotateCw className="w-3.5 h-3.5 mr-1" />
+                      )}
+                      Rotate 90°
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={editingUid === selectedItem.uid || deletingUid === selectedItem.uid}
+                      onClick={() => handleOpenCropLibraryItem(selectedItem)}
+                      className="border-emerald-300 text-emerald-800 hover:bg-emerald-50 bg-white font-semibold text-xs"
+                      title="Crop / Rotate and re-upload in-place"
+                    >
+                      <Crop className="w-3.5 h-3.5 mr-1" />
+                      Crop &amp; Save
+                    </Button>
+                  </div>
                   {(role === "super_admin" ||
                     selectedItem.sourceModule === "sales" ||
                     selectedItem.sourceModule === "collector_transactions") && (
@@ -1655,6 +1903,21 @@ export function AttachmentsLibraryManager({ role }: AttachmentsLibraryManagerPro
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Crop / Rotate Attachment Modal (All Modules, In-Place Re-upload) */}
+      <VoucherDocumentCropper
+        open={Boolean(cropLibTarget)}
+        onOpenChange={(o) => {
+          if (!o) setCropLibTarget(null)
+        }}
+        file={cropLibTarget?.file || null}
+        title={
+          cropLibTarget
+            ? `Crop / Rotate ${cropLibTarget.item.fileName}`
+            : "Crop / Rotate Attachment"
+        }
+        onCropComplete={handleCropLibraryConfirmed}
+      />
     </div>
   )
 }

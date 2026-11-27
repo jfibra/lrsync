@@ -7,8 +7,17 @@ import { useAuth } from "@/contexts/auth-context"
 import { logNotification } from "@/utils/logNotification"
 import { formatS3Url } from "@/utils/s3-url"
 import { PHILIPPINE_BANKS } from "@/lib/philippine-banks"
+import {
+  rotateImageBlob,
+  rotatePdfBlob,
+  dataUrlToCompressedImage,
+} from "@/lib/image-compress"
 import type { ChequeStatus, CollectorTransaction, CollectorWorkflowStatus } from "@/types/collector"
 import { SmartBatchUploadModal } from "@/components/smart-batch-upload-modal"
+import {
+  VoucherDocumentCropper,
+  type CroppedAttachmentResult,
+} from "@/components/voucher-document-cropper"
 import {
   Dialog,
   DialogContent,
@@ -39,6 +48,7 @@ import {
   ChevronDown,
   ChevronUp,
   Clock,
+  Crop,
   ExternalLink,
   FileText,
   Fingerprint,
@@ -208,6 +218,12 @@ export function CollectorReviewEditModal({
   const [uploadingFiles, setUploadingFiles] = useState(false)
   const [mutatingAttachment, setMutatingAttachment] = useState(false)
   const [smartAddOpen, setSmartAddOpen] = useState(false)
+  const [cropExistingTarget, setCropExistingTarget] = useState<{
+    bucket: BucketKey
+    index: number
+    file: File
+    label: string
+  } | null>(null)
 
   // Lightbox Zoom/Rotate viewer
   const [zoomItem, setZoomItem] = useState<{ url: string; label: string; isPdf: boolean } | null>(null)
@@ -461,6 +477,196 @@ export function CollectorReviewEditModal({
       `Moved attachment from ${fromLabel} to ${toLabel} on collector record (${tx.developer_name || "Draft"})`
     )
     toast.success(`Moved file to ${toLabel}`)
+  }
+
+  const fetchProxiedBlob = async (url: string): Promise<{ blob: Blob; contentType: string }> => {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
+    const res = await fetch(`/api/proxy-file?url=${encodeURIComponent(url)}`, {
+      headers: session?.access_token
+        ? { Authorization: `Bearer ${session.access_token}` }
+        : undefined,
+    })
+    if (!res.ok) throw new Error(`Failed to fetch attachment (${res.status})`)
+    const blob = await res.blob()
+    const contentType = res.headers.get("content-type") || blob.type || "application/octet-stream"
+    return { blob, contentType }
+  }
+
+  const replaceAttachmentInPlace = async (
+    bucket: BucketKey,
+    index: number,
+    newBlob: Blob,
+    fileName: string,
+    mimeType: string,
+    actionLabel: string
+  ) => {
+    if (isLocked || !canManageVoucherNo) return
+    const bucketCfg = BUCKETS.find((b) => b.key === bucket)!
+    const currentArr = Array.isArray(tx[bucket]) ? [...tx[bucket]] : []
+    const oldUrl = currentArr[index]
+    if (!oldUrl) return
+
+    setMutatingAttachment(true)
+    try {
+      // 1. Upload replacement file to S3 FIRST so existing attachment is never lost on failure
+      const presignedRes = await fetch("/api/get-s3-upload-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fileName,
+          fileType: mimeType,
+          category: "collector",
+          attachmentType: bucketCfg.docType,
+        }),
+      })
+      if (!presignedRes.ok) throw new Error(`Failed to authorize S3 upload for ${fileName}`)
+      const { uploadUrl, publicUrl } = await presignedRes.json()
+      const putRes = await fetch(uploadUrl, {
+        method: "PUT",
+        headers: { "Content-Type": mimeType },
+        body: newBlob,
+      })
+      if (!putRes.ok) throw new Error(`S3 upload failed (${putRes.status})`)
+      const newUrl = formatS3Url(publicUrl)
+
+      // 2. Replace exact index in-place in collector_transactions
+      currentArr[index] = newUrl
+      await updateAttachmentsInDb(
+        { [bucket]: currentArr },
+        `${actionLabel} ${bucketCfg.label} attachment #${index + 1} on collector record (${tx.developer_name || "Draft"})`
+      )
+
+      // 3. Also sync the replaced URL into linked sales record if already converted
+      if (tx.sales_id) {
+        const salesColMap: Record<BucketKey, string> = {
+          invoice_photo_urls: "invoice",
+          cheque_photo_urls: "cheque",
+          deposit_slip_urls: "deposit_slip",
+          doc_2307_photo_urls: "doc_2307",
+          voucher_photo_urls: "voucher",
+        }
+        const salesCol = salesColMap[bucket]
+        const { data: saleRow } = await supabase
+          .from("sales")
+          .select(`id, ${salesCol}`)
+          .eq("id", tx.sales_id)
+          .maybeSingle()
+
+        if (saleRow && salesCol in saleRow) {
+          const rawVal = (saleRow as any)[salesCol]
+          const oldFormatted = formatS3Url(oldUrl)
+          if (Array.isArray(rawVal)) {
+            const nextSaleArr = rawVal.map((u: string) =>
+              u === oldUrl || formatS3Url(u) === oldFormatted ? newUrl : u
+            )
+            await supabase
+              .from("sales")
+              .update({ [salesCol]: nextSaleArr, updated_at: new Date().toISOString() })
+              .eq("id", tx.sales_id)
+          } else if (typeof rawVal === "string" && (rawVal === oldUrl || formatS3Url(rawVal) === oldFormatted)) {
+            await supabase
+              .from("sales")
+              .update({ [salesCol]: newUrl, updated_at: new Date().toISOString() })
+              .eq("id", tx.sales_id)
+          }
+        }
+      }
+
+      toast.success(`${actionLabel} ${bucketCfg.label} saved!`)
+    } catch (err: any) {
+      console.error("Replace attachment error:", err)
+      toast.error(err?.message || "Failed to save edited attachment")
+    } finally {
+      setMutatingAttachment(false)
+    }
+  }
+
+  const handleQuickRotateExisting = async (bucket: BucketKey, index: number, url: string) => {
+    if (isLocked || !canManageVoucherNo || mutatingAttachment) return
+    setMutatingAttachment(true)
+    try {
+      const { blob, contentType } = await fetchProxiedBlob(url)
+      const isPdf =
+        contentType.includes("pdf") || url.toLowerCase().split("?")[0].endsWith(".pdf")
+      const baseName = decodeURIComponent(url.split("?")[0].split("/").pop() || "attachment").replace(
+        /\.[^.]+$/,
+        ""
+      )
+      if (isPdf) {
+        const rotated = await rotatePdfBlob(blob, 90)
+        await replaceAttachmentInPlace(
+          bucket,
+          index,
+          rotated.pdfBlob,
+          `${baseName}_rot.pdf`,
+          "application/pdf",
+          "Rotated 90°"
+        )
+      } else {
+        const rotated = await rotateImageBlob(blob, 90, 0.85)
+        await replaceAttachmentInPlace(
+          bucket,
+          index,
+          rotated.blob,
+          `${baseName}_rot.jpg`,
+          "image/jpeg",
+          "Rotated 90°"
+        )
+      }
+    } catch (err: any) {
+      console.error("Quick rotate existing failed:", err)
+      toast.error(err?.message || "Failed to rotate attachment")
+      setMutatingAttachment(false)
+    }
+  }
+
+  const handleOpenCropExisting = async (
+    bucket: BucketKey,
+    index: number,
+    url: string,
+    label: string
+  ) => {
+    if (isLocked || !canManageVoucherNo || mutatingAttachment) return
+    setMutatingAttachment(true)
+    try {
+      const { blob, contentType } = await fetchProxiedBlob(url)
+      const isPdf =
+        contentType.includes("pdf") || url.toLowerCase().split("?")[0].endsWith(".pdf")
+      const rawName = decodeURIComponent(url.split("?")[0].split("/").pop() || "attachment")
+      const fileName = rawName.includes(".") ? rawName : isPdf ? `${rawName}.pdf` : `${rawName}.jpg`
+      const file = new File([blob], fileName, {
+        type: isPdf ? "application/pdf" : contentType || "image/jpeg",
+      })
+      setCropExistingTarget({ bucket, index, file, label })
+    } catch (err: any) {
+      console.error("Load attachment for cropping failed:", err)
+      toast.error(err?.message || "Could not load attachment for cropping")
+    } finally {
+      setMutatingAttachment(false)
+    }
+  }
+
+  const handleCropExistingConfirmed = async (result: CroppedAttachmentResult) => {
+    if (!cropExistingTarget) return
+    const target = cropExistingTarget
+    setCropExistingTarget(null)
+    try {
+      const compressed = await dataUrlToCompressedImage(result.dataUrl, 0.85)
+      const baseName = target.file.name.replace(/\.[^.]+$/, "")
+      await replaceAttachmentInPlace(
+        target.bucket,
+        target.index,
+        compressed.blob,
+        `${baseName}_cropped.jpg`,
+        "image/jpeg",
+        "Cropped"
+      )
+    } catch (err: any) {
+      console.error("Crop existing upload failed:", err)
+      toast.error(err?.message || "Failed to save cropped attachment")
+    }
   }
 
   const handleSaveDetails = async () => {
@@ -897,6 +1103,28 @@ export function CollectorReviewEditModal({
                                           ))}
                                         </SelectContent>
                                       </Select>
+                                      {canManageVoucherNo && (
+                                        <>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleOpenCropExisting(bucket.key, idx, url, label)}
+                                            disabled={mutatingAttachment}
+                                            className="p-1 text-slate-500 hover:text-emerald-700 rounded hover:bg-emerald-50"
+                                            title="Crop / Rotate & Re-upload"
+                                          >
+                                            <Crop className="h-3.5 w-3.5" />
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleQuickRotateExisting(bucket.key, idx, url)}
+                                            disabled={mutatingAttachment}
+                                            className="p-1 text-slate-500 hover:text-indigo-700 rounded hover:bg-indigo-50"
+                                            title="Rotate 90° clockwise & Save"
+                                          >
+                                            <RotateCw className="h-3.5 w-3.5" />
+                                          </button>
+                                        </>
+                                      )}
                                       <button
                                         type="button"
                                         onClick={() => handleRemoveAttachment(bucket.key, idx)}
@@ -1484,6 +1712,17 @@ export function CollectorReviewEditModal({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Crop / Rotate Existing Attachment Modal */}
+      <VoucherDocumentCropper
+        open={Boolean(cropExistingTarget)}
+        onOpenChange={(o) => {
+          if (!o) setCropExistingTarget(null)
+        }}
+        file={cropExistingTarget?.file || null}
+        title={cropExistingTarget ? `Crop / Rotate ${cropExistingTarget.label}` : "Crop / Rotate Attachment"}
+        onCropComplete={handleCropExistingConfirmed}
+      />
 
       {/* Smart AI Multi-File Upload Modal (Append to Existing Record) */}
       <SmartBatchUploadModal

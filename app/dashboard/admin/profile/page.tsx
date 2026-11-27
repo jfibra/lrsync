@@ -12,6 +12,7 @@ import { useAuth } from "@/contexts/auth-context"
 import { supabase } from "@/lib/supabase/client"
 import { CheckCircle, AlertCircle, User } from "lucide-react"
 import { logNotification } from "@/utils/logNotification";
+import { SmtpSettingsCard } from "@/components/smtp-settings-card"
 
 export default function ProfilePage() {
   const { profile, refreshProfile } = useAuth()
@@ -421,6 +422,10 @@ export default function ProfilePage() {
                 </Button>
               </CardContent>
             </Card>
+          </div>
+
+          <div className="mt-6">
+            <SmtpSettingsCard />
           </div>
         </div>
       </div>

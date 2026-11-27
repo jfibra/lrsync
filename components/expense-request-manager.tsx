@@ -346,11 +346,18 @@ export function ExpenseRequestManager({ role }: ExpenseRequestManagerProps) {
     if (!invoice.id) return
     setSendingEmailId(invoice.id)
     try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
       const res = await fetch("/api/send-expense-invoice-email", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
         body: JSON.stringify({
           invoiceId: invoice.id,
+          senderUserId: user?.id || profile?.auth_user_id || profile?.id,
           baseUrl: typeof window !== "undefined" ? window.location.origin : undefined,
         }),
       })

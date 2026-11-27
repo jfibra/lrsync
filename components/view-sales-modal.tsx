@@ -286,7 +286,7 @@ export function ViewSalesModal({ open, onOpenChange, sale, onAttachmentDeleted }
     const deleteId = `${categoryKey}-${indexToRemove}`
     setDeletingKey(deleteId)
     try {
-      const currentRaw = activeSale[categoryKey]
+      const currentRaw: unknown = activeSale[categoryKey]
       let rawList: string[] = []
       if (Array.isArray(currentRaw)) {
         rawList = currentRaw.filter(Boolean)
@@ -559,13 +559,12 @@ export function ViewSalesModal({ open, onOpenChange, sale, onAttachmentDeleted }
                     )}
                     {downloadingAll
                       ? "Preparing ZIP..."
-                      : `Download All (${
-                          chequeFiles.length +
-                          voucherFiles.length +
-                          invoiceFiles.length +
-                          doc2307Files.length +
-                          depositSlipFiles.length
-                        })`}
+                      : `Download All (${chequeFiles.length +
+                      voucherFiles.length +
+                      invoiceFiles.length +
+                      doc2307Files.length +
+                      depositSlipFiles.length
+                      })`}
                   </Button>
                 )}
               </div>

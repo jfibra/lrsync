@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import nodemailer from "nodemailer";
 import { createClient } from "@supabase/supabase-js";
 import { v4 as uuidv4 } from "uuid";
+import {
+  getAuthenticatedRequestUser,
+  getUserSmtpConfig,
+  sendMailWithSmtp,
+} from "@/lib/smtp-mailer";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -14,7 +18,10 @@ const EXCLUSIVE_BOSS_EMAIL = "mindworth@gmail.com";
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { invoiceId, pdfBase64, pdfUrl, baseUrl } = body;
+    const { invoiceId, pdfBase64, pdfUrl, baseUrl, senderUserId } = body;
+
+    // Resolve the logged-in sender's per-account SMTP settings (fallback to requester or env defaults)
+    const authUser = await getAuthenticatedRequestUser(request);
 
     if (!invoiceId) {
       return NextResponse.json({ error: "Invoice ID is required" }, { status: 400 });
@@ -232,19 +239,9 @@ export async function POST(request: NextRequest) {
       </html>
     `;
 
-    // Configure SMTP transporter from .env
-    const port = Number(process.env.MAIL_PORT) || 465;
-    const secure = process.env.MAIL_ENCRYPTION === "ssl" || port === 465;
-
-    const transporter = nodemailer.createTransport({
-      host: process.env.MAIL_HOST || "smtp.hostinger.com",
-      port,
-      secure,
-      auth: {
-        user: process.env.MAIL_USERNAME,
-        pass: process.env.MAIL_PASSWORD,
-      },
-    });
+    // Resolve per-account SMTP settings for the logged-in sender (or voucher requester as fallback)
+    const effectiveSenderId = authUser?.id || senderUserId || invoice.requested_by_uuid || null;
+    const { config: smtpConfig } = await getUserSmtpConfig(effectiveSenderId);
 
     const attachments: any[] = [];
     if (pdfUrl && typeof pdfUrl === "string") {
@@ -270,11 +267,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const fromName = (process.env.MAIL_FROM_NAME || "LR Accounting Software").replace(/^"|"$/g, "");
-    const fromAddress = process.env.MAIL_USERNAME || process.env.MAIL_FROM || "info@filipinohomes.com";
-
-    await transporter.sendMail({
-      from: `"${fromName}" <${fromAddress}>`,
+    const mailResult = await sendMailWithSmtp(smtpConfig, {
       to: EXCLUSIVE_BOSS_EMAIL,
       subject: `[Expense Approval Required] Voucher #${invoice.invoice_number} - ${formatAmount(invoice.total || 0)} (${invoice.requested_by_name || "LR Accounting"})`,
       html: htmlContent,
@@ -295,6 +288,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       sentTo: EXCLUSIVE_BOSS_EMAIL,
+      cc: mailResult.cc,
+      from: mailResult.from,
       sentAt,
       approvalUrl,
     });

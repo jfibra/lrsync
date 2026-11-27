@@ -6,7 +6,16 @@ import { useAuth } from "@/contexts/auth-context"
 import { logNotification } from "@/utils/logNotification"
 import { formatS3Url } from "@/utils/s3-url"
 import { PHILIPPINE_BANKS } from "@/lib/philippine-banks"
-import { prepareFileForBatchUpload, rotateImageBlob } from "@/lib/image-compress"
+import {
+  prepareFileForBatchUpload,
+  rotateImageBlob,
+  rotatePdfBlob,
+  dataUrlToCompressedImage,
+} from "@/lib/image-compress"
+import {
+  VoucherDocumentCropper,
+  type CroppedAttachmentResult,
+} from "@/components/voucher-document-cropper"
 import type { AnalyzeBatchResponse } from "@/app/api/analyze-batch/route"
 import type { ChequeStatus, CollectorTransaction, CollectorWorkflowStatus } from "@/types/collector"
 import {
@@ -33,6 +42,7 @@ import {
   AlertTriangle,
   Building2,
   CheckCircle2,
+  Crop,
   FileText,
   Loader2,
   Plus,
@@ -181,6 +191,11 @@ export function SmartBatchUploadModal({
   // Saving state
   const [saving, setSaving] = useState(false)
   const [saveStatusText, setSaveStatusText] = useState("")
+
+  // Interactive Cropper state for any staged file (image or PDF)
+  const [cropTargetId, setCropTargetId] = useState<string | null>(null)
+  const [cropTargetFile, setCropTargetFile] = useState<File | null>(null)
+  const [rotatingId, setRotatingId] = useState<string | null>(null)
 
   const clearStagedPreviews = useCallback((files: StagedAttachment[]) => {
     for (const f of files) {
@@ -351,7 +366,7 @@ export function SmartBatchUploadModal({
             previewUrl: result.previewUrl,
             sizeKb: result.sizeKb,
             isPdf: result.isPdf,
-            tag: (result.isPdf ? "invoice" : "auto") as StagedTag,
+            tag: (result.base64 ? "auto" : "invoice") as StagedTag,
           }
         })
       )
@@ -380,26 +395,86 @@ export function SmartBatchUploadModal({
 
   const handleManualRotate = async (id: string) => {
     const target = stagedFiles.find((f) => f.id === id)
-    if (!target || target.isPdf) return
+    if (!target) return
+    setRotatingId(id)
     try {
-      const rotated = await rotateImageBlob(target.blob, 90, 0.85)
+      if (target.isPdf) {
+        const rotatedPdf = await rotatePdfBlob(target.blob, 90)
+        setStagedFiles((prev) =>
+          prev.map((f) => {
+            if (f.id !== id) return f
+            if (f.previewUrl) URL.revokeObjectURL(f.previewUrl)
+            return {
+              ...f,
+              blob: rotatedPdf.pdfBlob,
+              base64: rotatedPdf.base64,
+              previewUrl: rotatedPdf.previewUrl,
+              sizeKb: rotatedPdf.sizeKb,
+            }
+          })
+        )
+      } else {
+        const rotated = await rotateImageBlob(target.blob, 90, 0.85)
+        setStagedFiles((prev) =>
+          prev.map((f) => {
+            if (f.id !== id) return f
+            if (f.previewUrl) URL.revokeObjectURL(f.previewUrl)
+            return {
+              ...f,
+              blob: rotated.blob,
+              base64: rotated.base64,
+              mimeType: rotated.mimeType,
+              previewUrl: rotated.previewUrl,
+              sizeKb: rotated.sizeKb,
+            }
+          })
+        )
+      }
+    } catch (err: any) {
+      console.error("Manual rotate failed:", err)
+      toast.error(err?.message || "Failed to rotate file")
+    } finally {
+      setRotatingId(null)
+    }
+  }
+
+  const handleOpenCropperForStaged = (item: StagedAttachment) => {
+    const fileForCropper = new File([item.blob], item.fileName, {
+      type: item.mimeType || (item.isPdf ? "application/pdf" : "image/jpeg"),
+    })
+    setCropTargetId(item.id)
+    setCropTargetFile(fileForCropper)
+  }
+
+  const handleStagedCropComplete = async (result: CroppedAttachmentResult) => {
+    if (!cropTargetId) return
+    const targetId = cropTargetId
+    setCropTargetId(null)
+    setCropTargetFile(null)
+    try {
+      const compressed = await dataUrlToCompressedImage(result.dataUrl, 0.85)
       setStagedFiles((prev) =>
         prev.map((f) => {
-          if (f.id !== id) return f
+          if (f.id !== targetId) return f
           if (f.previewUrl) URL.revokeObjectURL(f.previewUrl)
+          const baseName = f.fileName.replace(/\.[^.]+$/, "")
           return {
             ...f,
-            blob: rotated.blob,
-            base64: rotated.base64,
-            mimeType: rotated.mimeType,
-            previewUrl: rotated.previewUrl,
-            sizeKb: rotated.sizeKb,
+            fileName: `${baseName}_cropped.jpg`,
+            blob: compressed.blob,
+            base64: compressed.base64,
+            mimeType: "image/jpeg",
+            previewUrl: compressed.previewUrl,
+            sizeKb: compressed.sizeKb,
+            isPdf: false,
           }
         })
       )
+      setHasAnalyzedCurrentBatch(false)
+      toast.success("File cropped and updated in batch!")
     } catch (err: any) {
-      console.error("Manual rotate failed:", err)
-      toast.error(err?.message || "Failed to rotate image")
+      console.error("Staged crop apply failed:", err)
+      toast.error(err?.message || "Failed to apply crop")
     }
   }
 
@@ -452,7 +527,7 @@ export function SmartBatchUploadModal({
     currentFiles: StagedAttachment[]
   ): Promise<{ updatedFiles: StagedAttachment[]; aiData: AnalyzeBatchResponse | null }> => {
     const visionItems = currentFiles
-      .filter((f) => !f.isPdf && f.base64)
+      .filter((f) => Boolean(f.base64))
       .slice(0, MAX_VISION_IMAGES)
 
     if (visionItems.length === 0) {
@@ -476,7 +551,7 @@ export function SmartBatchUploadModal({
             id: f.id,
             tag: f.tag,
             imageBase64: f.base64!,
-            mimeType: f.mimeType || "image/jpeg",
+            mimeType: "image/jpeg",
             fileName: f.fileName,
           })),
         }),
@@ -502,18 +577,31 @@ export function SmartBatchUploadModal({
               : f
 
           const rotDeg = data.detected_rotations?.[f.id]
-          if (!nextItem.isPdf && (rotDeg === 90 || rotDeg === 180 || rotDeg === 270)) {
+          if (rotDeg === 90 || rotDeg === 180 || rotDeg === 270) {
             try {
-              const rotated = await rotateImageBlob(nextItem.blob, rotDeg, 0.85)
-              if (nextItem.previewUrl) URL.revokeObjectURL(nextItem.previewUrl)
-              autoRotatedCount += 1
-              nextItem = {
-                ...nextItem,
-                blob: rotated.blob,
-                base64: rotated.base64,
-                mimeType: rotated.mimeType,
-                previewUrl: rotated.previewUrl,
-                sizeKb: rotated.sizeKb,
+              if (nextItem.isPdf) {
+                const rotatedPdf = await rotatePdfBlob(nextItem.blob, rotDeg)
+                if (nextItem.previewUrl) URL.revokeObjectURL(nextItem.previewUrl)
+                autoRotatedCount += 1
+                nextItem = {
+                  ...nextItem,
+                  blob: rotatedPdf.pdfBlob,
+                  base64: rotatedPdf.base64,
+                  previewUrl: rotatedPdf.previewUrl,
+                  sizeKb: rotatedPdf.sizeKb,
+                }
+              } else {
+                const rotated = await rotateImageBlob(nextItem.blob, rotDeg, 0.85)
+                if (nextItem.previewUrl) URL.revokeObjectURL(nextItem.previewUrl)
+                autoRotatedCount += 1
+                nextItem = {
+                  ...nextItem,
+                  blob: rotated.blob,
+                  base64: rotated.base64,
+                  mimeType: rotated.mimeType,
+                  previewUrl: rotated.previewUrl,
+                  sizeKb: rotated.sizeKb,
+                }
               }
             } catch (rotErr) {
               console.warn(`Auto-rotate failed for ${nextItem.fileName}:`, rotErr)
@@ -566,9 +654,9 @@ export function SmartBatchUploadModal({
   }
 
   const handleManualAiClick = async () => {
-    const hasImages = stagedFiles.some((f) => !f.isPdf && f.base64)
-    if (!hasImages) {
-      toast.error("Add at least one image file to run AI Auto-Read & Tag (PDFs are uploaded directly).")
+    const hasReadableFiles = stagedFiles.some((f) => Boolean(f.base64))
+    if (!hasReadableFiles) {
+      toast.error("Add at least one image or PDF file to run AI Auto-Read & Tag.")
       return
     }
     await runAiAnalysis(stagedFiles)
@@ -589,10 +677,10 @@ export function SmartBatchUploadModal({
       let workingFiles = stagedFiles
       let aiData = lastAiResult
 
-      // Auto-run AI analysis if user clicked Save without running it first on staged images
+      // Auto-run AI analysis if user clicked Save without running it first on staged images/PDFs
       const hasUnanalyzedImages =
         !hasAnalyzedCurrentBatch &&
-        workingFiles.some((f) => !f.isPdf && f.base64)
+        workingFiles.some((f) => Boolean(f.base64))
       if (hasUnanalyzedImages) {
         setSaveStatusText("Running AI Auto-Read & Tag...")
         const res = await runAiAnalysis(workingFiles)
@@ -894,7 +982,7 @@ export function SmartBatchUploadModal({
   const hasLiveDiscrepancy =
     liveComm !== null && liveCheque !== null && Math.abs(liveCheque - liveComm) > 0.01
 
-  const imageCount = stagedFiles.filter((f) => !f.isPdf && f.base64).length
+  const readableCount = stagedFiles.filter((f) => Boolean(f.base64)).length
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && !saving && onClose()}>
@@ -1003,13 +1091,13 @@ export function SmartBatchUploadModal({
                 type="button"
                 size="sm"
                 onClick={handleManualAiClick}
-                disabled={analyzing || saving || imageCount === 0}
+                disabled={analyzing || saving || readableCount === 0}
                 className="bg-gradient-to-r from-indigo-600 to-sky-600 hover:from-indigo-700 hover:to-sky-700 text-white font-semibold h-8 text-xs shadow-sm"
               >
                 {analyzing ? (
                   <>
                     <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-                    Analyzing {Math.min(imageCount, MAX_VISION_IMAGES)} image(s)...
+                    Analyzing {Math.min(readableCount, MAX_VISION_IMAGES)} file(s)...
                   </>
                 ) : (
                   <>
@@ -1033,17 +1121,24 @@ export function SmartBatchUploadModal({
                     className="rounded-lg border border-slate-200 bg-white p-2.5 space-y-2 shadow-xs"
                   >
                     <div className="flex items-start gap-2.5">
-                      {item.isPdf || !item.previewUrl ? (
+                      {item.previewUrl ? (
+                        <div className="relative h-12 w-12 shrink-0">
+                          <img
+                            src={item.previewUrl}
+                            alt={item.fileName}
+                            className="h-12 w-12 rounded-md object-cover border border-slate-200"
+                          />
+                          {item.isPdf && (
+                            <span className="absolute -bottom-1 -right-1 rounded bg-sky-700 px-1 py-0 text-[8px] font-bold text-white shadow">
+                              PDF
+                            </span>
+                          )}
+                        </div>
+                      ) : (
                         <div className="h-12 w-12 rounded-md bg-sky-50 border border-sky-200 flex flex-col items-center justify-center text-sky-700 shrink-0">
                           <FileText className="h-5 w-5" />
                           <span className="text-[9px] font-bold">PDF</span>
                         </div>
-                      ) : (
-                        <img
-                          src={item.previewUrl}
-                          alt={item.fileName}
-                          className="h-12 w-12 rounded-md object-cover border border-slate-200 shrink-0"
-                        />
                       )}
                       <div className="min-w-0 flex-1">
                         <div className="text-xs font-semibold text-slate-900 truncate" title={item.fileName}>
@@ -1053,23 +1148,34 @@ export function SmartBatchUploadModal({
                           <span>{item.sizeKb} KB</span>
                           {item.isPdf && (
                             <Badge variant="outline" className="text-[9px] py-0 px-1 border-sky-300 text-sky-700">
-                              PDF · Direct S3
+                              PDF · AI Ready
                             </Badge>
                           )}
                         </div>
                       </div>
                       <div className="flex items-center gap-0.5 shrink-0">
-                        {!item.isPdf && (
-                          <button
-                            type="button"
-                            onClick={() => handleManualRotate(item.id)}
-                            disabled={saving || analyzing}
-                            className="p-1 text-slate-500 hover:text-indigo-700 rounded hover:bg-indigo-50"
-                            title="Rotate 90° clockwise"
-                          >
+                        <button
+                          type="button"
+                          onClick={() => handleOpenCropperForStaged(item)}
+                          disabled={saving || analyzing || rotatingId === item.id}
+                          className="p-1 text-slate-500 hover:text-sky-700 rounded hover:bg-sky-50"
+                          title="Crop / Edit attachment"
+                        >
+                          <Crop className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleManualRotate(item.id)}
+                          disabled={saving || analyzing || rotatingId === item.id}
+                          className="p-1 text-slate-500 hover:text-indigo-700 rounded hover:bg-indigo-50"
+                          title="Rotate 90° clockwise"
+                        >
+                          {rotatingId === item.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
                             <RotateCw className="h-3.5 w-3.5" />
-                          </button>
-                        )}
+                          )}
+                        </button>
                         <button
                           type="button"
                           onClick={() => removeStagedFile(item.id)}
@@ -1084,7 +1190,7 @@ export function SmartBatchUploadModal({
 
                     {/* 1-Tap Category Pills */}
                     <div className="flex flex-wrap gap-1">
-                      {TAG_PILLS.filter((p) => !(item.isPdf && p.key === "auto")).map((pill) => {
+                      {TAG_PILLS.filter((p) => !(p.key === "auto" && !item.base64)).map((pill) => {
                         const isActive = item.tag === pill.key
                         return (
                           <button
@@ -1423,6 +1529,20 @@ export function SmartBatchUploadModal({
           </div>
         </DialogFooter>
       </DialogContent>
+
+      {/* Interactive Crop & Rotate Modal for Staged Files (Images & PDFs) */}
+      <VoucherDocumentCropper
+        open={Boolean(cropTargetFile)}
+        onOpenChange={(o) => {
+          if (!o) {
+            setCropTargetId(null)
+            setCropTargetFile(null)
+          }
+        }}
+        file={cropTargetFile}
+        title="Crop / Rotate Staged Attachment"
+        onCropComplete={handleStagedCropComplete}
+      />
     </Dialog>
   )
 }
