@@ -48,13 +48,60 @@ import { cn } from "@/lib/utils"
 interface NavItemConfig {
   label: string
   shortLabel?: string
+  description?: string
   href: (roleSlug: string) => string
   icon: React.ComponentType<{ className?: string }>
   roles: string[]
   exclusiveEmail?: string
-  group: "main" | "commissions" | "admin" | "account"
+  group: "home" | "sales" | "expenses" | "commissions" | "libraries" | "admin" | "account"
   highlight?: boolean
 }
+
+interface NavGroupMeta {
+  key: "sales" | "expenses" | "commissions" | "libraries" | "admin"
+  label: string
+  drawerTitle: string
+  dropdownHeading: string
+  icon: React.ComponentType<{ className?: string }>
+}
+
+const NAV_GROUPS: NavGroupMeta[] = [
+  {
+    key: "sales",
+    label: "Sales & Cheques",
+    drawerTitle: "Sales & Cheques",
+    dropdownHeading: "Sales & Collections",
+    icon: PhilippinePeso,
+  },
+  {
+    key: "expenses",
+    label: "Expenses",
+    drawerTitle: "Expenses & Purchases",
+    dropdownHeading: "Purchases & Expense Vouchers",
+    icon: Receipt,
+  },
+  {
+    key: "commissions",
+    label: "Commissions",
+    drawerTitle: "Commissions",
+    dropdownHeading: "Commission Modules",
+    icon: BarChart3,
+  },
+  {
+    key: "libraries",
+    label: "Libraries",
+    drawerTitle: "Libraries & Resources",
+    dropdownHeading: "Directory, Files & Guides",
+    icon: FolderOpen,
+  },
+  {
+    key: "admin",
+    label: "Management",
+    drawerTitle: "Administration",
+    dropdownHeading: "System Administration",
+    icon: UserCog,
+  },
+]
 
 export function DashboardHeader() {
   const { user, profile, loading: authLoading } = useAuth()
@@ -104,74 +151,56 @@ export function DashboardHeader() {
         href: (slug) => `/dashboard/${slug}`,
         icon: LayoutDashboard,
         roles: ["super_admin", "admin", "secretary"],
-        group: "main",
+        group: "home",
       },
       {
         label: "Sales",
+        description: "Sales ledger & BIR records",
         href: (slug) => `/dashboard/${slug}/sales`,
         icon: PhilippinePeso,
         roles: ["super_admin", "admin", "secretary"],
-        group: "main",
+        group: "sales",
       },
       {
         label: "Cheque Verification",
         shortLabel: "Cheques",
+        description: "Collector batches, AI upload & cheques",
         href: (slug) => `/dashboard/${slug}/cheque-verification`,
         icon: FileCheck2,
         roles: ["super_admin", "admin", "secretary"],
-        group: "main",
+        group: "sales",
       },
       {
         label: "Purchases",
+        description: "Official purchases & receipts",
         href: (slug) => `/dashboard/${slug}/purchases`,
         icon: ShoppingCart,
         roles: ["super_admin", "secretary"],
-        group: "main",
+        group: "expenses",
       },
       {
         label: "Expense Request",
         shortLabel: "Expenses",
+        description: "Itemized requests & expense vouchers",
         href: (slug) => `/dashboard/${slug}/expense-request`,
         icon: Receipt,
         roles: ["super_admin", "secretary"],
-        group: "main",
+        group: "expenses",
       },
       {
         label: "Expense Approvals",
         shortLabel: "Approvals",
+        description: "Executive signature & approvals",
         href: () => `/dashboard/super-admin/expense-approvals`,
         icon: ShieldCheck,
         roles: ["super_admin"],
         exclusiveEmail: "mindworth@gmail.com",
-        group: "main",
+        group: "expenses",
         highlight: true,
       },
       {
-        label: "TIN Library",
-        shortLabel: "TIN",
-        href: (slug) => `/dashboard/${slug}/tin-library`,
-        icon: Building2,
-        roles: ["super_admin", "admin", "secretary"],
-        group: "main",
-      },
-      {
-        label: "File Library",
-        shortLabel: "Library",
-        href: (slug) => `/dashboard/${slug}/attachments-library`,
-        icon: FolderOpen,
-        roles: ["super_admin", "admin"],
-        group: "main",
-      },
-      {
-        label: "Tutorials",
-        shortLabel: "Tutorials",
-        href: () => `/dashboard/tutorials`,
-        icon: Video,
-        roles: ["super_admin", "admin", "secretary"],
-        group: "main",
-      },
-      {
         label: "Commission Generator",
+        description: "Compute & generate agent commissions",
         href: (slug) => `/dashboard/${slug}/commission`,
         icon: Calculator,
         roles: ["super_admin", "admin", "secretary"],
@@ -179,6 +208,7 @@ export function DashboardHeader() {
       },
       {
         label: "Commission Reports",
+        description: "Saved reports & status tracking",
         href: (slug) => `/dashboard/${slug}/commission-reports`,
         icon: FileText,
         roles: ["super_admin", "secretary"],
@@ -186,6 +216,7 @@ export function DashboardHeader() {
       },
       {
         label: "Agent Breakdown",
+        description: "Per-agent commission summary",
         href: () => `/dashboard/super-admin/commission-agent-breakdown`,
         icon: BarChart3,
         roles: ["super_admin"],
@@ -193,6 +224,7 @@ export function DashboardHeader() {
       },
       {
         label: "Vouchers",
+        description: "Commission slips, printing & merging",
         href: (slug) => `/dashboard/${slug}/vouchers`,
         icon: Receipt,
         roles: ["super_admin", "secretary"],
@@ -200,14 +232,43 @@ export function DashboardHeader() {
       },
       {
         label: "Releases",
+        description: "Merged releases & proof of transaction",
         href: (slug) => `/dashboard/${slug}/releases`,
         icon: Layers,
         roles: ["super_admin", "secretary"],
         group: "commissions",
       },
       {
+        label: "TIN Library",
+        shortLabel: "TIN",
+        description: "Taxpayer & developer directory",
+        href: (slug) => `/dashboard/${slug}/tin-library`,
+        icon: Building2,
+        roles: ["super_admin", "admin", "secretary"],
+        group: "libraries",
+      },
+      {
+        label: "File Library",
+        shortLabel: "Library",
+        description: "All uploaded images & PDFs",
+        href: (slug) => `/dashboard/${slug}/attachments-library`,
+        icon: FolderOpen,
+        roles: ["super_admin", "admin"],
+        group: "libraries",
+      },
+      {
+        label: "Tutorials",
+        shortLabel: "Tutorials",
+        description: "Video guides & walkthroughs",
+        href: () => `/dashboard/tutorials`,
+        icon: Video,
+        roles: ["super_admin", "admin", "secretary"],
+        group: "libraries",
+      },
+      {
         label: "User Management",
         shortLabel: "Users",
+        description: "Accounts, roles & collector resets",
         href: (slug) => `/dashboard/${slug}/users`,
         icon: Users,
         roles: ["super_admin", "admin"],
@@ -215,6 +276,7 @@ export function DashboardHeader() {
       },
       {
         label: "Activity Tracker",
+        description: "Audit trail & system notifications",
         href: () => `/dashboard/super-admin/activity-tracker`,
         icon: Activity,
         roles: ["super_admin"],
@@ -222,6 +284,7 @@ export function DashboardHeader() {
       },
       {
         label: "Admin Settings",
+        description: "Purchase categories & system config",
         href: () => `/dashboard/super-admin/admin-settings`,
         icon: Settings,
         roles: ["super_admin"],
@@ -250,31 +313,36 @@ export function DashboardHeader() {
     })
   }, [profile?.role, profile?.email, user?.email, allNavItems])
 
-  const mainNavItems = React.useMemo(
-    () => filteredNavItems.filter((i) => i.group === "main"),
-    [filteredNavItems]
-  )
-  const commissionNavItems = React.useMemo(
-    () => filteredNavItems.filter((i) => i.group === "commissions"),
-    [filteredNavItems]
-  )
-  const adminNavItems = React.useMemo(
-    () => filteredNavItems.filter((i) => i.group === "admin"),
+  const homeNavItem = React.useMemo(
+    () => filteredNavItems.find((i) => i.group === "home") || null,
     [filteredNavItems]
   )
 
-  const isCommissionActive = commissionNavItems.some(
-    (item) => pathname === item.href(roleSlug)
-  )
-  const isAdminActive = adminNavItems.some(
-    (item) => pathname === item.href(roleSlug)
+  const groupedNavSections = React.useMemo(
+    () =>
+      NAV_GROUPS.map((meta) => ({
+        ...meta,
+        items: filteredNavItems.filter((i) => i.group === meta.key),
+      })).filter((section) => section.items.length > 0),
+    [filteredNavItems]
   )
 
   // Bottom bar items for quick thumb access on mobile (< lg)
   const mobileBottomItems = React.useMemo(() => {
-    const picked = mainNavItems.slice(0, 4)
-    return picked
-  }, [mainNavItems])
+    const preferredOrder = ["Dashboard", "Sales", "Cheque Verification", "Expense Request"]
+    const picked: NavItemConfig[] = []
+    for (const label of preferredOrder) {
+      const found = filteredNavItems.find((i) => i.label === label)
+      if (found) picked.push(found)
+    }
+    if (picked.length < 4) {
+      for (const item of filteredNavItems) {
+        if (picked.length >= 4) break
+        if (item.group !== "account" && !picked.includes(item)) picked.push(item)
+      }
+    }
+    return picked.slice(0, 4)
+  }, [filteredNavItems])
 
   return (
     <>
@@ -293,145 +361,133 @@ export function DashboardHeader() {
             </div>
           </Link>
 
-          {/* Center: Desktop Navigation (Single line, zero wrapping) */}
-          <nav className="hidden lg:flex items-center gap-1 xl:gap-1.5 overflow-x-auto no-scrollbar py-1">
-            {mainNavItems.map((item) => {
-              const targetHref = item.href(roleSlug)
-              const isActive = pathname === targetHref
+          {/* Center: Compact Grouped Desktop Navigation (Zero horizontal overflow, scales cleanly) */}
+          <nav className="hidden lg:flex items-center gap-1 xl:gap-1.5 py-1">
+            {homeNavItem && (
+              <Link
+                href={homeNavItem.href(roleSlug)}
+                className={cn(
+                  "flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-2 text-xs xl:text-sm font-medium transition-all",
+                  pathname === homeNavItem.href(roleSlug)
+                    ? "bg-[#0284c7] text-white font-semibold shadow-sm"
+                    : "text-white/80 hover:bg-white/10 hover:text-white"
+                )}
+              >
+                <homeNavItem.icon className="h-4 w-4 shrink-0" />
+                <span>{homeNavItem.label}</span>
+              </Link>
+            )}
+
+            {groupedNavSections.map((section) => {
+              const isSectionActive = section.items.some(
+                (item) => pathname === item.href(roleSlug)
+              )
+              const hasHighlight = section.items.some((item) => item.highlight)
+
+              // Single-item section renders directly as a clean link
+              if (section.items.length === 1) {
+                const onlyItem = section.items[0]
+                const targetHref = onlyItem.href(roleSlug)
+                const isActive = pathname === targetHref
+                return (
+                  <Link
+                    key={section.key}
+                    href={targetHref}
+                    className={cn(
+                      "flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-2 text-xs xl:text-sm font-medium transition-all",
+                      isActive
+                        ? "bg-[#0284c7] text-white font-semibold shadow-sm"
+                        : "text-white/80 hover:bg-white/10 hover:text-white"
+                    )}
+                  >
+                    <onlyItem.icon className="h-4 w-4 shrink-0" />
+                    <span>{onlyItem.shortLabel || onlyItem.label}</span>
+                  </Link>
+                )
+              }
+
               return (
-                <Link
-                  key={item.label}
-                  href={targetHref}
-                  className={cn(
-                    "flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 xl:px-3 py-2 text-xs xl:text-sm font-medium transition-all",
-                    item.highlight
-                      ? isActive
-                        ? "bg-amber-500 text-slate-950 font-bold shadow-sm"
-                        : "bg-amber-500/20 text-amber-300 border border-amber-400/30 hover:bg-amber-500/30 font-semibold"
-                      : isActive
-                      ? "bg-[#0284c7] text-white font-semibold shadow-sm"
-                      : "text-white/80 hover:bg-white/10 hover:text-white"
-                  )}
-                >
-                  <item.icon className="h-4 w-4 shrink-0" />
-                  <span>{item.label}</span>
-                </Link>
+                <DropdownMenu key={section.key}>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      className={cn(
+                        "relative flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-2 text-xs xl:text-sm font-medium transition-all outline-none",
+                        isSectionActive
+                          ? "bg-[#0284c7] text-white font-semibold shadow-sm"
+                          : "text-white/80 hover:bg-white/10 hover:text-white"
+                      )}
+                    >
+                      <section.icon className="h-4 w-4 shrink-0" />
+                      <span>{section.label}</span>
+                      {hasHighlight && (
+                        <span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-400" />
+                      )}
+                      <ChevronDown className="h-3.5 w-3.5 opacity-75" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    align="start"
+                    className="w-64 bg-[#1a242f] border-white/15 text-white p-1.5 shadow-xl"
+                  >
+                    <DropdownMenuLabel className="text-[11px] uppercase tracking-wider text-slate-400 px-2.5 py-1">
+                      {section.dropdownHeading}
+                    </DropdownMenuLabel>
+                    {section.items.map((item) => {
+                      const targetHref = item.href(roleSlug)
+                      const isActive = pathname === targetHref
+                      return (
+                        <DropdownMenuItem
+                          key={item.label}
+                          asChild
+                          className="focus:bg-white/10 focus:text-white cursor-pointer rounded-md p-0"
+                        >
+                          <Link
+                            href={targetHref}
+                            className={cn(
+                              "flex items-start gap-2.5 px-2.5 py-2 text-sm w-full rounded-md",
+                              item.highlight
+                                ? isActive
+                                  ? "bg-amber-500 text-slate-950 font-bold"
+                                  : "bg-amber-500/15 text-amber-300 border border-amber-400/30 font-semibold"
+                                : isActive
+                                ? "bg-[#0284c7] text-white font-semibold"
+                                : "text-white/85"
+                            )}
+                          >
+                            <item.icon
+                              className={cn(
+                                "h-4 w-4 shrink-0 mt-0.5",
+                                item.highlight
+                                  ? isActive
+                                    ? "text-slate-950"
+                                    : "text-amber-300"
+                                  : isActive
+                                  ? "text-white"
+                                  : "text-sky-400"
+                              )}
+                            />
+                            <div className="min-w-0 flex-1 leading-tight">
+                              <div>{item.label}</div>
+                              {item.description && (
+                                <div
+                                  className={cn(
+                                    "text-[11px] font-normal mt-0.5 truncate",
+                                    isActive ? "text-white/80" : "text-slate-400"
+                                  )}
+                                >
+                                  {item.description}
+                                </div>
+                              )}
+                            </div>
+                          </Link>
+                        </DropdownMenuItem>
+                      )
+                    })}
+                  </DropdownMenuContent>
+                </DropdownMenu>
               )
             })}
-
-            {/* Commissions Group (Direct link if 1 item, Dropdown if multiple) */}
-            {commissionNavItems.length === 1 ? (
-              <Link
-                href={commissionNavItems[0].href(roleSlug)}
-                className={cn(
-                  "flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 xl:px-3 py-2 text-xs xl:text-sm font-medium transition-all",
-                  pathname === commissionNavItems[0].href(roleSlug)
-                    ? "bg-[#0284c7] text-white font-semibold shadow-sm"
-                    : "text-white/80 hover:bg-white/10 hover:text-white"
-                )}
-              >
-                <Calculator className="h-4 w-4 shrink-0" />
-                <span>{commissionNavItems[0].label}</span>
-              </Link>
-            ) : commissionNavItems.length > 1 ? (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    type="button"
-                    className={cn(
-                      "flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 xl:px-3 py-2 text-xs xl:text-sm font-medium transition-all outline-none",
-                      isCommissionActive
-                        ? "bg-[#0284c7] text-white font-semibold shadow-sm"
-                        : "text-white/80 hover:bg-white/10 hover:text-white"
-                    )}
-                  >
-                    <BarChart3 className="h-4 w-4 shrink-0" />
-                    <span>Commissions</span>
-                    <ChevronDown className="h-3.5 w-3.5 opacity-75" />
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-56 bg-[#1a242f] border-white/15 text-white p-1.5">
-                  <DropdownMenuLabel className="text-[11px] uppercase tracking-wider text-slate-400 px-2 py-1">
-                    Commission Modules
-                  </DropdownMenuLabel>
-                  {commissionNavItems.map((item) => {
-                    const targetHref = item.href(roleSlug)
-                    const isActive = pathname === targetHref
-                    return (
-                      <DropdownMenuItem key={item.label} asChild className="focus:bg-white/10 focus:text-white cursor-pointer rounded-md">
-                        <Link
-                          href={targetHref}
-                          className={cn(
-                            "flex items-center gap-2.5 px-2.5 py-2 text-sm",
-                            isActive ? "bg-[#0284c7] text-white font-semibold" : "text-white/85"
-                          )}
-                        >
-                          <item.icon className="h-4 w-4 shrink-0 text-sky-400" />
-                          <span>{item.label}</span>
-                        </Link>
-                      </DropdownMenuItem>
-                    )
-                  })}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            ) : null}
-
-            {/* Admin / Management Group (Direct link if 1 item, Dropdown if multiple) */}
-            {adminNavItems.length === 1 ? (
-              <Link
-                href={adminNavItems[0].href(roleSlug)}
-                className={cn(
-                  "flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 xl:px-3 py-2 text-xs xl:text-sm font-medium transition-all",
-                  pathname === adminNavItems[0].href(roleSlug)
-                    ? "bg-[#0284c7] text-white font-semibold shadow-sm"
-                    : "text-white/80 hover:bg-white/10 hover:text-white"
-                )}
-              >
-                <UserCog className="h-4 w-4 shrink-0" />
-                <span>{adminNavItems[0].shortLabel || adminNavItems[0].label}</span>
-              </Link>
-            ) : adminNavItems.length > 1 ? (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    type="button"
-                    className={cn(
-                      "flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 xl:px-3 py-2 text-xs xl:text-sm font-medium transition-all outline-none",
-                      isAdminActive
-                        ? "bg-[#0284c7] text-white font-semibold shadow-sm"
-                        : "text-white/80 hover:bg-white/10 hover:text-white"
-                    )}
-                  >
-                    <UserCog className="h-4 w-4 shrink-0" />
-                    <span>Management</span>
-                    <ChevronDown className="h-3.5 w-3.5 opacity-75" />
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-56 bg-[#1a242f] border-white/15 text-white p-1.5">
-                  <DropdownMenuLabel className="text-[11px] uppercase tracking-wider text-slate-400 px-2 py-1">
-                    System Administration
-                  </DropdownMenuLabel>
-                  {adminNavItems.map((item) => {
-                    const targetHref = item.href(roleSlug)
-                    const isActive = pathname === targetHref
-                    return (
-                      <DropdownMenuItem key={item.label} asChild className="focus:bg-white/10 focus:text-white cursor-pointer rounded-md">
-                        <Link
-                          href={targetHref}
-                          className={cn(
-                            "flex items-center gap-2.5 px-2.5 py-2 text-sm",
-                            isActive ? "bg-[#0284c7] text-white font-semibold" : "text-white/85"
-                          )}
-                        >
-                          <item.icon className="h-4 w-4 shrink-0 text-sky-400" />
-                          <span>{item.label}</span>
-                        </Link>
-                      </DropdownMenuItem>
-                    )
-                  })}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            ) : null}
           </nav>
 
           {/* Right: Notifications, User Menu & Mobile Drawer Trigger */}
@@ -573,7 +629,7 @@ export function DashboardHeader() {
                   <DropdownMenuItem asChild className="cursor-pointer rounded-md">
                     <Link href={`/dashboard/${roleSlug}/profile`} className="flex items-center gap-2 py-2">
                       <User className="h-4 w-4 text-slate-500" />
-                      <span>My Profile</span>
+                      <span>Profile &amp; SMTP Settings</span>
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
@@ -649,47 +705,33 @@ export function DashboardHeader() {
 
                 {/* Scrollable Categorized Navigation Links */}
                 <div className="flex-1 overflow-y-auto px-3 py-4 space-y-5">
-                  {/* Core Modules */}
-                  <div>
-                    <div className="px-3 mb-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                      Main Navigation
-                    </div>
-                    <nav className="grid gap-1">
-                      {mainNavItems.map((item) => {
-                        const targetHref = item.href(roleSlug)
-                        const isActive = pathname === targetHref
-                        return (
-                          <Link
-                            key={`mobile-${item.label}`}
-                            href={targetHref}
-                            onClick={() => setIsMobileMenuOpen(false)}
-                            className={cn(
-                              "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
-                              item.highlight
-                                ? isActive
-                                  ? "bg-amber-500 text-slate-950 font-bold"
-                                  : "bg-amber-500/15 text-amber-300 border border-amber-400/30"
-                                : isActive
-                                ? "bg-[#0284c7] text-white font-semibold shadow-sm"
-                                : "text-white/80 hover:bg-white/10 hover:text-white"
-                            )}
-                          >
-                            <item.icon className="h-4 w-4 shrink-0" />
-                            <span>{item.label}</span>
-                          </Link>
-                        )
-                      })}
-                    </nav>
-                  </div>
-
-                  {/* Commissions Section */}
-                  {commissionNavItems.length > 0 && (
+                  {homeNavItem && (
                     <div>
+                      <nav className="grid gap-1">
+                        <Link
+                          href={homeNavItem.href(roleSlug)}
+                          onClick={() => setIsMobileMenuOpen(false)}
+                          className={cn(
+                            "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+                            pathname === homeNavItem.href(roleSlug)
+                              ? "bg-[#0284c7] text-white font-semibold shadow-sm"
+                              : "text-white/80 hover:bg-white/10 hover:text-white"
+                          )}
+                        >
+                          <homeNavItem.icon className="h-4 w-4 shrink-0" />
+                          <span>{homeNavItem.label}</span>
+                        </Link>
+                      </nav>
+                    </div>
+                  )}
+
+                  {groupedNavSections.map((section) => (
+                    <div key={`mobile-section-${section.key}`}>
                       <div className="px-3 mb-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                        Commissions
+                        {section.drawerTitle}
                       </div>
                       <nav className="grid gap-1">
-                        {commissionNavItems.map((item) => {
+                        {section.items.map((item) => {
                           const targetHref = item.href(roleSlug)
                           const isActive = pathname === targetHref
                           return (
@@ -699,7 +741,11 @@ export function DashboardHeader() {
                               onClick={() => setIsMobileMenuOpen(false)}
                               className={cn(
                                 "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
-                                isActive
+                                item.highlight
+                                  ? isActive
+                                    ? "bg-amber-500 text-slate-950 font-bold"
+                                    : "bg-amber-500/15 text-amber-300 border border-amber-400/30"
+                                  : isActive
                                   ? "bg-[#0284c7] text-white font-semibold shadow-sm"
                                   : "text-white/80 hover:bg-white/10 hover:text-white"
                               )}
@@ -711,38 +757,7 @@ export function DashboardHeader() {
                         })}
                       </nav>
                     </div>
-                  )}
-
-                  {/* Administration Section */}
-                  {adminNavItems.length > 0 && (
-                    <div>
-                      <div className="px-3 mb-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                        Administration
-                      </div>
-                      <nav className="grid gap-1">
-                        {adminNavItems.map((item) => {
-                          const targetHref = item.href(roleSlug)
-                          const isActive = pathname === targetHref
-                          return (
-                            <Link
-                              key={`mobile-${item.label}`}
-                              href={targetHref}
-                              onClick={() => setIsMobileMenuOpen(false)}
-                              className={cn(
-                                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
-                                isActive
-                                  ? "bg-[#0284c7] text-white font-semibold shadow-sm"
-                                  : "text-white/80 hover:bg-white/10 hover:text-white"
-                              )}
-                            >
-                              <item.icon className="h-4 w-4 shrink-0" />
-                              <span>{item.label}</span>
-                            </Link>
-                          )
-                        })}
-                      </nav>
-                    </div>
-                  )}
+                  ))}
                 </div>
 
                 {/* Sticky Drawer Footer: Profile & Logout */}
