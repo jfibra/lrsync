@@ -43,7 +43,10 @@ export async function POST(request: NextRequest) {
             mail_from_name: String(override.mail_from_name || savedConfig.mail_from_name)
               .replace(/^"|"$/g, "")
               .trim(),
-            mail_from: String(override.mail_from || savedConfig.mail_from).trim(),
+            mail_from:
+              override.mail_from !== undefined
+                ? String(override.mail_from).trim()
+                : savedConfig.mail_from,
             mail_cc:
               override.mail_cc !== undefined ? String(override.mail_cc).trim() : savedConfig.mail_cc,
           }

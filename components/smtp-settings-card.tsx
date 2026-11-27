@@ -310,18 +310,20 @@ export function SmtpSettingsCard() {
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-xs font-semibold text-[#001f3f]">From Email</Label>
+                <Label className="text-xs font-semibold text-[#001f3f]">
+                  From Email <span className="font-normal text-slate-400">(optional — defaults to SMTP Username)</span>
+                </Label>
                 <Input
                   value={form.mail_from}
                   onChange={(e) => setForm((f) => ({ ...f, mail_from: e.target.value }))}
-                  placeholder="no-reply@filipinohomes.com"
+                  placeholder="Leave blank to use SMTP Username"
                   className="bg-white border-slate-300 text-[#001f3f]"
                 />
               </div>
 
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold text-[#001f3f]">
-                  CC Email(s) <span className="font-normal text-slate-400">(comma-separated)</span>
+                  CC Email(s) <span className="font-normal text-slate-400">(optional, comma-separated)</span>
                 </Label>
                 <Input
                   value={form.mail_cc}

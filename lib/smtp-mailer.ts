@@ -108,8 +108,11 @@ export async function getUserSmtpConfig(userId?: string | null): Promise<{
         mail_from_name: (data.mail_from_name || defaults.mail_from_name)
           .replace(/^"|"$/g, "")
           .trim(),
-        mail_from: (data.mail_from || defaults.mail_from).trim(),
-        mail_cc: data.mail_cc !== null && data.mail_cc !== undefined ? String(data.mail_cc).trim() : defaults.mail_cc,
+        mail_from:
+          data.mail_from !== null && data.mail_from !== undefined
+            ? String(data.mail_from).trim()
+            : "",
+        mail_cc: data.mail_cc !== null && data.mail_cc !== undefined ? String(data.mail_cc).trim() : "",
       },
     }
   } catch (err) {
