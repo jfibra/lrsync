@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
       status: 200,
       headers: {
         "Content-Type": contentType,
-        "Cache-Control": "no-store",
+        "Cache-Control": "private, max-age=3600, stale-while-revalidate=86400",
       },
     })
   } catch (error: any) {

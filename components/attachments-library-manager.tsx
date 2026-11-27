@@ -40,7 +40,7 @@ import {
 import { format } from "date-fns"
 import { supabase } from "@/lib/supabase/client"
 import { useAuth } from "@/contexts/auth-context"
-import { formatS3Url } from "@/utils/s3-url"
+import { formatS3Url, getThumbnailUrl } from "@/utils/s3-url"
 import { safeParseArray } from "@/lib/safe-parse"
 import { logNotification } from "@/utils/logNotification"
 import { parseVoucherAttachmentUrls, serializeVoucherAttachmentUrls } from "@/components/voucher-bondpaper-document"
@@ -331,7 +331,8 @@ export function AttachmentsLibraryManager({ role }: AttachmentsLibraryManagerPro
   const [uploaderFilter, setUploaderFilter] = useState<string>("all")
   const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("newest")
   const [searchTerm, setSearchTerm] = useState("")
-  const [visibleCount, setVisibleCount] = useState(48)
+  const [visibleCount, setVisibleCount] = useState(24)
+  const loadMoreRef = useRef<HTMLDivElement | null>(null)
 
   // Broken image tracker
   const [brokenImages, setBrokenImages] = useState<Record<string, boolean>>({})
@@ -956,6 +957,22 @@ export function AttachmentsLibraryManager({ role }: AttachmentsLibraryManagerPro
     [filteredItems, visibleCount]
   )
 
+  // Auto-load next 24 cards as user scrolls near bottom
+  useEffect(() => {
+    const el = loadMoreRef.current
+    if (!el || visibleCount >= filteredItems.length) return
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          setVisibleCount((c) => Math.min(filteredItems.length, c + 24))
+        }
+      },
+      { rootMargin: "300px" }
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [visibleCount, filteredItems.length])
+
   const selectedIndex = useMemo(() => {
     if (!selectedItem) return -1
     return filteredItems.findIndex((i) => i.uid === selectedItem.uid)
@@ -1328,7 +1345,7 @@ export function AttachmentsLibraryManager({ role }: AttachmentsLibraryManagerPro
                 value={searchTerm}
                 onChange={(e) => {
                   setSearchTerm(e.target.value)
-                  setVisibleCount(48)
+                  setVisibleCount(24)
                 }}
                 placeholder="Search library (record, uploader, cheque, file...)"
                 className="pl-10 rounded-full bg-slate-50 border-slate-200 focus:bg-white text-sm text-[#001f3f]"
@@ -1365,7 +1382,7 @@ export function AttachmentsLibraryManager({ role }: AttachmentsLibraryManagerPro
                   type="button"
                   onClick={() => {
                     setTypeTab(tab.key)
-                    setVisibleCount(48)
+                    setVisibleCount(24)
                   }}
                   className={`px-3.5 py-1.5 rounded-full text-xs sm:text-sm font-medium transition-all ${
                     active
@@ -1392,7 +1409,7 @@ export function AttachmentsLibraryManager({ role }: AttachmentsLibraryManagerPro
               value={sourceFilter}
               onValueChange={(val) => {
                 setSourceFilter(val)
-                setVisibleCount(48)
+                setVisibleCount(24)
               }}
             >
               <SelectTrigger className="h-9 w-44 rounded-full bg-white border-slate-200 text-xs text-[#001f3f]">
@@ -1414,7 +1431,7 @@ export function AttachmentsLibraryManager({ role }: AttachmentsLibraryManagerPro
               value={uploaderFilter}
               onValueChange={(val) => {
                 setUploaderFilter(val)
-                setVisibleCount(48)
+                setVisibleCount(24)
               }}
             >
               <SelectTrigger className="h-9 w-44 rounded-full bg-white border-slate-200 text-xs text-[#001f3f]">
@@ -1481,12 +1498,19 @@ export function AttachmentsLibraryManager({ role }: AttachmentsLibraryManagerPro
                   {item.fileKind === "image" && !isBroken ? (
                     <div className="relative w-full bg-slate-100">
                       <img
-                        src={item.url}
+                        src={getThumbnailUrl(item.url, 640, 75)}
                         alt={item.fileName}
                         loading="lazy"
-                        onError={() =>
-                          setBrokenImages((prev) => ({ ...prev, [item.uid]: true }))
-                        }
+                        decoding="async"
+                        onError={(e) => {
+                          const img = e.currentTarget
+                          if (!img.dataset.fallbackUsed && img.src !== item.url) {
+                            img.dataset.fallbackUsed = "1"
+                            img.src = item.url
+                          } else {
+                            setBrokenImages((prev) => ({ ...prev, [item.uid]: true }))
+                          }
+                        }}
                         className="w-full h-auto block object-contain group-hover:scale-[1.02] transition-transform duration-300"
                       />
                     </div>
@@ -1551,13 +1575,13 @@ export function AttachmentsLibraryManager({ role }: AttachmentsLibraryManagerPro
             })}
           </div>
 
-          {/* Load More */}
+          {/* Auto Load More Sentinel + Button */}
           {visibleCount < filteredItems.length && (
-            <div className="flex justify-center pt-4">
+            <div ref={loadMoreRef} className="flex justify-center pt-4">
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setVisibleCount((c) => c + 48)}
+                onClick={() => setVisibleCount((c) => c + 24)}
                 className="rounded-full px-6 border-[#001f3f] text-[#001f3f] bg-white hover:bg-slate-100 font-semibold"
               >
                 Load More ({filteredItems.length - visibleCount} remaining)

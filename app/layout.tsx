@@ -28,6 +28,17 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${inter.className} light`} style={{ colorScheme: "light" }} suppressHydrationWarning>
+      <head>
+        <link
+          rel="preconnect"
+          href="https://filipinohomes123.s3.ap-southeast-1.amazonaws.com"
+          crossOrigin="anonymous"
+        />
+        <link
+          rel="dns-prefetch"
+          href="https://filipinohomes123.s3.ap-southeast-1.amazonaws.com"
+        />
+      </head>
       <body suppressHydrationWarning>
         <ThemeProvider
           attribute="class"

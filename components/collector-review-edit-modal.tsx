@@ -5,7 +5,7 @@ import Link from "next/link"
 import { supabase } from "@/lib/supabase/client"
 import { useAuth } from "@/contexts/auth-context"
 import { logNotification } from "@/utils/logNotification"
-import { formatS3Url } from "@/utils/s3-url"
+import { formatS3Url, getThumbnailUrl } from "@/utils/s3-url"
 import { PHILIPPINE_BANKS } from "@/lib/philippine-banks"
 import {
   rotateImageBlob,
@@ -1067,8 +1067,17 @@ export function CollectorReviewEditModal({
                                       </div>
                                     ) : (
                                       <img
-                                        src={url}
+                                        src={getThumbnailUrl(url, 384, 75)}
                                         alt={label}
+                                        loading="lazy"
+                                        decoding="async"
+                                        onError={(e) => {
+                                          const img = e.currentTarget
+                                          if (!img.dataset.fallbackUsed && img.src !== url) {
+                                            img.dataset.fallbackUsed = "1"
+                                            img.src = url
+                                          }
+                                        }}
                                         className="h-full w-full object-cover group-hover:scale-105 transition-transform"
                                       />
                                     )}

@@ -25,3 +25,43 @@ export function formatS3Url(url: string | null | undefined): string {
     return trimmed;
   }
 }
+
+const OPTIMIZABLE_HOSTS = [
+  ".amazonaws.com",
+  ".supabase.co",
+  ".cloudfront.net",
+  "leuteriorealty.com",
+];
+
+/**
+ * Returns a fast, edge-cached WebP/AVIF thumbnail URL via Next.js Image Optimization
+ * for small grid/card previews without altering the original full-res file in S3.
+ * Full-res `formatS3Url(url)` is still used for Zoom, Download, Print, and Crop.
+ */
+export function getThumbnailUrl(
+  url: string | null | undefined,
+  width: 256 | 384 | 640 = 640,
+  quality = 75
+): string {
+  const formatted = formatS3Url(url);
+  if (!formatted) return "";
+  if (formatted.startsWith("blob:") || formatted.startsWith("data:")) return formatted;
+
+  const cleanPath = formatted.split("?")[0].toLowerCase();
+  if (cleanPath.endsWith(".pdf") || cleanPath.endsWith(".svg")) return formatted;
+
+  try {
+    const parsed = new URL(formatted);
+    if (
+      parsed.protocol === "https:" &&
+      OPTIMIZABLE_HOSTS.some(
+        (h) => parsed.hostname === h || parsed.hostname.endsWith(h)
+      )
+    ) {
+      return `/_next/image?url=${encodeURIComponent(formatted)}&w=${width}&q=${quality}`;
+    }
+  } catch {
+    // non-absolute URL
+  }
+  return formatted;
+}
